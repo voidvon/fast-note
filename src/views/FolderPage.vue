@@ -103,7 +103,15 @@ const isTopFolder = computed(() => {
 })
 
 const folders = computed(() => {
-  return folderList.value
+  return folderList.value.toSorted((a, b) => {
+    return new Date(b.originNote.updated!).getTime() - new Date(a.originNote.updated!).getTime()
+  })
+})
+
+const sortedNoteList = computed(() => {
+  return noteList.value.toSorted((a, b) => {
+    return new Date(b.originNote.updated!).getTime() - new Date(a.originNote.updated!).getTime()
+  })
 })
 
 const title = computed(() => {
@@ -240,7 +248,7 @@ onIonViewDidEnter(() => {
       </IonHeader>
 
       <NoteList
-        :data-list="[...folders, ...noteList]"
+        :data-list="[...folders, ...sortedNoteList]"
         :show-parent-folder="data.id === 'allnotes'"
         @selected="$emit('selected', $event)"
       />

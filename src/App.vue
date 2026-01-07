@@ -1,17 +1,27 @@
 <script setup lang="ts">
 import { IonApp, IonRouterOutlet } from '@ionic/vue'
 import { onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { pocketbaseAuthAdapter } from '@/adapters/pocketbase/auth-adapter'
 import { PocketBaseRealtimeAdapter } from '@/adapters/pocketbase/realtime-adapter'
 import { authManager } from '@/core/auth-manager'
 import { realtimeManager } from '@/core/realtime-manager'
 import { useSync } from '@/hooks/useSync'
 import { useTheme } from '@/hooks/useTheme'
+import { useLastVisitedRoute } from './hooks/useLastVisitedRoute'
 import { useVisualViewport } from './hooks/useVisualViewport'
 
 const { initTheme } = useTheme()
+const router = useRouter()
+const { setupAutoSave, restoreLastVisitedRoute } = useLastVisitedRoute()
 
 useVisualViewport(true)
+
+// 设置自动保存路由
+setupAutoSave(router)
+
+// 立即恢复最后访问的路由（不需要等待 onMounted）
+restoreLastVisitedRoute(router)
 
 onMounted(async () => {
   // 初始化主题

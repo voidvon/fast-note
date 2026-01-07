@@ -179,10 +179,12 @@ async function handleNoteSaving() {
     // 自动同步笔记到云端（静默模式）
     // 静默模式：未登录时不会抛出错误，直接跳过
     try {
-      await sync(true)
-      // 同步成功提示
-      state.toast.message = '同步成功'
-      state.toast.isOpen = true
+      const syncResult = await sync(true)
+      // 只有在真正同步成功时才显示提示（syncResult 不为 null）
+      if (syncResult) {
+        state.toast.message = '同步成功'
+        state.toast.isOpen = true
+      }
     }
     catch (error) {
       console.error('自动同步失败:', error)
