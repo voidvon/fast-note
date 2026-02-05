@@ -262,7 +262,7 @@ onIonViewDidEnter(() => {
         </IonButtons>
         <IonTitle>
           {{ folders.length > 0 ? `${folders.length}个文件夹 ·` : '' }}
-          {{ notes.length > 0 ? `${notes.length}个备忘录` : '无备忘录' }}
+          {{ noteList.length > 0 ? `${noteList.length}个备忘录` : '无备忘录' }}
         </IonTitle>
         <IonButtons v-if="data.id !== 'allnotes' && !isUserContext" slot="end">
           <IonButton :router-link="`/n/0?parent_id=${folderId}`" router-direction="forward">
