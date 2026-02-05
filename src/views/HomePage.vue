@@ -76,6 +76,7 @@ onUnmounted(() => {
 })
 
 const page = ref()
+const folderPageRef = ref()
 
 const dataList = ref<FolderTreeNode[]>([])
 // 使用单个计算属性同时计算两个值，只遍历一次数组
@@ -122,8 +123,9 @@ const addButtons: AlertButton[] = [
 ]
 const state = reactive({
   windowWidth: 0,
-  folerId: '',
+  folerId: isDesktop.value ? 'allnotes' : '', // 桌面端默认选中全部备忘录
   noteId: '',
+  parentId: '', // 新建笔记时的父文件夹ID
 })
 
 const sortDataList = computed(() => {
@@ -159,6 +161,17 @@ async function init() {
   else if (deletedData) {
     deletedNotes.value = deletedData
   }
+
+  // 桌面端初始化时，如果选中了全部备忘录且没有选中笔记，自动选择第一条笔记
+  if (isDesktop.value && state.folerId === 'allnotes' && !state.noteId) {
+    const allNotes = notes.value
+      .filter(d => d.item_type === NOTE_TYPE.NOTE && d.is_deleted === 0)
+      .sort((a, b) => new Date(b.updated!).getTime() - new Date(a.updated!).getTime())
+    
+    if (allNotes.length > 0) {
+      state.noteId = allNotes[0].id!
+    }
+  }
 }
 
 onUpdateNote((item) => {
@@ -174,6 +187,17 @@ onIonViewWillEnter(() => {
 onMounted(() => {
   presentingElement.value = page.value.$el
 })
+
+function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
+  // 如果是新建的笔记，选中它
+  if (event.isNew) {
+    state.noteId = event.noteId
+  }
+  // 刷新 FolderPage 的列表
+  if (folderPageRef.value) {
+    folderPageRef.value.refresh()
+  }
+}
 </script>
 
 <template>
@@ -241,7 +265,20 @@ onMounted(() => {
         </IonButtons>
         <IonTitle />
         <IonButtons slot="end">
-          <IonButton router-link="/n/0" router-direction="forward">
+          <IonButton
+            v-if="isDesktop"
+            @click="() => {
+              state.parentId = ''
+              state.noteId = '0'
+            }"
+          >
+            <IonIcon :icon="createOutline" />
+          </IonButton>
+          <IonButton
+            v-else
+            router-link="/n/0"
+            router-direction="forward"
+          >
             <IonIcon :icon="createOutline" />
           </IonButton>
         </IonButtons>
@@ -261,12 +298,21 @@ onMounted(() => {
     /> -->
     <div v-if="isDesktop" class="home-list">
       <FolderPage
+        ref="folderPageRef"
         :current-folder="state.folerId"
         @selected="(id: string) => state.noteId = id"
+        @create-note="(parentId: string) => {
+          state.parentId = parentId
+          state.noteId = '0'
+        }"
       />
     </div>
     <div v-if="isDesktop" class="home-detail">
-      <NoteDetail :note-id="state.noteId" />
+      <NoteDetail 
+        :note-id="state.noteId" 
+        :parent-id="state.parentId"
+        @note-saved="handleNoteSaved"
+      />
     </div>
   </IonPage>
 </template>

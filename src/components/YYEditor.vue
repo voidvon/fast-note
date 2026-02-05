@@ -129,6 +129,7 @@ defineExpose({
   editor,
   insertFile: handleFileInput,
   insertFiles,
+  focus: () => editor.value?.commands.focus(),
 })
 </script>
 

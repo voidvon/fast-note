@@ -37,7 +37,7 @@ const props = withDefaults(
   },
 )
 
-defineEmits(['selected'])
+defineEmits(['selected', 'createNote'])
 
 const route = useRoute()
 const { notes, addNote, getNote, getFolderTreeByParentId } = useNote()
@@ -226,6 +226,11 @@ onIonViewDidEnter(() => {
   if (!isDesktop.value)
     init()
 })
+
+// 暴露 refresh 方法给父组件
+defineExpose({
+  refresh: init,
+})
 </script>
 
 <template>
@@ -266,6 +271,24 @@ onIonViewDidEnter(() => {
         </IonTitle>
         <IonButtons v-if="data.id !== 'allnotes' && !isUserContext" slot="end">
           <IonButton :router-link="`/n/0?parent_id=${folderId}`" router-direction="forward">
+            <IonIcon :icon="createOutline" />
+          </IonButton>
+        </IonButtons>
+      </IonToolbar>
+    </IonFooter>
+    <IonFooter v-else-if="isDesktop && data.id !== 'allnotes' && !isUserContext">
+      <IonToolbar>
+        <IonButtons slot="start">
+          <IonButton id="add-folder2">
+            <IonIcon :icon="addOutline" />
+          </IonButton>
+        </IonButtons>
+        <IonTitle>
+          {{ folders.length > 0 ? `${folders.length}个文件夹 ·` : '' }}
+          {{ noteList.length > 0 ? `${noteList.length}个备忘录` : '无备忘录' }}
+        </IonTitle>
+        <IonButtons slot="end">
+          <IonButton @click="$emit('createNote', folderId)">
             <IonIcon :icon="createOutline" />
           </IonButton>
         </IonButtons>

@@ -22,11 +22,15 @@ import { getTime } from '@/utils/date'
 const props = withDefaults(
   defineProps<{
     noteId?: string
+    parentId?: string
   }>(),
   {
     noteId: '',
+    parentId: '',
   },
 )
+
+const emit = defineEmits(['noteSaved'])
 
 const route = useRoute()
 const router = useRouter()
@@ -77,9 +81,29 @@ const effectiveUuid = computed(() => {
   return idFromSource.value
 })
 
-watch(idFromSource, (id) => {
+watch(idFromSource, async (id, oldId) => {
+  // 如果从一个笔记切换到另一个笔记，先保存当前笔记
+  if (oldId && oldId !== '0' && oldId !== id && isDesktop.value) {
+    await handleNoteSaving()
+  }
+
   if (id && id !== '0') {
     init(id)
+  }
+  else if (id === '0') {
+    // 新建笔记，清空编辑器
+    data.value = null
+    newNoteId.value = nanoid(12)
+    nextTick(() => {
+      if (editorRef.value) {
+        editorRef.value.setContent('')
+        editorRef.value.setEditable(true)
+        // 自动聚焦到编辑器
+        setTimeout(() => {
+          editorRef.value?.focus()
+        }, 100)
+      }
+    })
   }
   else if (!isNewNote.value) { // This condition means id is falsy (e.g. '', undefined)
     // No note selected, clear editor
@@ -125,8 +149,9 @@ async function handleNoteSaving() {
   if (isNewNote.value && !content)
     return
 
-  // 如果在桌面端首次保存，则生成ID并更新路由
-  if (isNewNote.value && isDesktop.value)
+  // 如果在桌面端首次保存新笔记，更新 noteId 以便后续保存
+  // 移动端则需要更新路由
+  if (isNewNote.value && !isDesktop.value)
     router.replace({ path: `/n/${effectiveUuid.value}` })
 
   const id = effectiveUuid.value
@@ -142,6 +167,7 @@ async function handleNoteSaving() {
 
   // 保存笔记数据
   if (content) {
+    const wasNewNote = isNewNote.value
     const noteExists = await getNote(id)
     if (noteExists) {
       // 更新笔记
@@ -154,6 +180,10 @@ async function handleNoteSaving() {
         files: fileHashes,
       })
       await updateNote(id, updatedNote)
+      data.value = updatedNote
+      
+      // 通知父组件笔记已保存（更新）
+      emit('noteSaved', { noteId: id, isNew: false })
     }
     else {
       // 新增笔记
@@ -164,7 +194,9 @@ async function handleNoteSaving() {
         created: getTime(),
         updated: time,
         item_type: NOTE_TYPE.NOTE,
-        parent_id: (!route.query.parent_id || route.query.parent_id === 'unfilednotes') ? '' : route.query.parent_id as string,
+        parent_id: isDesktop.value
+          ? (props.parentId || '')
+          : ((!route.query.parent_id || route.query.parent_id === 'unfilednotes') ? '' : route.query.parent_id as string),
         id,
         is_deleted: 0,
         is_locked: 0,
@@ -174,6 +206,14 @@ async function handleNoteSaving() {
       await addNote(newNote)
       updateParentFolderSubcount(newNote)
       data.value = newNote
+      
+      // 新建笔记保存后，重置 newNoteId，这样下次就不会被认为是新笔记
+      if (wasNewNote) {
+        newNoteId.value = null
+      }
+      
+      // 通知父组件笔记已保存（新建）
+      emit('noteSaved', { noteId: id, isNew: true })
     }
 
     // 自动同步笔记到云端（静默模式）
