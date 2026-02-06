@@ -18,7 +18,7 @@ import {
 } from '@ionic/vue'
 import { addOutline, createOutline } from 'ionicons/icons'
 import { nanoid } from 'nanoid'
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import NoteList from '@/components/NoteList.vue'
 import { useDeviceType } from '@/hooks/useDeviceType'
@@ -63,9 +63,19 @@ const folderList = ref<FolderTreeNode[]>([])
 const noteList = ref<FolderTreeNode[]>([])
 
 const folderId = computed(() => {
-  const path = route.path
-  const lastId = path.split('/')
-  return lastId[lastId.length - 1]
+  // 对于 /f/:pathMatch(.*)*，使用 route.params.pathMatch
+  if (route.params.pathMatch) {
+    const pathMatch = Array.isArray(route.params.pathMatch) 
+      ? route.params.pathMatch.join('/')
+      : route.params.pathMatch
+    // 如果 pathMatch 包含多级路径，取最后一段
+    const segments = pathMatch.split('/')
+    return segments[segments.length - 1]
+  }
+  
+  // 兜底：从 path 中解析
+  const segments = route.path.split('/')
+  return segments[segments.length - 1]
 })
 
 const username = computed(() => route.params.username as string)
@@ -132,14 +142,32 @@ const { backButtonProps } = useFolderBackButton(
   username.value,
 )
 
+// 桌面端：监听 props.currentFolder 变化
 watch(
   () => props.currentFolder,
   () => {
-    if (props.currentFolder)
+    if (isDesktop.value && props.currentFolder) {
       init()
+    }
   },
   { immediate: true },
 )
+
+// 移动端：监听路由变化和组件挂载
+watch(
+  () => route.path,
+  () => {
+    if (!isDesktop.value) {
+      init()
+    }
+  },
+)
+
+onMounted(() => {
+  if (!isDesktop.value) {
+    init()
+  }
+})
 
 async function init() {
   let id
@@ -147,6 +175,7 @@ async function init() {
     id = props.currentFolder
   else
     id = folderId.value
+  
   if (!id)
     return
 
@@ -163,8 +192,6 @@ async function init() {
       folderList.value = getPublicFolderTreeByPUuid(id)
       if (publicNotes.value)
         noteList.value = publicNotes.value.filter(d => d.item_type === NOTE_TYPE.NOTE && d.parent_id === id).map(d => ({ originNote: d })) as FolderTreeNode[]
-
-      // 直接使用数据库中的 note_count，无需计算
     }
     else {
       // 当前用户的文件夹上下文
