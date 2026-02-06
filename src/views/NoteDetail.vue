@@ -82,27 +82,31 @@ const effectiveUuid = computed(() => {
 })
 
 watch(idFromSource, async (id, oldId) => {
-  // 如果从一个笔记切换到另一个笔记，先保存当前笔记
-  if (oldId && oldId !== '0' && oldId !== id && isDesktop.value) {
-    await handleNoteSaving()
+  // 如果从一个笔记切换到另一个笔记，先保存当前笔记（静默保存，不触发列表刷新）
+  // 但如果是切换到新建笔记（id === '0'），不保存
+  if (oldId && oldId !== '0' && oldId !== id && id !== '0' && isDesktop.value) {
+    await handleNoteSaving(true) // 传入 silent 参数，表示静默保存
   }
 
   if (id && id !== '0') {
     init(id)
   }
   else if (id === '0') {
-    // 新建笔记，清空编辑器
+    // 新建笔记，立即清空编辑器和数据
     data.value = null
     newNoteId.value = nanoid(12)
+    
+    // 立即清空编辑器内容，不使用 nextTick
+    if (editorRef.value) {
+      editorRef.value.setContent('')
+      editorRef.value.setEditable(true)
+    }
+    
+    // 延迟聚焦，确保编辑器已经清空
     nextTick(() => {
-      if (editorRef.value) {
-        editorRef.value.setContent('')
-        editorRef.value.setEditable(true)
-        // 自动聚焦到编辑器
-        setTimeout(() => {
-          editorRef.value?.focus()
-        }, 100)
-      }
+      setTimeout(() => {
+        editorRef.value?.focus()
+      }, 100)
     })
   }
   else if (!isNewNote.value) { // This condition means id is falsy (e.g. '', undefined)
@@ -139,15 +143,20 @@ function changeFormatModal(n: boolean) {
   }
 }
 
-async function handleNoteSaving() {
+async function handleNoteSaving(silent = false) {
   if (!editorRef.value)
     return
   const content = editorRef.value.getContent()
-  const { title, summary } = editorRef.value.getTitle()
+  let { title, summary } = editorRef.value.getTitle()
 
   // 如果是新笔记且内容为空，则不执行任何操作
   if (isNewNote.value && !content)
     return
+
+  // 如果标题为空，使用默认标题
+  if (!title || title.trim() === '') {
+    title = '新建备忘录'
+  }
 
   // 如果在桌面端首次保存新笔记，更新 noteId 以便后续保存
   // 移动端则需要更新路由
@@ -182,8 +191,10 @@ async function handleNoteSaving() {
       await updateNote(id, updatedNote)
       data.value = updatedNote
       
-      // 通知父组件笔记已保存（更新）
-      emit('noteSaved', { noteId: id, isNew: false })
+      // 静默保存时不发出事件，避免触发列表刷新
+      if (!silent) {
+        emit('noteSaved', { noteId: id, isNew: false })
+      }
     }
     else {
       // 新增笔记
@@ -212,25 +223,28 @@ async function handleNoteSaving() {
         newNoteId.value = null
       }
       
-      // 通知父组件笔记已保存（新建）
+      // 新建笔记总是发出事件，需要刷新列表
       emit('noteSaved', { noteId: id, isNew: true })
     }
 
     // 自动同步笔记到云端（静默模式）
     // 静默模式：未登录时不会抛出错误，直接跳过
-    try {
-      const syncResult = await sync(true)
-      // 只有在真正同步成功时才显示提示（syncResult 不为 null）
-      if (syncResult) {
-        state.toast.message = '同步成功'
+    // 静默保存时不显示同步提示
+    if (!silent) {
+      try {
+        const syncResult = await sync(true)
+        // 只有在真正同步成功时才显示提示（syncResult 不为 null）
+        if (syncResult) {
+          state.toast.message = '同步成功'
+          state.toast.isOpen = true
+        }
+      }
+      catch (error) {
+        console.error('自动同步失败:', error)
+        // 同步失败提示
+        state.toast.message = '同步失败，请检查网络连接'
         state.toast.isOpen = true
       }
-    }
-    catch (error) {
-      console.error('自动同步失败:', error)
-      // 同步失败提示
-      state.toast.message = '同步失败，请检查网络连接'
-      state.toast.isOpen = true
     }
   }
   else {
@@ -249,7 +263,7 @@ async function init(id: string) {
         // 公开笔记始终为只读模式
         editorRef.value?.setEditable(false)
         nextTick(() => {
-          editorRef.value?.setContent(data.value.content)
+          editorRef.value?.setContent(data.value?.content || '')
         })
       }
     }
@@ -268,7 +282,7 @@ async function init(id: string) {
         }
 
         nextTick(() => {
-          editorRef.value?.setContent(data.value.content)
+          editorRef.value?.setContent(data.value?.content || '')
         })
       }
     }

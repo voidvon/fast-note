@@ -91,8 +91,10 @@ const routerLink = computed(() => {
 
 function onClick() {
   emit('selected', noteData.value.id)
-  if (!props.disabledRoute)
+  // 只在移动端且未禁用路由时才执行路由跳转
+  if (!props.disabledRoute && !isDesktop.value && router) {
     router.push(routerLink.value)
+  }
 }
 </script>
 

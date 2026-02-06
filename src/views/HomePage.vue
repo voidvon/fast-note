@@ -189,14 +189,15 @@ onMounted(() => {
 })
 
 function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
-  // 如果是新建的笔记，选中它
+  // 如果是新建的笔记，选中它并刷新列表
   if (event.isNew) {
     state.noteId = event.noteId
+    // 只在新建笔记时刷新列表，确保新笔记被正确显示和选中
+    if (folderPageRef.value) {
+      folderPageRef.value.refresh()
+    }
   }
-  // 刷新 FolderPage 的列表
-  if (folderPageRef.value) {
-    folderPageRef.value.refresh()
-  }
+  // 更新笔记时不需要刷新列表，因为 notes store 是响应式的，列表会自动更新
 }
 </script>
 
