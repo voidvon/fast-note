@@ -74,6 +74,13 @@ const initializedUsers = new Set<string>()
 
 // 路由守卫：在进入以 /:username 开头的路由时初始化用户公开笔记
 router.beforeEach(async (to, from, next) => {
+  // PC 版重定向逻辑：访问 /n/:id 或 /f/:path 时重定向到 /home
+  const isDesktop = window.innerWidth >= 640
+  if (isDesktop && (to.path.startsWith('/n/') || to.path.startsWith('/f/'))) {
+    next('/home')
+    return
+  }
+
   // 检查是否是以 /:username 开头的路由
   const usernameRoutes = ['UserHome', 'UserFolder', 'UserNote']
 
