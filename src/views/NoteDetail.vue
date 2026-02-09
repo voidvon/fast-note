@@ -47,6 +47,7 @@ const fileInputRef = ref()
 const imageInputRef = ref()
 const data = ref()
 const newNoteId = ref<string | null>(null)
+const lastSavedContent = ref<string>('') // 记录上次保存的内容
 
 const state = reactive({
   showFormat: false,
@@ -95,6 +96,7 @@ watch(idFromSource, async (id, oldId) => {
     // 新建笔记，立即清空编辑器和数据
     data.value = null
     newNoteId.value = nanoid(12)
+    lastSavedContent.value = '' // 重置上次保存的内容
     
     // 立即清空编辑器内容，不使用 nextTick
     if (editorRef.value) {
@@ -112,6 +114,7 @@ watch(idFromSource, async (id, oldId) => {
   else if (!isNewNote.value) { // This condition means id is falsy (e.g. '', undefined)
     // No note selected, clear editor
     data.value = null
+    lastSavedContent.value = '' // 重置上次保存的内容
     // Using nextTick to ensure editorRef is available
     nextTick(() => {
       if (editorRef.value) {
@@ -152,6 +155,11 @@ async function handleNoteSaving(silent = false) {
   // 如果是新笔记且内容为空，则不执行任何操作
   if (isNewNote.value && !content)
     return
+
+  // 检查内容是否真正发生变化
+  if (content === lastSavedContent.value) {
+    return // 内容未变化，不保存
+  }
 
   // 如果标题为空，使用默认标题
   if (!title || title.trim() === '') {
@@ -227,6 +235,9 @@ async function handleNoteSaving(silent = false) {
       emit('noteSaved', { noteId: id, isNew: true })
     }
 
+    // 更新上次保存的内容
+    lastSavedContent.value = content
+
     // 自动同步笔记到云端（静默模式）
     // 静默模式：未登录时不会抛出错误，直接跳过
     // 静默保存时不显示同步提示
@@ -250,6 +261,7 @@ async function handleNoteSaving(silent = false) {
   else {
     // 内容为空，删除笔记
     await deleteNote(id)
+    lastSavedContent.value = ''
   }
 }
 
@@ -264,6 +276,8 @@ async function init(id: string) {
         editorRef.value?.setEditable(false)
         nextTick(() => {
           editorRef.value?.setContent(data.value?.content || '')
+          // 记录初始内容
+          lastSavedContent.value = data.value?.content || ''
         })
       }
     }
@@ -283,6 +297,8 @@ async function init(id: string) {
 
         nextTick(() => {
           editorRef.value?.setContent(data.value?.content || '')
+          // 记录初始内容
+          lastSavedContent.value = data.value?.content || ''
         })
       }
     }
