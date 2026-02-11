@@ -33,6 +33,9 @@ import { realtimeManager } from '@/core/realtime-manager'
 import { useSync } from '@/hooks/useSync'
 import { pb } from '@/pocketbase'
 
+// 获取全局版本号
+const version = (window as any).version
+
 const router = useIonRouter()
 const { sync, syncing, syncStatus, getLocalDataStats } = useSync()
 
@@ -297,6 +300,13 @@ onMounted(() => {
                   <p>{{ syncStatus.error }}</p>
                 </IonLabel>
                 <IonIcon slot="end" :icon="warningOutline" color="danger" />
+              </IonItem>
+
+              <IonItem>
+                <IonLabel>
+                  <h3>版本号</h3>
+                  <p>{{ version }}</p>
+                </IonLabel>
               </IonItem>
             </IonList>
 
