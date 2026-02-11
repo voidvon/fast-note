@@ -98,7 +98,7 @@ const config = ref<IConfig>({
   deleteNow: {
     label: '永久删除',
     handler: async () => {
-      note.value!.updated = new Date(0).toISOString()
+      note.value!.updated = new Date(0).toISOString().replace('T', ' ')
       await updateNote(note.value!.id, toRaw(note.value!))
       emit('refresh')
       dismiss()

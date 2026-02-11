@@ -21,8 +21,8 @@ export class PocketBaseAuthAdapter implements IAuthService {
           email: authData.record.email,
           username: authData.record.username,
           avatar: authData.record.avatar || '',
-          created: authData.record.created || new Date().toISOString(),
-          updated: authData.record.updated || new Date().toISOString(),
+          created: authData.record.created || new Date().toISOString().replace('T', ' '),
+          updated: authData.record.updated || new Date().toISOString().replace('T', ' '),
         }
 
         return {
@@ -71,8 +71,8 @@ export class PocketBaseAuthAdapter implements IAuthService {
           email: authData.record.email,
           username: authData.record.username,
           avatar: authData.record.avatar || '',
-          created: authData.record.created || new Date().toISOString(),
-          updated: authData.record.updated || new Date().toISOString(),
+          created: authData.record.created || new Date().toISOString().replace('T', ' '),
+          updated: authData.record.updated || new Date().toISOString().replace('T', ' '),
         }
 
         return {
@@ -123,8 +123,8 @@ export class PocketBaseAuthAdapter implements IAuthService {
           email: authData.record.email,
           username: authData.record.username,
           avatar: authData.record.avatar || '',
-          created: authData.record.created || new Date().toISOString(),
-          updated: authData.record.updated || new Date().toISOString(),
+          created: authData.record.created || new Date().toISOString().replace('T', ' '),
+          updated: authData.record.updated || new Date().toISOString().replace('T', ' '),
         }
 
         return {
@@ -161,8 +161,8 @@ export class PocketBaseAuthAdapter implements IAuthService {
       email: model.email,
       username: model.username,
       avatar: model.avatar || '',
-      created: model.created || new Date().toISOString(),
-      updated: model.updated || new Date().toISOString(),
+      created: model.created || new Date().toISOString().replace('T', ' '),
+      updated: model.updated || new Date().toISOString().replace('T', ' '),
     }
   }
 
@@ -191,8 +191,8 @@ export class PocketBaseAuthAdapter implements IAuthService {
             email: model.email,
             username: model.username,
             avatar: model.avatar || '',
-            created: model.created || new Date().toISOString(),
-            updated: model.updated || new Date().toISOString(),
+            created: model.created || new Date().toISOString().replace('T', ' '),
+            updated: model.updated || new Date().toISOString().replace('T', ' '),
           }
         : null
 

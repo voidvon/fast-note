@@ -3,10 +3,10 @@ import type { SyncableItem, SyncStatus, UseRefDBSyncOptions } from './types'
 import { nextTick, ref, toRaw, watch } from 'vue'
 
 /**
- * 生成 ISO 8601 格式的时间戳
+ * 生成 ISO 8601 格式的时间戳（使用空格分隔日期和时间）
  */
 function getCurrentTime(): string {
-  return new Date().toISOString()
+  return new Date().toISOString().replace('T', ' ')
 }
 
 /**

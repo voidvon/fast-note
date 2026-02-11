@@ -259,7 +259,7 @@ export function useNote() {
   }
 
   async function getDeletedNotes() {
-    const thirtyDaysAgo = new Date(Date.now() - (30 * 24 * 60 * 60 * 1000)).toISOString() // 30天前的ISO字符串
+    const thirtyDaysAgo = new Date(Date.now() - (30 * 24 * 60 * 60 * 1000)).toISOString().replace('T', ' ') // 30天前的ISO字符串
     return notes.value.filter(note => note.is_deleted === 1 && note.updated >= thirtyDaysAgo)
   }
 
