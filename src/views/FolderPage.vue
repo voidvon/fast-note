@@ -22,7 +22,6 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import NoteList from '@/components/NoteList.vue'
 import { useDeviceType } from '@/hooks/useDeviceType'
-import { useIonicLongPressList } from '@/hooks/useIonicLongPressList'
 import { useFolderBackButton } from '@/hooks/useSmartBackButton'
 import { useNote, useUserPublicNotes } from '@/stores'
 import { NOTE_TYPE } from '@/types'
@@ -45,21 +44,6 @@ const route = useRoute()
 const { notes, addNote, getNote, getFolderTreeByParentId } = useNote()
 const { isDesktop } = useDeviceType()
 
-const longPressMenuOpen = ref(false)
-const longPressUUID = ref('')
-const listRef = ref()
-useIonicLongPressList(listRef, {
-  itemSelector: 'ion-item', // 匹配 ion-item 元素
-  duration: 500,
-  pressedClass: 'item-long-press',
-  onItemLongPress: async (element) => {
-    const id = element.getAttribute('id')
-    if (id) {
-      longPressUUID.value = id
-      longPressMenuOpen.value = true
-    }
-  },
-})
 const data = ref<Note>({} as Note)
 const folderList = ref<FolderTreeNode[]>([])
 const noteList = ref<FolderTreeNode[]>([])

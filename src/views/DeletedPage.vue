@@ -14,7 +14,6 @@ import {
 import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import NoteList from '@/components/NoteList.vue'
 import { useDeviceType } from '@/hooks/useDeviceType'
-import { useIonicLongPressList } from '@/hooks/useIonicLongPressList'
 import { useSimpleBackButton } from '@/hooks/useSmartBackButton'
 import { useNote } from '@/stores'
 
@@ -27,21 +26,6 @@ const { isDesktop } = useDeviceType()
 const { backButtonProps } = useSimpleBackButton('/home', '备忘录')
 
 const dataList = ref<FolderTreeNode[]>([])
-const longPressMenuOpen = ref(false)
-const longPressUUID = ref('')
-const listRef = ref()
-useIonicLongPressList(listRef, {
-  itemSelector: 'ion-item', // 匹配 ion-item 元素
-  duration: 500,
-  pressedClass: 'item-long-press',
-  onItemLongPress: async (element) => {
-    const id = element.getAttribute('id')
-    if (id) {
-      longPressUUID.value = id
-      longPressMenuOpen.value = true
-    }
-  },
-})
 const state = reactive({
   windowWidth: 0,
 })
@@ -94,7 +78,6 @@ onUnmounted(() => {
       </IonHeader>
 
       <NoteList
-        ref="listRef"
         :data-list="dataList"
         :press-items="[{ type: 'restore' }, { type: 'deleteNow' }]"
         @selected="$emit('selected', $event)"

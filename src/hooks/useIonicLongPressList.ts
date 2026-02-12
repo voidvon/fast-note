@@ -84,12 +84,28 @@ export function useIonicLongPressList(
     }
   }
 
+  // 处理右键菜单事件（PC端）
+  const handleContextMenu = (event: MouseEvent) => {
+    const itemElement = findItemElement(event)
+    if (itemElement) {
+      // 阻止系统右键菜单
+      event.preventDefault()
+      event.stopPropagation()
+
+      // 触发长按回调
+      onItemLongPress(itemElement, event)
+    }
+  }
+
   const setupLongPressGesture = () => {
     if (!listRef.value?.$el)
       return
 
     // 添加捕获阶段的点击事件监听器
     listRef.value?.$el.addEventListener('click', handleClick, true)
+
+    // 添加右键菜单事件监听器（PC端）
+    listRef.value?.$el.addEventListener('contextmenu', handleContextMenu, true)
 
     gesture = createGesture({
       el: listRef.value?.$el,
@@ -153,6 +169,7 @@ export function useIonicLongPressList(
 
     if (listRef.value?.$el) {
       listRef.value?.$el.removeEventListener('click', handleClick, true)
+      listRef.value?.$el.removeEventListener('contextmenu', handleContextMenu, true)
     }
   })
 
