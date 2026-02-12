@@ -301,6 +301,7 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
       <FolderPage
         ref="folderPageRef"
         :current-folder="state.folerId"
+        :selected-note-id="state.noteId"
         @selected="(id: string) => state.noteId = id"
         @create-note="(parentId: string) => {
           state.parentId = parentId

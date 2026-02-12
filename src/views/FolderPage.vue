@@ -31,9 +31,11 @@ import { getTime } from '@/utils/date'
 const props = withDefaults(
   defineProps<{
     currentFolder?: string
+    selectedNoteId?: string
   }>(),
   {
     currentFolder: undefined,
+    selectedNoteId: undefined,
   },
 )
 
@@ -281,6 +283,7 @@ defineExpose({
 
       <NoteList
         :data-list="[...folders, ...sortedNoteList]"
+        :note-uuid="selectedNoteId"
         :show-parent-folder="data.id === 'allnotes'"
         @selected="$emit('selected', $event)"
       />
