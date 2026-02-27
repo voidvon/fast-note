@@ -45,10 +45,17 @@ const { notes, addNote, getNote, getFolderTreeByParentId } = useNote()
 const { isDesktop } = useDeviceType()
 
 const data = ref<Note>({} as Note)
-const folderList = ref<FolderTreeNode[]>([])
-const noteList = ref<FolderTreeNode[]>([])
+
+const username = computed(() => route.params.username as string)
+const isUserContext = computed(() => !!username.value)
 
 const folderId = computed(() => {
+  // 桌面端：使用 props.currentFolder
+  if (isDesktop.value && props.currentFolder) {
+    return props.currentFolder
+  }
+  
+  // 移动端：从路由解析
   // 对于 /f/:pathMatch(.*)*，使用 route.params.pathMatch
   if (route.params.pathMatch) {
     const pathMatch = Array.isArray(route.params.pathMatch) 
@@ -64,8 +71,40 @@ const folderId = computed(() => {
   return segments[segments.length - 1]
 })
 
-const username = computed(() => route.params.username as string)
-const isUserContext = computed(() => !!username.value)
+// 将 folderList 和 noteList 改为计算属性，自动响应 notes 变化
+const folderList = computed(() => {
+  if (!folderId.value || isUserContext.value) return []
+  
+  if (folderId.value === 'allnotes' || folderId.value === 'unfilednotes') {
+    return []
+  }
+  
+  return getFolderTreeByParentId(folderId.value)
+})
+
+const noteList = computed(() => {
+  if (!folderId.value) return []
+  
+  if (folderId.value === 'allnotes') {
+    const allNotes = notes.value.filter(d => d.item_type === NOTE_TYPE.NOTE && d.is_deleted === 0).map(d => ({ originNote: d })) as FolderTreeNode[]
+    const allFolders = notes.value.filter(d => d.item_type === NOTE_TYPE.FOLDER && d.is_deleted === 0)
+    const folderMap = new Map(allFolders.map(folder => [folder.id, folder]))
+    
+    allNotes.forEach((note) => {
+      if (note.originNote.parent_id) {
+        const parentFolder = folderMap.get(note.originNote.parent_id)
+        note.folderName = parentFolder ? parentFolder.title : '备忘录'
+      } else {
+        note.folderName = '备忘录'
+      }
+    })
+    return allNotes
+  } else if (folderId.value === 'unfilednotes') {
+    return notes.value.filter(d => d.item_type === NOTE_TYPE.NOTE && !d.parent_id && d.is_deleted === 0).map(d => ({ originNote: d })) as FolderTreeNode[]
+  } else {
+    return notes.value.filter(d => d.item_type === NOTE_TYPE.NOTE && d.parent_id === folderId.value && d.is_deleted === 0).map(d => ({ originNote: d })) as FolderTreeNode[]
+  }
+})
 
 const addButtons: AlertButton[] = [
   { text: '取消', role: 'cancel' },
@@ -156,76 +195,31 @@ onMounted(() => {
 })
 
 async function init() {
-  let id
-  if (isDesktop.value)
-    id = props.currentFolder
-  else
-    id = folderId.value
+  const id = folderId.value
   
-  if (!id)
-    return
+  if (!id) return
 
   try {
     if (isUserContext.value) {
-      const { publicNotes, getPublicFolderTreeByPUuid, getPublicNote } = useUserPublicNotes(username.value)
-
-      // 用户公开文件夹上下文
+      const { getPublicNote } = useUserPublicNotes(username.value)
       const folderInfo = getPublicNote(id)
       if (folderInfo) {
         data.value = folderInfo
       }
-
-      folderList.value = getPublicFolderTreeByPUuid(id)
-      if (publicNotes.value)
-        noteList.value = publicNotes.value.filter(d => d.item_type === NOTE_TYPE.NOTE && d.parent_id === id).map(d => ({ originNote: d })) as FolderTreeNode[]
-    }
-    else {
+    } else {
       // 当前用户的文件夹上下文
-      const res = await getNote(id)
-      if (res)
-        data.value = res
-
       if (id === 'allnotes') {
         data.value = { id: 'allnotes' } as Note
-        /**
-         * 获取备忘录所属的分类名称
-         * 1. 获取所有分类
-         * 2. 找到当前备忘录所属的分类
-         * 3. 将分类名称赋值给当前备忘录
-         */
-        const allNotes = notes.value.filter(d => d.item_type === NOTE_TYPE.NOTE).map(d => ({ originNote: d })) as FolderTreeNode[]
-        const allFolders = notes.value.filter(d => d.item_type === NOTE_TYPE.FOLDER)
-        // 将文件夹数组转换为 Map，以 id 为键
-        const folderMap = new Map(allFolders.map(folder => [folder.id, folder]))
-
-        // 遍历 dataList，为每个备忘录查找并设置其所属文件夹的名称
-        allNotes.forEach((note) => {
-          if (note.originNote.parent_id) {
-            const parentFolder = folderMap.get(note.originNote.parent_id)
-            if (parentFolder) {
-              note.folderName = parentFolder.title
-            }
-            else {
-              note.folderName = '备忘录'
-            }
-          }
-          else {
-            note.folderName = '备忘录'
-          }
-        })
-        noteList.value = allNotes
-      }
-      else if (id === 'unfilednotes') {
+      } else if (id === 'unfilednotes') {
         data.value = { id: 'unfilednotes' } as Note
-        noteList.value = notes.value.filter(d => d.item_type === NOTE_TYPE.NOTE && !d.parent_id).map(d => ({ originNote: d })) as FolderTreeNode[]
-      }
-      else {
-        folderList.value = getFolderTreeByParentId(id)
-        noteList.value = notes.value.filter(d => d.item_type === NOTE_TYPE.NOTE && d.parent_id === id).map(d => ({ originNote: d })) as FolderTreeNode[]
+      } else {
+        const res = await getNote(id)
+        if (res) {
+          data.value = res
+        }
       }
     }
-  }
-  catch (error) {
+  } catch (error) {
     console.error('初始化文件夹数据失败:', error)
   }
 }

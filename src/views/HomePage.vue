@@ -139,6 +139,13 @@ const sortDataList = computed(() => {
     })
 })
 
+// 监听目录切换，清除选中的备忘录
+watch(() => state.folerId, () => {
+  if (isDesktop.value) {
+    state.noteId = ''
+  }
+})
+
 async function refresh(ev: CustomEvent) {
   await init()
   ev.detail.complete()
