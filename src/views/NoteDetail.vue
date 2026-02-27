@@ -48,12 +48,14 @@ const imageInputRef = ref()
 const data = ref()
 const newNoteId = ref<string | null>(null)
 const lastSavedContent = ref<string>('') // 记录上次保存的内容
+const saveTimer = ref<number | null>(null) // 防抖定时器
 
 const state = reactive({
   showFormat: false,
   showTableFormat: false,
   showNoteMore: false,
   isAuth: false,
+  isFormatModalOpen: false, // 标记格式化面板是否打开
   toast: {
     isOpen: false,
     message: '',
@@ -125,8 +127,14 @@ watch(idFromSource, async (id, oldId) => {
   }
 }, { immediate: true })
 
-watch(() => state.showTableFormat, changeFormatModal)
-watch(() => state.showFormat, changeFormatModal)
+watch(() => state.showTableFormat, (n) => {
+  state.isFormatModalOpen = n
+  changeFormatModal(n)
+})
+watch(() => state.showFormat, (n) => {
+  state.isFormatModalOpen = n
+  changeFormatModal(n)
+})
 
 function changeFormatModal(n: boolean) {
   if (n) {
@@ -147,6 +155,11 @@ function changeFormatModal(n: boolean) {
 }
 
 async function handleNoteSaving(silent = false) {
+  // 如果格式化面板打开，不触发保存
+  if (state.isFormatModalOpen) {
+    return
+  }
+
   if (!editorRef.value)
     return
   const content = editorRef.value.getContent()
@@ -263,6 +276,19 @@ async function handleNoteSaving(silent = false) {
     await deleteNote(id)
     lastSavedContent.value = ''
   }
+}
+
+// 防抖保存函数
+function debouncedSave(silent = false) {
+  // 清除之前的定时器
+  if (saveTimer.value) {
+    clearTimeout(saveTimer.value)
+  }
+  
+  // 设置新的定时器，800ms 后执行保存
+  saveTimer.value = window.setTimeout(() => {
+    handleNoteSaving(silent)
+  }, 800)
 }
 
 async function init(id: string) {
@@ -382,7 +408,7 @@ onIonViewWillLeave(() => {
         <YYEditor
           v-if="effectiveUuid"
           ref="editorRef"
-          @blur="handleNoteSaving"
+          @blur="debouncedSave"
         />
       </div>
       <!-- <div v-if="keyboardHeight > 0" slot="fixed" :style="{ top: `${visualHeight - 66}px` }" class="h-[66px]">
