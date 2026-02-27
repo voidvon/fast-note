@@ -5,6 +5,7 @@ import type { FolderTreeNode } from '@/types'
 import { IonAccordionGroup, IonList } from '@ionic/vue'
 import { ref } from 'vue'
 import LongPressMenu from '@/components/LongPressMenu.vue'
+import NoteMove from '@/components/NoteMove.vue'
 import { useIonicLongPressList } from '@/hooks/useIonicLongPressList'
 import { NOTE_TYPE } from '@/types'
 import NoteListItem from './NoteListItem.vue'
@@ -47,6 +48,8 @@ const emit = defineEmits(['refresh', 'update:noteUuid', 'selected'])
 const listRef = ref<DefineComponent>()
 const longPressId = ref('')
 const longPressMenuOpen = ref(false)
+const showMoveModal = ref(false)
+const moveNoteId = ref('')
 const expandedItems = ref<string[]>([])
 
 if (!props.disabledLongPress) {
@@ -67,6 +70,14 @@ if (!props.disabledLongPress) {
 function onSelected(id: string) {
   emit('update:noteUuid', id)
   emit('selected', id)
+}
+
+function onMove(id: string) {
+  moveNoteId.value = id
+  // 延迟打开，确保 LongPressMenu 完全关闭
+  setTimeout(() => {
+    showMoveModal.value = true
+  }, 300)
 }
 
 function setExpandedItems(items: string[]) {
@@ -168,6 +179,15 @@ defineExpose({
     :items="pressItems"
     :presenting-element
     @did-dismiss="() => longPressMenuOpen = false"
+    @move="onMove"
+    @refresh="$emit('refresh')"
+  />
+  
+  <NoteMove
+    :id="moveNoteId"
+    :is-open="showMoveModal"
+    :presenting-element
+    @did-dismiss="() => showMoveModal = false"
     @refresh="$emit('refresh')"
   />
 </template>

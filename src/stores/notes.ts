@@ -227,10 +227,10 @@ export function useNote() {
       // 确保更新 updated 用于同步检测
       const updatedNote = Object.assign({}, existingNote, updates, { updated: updates.updated || getTime() })
 
-      // 更新数组中的数据
+      // 更新数组中的数据 - 使用 splice 确保触发响应式更新
       const noteIndex = notes.value.findIndex(n => n.id === id)
       if (noteIndex > -1) {
-        notes.value[noteIndex] = updatedNote
+        notes.value.splice(noteIndex, 1, updatedNote)
         // 更新索引
         updateIndexes(updatedNote, 'update')
       }

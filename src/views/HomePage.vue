@@ -78,7 +78,11 @@ onUnmounted(() => {
 const page = ref()
 const folderPageRef = ref()
 
-const dataList = ref<FolderTreeNode[]>([])
+// 将 dataList 改为计算属性，自动响应 notes 的变化
+const dataList = computed(() => {
+  const treeData = getFolderTreeByParentId()
+  return treeData && treeData.length > 0 ? treeData : []
+})
 // 使用单个计算属性同时计算两个值，只遍历一次数组
 const noteCounts = computed(() => {
   const counts = notes.value.reduce((acc, note) => {
@@ -141,13 +145,7 @@ async function refresh(ev: CustomEvent) {
 }
 
 async function init() {
-  // 获取文件夹树数据
-  const treeData = getFolderTreeByParentId()
-  if (treeData && treeData.length > 0) {
-    // 从新的数据结构中提取原始数据，过滤掉无效的节点
-    dataList.value = treeData
-    // 笔记计数已移至计算属性，此处无需重复计算
-  }
+  // dataList 现在是计算属性，会自动更新，无需手动赋值
 
   // 获取已删除的备忘录
   const { data: deletedData, error: deletedError } = await withErrorHandling(

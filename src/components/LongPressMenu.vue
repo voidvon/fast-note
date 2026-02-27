@@ -5,7 +5,6 @@ import { ref, toRaw, watch } from 'vue'
 import { useNote } from '@/stores'
 import { NOTE_TYPE } from '@/types'
 import { getTime } from '@/utils/date'
-// import NoteMove from './NoteMove.vue'
 
 export type ItemType = 'rename' | 'delete' | 'restore' | 'deleteNow' | 'move'
 interface IConfig {
@@ -21,13 +20,12 @@ const props = withDefaults(defineProps <{
   presentingElement?: HTMLElement
 }>(), {})
 
-const emit = defineEmits(['refresh'])
+const emit = defineEmits(['refresh', 'move'])
 
 const { getNote, updateNote, getNotesByParentId, updateParentFolderSubcount } = useNote()
 
 const modal = ref()
 const note = ref<Note | null>(null)
-const showMove = ref(false)
 
 const dismiss = () => modal.value.$el.dismiss()
 
@@ -107,7 +105,9 @@ const config = ref<IConfig>({
   move: {
     label: '移动',
     handler: async () => {
-      showMove.value = true
+      dismiss() // 先关闭当前 Modal
+      // 通知父组件打开移动对话框
+      emit('move', note.value?.id)
     },
   },
 })
@@ -129,16 +129,6 @@ watch(() => props.id, () => {
       </IonList>
     </div>
   </IonModal>
-  <!-- <NoteMove
-    :id="id"
-    :is-open="showMove"
-    :presenting-element
-    @did-dismiss="() => showMove = false"
-    @refresh="() => {
-      $emit('refresh')
-      dismiss()
-    }"
-  /> -->
 </template>
 
 <style lang="scss">
