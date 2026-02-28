@@ -16,6 +16,8 @@ interface LongPressListOptions {
   onItemClick?: (element: HTMLElement, event: MouseEvent) => void
   /** 按下时添加的CSS类名, 默认 'long-press-active' */
   pressedClass?: string
+  /** 是否为桌面模式 */
+  isDesktop?: boolean
 }
 
 export function useIonicLongPressList(
@@ -29,6 +31,7 @@ export function useIonicLongPressList(
     onItemLongPress,
     onItemClick,
     pressedClass = 'long-press-active',
+    isDesktop = false,
   } = options
 
   const isLongPressing = ref(false)
@@ -70,29 +73,24 @@ export function useIonicLongPressList(
   }
 
   const handleClick = (event: MouseEvent) => {
-    // 如果是长按触发后的点击，阻止点击事件
+    // 长按后阻止点击事件
     if (longPressTriggered.value) {
       event.stopImmediatePropagation()
       event.preventDefault()
       return
     }
 
-    // 判断点击的目标是否是列表项
     const itemElement = findItemElement(event)
-    if (itemElement && onItemClick) {
+    if (itemElement && onItemClick)
       onItemClick(itemElement, event)
-    }
   }
 
-  // 处理右键菜单事件（PC端）
+  // 处理右键菜单（桌面端）
   const handleContextMenu = (event: MouseEvent) => {
     const itemElement = findItemElement(event)
     if (itemElement) {
-      // 阻止系统右键菜单
       event.preventDefault()
       event.stopPropagation()
-
-      // 触发长按回调
       onItemLongPress(itemElement, event)
     }
   }
@@ -101,20 +99,21 @@ export function useIonicLongPressList(
     if (!listRef.value?.$el)
       return
 
-    // 添加捕获阶段的点击事件监听器
-    listRef.value?.$el.addEventListener('click', handleClick, true)
+    listRef.value.$el.addEventListener('click', handleClick, true)
+    listRef.value.$el.addEventListener('contextmenu', handleContextMenu, true)
 
-    // 添加右键菜单事件监听器（PC端）
-    listRef.value?.$el.addEventListener('contextmenu', handleContextMenu, true)
+    // 桌面模式：只使用右键菜单，不创建手势（避免阻止滚动）
+    if (isDesktop)
+      return
 
+    // 移动端：创建长按手势
     gesture = createGesture({
-      el: listRef.value?.$el,
+      el: listRef.value.$el,
       threshold: 0,
       gestureName: 'long-press-list',
 
       onStart: (detail) => {
         longPressTriggered.value = false
-
         const itemElement = findItemElement(detail.event)
         if (!itemElement)
           return
@@ -122,33 +121,38 @@ export function useIonicLongPressList(
         currentTarget.value = itemElement
         isLongPressing.value = true
 
-        if (pressedClass) {
+        if (pressedClass)
           itemElement.classList.add(pressedClass)
-        }
 
         longPressTimeout = window.setTimeout(() => {
           if (currentTarget.value === itemElement) {
-            // 标记长按已触发
             longPressTriggered.value = true
-
-            // 触发长按回调
             onItemLongPress(itemElement, detail.event)
+            
+            // 立即清除样式，菜单已显示
+            if (currentTarget.value && pressedClass)
+              currentTarget.value.classList.remove(pressedClass)
+            currentTarget.value = null
+            isLongPressing.value = false
           }
-          cancelLongPress()
         }, duration)
       },
 
       onMove: (detail) => {
-        if (
-          Math.abs(detail.deltaX) > maxMovePx
-          || Math.abs(detail.deltaY) > maxMovePx
-        ) {
+        if (Math.abs(detail.deltaX) > maxMovePx || Math.abs(detail.deltaY) > maxMovePx)
           cancelLongPress()
-        }
       },
 
       onEnd: () => {
-        cancelLongPress()
+        if (!longPressTriggered.value) {
+          cancelLongPress()
+        }
+        else {
+          // 延迟重置标志，避免触发点击事件
+          setTimeout(() => {
+            longPressTriggered.value = false
+          }, 100)
+        }
       },
     })
 
@@ -168,8 +172,8 @@ export function useIonicLongPressList(
     }
 
     if (listRef.value?.$el) {
-      listRef.value?.$el.removeEventListener('click', handleClick, true)
-      listRef.value?.$el.removeEventListener('contextmenu', handleContextMenu, true)
+      listRef.value.$el.removeEventListener('click', handleClick, true)
+      listRef.value.$el.removeEventListener('contextmenu', handleContextMenu, true)
     }
   })
 

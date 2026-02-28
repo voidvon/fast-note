@@ -3,12 +3,15 @@ import type { DefineComponent, Ref } from 'vue'
 import type { ItemType } from '@/components/LongPressMenu.vue'
 import type { FolderTreeNode } from '@/types'
 import { IonAccordionGroup, IonList } from '@ionic/vue'
-import { ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import LongPressMenu from '@/components/LongPressMenu.vue'
 import NoteMove from '@/components/NoteMove.vue'
 import { useIonicLongPressList } from '@/hooks/useIonicLongPressList'
+import { useDeviceType } from '@/hooks/useDeviceType'
 import { NOTE_TYPE } from '@/types'
 import NoteListItem from './NoteListItem.vue'
+
+const { isDesktop } = useDeviceType()
 
 const props = withDefaults(
   defineProps<{
@@ -59,6 +62,7 @@ if (!props.disabledLongPress) {
     itemSelector: 'ion-item', // 匹配 ion-item 元素
     duration: 500,
     pressedClass: 'item-long-press',
+    isDesktop: isDesktop.value,
     onItemLongPress: async (element) => {
       const id = element.getAttribute('data-id')
       if (id && !['allnotes', 'deleted', 'unfilednotes'].includes(id)) {
@@ -91,6 +95,26 @@ function onMove(id: string) {
 function setExpandedItems(items: string[]) {
   expandedItems.value = items
 }
+
+// 桌面模式：修复鼠标滚轮滚动
+onMounted(() => {
+  if (!isDesktop.value || !listRef.value?.$el) return
+
+  const handleWheel = (e: WheelEvent) => {
+    const ionContent = (e.currentTarget as HTMLElement).closest('ion-content')
+    if (!ionContent) return
+
+    const scrollElement = ionContent.shadowRoot?.querySelector('.inner-scroll') || ionContent
+    scrollElement.scrollTop += e.deltaY
+    e.preventDefault()
+  }
+
+  listRef.value.$el.addEventListener('wheel', handleWheel, { passive: false, capture: true })
+
+  onUnmounted(() => {
+    listRef.value?.$el?.removeEventListener('wheel', handleWheel, { capture: true })
+  })
+})
 
 defineExpose({
   setExpandedItems,
