@@ -51,6 +51,8 @@ const longPressMenuOpen = ref(false)
 const showMoveModal = ref(false)
 const moveNoteId = ref('')
 const expandedItems = ref<string[]>([])
+const longPressMenuRef = ref()
+const movePresentingElement = ref<HTMLElement>()
 
 if (!props.disabledLongPress) {
   useIonicLongPressList(listRef as Ref<DefineComponent>, {
@@ -74,6 +76,12 @@ function onSelected(id: string) {
 
 function onMove(id: string) {
   moveNoteId.value = id
+  // 设置正确的 presentingElement：如果 LongPressMenu 存在，使用它作为父级
+  if (longPressMenuRef.value?.$el) {
+    movePresentingElement.value = longPressMenuRef.value.$el
+  } else {
+    movePresentingElement.value = props.presentingElement
+  }
   // 延迟打开，确保 LongPressMenu 完全关闭
   setTimeout(() => {
     showMoveModal.value = true
@@ -174,6 +182,7 @@ defineExpose({
   </IonList>
 
   <LongPressMenu
+    ref="longPressMenuRef"
     :id="longPressId"
     :is-open="longPressMenuOpen"
     :items="pressItems"
@@ -186,7 +195,7 @@ defineExpose({
   <NoteMove
     :id="moveNoteId"
     :is-open="showMoveModal"
-    :presenting-element
+    :presenting-element="movePresentingElement"
     @did-dismiss="() => showMoveModal = false"
     @refresh="$emit('refresh')"
   />
