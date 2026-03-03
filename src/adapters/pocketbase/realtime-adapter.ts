@@ -9,6 +9,7 @@ import type { Note } from '@/types'
 import { RealtimeStatus } from '@/core/realtime-types'
 import { pb } from '@/pocketbase'
 import { useNote } from '@/stores'
+import { logger } from '@/utils/logger'
 
 export class PocketBaseRealtimeAdapter implements IRealtimeService {
   private unsubscribe: UnsubscribeFunc | null = null
@@ -32,7 +33,7 @@ export class PocketBaseRealtimeAdapter implements IRealtimeService {
   async connect(): Promise<void> {
     // 检查是否已连接
     if (this.status === RealtimeStatus.CONNECTED) {
-      console.warn('PocketBase Realtime 已经连接')
+      logger.info('PocketBase Realtime 已经连接')
       return
     }
 
@@ -58,10 +59,10 @@ export class PocketBaseRealtimeAdapter implements IRealtimeService {
       this.setStatus(RealtimeStatus.CONNECTED)
       this.reconnectAttempts = 0
 
-      console.log('✅ PocketBase Realtime 连接成功')
+      logger.info('PocketBase Realtime 连接成功')
     }
     catch (error) {
-      console.error('❌ PocketBase Realtime 连接失败:', error)
+      logger.error('PocketBase Realtime 连接失败:', error)
       this.setStatus(RealtimeStatus.ERROR)
 
       if (this.config.onError) {
@@ -93,7 +94,7 @@ export class PocketBaseRealtimeAdapter implements IRealtimeService {
     }
 
     this.setStatus(RealtimeStatus.DISCONNECTED)
-    console.log('🔌 PocketBase Realtime 已断开连接')
+    logger.info('PocketBase Realtime 已断开连接')
   }
 
   /**
@@ -115,7 +116,7 @@ export class PocketBaseRealtimeAdapter implements IRealtimeService {
    */
   private async handleRealtimeMessage(data: RecordSubscription<any>): Promise<void> {
     try {
-      console.log('📨 收到 PocketBase Realtime 消息:', data.action, data.record.id)
+      logger.debug('收到 PocketBase Realtime 消息:', data.action, data.record.id)
 
       const { updateNote, addNote, deleteNote, getNote } = useNote()
       const record = data.record as Note
@@ -126,7 +127,7 @@ export class PocketBaseRealtimeAdapter implements IRealtimeService {
           const existingNote = await getNote(record.id)
           if (!existingNote) {
             await addNote(record)
-            console.log('➕ 从云端创建笔记:', record.id)
+            logger.debug('从云端创建笔记:', record.id)
           }
           break
         }
@@ -139,22 +140,22 @@ export class PocketBaseRealtimeAdapter implements IRealtimeService {
 
             if (remoteTime > localTime) {
               await updateNote(record.id, record)
-              console.log('♻️  从云端更新笔记:', record.id)
+              logger.debug('从云端更新笔记:', record.id)
             }
             else {
-              console.log('⏭️  本地笔记更新，跳过云端推送:', record.id)
+              logger.debug('本地笔记更新，跳过云端推送:', record.id)
             }
           }
           else {
             await addNote(record)
-            console.log('➕ 从云端添加笔记:', record.id)
+            logger.debug('从云端添加笔记:', record.id)
           }
           break
         }
 
         case 'delete': {
           await deleteNote(record.id)
-          console.log('🗑️  从云端删除笔记:', record.id)
+          logger.debug('从云端删除笔记:', record.id)
           break
         }
       }
@@ -173,7 +174,7 @@ export class PocketBaseRealtimeAdapter implements IRealtimeService {
       }
     }
     catch (error) {
-      console.error('处理 Realtime 消息失败:', error)
+      logger.error('处理 Realtime 消息失败:', error)
       if (this.config.onError) {
         this.config.onError(error as Error)
       }
@@ -200,7 +201,7 @@ export class PocketBaseRealtimeAdapter implements IRealtimeService {
 
     // 检查是否超过最大重连次数
     if (this.reconnectAttempts >= maxAttempts) {
-      console.error('⛔ 达到最大重连次数，停止重连')
+      logger.error('达到最大重连次数，停止重连')
       this.setStatus(RealtimeStatus.ERROR)
       return
     }
@@ -216,11 +217,11 @@ export class PocketBaseRealtimeAdapter implements IRealtimeService {
     // 计算延迟时间（指数退避）
     const delay = baseDelay * 2 ** (this.reconnectAttempts - 1)
 
-    console.log(`🔄 将在 ${delay}ms 后尝试第 ${this.reconnectAttempts} 次重连`)
+    logger.info(`将在 ${delay}ms 后尝试第 ${this.reconnectAttempts} 次重连`)
 
     this.reconnectTimer = window.setTimeout(() => {
       this.connect().catch((error) => {
-        console.error('重连失败:', error)
+        logger.error('重连失败:', error)
       })
     }, delay)
   }

@@ -128,6 +128,9 @@ export async function initializeNotes() {
     initializing = true
     try {
       const { db } = useDexie()
+      if (!db.value) {
+        throw new Error('数据库未初始化')
+      }
       const data = await db.value.notes
         .orderBy('created')
         .toArray()
@@ -294,7 +297,7 @@ export function useNote() {
     return notes.value.filter(note => note.updated > updated)
   }
 
-  function getFolderTreeByParentId(parent_id: string | null = ''): FolderTreeNode[] {
+  function getFolderTreeByParentId(parent_id: string = ''): FolderTreeNode[] {
     /**
      * 使用 Map 索引快速查找，先获取全部文件夹，再根据parent_id获取对应的文件夹，再递归寻找每个文件夹的子文件夹
      * 使用新的数据结构，不修改原始数据
@@ -333,7 +336,7 @@ export function useNote() {
   function getUnfiledNotesCount() {
     return notes.value.filter(note =>
       note.item_type === NOTE_TYPE.NOTE
-      && note.parent_id === null
+      && !note.parent_id
       && note.is_deleted !== 1,
     ).length
   }

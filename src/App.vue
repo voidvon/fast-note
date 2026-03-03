@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { IonApp, IonRouterOutlet } from '@ionic/vue'
-import { onMounted } from 'vue'
+import { onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { pocketbaseAuthAdapter } from '@/adapters/pocketbase/auth-adapter'
 import { PocketBaseRealtimeAdapter } from '@/adapters/pocketbase/realtime-adapter'
@@ -8,6 +8,7 @@ import { authManager } from '@/core/auth-manager'
 import { realtimeManager } from '@/core/realtime-manager'
 import { useSync } from '@/hooks/useSync'
 import { useTheme } from '@/hooks/useTheme'
+import { logger } from '@/utils/logger'
 import { useLastVisitedRoute } from './hooks/useLastVisitedRoute'
 import { useVisualViewport } from './hooks/useVisualViewport'
 
@@ -23,44 +24,81 @@ setupAutoSave(router)
 // 立即恢复最后访问的路由（不需要等待 onMounted）
 restoreLastVisitedRoute(router)
 
+let hasRealtimeService = false
+let sessionBootstrapPromise: Promise<void> | null = null
+let authChangeUnsubscribe: (() => void) | null = null
+
+async function bootstrapLoggedInSession() {
+  if (!authManager.isAuthenticated())
+    return
+
+  if (sessionBootstrapPromise)
+    return sessionBootstrapPromise
+
+  sessionBootstrapPromise = (async () => {
+    if (!hasRealtimeService) {
+      const realtimeAdapter = new PocketBaseRealtimeAdapter({
+        autoReconnect: true,
+        maxReconnectAttempts: 5,
+        reconnectDelay: 2000,
+      })
+      realtimeManager.setRealtimeService(realtimeAdapter)
+      hasRealtimeService = true
+    }
+
+    if (!realtimeManager.checkIsConnected()) {
+      await realtimeManager.connect()
+      logger.info('Realtime 连接初始化完成')
+    }
+
+    const { sync } = useSync()
+    await sync(true)
+    logger.info('会话同步完成')
+  })().finally(() => {
+    sessionBootstrapPromise = null
+  })
+
+  return sessionBootstrapPromise
+}
+
 onMounted(async () => {
-  // 初始化主题
   initTheme()
 
-  // 初始化认证服务
-  console.warn('🚀 初始化认证服务...')
+  logger.info('初始化认证服务')
   authManager.setAuthService(pocketbaseAuthAdapter)
+
+  // 单一会话入口：监听登录态变化后统一进行 Realtime + Sync
+  authChangeUnsubscribe = authManager.getAuthService().onAuthChange(async (token, user) => {
+    if (token && user) {
+      try {
+        await bootstrapLoggedInSession()
+      }
+      catch (error) {
+        logger.error('登录态变更后会话初始化失败:', error)
+      }
+    }
+    else {
+      realtimeManager.disconnect()
+    }
+  })
+
   await authManager.initialize()
 
-  // 如果用户已登录，先建立 Realtime 连接，再执行数据同步
-  if (authManager.isAuthenticated()) {
-    console.warn('🔌 用户已登录，初始化 Realtime 连接和数据同步...')
-    const realtimeAdapter = new PocketBaseRealtimeAdapter({
-      autoReconnect: true,
-      maxReconnectAttempts: 5,
-      reconnectDelay: 2000,
-    })
+  if (!authManager.isAuthenticated())
+    return
 
-    realtimeManager.setRealtimeService(realtimeAdapter)
-
-    try {
-      // 1. 先建立 Realtime 连接，开始接收实时推送
-      await realtimeManager.connect()
-      console.warn('✅ Realtime 连接初始化完成')
-
-      // 2. 执行数据同步，获取云端最新数据
-      // 在同步过程中如果有新的变更，也能通过 Realtime 接收到
-      const { sync } = useSync()
-      await sync()
-      console.warn('✅ 初始化时数据同步完成')
-    }
-    catch (error) {
-      console.error('❌ Realtime 连接或数据同步失败:', error)
-      // 不影响应用启动
-    }
+  try {
+    await bootstrapLoggedInSession()
   }
-  else {
-    console.warn('👤 用户未登录，跳过 Realtime 连接和数据同步')
+  catch (error) {
+    logger.error('初始化会话失败:', error)
+  }
+})
+
+onUnmounted(() => {
+  if (authChangeUnsubscribe) {
+    authChangeUnsubscribe()
+    authChangeUnsubscribe = null
   }
 })
 </script>

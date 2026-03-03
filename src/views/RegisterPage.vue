@@ -18,12 +18,9 @@ import {
 } from '@ionic/vue'
 import { alertCircle, checkmarkCircle } from 'ionicons/icons'
 import { ref } from 'vue'
-import { PocketBaseRealtimeAdapter } from '@/adapters/pocketbase/realtime-adapter'
 import { authManager } from '@/core/auth-manager'
-import { realtimeManager } from '@/core/realtime-manager'
 import { useDeviceType } from '@/hooks/useDeviceType'
 import { useSimpleBackButton } from '@/hooks/useSmartBackButton'
-import { useSync } from '@/hooks/useSync'
 
 const router = useIonRouter()
 const { isDesktop } = useDeviceType()
@@ -96,34 +93,6 @@ async function handleRegister() {
 
     if (!result.success || result.error) {
       throw new Error(result.error || '注册失败')
-    }
-
-    // 注册成功后，建立 Realtime 连接
-    try {
-      const realtimeAdapter = new PocketBaseRealtimeAdapter({
-        autoReconnect: true,
-        maxReconnectAttempts: 5,
-        reconnectDelay: 2000,
-      })
-
-      realtimeManager.setRealtimeService(realtimeAdapter)
-      await realtimeManager.connect()
-      console.log('✅ 注册后 Realtime 连接成功')
-    }
-    catch (realtimeError) {
-      console.error('❌ 注册后建立 Realtime 连接失败:', realtimeError)
-      // 不影响注册流程
-    }
-
-    // 执行数据同步
-    try {
-      const { sync } = useSync()
-      await sync()
-      console.log('✅ 注册后数据同步完成')
-    }
-    catch (syncError) {
-      console.error('❌ 注册后数据同步失败:', syncError)
-      // 不影响注册流程
     }
 
     // 注册成功，显示成功消息并返回上一页

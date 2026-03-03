@@ -180,7 +180,7 @@ async function init() {
 }
 
 onUpdateNote((item) => {
-  if (item.parent_id === null) {
+  if (!item.parent_id) {
     init()
   }
 })

@@ -3,6 +3,106 @@
  */
 import { mapErrorMessage, pb } from './client'
 
+type WriteMode = 'auto' | 'create' | 'update'
+
+interface UpdateNoteResult {
+  success: boolean
+  fileMapping?: Map<File, string>
+  record?: any
+}
+
+function hasFileToUpload(filesForUpload?: Array<File | string>): boolean {
+  return !!filesForUpload?.some(item => item instanceof File)
+}
+
+function isNotFoundError(error: any): boolean {
+  return error?.status === 404
+    || error?.response?.status === 404
+    || String(error?.message || '').toLowerCase().includes('not found')
+}
+
+function isAlreadyExistsError(error: any): boolean {
+  const message = String(error?.message || '').toLowerCase()
+  return message.includes('already exists')
+    || message.includes('validation_not_unique')
+}
+
+function buildWritePayload(noteData: any, filesForUpload?: Array<File | string>) {
+  if (!filesForUpload || filesForUpload.length === 0 || !hasFileToUpload(filesForUpload)) {
+    if (filesForUpload && filesForUpload.length > 0) {
+      return { ...noteData, files: filesForUpload }
+    }
+    return noteData
+  }
+
+  const formData = new FormData()
+  Object.keys(noteData).forEach((key) => {
+    if (key === 'files')
+      return
+
+    const value = noteData[key]
+    if (value === null || value === undefined)
+      return
+
+    if (Array.isArray(value)) {
+      formData.append(key, JSON.stringify(value))
+    }
+    else {
+      formData.append(key, String(value))
+    }
+  })
+
+  filesForUpload.forEach((item) => {
+    formData.append('files', item)
+  })
+
+  return formData
+}
+
+function buildFileMapping(filesForUpload: Array<File | string> | undefined, result: any) {
+  const fileMapping = new Map<File, string>()
+
+  if (!filesForUpload || !result?.files || !Array.isArray(result.files))
+    return fileMapping
+
+  let fileIndex = 0
+  for (const item of filesForUpload) {
+    if (!(item instanceof File))
+      continue
+
+    if (fileIndex < result.files.length) {
+      fileMapping.set(item, result.files[fileIndex])
+      fileIndex++
+    }
+  }
+
+  return fileMapping
+}
+
+async function createNoteRecord(noteData: any, filesForUpload?: Array<File | string>): Promise<UpdateNoteResult> {
+  const payload = buildWritePayload(noteData, filesForUpload)
+  const result = await pb.collection('notes').create(payload)
+  const fileMapping = buildFileMapping(filesForUpload, result)
+
+  return {
+    success: true,
+    fileMapping: fileMapping.size > 0 ? fileMapping : undefined,
+    record: result || null,
+  }
+}
+
+async function updateNoteRecord(noteData: any, filesForUpload?: Array<File | string>): Promise<UpdateNoteResult> {
+  const payload = buildWritePayload(noteData, filesForUpload)
+  const result = await pb.collection('notes').update(noteData.id, payload)
+  const fileMapping = buildFileMapping(filesForUpload, result)
+
+  return {
+    success: true,
+    fileMapping: fileMapping.size > 0 ? fileMapping : undefined,
+    record: result || null,
+  }
+}
+
 export const notesService = {
   /**
    * 获取指定时间之后的所有笔记变更
@@ -47,107 +147,49 @@ export const notesService = {
   /**
    * 更新笔记（upsert 操作）
    */
-  async updateNote(note: any, filesForUpload?: Array<File | string>): Promise<{
-    success: boolean
-    fileMapping?: Map<File, string> // File对象到PocketBase文件名的映射
-    record?: any // 返回的完整记录信息
-  }> {
+  async updateNote(
+    note: any,
+    filesForUpload?: Array<File | string>,
+    mode: WriteMode = 'auto',
+  ): Promise<UpdateNoteResult> {
     try {
-      // 先尝试查找是否存在
-      const existingRecords = await pb.collection('notes').getFullList({
-        filter: `id = "${note.id}" && user_id = "${pb.authStore.model?.id}"`,
-      })
-
       const noteData = {
         ...note,
         user_id: pb.authStore.model?.id,
       }
 
-      // 创建文件映射
-      const fileMapping = new Map<File, string>()
-      let result: any = null
-
-      // 如果有文件需要处理，使用FormData
-      if (filesForUpload && filesForUpload.length > 0) {
-        // 检查是否有File对象需要上传
-        const hasFilesToUpload = filesForUpload.some(item => item instanceof File)
-
-        if (hasFilesToUpload) {
-          const formData = new FormData()
-
-          // 添加笔记的基本数据（除了files字段）
-          Object.keys(noteData).forEach((key) => {
-            if (key !== 'files') { // files字段单独处理
-              const value = noteData[key]
-              if (value !== null && value !== undefined) {
-                if (Array.isArray(value)) {
-                  formData.append(key, JSON.stringify(value))
-                }
-                else {
-                  formData.append(key, String(value))
-                }
-              }
-            }
-          })
-
-          // 直接将filesForUpload数组作为files字段
-          // PocketBase会自动处理File对象（上传）和字符串（保留）
-          filesForUpload.forEach((item) => {
-            formData.append('files', item)
-          })
-
-          if (existingRecords.length > 0) {
-            // 更新现有记录
-            result = await pb.collection('notes').update(existingRecords[0].id, formData)
-          }
-          else {
-            // 创建新记录
-            result = await pb.collection('notes').create(formData)
-          }
-
-          // 处理文件映射：从PocketBase返回的result中提取文件名
-          if (result && result.files && Array.isArray(result.files)) {
-            let fileIndex = 0
-            for (let i = 0; i < filesForUpload.length; i++) {
-              const item = filesForUpload[i]
-              if (item instanceof File) {
-                // 对于File对象，映射到PocketBase返回的文件名
-                if (fileIndex < result.files.length) {
-                  fileMapping.set(item, result.files[fileIndex])
-                  console.warn(`文件映射: ${item.name} -> ${result.files[fileIndex]}`)
-                  fileIndex++
-                }
-              }
-            }
-          }
+      // 差异同步场景下，调用方已经知道该走 create 还是 update；
+      // 这里只做轻量回退，避免每条记录先查一次是否存在。
+      if (mode === 'create') {
+        try {
+          return await createNoteRecord(noteData, filesForUpload)
         }
-        else {
-          // 没有File对象，只有字符串文件名，使用普通JSON
-          const updatedNoteData = { ...noteData, files: filesForUpload }
-          if (existingRecords.length > 0) {
-            result = await pb.collection('notes').update(existingRecords[0].id, updatedNoteData)
-          }
-          else {
-            result = await pb.collection('notes').create(updatedNoteData)
-          }
-        }
-      }
-      else {
-        // 没有文件，使用普通的JSON数据
-        if (existingRecords.length > 0) {
-          // 更新现有记录
-          result = await pb.collection('notes').update(existingRecords[0].id, noteData)
-        }
-        else {
-          // 创建新记录
-          result = await pb.collection('notes').create(noteData)
+        catch (error: any) {
+          if (!isAlreadyExistsError(error))
+            throw error
+          return await updateNoteRecord(noteData, filesForUpload)
         }
       }
 
-      return {
-        success: true,
-        fileMapping: fileMapping.size > 0 ? fileMapping : undefined,
-        record: result || null,
+      if (mode === 'update') {
+        try {
+          return await updateNoteRecord(noteData, filesForUpload)
+        }
+        catch (error: any) {
+          if (!isNotFoundError(error))
+            throw error
+          return await createNoteRecord(noteData, filesForUpload)
+        }
+      }
+
+      // auto: 默认更新优先，未找到时创建
+      try {
+        return await updateNoteRecord(noteData, filesForUpload)
+      }
+      catch (error: any) {
+        if (!isNotFoundError(error))
+          throw error
+        return await createNoteRecord(noteData, filesForUpload)
       }
     }
     catch (error: any) {

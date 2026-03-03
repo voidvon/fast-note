@@ -52,14 +52,23 @@ const app = createApp(App)
 // 将Vue应用实例存储在全局对象中，以便扩展可以访问
 ;(window as any).__VUE_APP__ = app
 
-Promise.all([
-  router.isReady(),
-  initializeDatabase(),
-  initializeNotes(),
-]).then(() => {
-  app.mount('#app')
-}).catch((error) => {
-  console.error('应用初始化失败:', error)
-  // 即使初始化失败也要挂载应用，避免白屏
-  app.mount('#app')
-})
+async function bootstrapApp() {
+  try {
+    await Promise.all([
+      router.isReady(),
+      (async () => {
+        await initializeDatabase()
+        await initializeNotes()
+      })(),
+    ])
+  }
+  catch (error) {
+    console.error('应用初始化失败:', error)
+  }
+  finally {
+    // 即使初始化失败也要挂载应用，避免白屏
+    app.mount('#app')
+  }
+}
+
+bootstrapApp()

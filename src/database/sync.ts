@@ -116,11 +116,12 @@ export function useRefDBSync<T extends SyncableItem>(
       const lastItem = lastSnapshotMap.get(id)
 
       if (!lastItem || item.updated > lastItem.updated) {
-        // 新增项目 - 直接使用 toRaw 转换
-        if (item.files) {
-          item.files = toRaw(item.files)
-        }
-        upsertItems.push(toRaw(item))
+        // 不直接改写响应式对象，避免 diff 阶段产生副作用
+        const rawItem = toRaw(item)
+        const normalizedItem = item.files
+          ? { ...rawItem, files: toRaw(item.files) }
+          : rawItem
+        upsertItems.push(normalizedItem)
       }
     }
 

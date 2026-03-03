@@ -153,7 +153,7 @@ export function useUserPublicNotes(username: string) {
       return publicNotes.filter(note => note.item_type === NOTE_TYPE.NOTE && note.is_deleted !== 1)
     }
     else if (parent_id === 'unfilednotes') {
-      return publicNotes.filter(note => note.item_type === NOTE_TYPE.NOTE && note.parent_id === null && note.is_deleted !== 1)
+      return publicNotes.filter(note => note.item_type === NOTE_TYPE.NOTE && !note.parent_id && note.is_deleted !== 1)
     }
     else {
       return publicNotes.filter(note => note.parent_id === parent_id && note.is_deleted !== 1)
@@ -193,7 +193,7 @@ export function useUserPublicNotes(username: string) {
     return publicNotes.filter(note => note.updated > updated)
   }
 
-  function getPublicFolderTreeByPUuid(parent_id: string | null = ''): FolderTreeNode[] {
+  function getPublicFolderTreeByPUuid(parent_id: string = ''): FolderTreeNode[] {
     /**
      * 先获取全部文件夹，再根据parent_id获取对应的文件夹，再递归寻找每个文件夹的子文件夹
      * 使用新的数据结构，不修改原始数据
@@ -230,7 +230,7 @@ export function useUserPublicNotes(username: string) {
     const publicNotes = state.publicNotes.value || []
     return publicNotes.filter(note =>
       note.item_type === NOTE_TYPE.NOTE
-      && note.parent_id === null
+      && !note.parent_id
       && note.is_deleted !== 1,
     ).length
   }

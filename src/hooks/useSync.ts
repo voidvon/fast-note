@@ -8,6 +8,7 @@ import { useNoteFiles } from '@/hooks/useNoteFiles'
 import { authService, notesService } from '@/pocketbase'
 import { useNote } from '@/stores'
 import { getTime } from '@/utils/date'
+import { logger } from '@/utils/logger'
 
 const defaultUpdated = JSON.stringify(getTime('2010/01/01 00:00:00'))
 const updated = ref(JSON.parse(localStorage.pocketbaseUpdated || defaultUpdated))
@@ -114,10 +115,10 @@ export function useSync() {
             )
             updatedContent = updatedContent.replace(hashRegex, `$1${tempId}$2`)
 
-            console.warn(`将hash ${hashOrFilename} 替换为临时标识符 ${tempId}`)
+            logger.debug(`将hash ${hashOrFilename} 替换为临时标识符 ${tempId}`)
           }
           else {
-            console.warn(`本地文件未找到: ${hashOrFilename}`)
+            logger.warn(`本地文件未找到: ${hashOrFilename}`)
             // 如果本地文件不存在，跳过该文件（避免上传无效数据）
           }
         }
@@ -156,10 +157,10 @@ export function useSync() {
     filesForUpload: Array<File | string>,
     pocketbaseFiles: string[],
   ): string {
-    console.warn('调试信息 - processUploadResult 输入:')
-    console.warn('filesForUpload:', filesForUpload.map(item => item instanceof File ? `File(${item.name})` : item))
-    console.warn('pocketbaseFiles:', pocketbaseFiles)
-    console.warn('原始内容:', content)
+    logger.debug('processUploadResult 输入:', {
+      filesForUpload: filesForUpload.map(item => item instanceof File ? `File(${item.name})` : item),
+      pocketbaseFiles,
+    })
 
     let updatedContent = content
     let fileObjectIndex = 0
@@ -176,18 +177,15 @@ export function useSync() {
         if (i < pocketbaseFiles.length) {
           const pocketbaseFilename = pocketbaseFiles[i]
 
-          console.warn(`调试: 处理第 ${fileObjectIndex} 个File对象 (数组索引 ${i}), 临时ID: ${tempId}, 目标文件名: ${pocketbaseFilename}`)
+          logger.debug(`处理第 ${fileObjectIndex} 个File对象 (数组索引 ${i}), 临时ID: ${tempId}, 目标文件名: ${pocketbaseFilename}`)
 
           // 将临时标识符替换为PocketBase文件名（可能有多处引用）
           const tempIdRegex = new RegExp(
             `(<file-upload[^>]+url=")${tempId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}("[^>]*>)`,
             'g',
           )
-          const beforeReplace = updatedContent
           updatedContent = updatedContent.replace(tempIdRegex, `$1${pocketbaseFilename}$2`)
-
-          console.warn(`替换结果: ${beforeReplace === updatedContent ? '未找到匹配' : '替换成功'}`)
-          console.warn(`将临时标识符 ${tempId} 替换为 PocketBase 文件名 ${pocketbaseFilename}`)
+          logger.debug(`将临时标识符 ${tempId} 替换为 PocketBase 文件名 ${pocketbaseFilename}`)
         }
         else {
           console.error(`File对象 ${fileObjectIndex} 没有对应的新上传文件！`)
@@ -197,7 +195,7 @@ export function useSync() {
       }
     }
 
-    console.warn('最终内容:', updatedContent)
+    logger.debug('processUploadResult 完成')
     return updatedContent
   }
 
@@ -246,7 +244,7 @@ export function useSync() {
     if (!authService.isAuthenticated()) {
       if (silent) {
         // 静默模式：未登录时直接返回，不显示任何提示
-        console.warn('用户未登录，跳过同步')
+        logger.info('用户未登录，跳过同步')
         return null
       }
       else {
@@ -275,15 +273,15 @@ export function useSync() {
    * 同步笔记
    */
   async function syncNote() {
-    console.warn('PocketBase同步开始，updated:', updated.value)
+    logger.info('PocketBase同步开始')
 
     // 获取本地变更数据
     const localNotes = await getNotesByUpdated(updated.value)
-    console.warn('本地笔记变更:', localNotes)
+    logger.debug('本地笔记变更数量:', localNotes.length)
 
     // 获取云端变更数据
     const cloudNotes = await notesService.getNotesByUpdated(updated.value)
-    console.warn('云端笔记变更:', cloudNotes)
+    logger.debug('云端笔记变更数量:', cloudNotes.d.length)
 
     // content 转义处理（PocketBase可能也需要）
     cloudNotes.d.forEach((note: any) => {
@@ -430,8 +428,8 @@ export function useSync() {
 
           // 上传到PocketBase
           const result = filesForUpload !== undefined
-            ? await notesService.updateNote(updatedNote, filesForUpload)
-            : await notesService.updateNote(updatedNote)
+            ? await notesService.updateNote(updatedNote, filesForUpload, 'create')
+            : await notesService.updateNote(updatedNote, undefined, 'create')
 
           // 如果有需要上传的文件，处理返回结果
           if (filesForUpload && filesForUpload.length > 0 && result.success && result.record) {
@@ -456,8 +454,8 @@ export function useSync() {
                 // 更新本地笔记
                 await updateNote(note.id, finalNote)
                 // 将更新后的内容同步到PocketBase服务端（不包含文件，只更新内容）
-                await notesService.updateNote(finalNote)
-                console.warn(`已更新笔记 ${note.id} 的附件引用并同步到服务端`)
+                await notesService.updateNote(finalNote, undefined, 'update')
+                logger.info(`已更新笔记 ${note.id} 的附件引用并同步到服务端`)
               }
             }
           }
@@ -470,8 +468,8 @@ export function useSync() {
 
           // 上传到PocketBase
           const result = filesForUpload !== undefined
-            ? await notesService.updateNote(updatedNote, filesForUpload)
-            : await notesService.updateNote(updatedNote)
+            ? await notesService.updateNote(updatedNote, filesForUpload, 'update')
+            : await notesService.updateNote(updatedNote, undefined, 'update')
 
           // 如果有需要上传的文件，处理返回结果
           if (filesForUpload && filesForUpload.length > 0 && result.success && result.record) {
@@ -496,8 +494,8 @@ export function useSync() {
                 // 更新本地笔记
                 await updateNote(note.id, finalNote)
                 // 将更新后的内容同步到PocketBase服务端（不包含文件，只更新内容）
-                await notesService.updateNote(finalNote)
-                console.warn(`已更新笔记 ${note.id} 的附件引用并同步到服务端`)
+                await notesService.updateNote(finalNote, undefined, 'update')
+                logger.info(`已更新笔记 ${note.id} 的附件引用并同步到服务端`)
               }
             }
           }
@@ -520,7 +518,7 @@ export function useSync() {
         }
         else if (action === 'delete') {
           // 请求云端删除（标记为删除状态）
-          await notesService.updateNote(note)
+          await notesService.updateNote(note, undefined, 'update')
           deletedCount++
         }
 
@@ -536,7 +534,7 @@ export function useSync() {
       }
     }
 
-    console.warn('PocketBase同步完成', {
+    logger.info('PocketBase同步完成', {
       uploaded: uploadedCount,
       downloaded: downloadedCount,
       deleted: deletedCount,
