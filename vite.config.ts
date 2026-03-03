@@ -36,7 +36,7 @@ export default defineConfig(({ mode }) => {
       environment: 'jsdom',
     },
     server: {
-      port: 3000,
+      port: 8888,
       host: '0.0.0.0',
       // https: true,
       proxy: {
