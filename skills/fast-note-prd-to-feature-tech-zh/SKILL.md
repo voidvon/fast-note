@@ -1,6 +1,6 @@
 ---
 name: fast-note-prd-to-feature-tech-zh
-description: 基于 Fast-Note 的代码反推 PRD 与当前仓库代码，产出中文“功能拆分 + 技术方案”文档。用于版本规划、迭代评审、重构前设计、开发任务拆解，或当用户提出“功能拆分/技术方案/实施方案/从 PRD 到研发落地”类需求时使用。
+description: 基于 Fast-Note 的代码反推 PRD 与当前仓库代码，产出中文“功能拆分 + 技术方案”文档并落盘到 `doc/功能拆分与技术方案/`，默认按“总览 + 分模块”多文件交付。用于版本规划、迭代评审、重构前设计、开发任务拆解，或当用户提出“功能拆分/技术方案/实施方案/从 PRD 到研发落地”类需求时使用。
 ---
 
 # Fast-Note 功能拆分与技术方案（中文）
@@ -10,8 +10,11 @@ description: 基于 Fast-Note 的代码反推 PRD 与当前仓库代码，产出
 1. 读取 `doc/需求文档/Fast-Note-PRD-代码反推-2026-03-04.md`，提取功能域与业务目标。
 2. 扫描当前仓库代码，建立“PRD 条目 -> 代码证据”的映射。
 3. 按能力域输出“功能拆分 + 技术方案 + 实施任务 + 验收标准”。
-4. 使用 `references/feature-tech-plan-template-zh.md` 作为唯一输出骨架。
-5. 使用 `references/quality-checklist-zh.md` 做交付前自检。
+4. 使用 `references/feature-tech-plan-template-zh.md` 生成总览文档。
+5. 使用 `references/feature-tech-plan-module-template-zh.md` 生成模块文档。
+6. 选择输出模式（默认多文件；仅在用户明确要求单文件时合并输出）。
+7. 将文档写入 `doc/功能拆分与技术方案/`。
+8. 使用 `references/quality-checklist-zh.md` 做交付前自检。
 
 ## 工作流
 
@@ -58,8 +61,11 @@ description: 基于 Fast-Note 的代码反推 PRD 与当前仓库代码，产出
 
 ### 5) 输出文档并自检
 
-- 严格使用 `references/feature-tech-plan-template-zh.md` 的章节顺序。
+- 严格使用模板章节顺序：
+  - 总览文档：`references/feature-tech-plan-template-zh.md`
+  - 模块文档：`references/feature-tech-plan-module-template-zh.md`
 - 所有核心结论都要能回链到证据。
+- 总览文档必须包含模块文档索引与相对路径链接。
 - 输出前执行 `references/quality-checklist-zh.md` 全项检查。
 
 ## Fast-Note 架构约束（必须遵守）
@@ -84,11 +90,22 @@ rg "Dexie|db\\.value|schema|notes" src/database src/stores
 ## 输出规则
 
 - 默认输出中文 Markdown。
+- 强制输出目录：`doc/功能拆分与技术方案/`（若不存在先创建）。
+- 默认产物形态：`多文件`。
+  - 总览：`Fast-Note-功能拆分与技术方案-总览-YYYY-MM-DD.md`
+  - 分模块：`Fast-Note-功能拆分与技术方案-<模块名>-YYYY-MM-DD.md`
+- 多文件拆分原则：
+  - 以能力域/模块为最小文件单位（例如编辑器、笔记管理、同步、设置）。
+  - 每个模块文件只覆盖一个模块，避免跨模块混写。
+  - 总览文件保留里程碑、优先级与跨模块依赖，不重复粘贴模块细节。
+- 仅在用户明确要求“单文件交付”时，输出：
+  - `Fast-Note-功能拆分与技术方案-YYYY-MM-DD.md`
 - 每个功能点必须包含：目标、现状、改造点、技术方案、任务拆分、验收标准。
 - 禁止输出无法从证据链支持的“确定性结论”。
 - 对未确认事项统一落到“未决问题”。
 
 ## 参考资料
 
-- `references/feature-tech-plan-template-zh.md`：功能拆分 + 技术方案输出模板
+- `references/feature-tech-plan-template-zh.md`：总览文档模板
+- `references/feature-tech-plan-module-template-zh.md`：分模块技术方案模板
 - `references/quality-checklist-zh.md`：交付质量检查清单
