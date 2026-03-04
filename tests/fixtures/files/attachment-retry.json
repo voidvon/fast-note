@@ -1,0 +1,21 @@
+{
+  "noteId": "note-attachment-1",
+  "files": [
+    {
+      "hash": "hash-a",
+      "fileName": "a.png",
+      "fileSize": 1200,
+      "fileType": "image/png"
+    },
+    {
+      "hash": "hash-a",
+      "fileName": "a-copy.png",
+      "fileSize": 1200,
+      "fileType": "image/png"
+    }
+  ],
+  "network": {
+    "firstAttempt": "fail",
+    "secondAttempt": "success"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "credential": {
+    "id": "cred-1",
+    "type": "public-key",
+    "createdAt": 1700000000000,
+    "lastVerifiedAt": 1700000060000
+  },
+  "expiresInMs": 300000
+}

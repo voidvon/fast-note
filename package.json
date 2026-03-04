@@ -10,6 +10,9 @@
     "preview": "vite preview",
     "test:e2e": "cypress run",
     "test:unit": "vitest",
+    "test:p0:unit": "vitest --run tests/unit/stores/notes-delete-subtree.spec.ts tests/unit/hooks/useSync-retry.spec.ts tests/integration/editor/attachment-retry.spec.ts",
+    "test:p0:e2e": "cypress run --spec \"tests/e2e/public/public-home-smoke.cy.ts,tests/e2e/public/public-note-detail.cy.ts,tests/e2e/public/public-init-retry.cy.ts\"",
+    "test:p0": "npm run test:p0:unit",
     "lint": "eslint .",
     "tauri": "tauri"
   },
