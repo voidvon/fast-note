@@ -34,6 +34,12 @@ export default defineConfig(({ mode }) => {
     test: {
       globals: true,
       environment: 'jsdom',
+      setupFiles: ['./tests/setup/vitest.setup.ts'],
+      include: [
+        'tests/unit/**/*.spec.ts',
+        'tests/integration/**/*.spec.ts',
+      ],
+      exclude: ['tests/e2e/**'],
     },
     server: {
       port: 8888,
