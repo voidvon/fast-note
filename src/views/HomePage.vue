@@ -2,7 +2,7 @@
 import type {
   AlertButton,
 } from '@ionic/vue'
-import type { FolderTreeNode } from '@/types'
+import type { FolderTreeNode, Note } from '@/types'
 import {
   IonAlert,
   IonButton,
@@ -20,7 +20,7 @@ import {
 } from '@ionic/vue'
 import { addOutline, createOutline } from 'ionicons/icons'
 import { nanoid } from 'nanoid'
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import DarkModeToggle from '@/components/DarkModeToggle.vue'
 // import ExtensionButton from '@/components/ExtensionButton.vue'
 // import ExtensionManager from '@/components/ExtensionManager.vue'
@@ -28,7 +28,12 @@ import ExtensionRenderer from '@/components/ExtensionRenderer.vue'
 import GlobalSearch from '@/components/GlobalSearch/GlobalSearch.vue'
 import { useGlobalSearch } from '@/components/GlobalSearch/useGlobalSearch'
 import NoteList from '@/components/NoteList.vue'
-import UserProfile from '@/components/UserProfile.vue'
+import {
+  getDesktopNotesForFolder,
+  isDesktopFolderAvailable,
+  resolveDesktopActiveNoteSelection,
+  useDesktopActiveNote,
+} from '@/hooks/useDesktopActiveNote'
 import { useDeviceType } from '@/hooks/useDeviceType'
 import { useExtensions } from '@/hooks/useExtensions'
 import { useNote } from '@/stores'
@@ -42,6 +47,7 @@ const { notes, addNote, getFolderTreeByParentId } = useNote()
 const { isDesktop } = useDeviceType()
 const { showGlobalSearch } = useGlobalSearch()
 const { isExtensionEnabled, getExtensionModule } = useExtensions()
+const { getSnapshot, saveSnapshot, clearSnapshot } = useDesktopActiveNote()
 
 // 扩展管理器状态
 // const showExtensionManager = ref(false)
@@ -77,6 +83,8 @@ onUnmounted(() => {
 
 const page = ref()
 const folderPageRef = ref()
+const hasAttemptedDesktopRestore = ref(false)
+const isRestoringDesktopSelection = ref(false)
 
 // 将 dataList 改为计算属性，自动响应 notes 的变化
 const dataList = computed(() => {
@@ -129,7 +137,6 @@ const addButtons: AlertButton[] = [
   },
 ]
 const state = reactive({
-  windowWidth: 0,
   folerId: isDesktop.value ? 'allnotes' : '', // 桌面端默认选中全部备忘录
   noteId: '',
   parentId: '', // 新建笔记时的父文件夹ID
@@ -144,12 +151,93 @@ const sortDataList = computed(() => {
     })
 })
 
+function getSortedNotesForFolder(folderId: string): Note[] {
+  return getDesktopNotesForFolder(folderId, notes.value, deletedNotes.value)
+}
+
+function getDefaultNoteId(folderId: string) {
+  if (!isDesktop.value) {
+    return ''
+  }
+
+  if (folderId !== 'allnotes' && folderId !== 'deleted') {
+    return ''
+  }
+
+  return getSortedNotesForFolder(folderId)[0]?.id || ''
+}
+
+function persistDesktopSelection(noteId = state.noteId) {
+  if (!isDesktop.value || !noteId || noteId === '0') {
+    return
+  }
+
+  saveSnapshot({
+    folderId: state.folerId,
+    noteId,
+    parentId: state.parentId,
+  })
+}
+
+function restoreDesktopSelection() {
+  if (!isDesktop.value) {
+    return false
+  }
+
+  const selection = resolveDesktopActiveNoteSelection(
+    getSnapshot(),
+    notes.value,
+    deletedNotes.value,
+  )
+
+  if (!selection) {
+    clearSnapshot()
+    return false
+  }
+
+  isRestoringDesktopSelection.value = true
+  state.folerId = selection.folderId
+  state.noteId = selection.noteId
+  state.parentId = selection.parentId
+
+  void nextTick(() => {
+    isRestoringDesktopSelection.value = false
+  })
+
+  if (selection.noteId) {
+    saveSnapshot(selection)
+  }
+  else {
+    clearSnapshot()
+  }
+
+  return true
+}
+
 // 监听目录切换，清除选中的备忘录
 watch(() => state.folerId, () => {
-  if (isDesktop.value) {
-    state.noteId = ''
-    state.parentId = ''
-    init()
+  if (!isDesktop.value || isRestoringDesktopSelection.value) {
+    return
+  }
+
+  state.noteId = ''
+  state.parentId = ''
+  clearSnapshot()
+  init()
+})
+
+watch(() => state.noteId, (noteId) => {
+  if (!isDesktop.value || isRestoringDesktopSelection.value) {
+    return
+  }
+
+  if (noteId === '0') {
+    clearSnapshot()
+    return
+  }
+
+  if (noteId) {
+    persistDesktopSelection(noteId)
   }
 })
 
@@ -158,46 +246,56 @@ async function refresh(ev: CustomEvent) {
   ev.detail.complete()
 }
 
-async function init() {
-  if (isDesktop.value && state.folerId === 'deleted' && !state.noteId) {
-    const sortedDeletedNotes = deletedNotes.value
-      .slice()
-      .sort((a, b) => new Date(b.updated!).getTime() - new Date(a.updated!).getTime())
-
-    if (sortedDeletedNotes.length > 0) {
-      state.noteId = sortedDeletedNotes[0].id!
+async function init(options: { preferPersistedSelection?: boolean } = {}) {
+  if (options.preferPersistedSelection && !hasAttemptedDesktopRestore.value) {
+    hasAttemptedDesktopRestore.value = true
+    if (restoreDesktopSelection()) {
+      return
     }
-    return
   }
 
-  // 桌面端初始化时，如果选中了全部备忘录且没有选中笔记，自动选择第一条笔记
-  if (isDesktop.value && state.folerId === 'allnotes' && !state.noteId) {
-    const allNotes = notes.value
-      .filter(d => d.item_type === NOTE_TYPE.NOTE && d.is_deleted === 0)
-      .sort((a, b) => new Date(b.updated!).getTime() - new Date(a.updated!).getTime())
+  if (isDesktop.value && !isDesktopFolderAvailable(state.folerId, notes.value, deletedNotes.value)) {
+    state.folerId = 'allnotes'
+  }
 
-    if (allNotes.length > 0) {
-      state.noteId = allNotes[0].id!
+  if (isDesktop.value && !state.noteId) {
+    const defaultNoteId = getDefaultNoteId(state.folerId)
+    if (defaultNoteId) {
+      state.noteId = defaultNoteId
     }
   }
 }
 
+function handleFolderSelected(id: string) {
+  state.folerId = id
+}
+
+function handleNoteSelected(id: string) {
+  state.parentId = ''
+  state.noteId = id
+}
+
+function handleCreateNote(parentId = '') {
+  state.parentId = parentId
+  state.noteId = '0'
+  clearSnapshot()
+}
+
 onIonViewWillEnter(() => {
-  init()
+  init({ preferPersistedSelection: true })
 })
 
 onMounted(() => {
   presentingElement.value = page.value.$el
+  init({ preferPersistedSelection: true })
 })
 
 function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
+  state.noteId = event.noteId
+
   // 如果是新建的笔记，选中它并刷新列表
-  if (event.isNew) {
-    state.noteId = event.noteId
-    // 只在新建笔记时刷新列表，确保新笔记被正确显示和选中
-    if (folderPageRef.value) {
-      folderPageRef.value.refresh()
-    }
+  if (event.isNew && folderPageRef.value) {
+    folderPageRef.value.refresh()
   }
   // 更新笔记时不需要刷新列表，因为 notes store 是响应式的，列表会自动更新
 }
@@ -257,7 +355,7 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
         show-unfiled-notes
         show-delete
         @refresh="init"
-        @selected="(id: string) => state.folerId = id"
+        @selected="handleFolderSelected"
       />
     </IonContent>
     <IonFooter>
@@ -271,10 +369,7 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
         <IonButtons slot="end">
           <IonButton
             v-if="isDesktop"
-            @click="() => {
-              state.parentId = ''
-              state.noteId = '0'
-            }"
+            @click="handleCreateNote()"
           >
             <IonIcon :icon="createOutline" />
           </IonButton>
@@ -304,18 +399,15 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
       <DeletedPage
         v-if="isDeletedFolder"
         :selected-note-id="state.noteId"
-        @selected="(id: string) => state.noteId = id"
+        @selected="handleNoteSelected"
       />
       <FolderPage
         v-else
         ref="folderPageRef"
         :current-folder="state.folerId"
         :selected-note-id="state.noteId"
-        @selected="(id: string) => state.noteId = id"
-        @create-note="(parentId: string) => {
-          state.parentId = parentId
-          state.noteId = '0'
-        }"
+        @selected="handleNoteSelected"
+        @create-note="handleCreateNote"
       />
     </div>
     <div v-if="isDesktop" class="home-detail">
