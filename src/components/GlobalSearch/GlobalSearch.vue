@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import type { SearchbarInputEventDetail } from '@ionic/core/components'
 import type { Note } from '@/types'
 import { IonContent, IonSearchbar } from '@ionic/vue'
 import { useDebounceFn } from '@vueuse/core'
-import { reactive, ref } from 'vue'
+import { computed, onUnmounted, reactive, ref } from 'vue'
 import NoteList from '@/components/NoteList.vue'
 import { useNote } from '@/stores'
+import { toSearchResultNodes } from './searchResults'
 import { useGlobalSearch } from './useGlobalSearch'
 
 const props = withDefaults(defineProps<{
@@ -17,13 +19,66 @@ const { showGlobalSearch, showGlobalSearchState } = useGlobalSearch()
 const { searchNotesByParentId } = useNote()
 
 const fullScreenRef = ref<HTMLDivElement>()
+const isComposing = ref(false)
 const state = reactive({
   cacheTop: 0,
   top: 0,
   notes: [] as Note[],
 })
 
+let nativeInput: HTMLInputElement | null = null
+
+const searchResults = computed(() => toSearchResultNodes(state.notes))
+
+async function runSearch(searchText: string) {
+  const keyword = searchText.trim()
+
+  if (keyword) {
+    state.notes = await searchNotesByParentId(props.puuid || '', '全部', keyword)
+  }
+  else {
+    state.notes = []
+  }
+}
+
+const debouncedSearch = useDebounceFn(runSearch, 300)
+
+function handleCompositionStart() {
+  isComposing.value = true
+}
+
+function handleCompositionEnd(event: CompositionEvent) {
+  isComposing.value = false
+  void runSearch((event.target as HTMLInputElement | null)?.value || '')
+}
+
+async function ensureCompositionListeners() {
+  if (nativeInput) {
+    return
+  }
+
+  const searchbar = fullScreenRef.value?.querySelector('ion-searchbar') as HTMLIonSearchbarElement | null
+  if (!searchbar) {
+    return
+  }
+
+  nativeInput = await searchbar.getInputElement()
+  nativeInput.addEventListener('compositionstart', handleCompositionStart)
+  nativeInput.addEventListener('compositionend', handleCompositionEnd)
+}
+
+function cleanupCompositionListeners() {
+  if (!nativeInput) {
+    return
+  }
+
+  nativeInput.removeEventListener('compositionstart', handleCompositionStart)
+  nativeInput.removeEventListener('compositionend', handleCompositionEnd)
+  nativeInput = null
+}
+
 function onFocus() {
+  void ensureCompositionListeners()
   showGlobalSearch.value = true
   const rect = fullScreenRef.value!.getBoundingClientRect()
   state.cacheTop = rect.top
@@ -37,6 +92,7 @@ function onFocus() {
 
 function onCancel() {
   state.top = state.cacheTop
+  state.notes = []
   showGlobalSearch.value = false
   showGlobalSearchState.value = 'leaveStart'
   setTimeout(() => {
@@ -44,22 +100,23 @@ function onCancel() {
   }, 300)
 }
 
-const debouncedSearch = useDebounceFn(async (searchText: string) => {
-  if (searchText) {
-    const _notes = await searchNotesByParentId(props.puuid || '', '全部', searchText)
-    // 处理搜索结果
-    state.notes = _notes
-  }
-  else {
-    // 当搜索文本为空时，清空搜索结果
-    state.notes = []
-  }
-}, 300)
+function onInput(event: CustomEvent<SearchbarInputEventDetail>) {
+  const value = event.detail.value || ''
+  const nativeEvent = event.detail.event
 
-function onInput(event: CustomEvent) {
-  const value = (event.target as HTMLIonSearchbarElement).value
-  debouncedSearch(value!)
+  if (
+    isComposing.value
+    || (typeof InputEvent !== 'undefined' && nativeEvent instanceof InputEvent && nativeEvent.isComposing)
+  ) {
+    return
+  }
+
+  void debouncedSearch(value)
 }
+
+onUnmounted(() => {
+  cleanupCompositionListeners()
+})
 </script>
 
 <template>
@@ -75,6 +132,7 @@ function onInput(event: CustomEvent) {
       class="flex global-search__full-container flex-col"
     >
       <IonSearchbar
+        :debounce="0"
         :show-cancel-button="showGlobalSearch ? 'always' : 'never'"
         placeholder="搜索"
         cancel-button-text="取消"
@@ -94,7 +152,7 @@ function onInput(event: CustomEvent) {
               </h2>
             </div>
             <NoteList
-              :data-list="state.notes as any[]"
+              :data-list="searchResults"
               :all-notes-count="state.notes.length"
               show-parent-folder
             />

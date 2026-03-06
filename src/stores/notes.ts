@@ -17,6 +17,10 @@ const onNoteUpdateArr: UpdateFn[] = []
 // 全局同步实例
 let notesSync: ReturnType<typeof useRefDBSync<Note>> | null = null
 
+function normalizeParentIdKey(parentId?: string | null) {
+  return parentId || 'root'
+}
+
 export function shouldRefreshNoteUpdated(existingNote: Note, updates: Partial<Note>) {
   if (!updates.updated)
     return true
@@ -50,7 +54,7 @@ function rebuildIndexMaps() {
   // 重建父级 ID 索引 Map
   const parentGroups = new Map<string, Note[]>()
   for (const note of notes.value) {
-    const parentId = note.parent_id || 'root'
+    const parentId = normalizeParentIdKey(note.parent_id)
     if (!parentGroups.has(parentId)) {
       parentGroups.set(parentId, [])
     }
@@ -89,7 +93,7 @@ function updateIndexes(note: Note, operation: 'add' | 'update' | 'delete') {
       notesMap.value.set(note.id, note)
 
       // 更新父级索引
-      const parentId = note.parent_id || 'root'
+      const parentId = normalizeParentIdKey(note.parent_id)
       if (!parentIdMap.value.has(parentId)) {
         parentIdMap.value.set(parentId, [])
       }
@@ -275,7 +279,7 @@ export function useNote() {
     }
     else {
       // 使用 Map 索引快速查找，时间复杂度从 O(n) 优化到 O(1)
-      const childNotes = parentIdMap.value.get(parent_id) || []
+      const childNotes = parentIdMap.value.get(normalizeParentIdKey(parent_id)) || []
       return childNotes.filter(note => note.is_deleted !== 1)
     }
   }
@@ -287,7 +291,7 @@ export function useNote() {
 
   async function getNoteCountByParentId(parent_id: string) {
     // 使用 Map 索引快速获取子项目
-    const categories = parentIdMap.value.get(parent_id) || []
+    const categories = parentIdMap.value.get(normalizeParentIdKey(parent_id)) || []
     const validCategories = categories.filter(note => note.is_deleted !== 1)
 
     let count = 0
@@ -324,7 +328,7 @@ export function useNote() {
     const allFolders = notes.value.filter(note => note.item_type === NOTE_TYPE.FOLDER && note.is_deleted !== 1)
 
     // 使用 Map 索引快速查找子文件夹
-    const mapKey = parent_id || 'root'
+    const mapKey = normalizeParentIdKey(parent_id)
     const childItems = parentIdMap.value.get(mapKey) || []
     const folders = childItems.filter(item => item.item_type === NOTE_TYPE.FOLDER && item.is_deleted !== 1)
 
@@ -362,14 +366,14 @@ export function useNote() {
 
   async function searchNotesByParentId(parent_id: string, title: string, keyword: string) {
     // 使用 Map 索引快速获取子项目
-    const childItems = parentIdMap.value.get(parent_id) || []
+    const childItems = parentIdMap.value.get(normalizeParentIdKey(parent_id)) || []
 
     // 搜索当前 parent_id 下符合条件的笔记
     const directNotes = childItems
       .filter(note =>
         note.item_type === NOTE_TYPE.NOTE
         && note.is_deleted === 0
-        && note.content.includes(keyword),
+        && (note.title.includes(keyword) || note.content.includes(keyword)),
       )
       .map(note => Object.assign({}, note, {
         folderName: title,
