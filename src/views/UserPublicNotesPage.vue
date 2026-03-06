@@ -57,6 +57,8 @@ const state = reactive({
   noteUuid: '',
 })
 
+const expandedStateKey = computed(() => `home:public:${username.value}`)
+
 // 初始化数据
 async function init() {
   if (!username.value) {
@@ -142,6 +144,7 @@ onMounted(() => {
         <NoteList
           :note-uuid="state.folderUuid"
           :data-list="publicFolders"
+          :expanded-state-key="expandedStateKey"
           :presenting-element="presentingElement"
           :disabled-route="isDesktop"
           @refresh="init"

@@ -250,6 +250,7 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
         :all-notes-count
         :unfiled-notes-count
         :deleted-note-count="deletedNotes.length"
+        expanded-state-key="home:private"
         :presenting-element="presentingElement"
         :disabled-route="isDesktop"
         show-all-notes

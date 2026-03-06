@@ -3,15 +3,13 @@ import type { DefineComponent, Ref } from 'vue'
 import type { ItemType } from '@/components/LongPressMenu.vue'
 import type { FolderTreeNode } from '@/types'
 import { IonAccordionGroup, IonList } from '@ionic/vue'
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import LongPressMenu from '@/components/LongPressMenu.vue'
 import NoteMove from '@/components/NoteMove.vue'
-import { useIonicLongPressList } from '@/hooks/useIonicLongPressList'
 import { useDeviceType } from '@/hooks/useDeviceType'
+import { useIonicLongPressList } from '@/hooks/useIonicLongPressList'
 import { NOTE_TYPE } from '@/types'
 import NoteListItem from './NoteListItem.vue'
-
-const { isDesktop } = useDeviceType()
 
 const props = withDefaults(
   defineProps<{
@@ -28,6 +26,7 @@ const props = withDefaults(
     presentingElement?: HTMLElement
     disabledRoute?: boolean
     disabledLongPress?: boolean
+    expandedStateKey?: string
   }>(),
   {
     allNotesCount: 0,
@@ -41,10 +40,12 @@ const props = withDefaults(
     pressItems: () => [{ type: 'rename' }, { type: 'move' }, { type: 'delete' }],
     disabledRoute: false,
     disabledLongPress: false,
+    expandedStateKey: '',
   },
 )
-
 const emit = defineEmits(['refresh', 'update:noteUuid', 'selected'])
+const { isDesktop } = useDeviceType()
+const EXPANDED_STATE_STORAGE_PREFIX = 'note-list-expanded:'
 
 // const { getNote } = useNote()
 
@@ -57,9 +58,82 @@ const expandedItems = ref<string[]>([])
 const longPressMenuRef = ref()
 const movePresentingElement = ref<HTMLElement>()
 
+const persistedExpandedStateKey = computed(() => {
+  if (!props.expandedStateKey)
+    return ''
+
+  return `${EXPANDED_STATE_STORAGE_PREFIX}${props.expandedStateKey}`
+})
+
+const availableFolderIds = computed(() => {
+  const folderIds = new Set<string>()
+
+  function traverse(nodes: FolderTreeNode[]) {
+    nodes.forEach((node) => {
+      if (node.originNote?.item_type === NOTE_TYPE.FOLDER && node.originNote.id) {
+        folderIds.add(node.originNote.id)
+      }
+
+      if (node.children?.length) {
+        traverse(node.children)
+      }
+    })
+  }
+
+  if (props.showAllNotes)
+    folderIds.add('allnotes')
+
+  if (props.showUnfiledNotes)
+    folderIds.add('unfilednotes')
+
+  if (props.showDelete && props.deletedNoteCount > 0)
+    folderIds.add('deleted')
+
+  traverse(props.dataList)
+  return folderIds
+})
+
+function normalizeExpandedItems(items: unknown): string[] {
+  if (Array.isArray(items)) {
+    return items.filter((item): item is string => typeof item === 'string' && !!item)
+  }
+
+  if (typeof items === 'string' && items) {
+    return [items]
+  }
+
+  return []
+}
+
+function restoreExpandedItems() {
+  if (!persistedExpandedStateKey.value)
+    return
+
+  try {
+    const savedValue = localStorage.getItem(persistedExpandedStateKey.value)
+    expandedItems.value = savedValue ? normalizeExpandedItems(JSON.parse(savedValue)) : []
+  }
+  catch (error) {
+    console.error('恢复文件夹展开状态失败:', error)
+    expandedItems.value = []
+  }
+}
+
+function persistExpandedItems(items: string[]) {
+  if (!persistedExpandedStateKey.value)
+    return
+
+  try {
+    localStorage.setItem(persistedExpandedStateKey.value, JSON.stringify(items))
+  }
+  catch (error) {
+    console.error('保存文件夹展开状态失败:', error)
+  }
+}
+
 if (!props.disabledLongPress) {
   useIonicLongPressList(listRef as Ref<DefineComponent>, {
-    itemSelector: 'ion-item', // 匹配 ion-item 元素
+    itemSelector: 'ion-item',
     duration: 500,
     pressedClass: 'item-long-press',
     isDesktop: isDesktop.value,
@@ -80,29 +154,49 @@ function onSelected(id: string) {
 
 function onMove(id: string) {
   moveNoteId.value = id
-  // 设置正确的 presentingElement：如果 LongPressMenu 存在，使用它作为父级
   if (longPressMenuRef.value?.$el) {
     movePresentingElement.value = longPressMenuRef.value.$el
-  } else {
+  }
+  else {
     movePresentingElement.value = props.presentingElement
   }
-  // 延迟打开，确保 LongPressMenu 完全关闭
   setTimeout(() => {
     showMoveModal.value = true
   }, 300)
 }
 
-function setExpandedItems(items: string[]) {
-  expandedItems.value = items
+function setExpandedItems(items: string[] | string | undefined) {
+  const normalizedItems = normalizeExpandedItems(items)
+  expandedItems.value = normalizedItems
+  persistExpandedItems(normalizedItems)
 }
 
-// 桌面模式：修复鼠标滚轮滚动
+watch(availableFolderIds, (folderIds) => {
+  if (!persistedExpandedStateKey.value || folderIds.size === 0)
+    return
+
+  const filteredItems = expandedItems.value.filter(id => folderIds.has(id))
+  if (filteredItems.length === expandedItems.value.length)
+    return
+
+  expandedItems.value = filteredItems
+  persistExpandedItems(filteredItems)
+}, { immediate: true })
+
+watch(persistedExpandedStateKey, () => {
+  restoreExpandedItems()
+})
+
 onMounted(() => {
-  if (!isDesktop.value || !listRef.value?.$el) return
+  restoreExpandedItems()
+
+  if (!isDesktop.value || !listRef.value?.$el)
+    return
 
   const handleWheel = (e: WheelEvent) => {
     const ionContent = (e.currentTarget as HTMLElement).closest('ion-content')
-    if (!ionContent) return
+    if (!ionContent)
+      return
 
     const scrollElement = ionContent.shadowRoot?.querySelector('.inner-scroll') || ionContent
     scrollElement.scrollTop += e.deltaY
@@ -204,10 +298,9 @@ defineExpose({
       />
     </IonAccordionGroup>
   </IonList>
-
   <LongPressMenu
-    ref="longPressMenuRef"
     :id="longPressId"
+    ref="longPressMenuRef"
     :is-open="longPressMenuOpen"
     :items="pressItems"
     :presenting-element
@@ -215,7 +308,7 @@ defineExpose({
     @move="onMove"
     @refresh="$emit('refresh')"
   />
-  
+
   <NoteMove
     :id="moveNoteId"
     :is-open="showMoveModal"
