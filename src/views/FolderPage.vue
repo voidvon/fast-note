@@ -45,6 +45,7 @@ const { notes, addNote, getNote, getFolderTreeByParentId } = useNote()
 const { isDesktop } = useDeviceType()
 
 const data = ref<Note>({} as Note)
+const showAddFolderAlert = ref(false)
 
 const username = computed(() => route.params.username as string)
 const isUserContext = computed(() => !!username.value)
@@ -54,18 +55,18 @@ const folderId = computed(() => {
   if (isDesktop.value && props.currentFolder) {
     return props.currentFolder
   }
-  
+
   // 移动端：从路由解析
   // 对于 /f/:pathMatch(.*)*，使用 route.params.pathMatch
   if (route.params.pathMatch) {
-    const pathMatch = Array.isArray(route.params.pathMatch) 
+    const pathMatch = Array.isArray(route.params.pathMatch)
       ? route.params.pathMatch.join('/')
       : route.params.pathMatch
     // 如果 pathMatch 包含多级路径，取最后一段
     const segments = pathMatch.split('/')
     return segments[segments.length - 1]
   }
-  
+
   // 兜底：从 path 中解析
   const segments = route.path.split('/')
   return segments[segments.length - 1]
@@ -73,35 +74,40 @@ const folderId = computed(() => {
 
 // 将 folderList 和 noteList 改为计算属性，自动响应 notes 变化
 const folderList = computed(() => {
-  if (!folderId.value || isUserContext.value) return []
-  
+  if (!folderId.value || isUserContext.value)
+    return []
+
   if (folderId.value === 'allnotes' || folderId.value === 'unfilednotes') {
     return []
   }
-  
+
   return getFolderTreeByParentId(folderId.value)
 })
 
 const noteList = computed(() => {
-  if (!folderId.value) return []
-  
+  if (!folderId.value)
+    return []
+
   if (folderId.value === 'allnotes') {
     const allNotes = notes.value.filter(d => d.item_type === NOTE_TYPE.NOTE && d.is_deleted === 0).map(d => ({ originNote: d })) as FolderTreeNode[]
     const allFolders = notes.value.filter(d => d.item_type === NOTE_TYPE.FOLDER && d.is_deleted === 0)
     const folderMap = new Map(allFolders.map(folder => [folder.id, folder]))
-    
+
     allNotes.forEach((note) => {
       if (note.originNote.parent_id) {
         const parentFolder = folderMap.get(note.originNote.parent_id)
         note.folderName = parentFolder ? parentFolder.title : '备忘录'
-      } else {
+      }
+      else {
         note.folderName = '备忘录'
       }
     })
     return allNotes
-  } else if (folderId.value === 'unfilednotes') {
+  }
+  else if (folderId.value === 'unfilednotes') {
     return notes.value.filter(d => d.item_type === NOTE_TYPE.NOTE && !d.parent_id && d.is_deleted === 0).map(d => ({ originNote: d })) as FolderTreeNode[]
-  } else {
+  }
+  else {
     return notes.value.filter(d => d.item_type === NOTE_TYPE.NOTE && d.parent_id === folderId.value && d.is_deleted === 0).map(d => ({ originNote: d })) as FolderTreeNode[]
   }
 })
@@ -160,6 +166,11 @@ const title = computed(() => {
   }
 })
 
+const expandedStateKey = computed(() => {
+  const context = isUserContext.value ? `public:${username.value}` : 'private'
+  return `folder:${context}:${folderId.value}`
+})
+
 // 智能返回按钮
 const { backButtonProps } = useFolderBackButton(
   route,
@@ -196,8 +207,9 @@ onMounted(() => {
 
 async function init() {
   const id = folderId.value
-  
-  if (!id) return
+
+  if (!id)
+    return
 
   try {
     if (isUserContext.value) {
@@ -206,20 +218,24 @@ async function init() {
       if (folderInfo) {
         data.value = folderInfo
       }
-    } else {
+    }
+    else {
       // 当前用户的文件夹上下文
       if (id === 'allnotes') {
         data.value = { id: 'allnotes' } as Note
-      } else if (id === 'unfilednotes') {
+      }
+      else if (id === 'unfilednotes') {
         data.value = { id: 'unfilednotes' } as Note
-      } else {
+      }
+      else {
         const res = await getNote(id)
         if (res) {
           data.value = res
         }
       }
     }
-  } catch (error) {
+  }
+  catch (error) {
     console.error('初始化文件夹数据失败:', error)
   }
 }
@@ -263,13 +279,14 @@ defineExpose({
         :data-list="[...folders, ...sortedNoteList]"
         :note-uuid="selectedNoteId"
         :show-parent-folder="data.id === 'allnotes'"
+        :expanded-state-key="expandedStateKey"
         @selected="$emit('selected', $event)"
       />
     </IonContent>
     <IonFooter v-if="!isDesktop">
       <IonToolbar>
         <IonButtons v-if="data.id !== 'allnotes' && !isUserContext" slot="start">
-          <IonButton id="add-folder2">
+          <IonButton @click="showAddFolderAlert = true">
             <IonIcon :icon="addOutline" />
           </IonButton>
         </IonButtons>
@@ -287,7 +304,7 @@ defineExpose({
     <IonFooter v-else-if="isDesktop && data.id !== 'allnotes' && !isUserContext">
       <IonToolbar>
         <IonButtons slot="start">
-          <IonButton id="add-folder2">
+          <IonButton @click="showAddFolderAlert = true">
             <IonIcon :icon="addOutline" />
           </IonButton>
         </IonButtons>
@@ -303,10 +320,11 @@ defineExpose({
       </IonToolbar>
     </IonFooter>
     <IonAlert
-      trigger="add-folder2"
+      :is-open="showAddFolderAlert"
       header="请输入文件夹名称"
       :buttons="addButtons"
       :inputs="[{ name: 'newFolderName', placeholder: '请输入文件夹名称' }]"
+      @did-dismiss="showAddFolderAlert = false"
     />
   </IonPage>
 </template>
