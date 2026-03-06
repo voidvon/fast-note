@@ -17,6 +17,21 @@ const onNoteUpdateArr: UpdateFn[] = []
 // 全局同步实例
 let notesSync: ReturnType<typeof useRefDBSync<Note>> | null = null
 
+export function shouldRefreshNoteUpdated(existingNote: Note, updates: Partial<Note>) {
+  if (!updates.updated)
+    return true
+
+  if (updates.updated !== existingNote.updated)
+    return false
+
+  return Object.entries(updates).some(([field, value]) => {
+    if (field === 'updated')
+      return false
+
+    return existingNote[field as keyof Note] !== value
+  })
+}
+
 /**
  * 重建索引 Map
  */
@@ -227,8 +242,12 @@ export function useNote() {
     // 使用 Map 索引快速查找
     const existingNote = notesMap.value.get(id)
     if (existingNote) {
+      const nextUpdated = shouldRefreshNoteUpdated(existingNote, updates)
+        ? getTime()
+        : updates.updated
+
       // 确保更新 updated 用于同步检测
-      const updatedNote = Object.assign({}, existingNote, updates, { updated: updates.updated || getTime() })
+      const updatedNote = Object.assign({}, existingNote, updates, { updated: nextUpdated })
 
       // 更新数组中的数据 - 使用 splice 确保触发响应式更新
       const noteIndex = notes.value.findIndex(n => n.id === id)
