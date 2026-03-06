@@ -68,6 +68,7 @@ const idFromSource = computed(() => props.noteId || idFromRoute.value)
 const isNewNote = computed(() => idFromSource.value === '0')
 const username = computed(() => route.params.username as string)
 const isUserContext = computed(() => !!username.value)
+const isReadOnly = computed(() => isUserContext.value || data.value?.is_deleted === 1)
 
 // 智能返回按钮
 const { backButtonProps } = useNoteBackButton(route, data, username.value)
@@ -99,13 +100,13 @@ watch(idFromSource, async (id, oldId) => {
     data.value = null
     newNoteId.value = nanoid(12)
     lastSavedContent.value = '' // 重置上次保存的内容
-    
+
     // 立即清空编辑器内容，不使用 nextTick
     if (editorRef.value) {
       editorRef.value.setContent('')
       editorRef.value.setEditable(true)
     }
-    
+
     // 延迟聚焦，确保编辑器已经清空
     nextTick(() => {
       setTimeout(() => {
@@ -211,7 +212,7 @@ async function handleNoteSaving(silent = false) {
       })
       await updateNote(id, updatedNote)
       data.value = updatedNote
-      
+
       // 静默保存时不发出事件，避免触发列表刷新
       if (!silent) {
         emit('noteSaved', { noteId: id, isNew: false })
@@ -238,12 +239,12 @@ async function handleNoteSaving(silent = false) {
       await addNote(newNote)
       updateParentFolderSubcount(newNote)
       data.value = newNote
-      
+
       // 新建笔记保存后，重置 newNoteId，这样下次就不会被认为是新笔记
       if (wasNewNote) {
         newNoteId.value = null
       }
-      
+
       // 新建笔记总是发出事件，需要刷新列表
       emit('noteSaved', { noteId: id, isNew: true })
     }
@@ -284,7 +285,7 @@ function debouncedSave(silent = false) {
   if (saveTimer.value) {
     clearTimeout(saveTimer.value)
   }
-  
+
   // 设置新的定时器，800ms 后执行保存
   saveTimer.value = window.setTimeout(() => {
     handleNoteSaving(silent)
@@ -298,9 +299,8 @@ async function init(id: string) {
       // 获取用户公开笔记
       data.value = getPublicNote(id)
       if (data.value) {
-        // 公开笔记始终为只读模式
-        editorRef.value?.setEditable(false)
         nextTick(() => {
+          editorRef.value?.setEditable(false)
           editorRef.value?.setContent(data.value?.content || '')
           // 记录初始内容
           lastSavedContent.value = data.value?.content || ''
@@ -311,8 +311,9 @@ async function init(id: string) {
       // 获取当前用户的笔记
       data.value = await getNote(id)
       if (data.value) {
-        if (data.value.is_deleted === 1)
-          editorRef.value?.setEditable(false)
+        nextTick(() => {
+          editorRef.value?.setEditable(data.value?.is_deleted !== 1)
+        })
 
         if (data.value?.is_locked === 1) {
           if (authState.isRegistered)
@@ -395,7 +396,7 @@ onIonViewWillLeave(() => {
         <IonButtons slot="start">
           <IonBackButton v-bind="backButtonProps" />
         </IonButtons>
-        <IonButtons v-if="!isUserContext" slot="end">
+        <IonButtons v-if="!isReadOnly" slot="end">
           <IonButton @click="state.showNoteMore = true">
             <IonIcon :icon="ellipsisHorizontalCircleOutline" />
           </IonButton>
@@ -416,7 +417,7 @@ onIonViewWillLeave(() => {
       </div> -->
     </IonContent>
     <!-- <IonFooter v-if="keyboardHeight > 0" style="overscroll-behavior: none;"> -->
-    <IonFooter v-if="!isUserContext">
+    <IonFooter v-if="!isReadOnly">
       <IonToolbar class="note-detail__toolbar">
         <div class="flex justify-evenly items-center select-none">
           <IonButton
@@ -465,9 +466,9 @@ onIonViewWillLeave(() => {
         </div>
       </IonToolbar>
     </IonFooter>
-    <NoteMore v-if="!isUserContext" v-model:is-open="state.showNoteMore" />
-    <TableFormatModal v-if="!isUserContext" v-model:is-open="state.showTableFormat" :editor="((editorRef?.editor || {}) as Editor)" />
-    <TextFormatModal v-if="!isUserContext" v-model:is-open="state.showFormat" :editor="((editorRef?.editor || {}) as Editor)" />
+    <NoteMore v-if="!isReadOnly" v-model:is-open="state.showNoteMore" />
+    <TableFormatModal v-if="!isReadOnly" v-model:is-open="state.showTableFormat" :editor="((editorRef?.editor || {}) as Editor)" />
+    <TextFormatModal v-if="!isReadOnly" v-model:is-open="state.showFormat" :editor="((editorRef?.editor || {}) as Editor)" />
 
     <!-- 同步结果提示 -->
     <IonToast

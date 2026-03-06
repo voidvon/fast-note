@@ -9,36 +9,35 @@ import {
   IonPage,
   IonTitle,
   IonToolbar,
-  onIonViewWillEnter,
 } from '@ionic/vue'
-import { onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive } from 'vue'
 import NoteList from '@/components/NoteList.vue'
 import { useDeviceType } from '@/hooks/useDeviceType'
 import { useSimpleBackButton } from '@/hooks/useSmartBackButton'
 import { useNote } from '@/stores'
 
+const props = withDefaults(defineProps<{
+  selectedNoteId?: string
+}>(), {
+  selectedNoteId: '',
+})
+
 defineEmits(['selected'])
 
-const { getDeletedNotes } = useNote()
+const { notes } = useNote()
 const { isDesktop } = useDeviceType()
 
 // 简单的返回按钮
 const { backButtonProps } = useSimpleBackButton('/home', '备忘录')
 
-const dataList = ref<FolderTreeNode[]>([])
+const dataList = computed<FolderTreeNode[]>(() => {
+  const thirtyDaysAgo = new Date(Date.now() - (30 * 24 * 60 * 60 * 1000)).toISOString().replace('T', ' ')
+  return notes.value
+    .filter(note => note.is_deleted === 1 && note.updated >= thirtyDaysAgo)
+    .map(note => ({ originNote: note, children: [] }))
+})
 const state = reactive({
   windowWidth: 0,
-})
-
-function init() {
-  getDeletedNotes().then((res) => {
-    dataList.value = res.map(note => ({ originNote: note, children: [] }))
-  })
-}
-
-onIonViewWillEnter(() => {
-  if (!isDesktop.value)
-    init()
 })
 
 // 更新窗口宽度的函数
@@ -78,6 +77,7 @@ onUnmounted(() => {
       </IonHeader>
 
       <NoteList
+        :note-uuid="props.selectedNoteId"
         :data-list="dataList"
         :press-items="[{ type: 'restore' }, { type: 'deleteNow' }]"
         @selected="$emit('selected', $event)"

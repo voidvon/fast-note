@@ -2,7 +2,7 @@
 import type {
   AlertButton,
 } from '@ionic/vue'
-import type { FolderTreeNode, Note } from '@/types'
+import type { FolderTreeNode } from '@/types'
 import {
   IonAlert,
   IonButton,
@@ -34,11 +34,11 @@ import { useExtensions } from '@/hooks/useExtensions'
 import { useNote } from '@/stores'
 import { NOTE_TYPE } from '@/types'
 import { getTime } from '@/utils/date'
-import { errorHandler, ErrorType, withErrorHandling } from '@/utils/errorHandler'
+import DeletedPage from './DeletedPage.vue'
 import FolderPage from './FolderPage.vue'
 import NoteDetail from './NoteDetail.vue'
 
-const { notes, addNote, onUpdateNote, getDeletedNotes, getFolderTreeByParentId } = useNote()
+const { notes, addNote, getFolderTreeByParentId } = useNote()
 const { isDesktop } = useDeviceType()
 const { showGlobalSearch } = useGlobalSearch()
 const { isExtensionEnabled, getExtensionModule } = useExtensions()
@@ -101,7 +101,10 @@ const noteCounts = computed(() => {
 // 从计算属性中提取各个计数值
 const allNotesCount = computed(() => noteCounts.value.all)
 const unfiledNotesCount = computed(() => noteCounts.value.unfiled)
-const deletedNotes = ref<Note[]>([])
+const deletedNotes = computed(() => {
+  const thirtyDaysAgo = new Date(Date.now() - (30 * 24 * 60 * 60 * 1000)).toISOString().replace('T', ' ')
+  return notes.value.filter(note => note.is_deleted === 1 && note.updated >= thirtyDaysAgo)
+})
 const presentingElement = ref()
 const addButtons: AlertButton[] = [
   { text: '取消', role: 'cancel' },
@@ -132,6 +135,8 @@ const state = reactive({
   parentId: '', // 新建笔记时的父文件夹ID
 })
 
+const isDeletedFolder = computed(() => state.folerId === 'deleted')
+
 const sortDataList = computed(() => {
   return dataList.value
     .toSorted((a: FolderTreeNode, b: FolderTreeNode) => {
@@ -143,6 +148,8 @@ const sortDataList = computed(() => {
 watch(() => state.folerId, () => {
   if (isDesktop.value) {
     state.noteId = ''
+    state.parentId = ''
+    init()
   }
 })
 
@@ -152,19 +159,15 @@ async function refresh(ev: CustomEvent) {
 }
 
 async function init() {
-  // dataList 现在是计算属性，会自动更新，无需手动赋值
+  if (isDesktop.value && state.folerId === 'deleted' && !state.noteId) {
+    const sortedDeletedNotes = deletedNotes.value
+      .slice()
+      .sort((a, b) => new Date(b.updated!).getTime() - new Date(a.updated!).getTime())
 
-  // 获取已删除的备忘录
-  const { data: deletedData, error: deletedError } = await withErrorHandling(
-    () => getDeletedNotes(),
-    ErrorType.DATABASE,
-  )
-
-  if (deletedError) {
-    console.error('获取已删除笔记失败:', errorHandler.getUserFriendlyMessage(deletedError))
-  }
-  else if (deletedData) {
-    deletedNotes.value = deletedData
+    if (sortedDeletedNotes.length > 0) {
+      state.noteId = sortedDeletedNotes[0].id!
+    }
+    return
   }
 
   // 桌面端初始化时，如果选中了全部备忘录且没有选中笔记，自动选择第一条笔记
@@ -172,18 +175,12 @@ async function init() {
     const allNotes = notes.value
       .filter(d => d.item_type === NOTE_TYPE.NOTE && d.is_deleted === 0)
       .sort((a, b) => new Date(b.updated!).getTime() - new Date(a.updated!).getTime())
-    
+
     if (allNotes.length > 0) {
       state.noteId = allNotes[0].id!
     }
   }
 }
-
-onUpdateNote((item) => {
-  if (!item.parent_id) {
-    init()
-  }
-})
 
 onIonViewWillEnter(() => {
   init()
@@ -303,7 +300,13 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
       :presenting-element="presentingElement"
     /> -->
     <div v-if="isDesktop" class="home-list">
+      <DeletedPage
+        v-if="isDeletedFolder"
+        :selected-note-id="state.noteId"
+        @selected="(id: string) => state.noteId = id"
+      />
       <FolderPage
+        v-else
         ref="folderPageRef"
         :current-folder="state.folerId"
         :selected-note-id="state.noteId"
@@ -315,8 +318,8 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
       />
     </div>
     <div v-if="isDesktop" class="home-detail">
-      <NoteDetail 
-        :note-id="state.noteId" 
+      <NoteDetail
+        :note-id="state.noteId"
         :parent-id="state.parentId"
         @note-saved="handleNoteSaved"
       />
