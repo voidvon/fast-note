@@ -28,6 +28,7 @@ import ExtensionRenderer from '@/components/ExtensionRenderer.vue'
 import GlobalSearch from '@/components/GlobalSearch/GlobalSearch.vue'
 import { useGlobalSearch } from '@/components/GlobalSearch/useGlobalSearch'
 import NoteList from '@/components/NoteList.vue'
+import UserProfile from '@/components/UserProfile.vue'
 import {
   getDesktopNotesForFolder,
   isDesktopFolderAvailable,
@@ -143,6 +144,7 @@ const state = reactive({
 })
 
 const isDeletedFolder = computed(() => state.folerId === 'deleted')
+const showDesktopEmptyDetailOverlay = computed(() => isDesktop.value && !state.noteId)
 
 const sortDataList = computed(() => {
   return dataList.value
@@ -416,6 +418,21 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
         :parent-id="state.parentId"
         @note-saved="handleNoteSaved"
       />
+      <button
+        v-if="showDesktopEmptyDetailOverlay"
+        type="button"
+        class="home-detail-empty"
+        data-testid="home-empty-detail-create"
+        @click="handleCreateNote()"
+      >
+        <IonIcon :icon="createOutline" class="home-detail-empty__icon" />
+        <div class="home-detail-empty__title">
+          点击开始新建备忘录
+        </div>
+        <div class="home-detail-empty__desc">
+          将直接进入编辑并聚焦正文
+        </div>
+      </button>
     </div>
   </IonPage>
 </template>
@@ -469,5 +486,39 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
   */
   max-height: 150px; /* 示例值，请根据你的 header 内容调整 */
   opacity: 1;
+}
+.home-detail-empty {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.04));
+  color: #8e8e93;
+  cursor: text;
+  text-align: center;
+}
+
+.home-detail-empty:hover {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.06));
+}
+
+.home-detail-empty__icon {
+  font-size: 28px;
+  color: var(--ion-color-primary, #007aff);
+}
+
+.home-detail-empty__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #f2f2f7;
+}
+
+.home-detail-empty__desc {
+  font-size: 13px;
 }
 </style>
