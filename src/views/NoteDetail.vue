@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Editor } from '@tiptap/vue-3'
-import { IonBackButton, IonButton, IonButtons, IonContent, IonFooter, IonHeader, IonIcon, IonPage, IonToast, IonToolbar, isPlatform, onIonViewWillLeave } from '@ionic/vue'
+import { IonBackButton, IonButton, IonButtons, IonContent, IonFooter, IonHeader, IonIcon, IonPage, IonSpinner, IonToolbar, isPlatform, onIonViewWillLeave, toastController } from '@ionic/vue'
 import { attachOutline, checkmarkCircleOutline, ellipsisHorizontalCircleOutline, textOutline } from 'ionicons/icons'
 import { nanoid } from 'nanoid'
 import { computed, nextTick, onMounted, reactive, ref, toRaw, watch } from 'vue'
@@ -56,11 +56,7 @@ const state = reactive({
   showNoteMore: false,
   isAuth: false,
   isFormatModalOpen: false, // 标记格式化面板是否打开
-  toast: {
-    isOpen: false,
-    message: '',
-    color: 'success',
-  },
+  isSaving: false,
 })
 
 const idFromRoute = computed(() => route.params.id as string || route.params.noteId as string)
@@ -155,6 +151,20 @@ function changeFormatModal(n: boolean) {
   }
 }
 
+async function presentTopError(message: string) {
+  await toastController.dismiss(undefined, undefined, 'note-detail-error-toast')
+
+  const toast = await toastController.create({
+    id: 'note-detail-error-toast',
+    message,
+    duration: 2000,
+    position: 'top',
+    color: 'danger',
+  })
+
+  await toast.present()
+}
+
 async function handleNoteSaving(silent = false) {
   // 如果格式化面板打开，不触发保存
   if (state.isFormatModalOpen) {
@@ -189,6 +199,10 @@ async function handleNoteSaving(silent = false) {
   if (!id)
     return
 
+  if (!silent) {
+    state.isSaving = true
+  }
+
   restoreHeight()
 
   const time = getTime()
@@ -196,86 +210,89 @@ async function handleNoteSaving(silent = false) {
   // 本地保存时不处理文件hash，让富文本编辑器自主管理
   const fileHashes: string[] = []
 
-  // 保存笔记数据
-  if (content) {
-    const wasNewNote = isNewNote.value
-    const noteExists = await getNote(id)
-    if (noteExists) {
-      // 更新笔记
-      const updatedNote = Object.assign(toRaw(data.value) || {}, {
-        title,
-        summary,
-        content,
-        updated: time,
-        version: (data.value?.version || 1) + 1,
-        files: fileHashes,
-      })
-      await updateNote(id, updatedNote)
-      data.value = updatedNote
+  try {
+    // 保存笔记数据
+    if (content) {
+      const wasNewNote = isNewNote.value
+      const noteExists = await getNote(id)
+      if (noteExists) {
+        // 更新笔记
+        const updatedNote = Object.assign(toRaw(data.value) || {}, {
+          title,
+          summary,
+          content,
+          updated: time,
+          version: (data.value?.version || 1) + 1,
+          files: fileHashes,
+        })
+        await updateNote(id, updatedNote)
+        data.value = updatedNote
 
-      // 静默保存时不发出事件，避免触发列表刷新
+        // 静默保存时不发出事件，避免触发列表刷新
+        if (!silent) {
+          emit('noteSaved', { noteId: id, isNew: false })
+        }
+      }
+      else {
+        // 新增笔记
+        const newNote = {
+          title,
+          summary,
+          content,
+          created: getTime(),
+          updated: time,
+          item_type: NOTE_TYPE.NOTE,
+          parent_id: isDesktop.value
+            ? (props.parentId || '')
+            : ((!route.query.parent_id || route.query.parent_id === 'unfilednotes') ? '' : route.query.parent_id as string),
+          id,
+          is_deleted: 0,
+          is_locked: 0,
+          note_count: 0,
+          files: fileHashes,
+        }
+        await addNote(newNote)
+        updateParentFolderSubcount(newNote)
+        data.value = newNote
+
+        // 新建笔记保存后，重置 newNoteId，这样下次就不会被认为是新笔记
+        if (wasNewNote) {
+          newNoteId.value = null
+        }
+
+        // 新建笔记总是发出事件，需要刷新列表
+        emit('noteSaved', { noteId: id, isNew: true })
+      }
+
+      // 更新上次保存的内容
+      lastSavedContent.value = content
+
+      // 自动同步笔记到云端（静默模式）
+      // 静默模式：未登录时不会抛出错误，直接跳过
       if (!silent) {
-        emit('noteSaved', { noteId: id, isNew: false })
+        try {
+          await sync(true)
+        }
+        catch (error) {
+          console.error('自动同步失败:', error)
+          await presentTopError('同步失败，请检查网络连接')
+        }
       }
     }
     else {
-      // 新增笔记
-      const newNote = {
-        title,
-        summary,
-        content,
-        created: getTime(),
-        updated: time,
-        item_type: NOTE_TYPE.NOTE,
-        parent_id: isDesktop.value
-          ? (props.parentId || '')
-          : ((!route.query.parent_id || route.query.parent_id === 'unfilednotes') ? '' : route.query.parent_id as string),
-        id,
-        is_deleted: 0,
-        is_locked: 0,
-        note_count: 0,
-        files: fileHashes,
-      }
-      await addNote(newNote)
-      updateParentFolderSubcount(newNote)
-      data.value = newNote
-
-      // 新建笔记保存后，重置 newNoteId，这样下次就不会被认为是新笔记
-      if (wasNewNote) {
-        newNoteId.value = null
-      }
-
-      // 新建笔记总是发出事件，需要刷新列表
-      emit('noteSaved', { noteId: id, isNew: true })
-    }
-
-    // 更新上次保存的内容
-    lastSavedContent.value = content
-
-    // 自动同步笔记到云端（静默模式）
-    // 静默模式：未登录时不会抛出错误，直接跳过
-    // 静默保存时不显示同步提示
-    if (!silent) {
-      try {
-        const syncResult = await sync(true)
-        // 只有在真正同步成功时才显示提示（syncResult 不为 null）
-        if (syncResult) {
-          state.toast.message = '同步成功'
-          state.toast.isOpen = true
-        }
-      }
-      catch (error) {
-        console.error('自动同步失败:', error)
-        // 同步失败提示
-        state.toast.message = '同步失败，请检查网络连接'
-        state.toast.isOpen = true
-      }
+      // 内容为空，删除笔记
+      await deleteNote(id)
+      lastSavedContent.value = ''
     }
   }
-  else {
-    // 内容为空，删除笔记
-    await deleteNote(id)
-    lastSavedContent.value = ''
+  catch (error) {
+    console.error('保存笔记失败:', error)
+    await presentTopError('保存失败，请重试')
+  }
+  finally {
+    if (!silent) {
+      state.isSaving = false
+    }
   }
 }
 
@@ -396,7 +413,12 @@ onIonViewWillLeave(() => {
         <IonButtons slot="start">
           <IonBackButton v-bind="backButtonProps" />
         </IonButtons>
-        <IonButtons v-if="!isReadOnly" slot="end">
+        <IonButtons v-if="!isReadOnly" slot="end" class="note-detail__header-buttons">
+          <IonSpinner
+            v-if="state.isSaving"
+            class="note-detail__saving-spinner"
+            name="crescent"
+          />
           <IonButton @click="state.showNoteMore = true">
             <IonIcon :icon="ellipsisHorizontalCircleOutline" />
           </IonButton>
@@ -470,14 +492,6 @@ onIonViewWillLeave(() => {
     <TableFormatModal v-if="!isReadOnly" v-model:is-open="state.showTableFormat" :editor="((editorRef?.editor || {}) as Editor)" />
     <TextFormatModal v-if="!isReadOnly" v-model:is-open="state.showFormat" :editor="((editorRef?.editor || {}) as Editor)" />
 
-    <!-- 同步结果提示 -->
-    <IonToast
-      :is-open="state.toast.isOpen"
-      :message="state.toast.message"
-      :duration="2000"
-      position="bottom"
-      @did-dismiss="state.toast.isOpen = false"
-    />
   </IonPage>
 </template>
 
@@ -504,6 +518,17 @@ onIonViewWillLeave(() => {
       padding-right: 2%;
     }
   }
+}
+
+.note-detail__header-buttons {
+  align-items: center;
+  gap: 4px;
+}
+
+.note-detail__saving-spinner {
+  width: 18px;
+  height: 18px;
+  color: var(--ion-color-medium);
 }
 </style>
 
@@ -549,9 +574,6 @@ ion-item ion-note {
   font-weight: normal;
 }
 
-ion-toast {
-  --background: var(--c-gray-700);
-}
 p {
   line-height: 1.4;
 }
