@@ -112,6 +112,21 @@ const noteList = computed(() => {
   }
 })
 
+function focusFolderAlertInput(event: CustomEvent) {
+  const alert = event.target as HTMLElement | null
+
+  window.setTimeout(() => {
+    const input = alert?.querySelector('input.alert-input') as HTMLInputElement | null
+    if (!input) {
+      return
+    }
+
+    input.focus()
+    const end = input.value.length
+    input.setSelectionRange(end, end)
+  }, 50)
+}
+
 const addButtons: AlertButton[] = [
   { text: '取消', role: 'cancel' },
   {
@@ -153,6 +168,10 @@ const sortedNoteList = computed(() => {
   return noteList.value.toSorted((a, b) => {
     return new Date(b.originNote.updated!).getTime() - new Date(a.originNote.updated!).getTime()
   })
+})
+
+const hasChildItems = computed(() => {
+  return folders.value.length > 0 || sortedNoteList.value.length > 0
 })
 
 const title = computed(() => {
@@ -266,7 +285,7 @@ defineExpose({
       </IonToolbar>
     </IonHeader>
 
-    <IonContent :fullscreen="true">
+    <IonContent class="folder-page-content" :fullscreen="true">
       <IonHeader collapse="condense">
         <IonToolbar>
           <IonTitle size="large">
@@ -275,13 +294,20 @@ defineExpose({
         </IonToolbar>
       </IonHeader>
 
-      <NoteList
-        :data-list="[...folders, ...sortedNoteList]"
-        :note-uuid="selectedNoteId"
-        :show-parent-folder="data.id === 'allnotes'"
-        :expanded-state-key="expandedStateKey"
-        @selected="$emit('selected', $event)"
-      />
+      <div class="folder-page-content__body">
+        <NoteList
+          v-if="hasChildItems"
+          :data-list="[...folders, ...sortedNoteList]"
+          :note-uuid="selectedNoteId"
+          :show-parent-folder="data.id === 'allnotes'"
+          :expanded-state-key="expandedStateKey"
+          @selected="$emit('selected', $event)"
+        />
+
+        <div v-else class="folder-empty-state">
+          无备忘录
+        </div>
+      </div>
     </IonContent>
     <IonFooter v-if="!isDesktop">
       <IonToolbar>
@@ -321,10 +347,36 @@ defineExpose({
     </IonFooter>
     <IonAlert
       :is-open="showAddFolderAlert"
+      :keyboard-close="false"
       header="请输入文件夹名称"
       :buttons="addButtons"
       :inputs="[{ name: 'newFolderName', placeholder: '请输入文件夹名称' }]"
+      @didPresent="focusFolderAlertInput"
       @did-dismiss="showAddFolderAlert = false"
     />
   </IonPage>
 </template>
+
+<style lang="scss">
+.folder-page-content::part(scroll) {
+  display: flex;
+  flex-direction: column;
+}
+
+.folder-page-content__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.folder-empty-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  color: var(--ion-color-medium);
+  font-size: 16px;
+  text-align: center;
+}
+</style>

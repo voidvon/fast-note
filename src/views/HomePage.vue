@@ -115,6 +115,21 @@ const deletedNotes = computed(() => {
   return notes.value.filter(note => note.is_deleted === 1 && note.updated >= thirtyDaysAgo)
 })
 const presentingElement = ref()
+function focusFolderAlertInput(event: CustomEvent) {
+  const alert = event.target as HTMLElement | null
+
+  window.setTimeout(() => {
+    const input = alert?.querySelector('input.alert-input') as HTMLInputElement | null
+    if (!input) {
+      return
+    }
+
+    input.focus()
+    const end = input.value.length
+    input.setSelectionRange(end, end)
+  }, 50)
+}
+
 const addButtons: AlertButton[] = [
   { text: '取消', role: 'cancel' },
   {
@@ -387,9 +402,11 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
     </IonFooter>
     <IonAlert
       trigger="add-folder"
+      :keyboard-close="false"
       header="请输入文件夹名称"
       :buttons="addButtons"
       :inputs="[{ name: 'newFolderName', placeholder: '请输入文件夹名称' }]"
+      @didPresent="focusFolderAlertInput"
     />
 
     <!-- 扩展管理器 -->
