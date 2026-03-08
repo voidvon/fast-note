@@ -128,7 +128,7 @@ export function useIonicLongPressList(
           if (currentTarget.value === itemElement) {
             longPressTriggered.value = true
             onItemLongPress(itemElement, detail.event)
-            
+
             // 立即清除样式，菜单已显示
             if (currentTarget.value && pressedClass)
               currentTarget.value.classList.remove(pressedClass)

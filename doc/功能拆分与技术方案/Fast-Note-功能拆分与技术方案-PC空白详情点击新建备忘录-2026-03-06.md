@@ -180,11 +180,11 @@
 
 ## 8. 任务拆分
 
-| 任务ID | 优先级 | 任务描述 | 变更文件 | 负责人角色 | 依赖 | 风险 |
-| --- | --- | --- | --- | --- | --- | --- |
-| T-FN-022 | P1 | 在桌面首页右侧详情空态增加全区域点击创建入口，并补提示文案与 hover 反馈 | `src/views/HomePage.vue` | 前端 | 无 | 低 |
-| T-FN-023 | P1 | 回归并必要时微调 `NoteDetail` 新建态聚焦链路，确保从空态点击进入后仍聚焦正文 | `src/views/NoteDetail.vue` | 前端 | T-FN-022 | 中 |
-| T-FN-024 | P1 | 补充空白详情点击创建的单测/集成测试，覆盖防重复与正文聚焦场景 | `tests/unit/views/home-empty-detail-create.spec.ts`, `tests/integration/home/desktop-empty-detail-create.spec.ts` | 前端+测试 | T-FN-022,T-FN-023 | 中 |
+| 任务ID   | 优先级 | 任务描述                                                                     | 变更文件                                                                                                          | 负责人角色 | 依赖              | 风险 |
+| -------- | ------ | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------- | ----------------- | ---- |
+| T-FN-022 | P1     | 在桌面首页右侧详情空态增加全区域点击创建入口，并补提示文案与 hover 反馈      | `src/views/HomePage.vue`                                                                                          | 前端       | 无                | 低   |
+| T-FN-023 | P1     | 回归并必要时微调 `NoteDetail` 新建态聚焦链路，确保从空态点击进入后仍聚焦正文 | `src/views/NoteDetail.vue`                                                                                        | 前端       | T-FN-022          | 中   |
+| T-FN-024 | P1     | 补充空白详情点击创建的单测/集成测试，覆盖防重复与正文聚焦场景                | `tests/unit/views/home-empty-detail-create.spec.ts`, `tests/integration/home/desktop-empty-detail-create.spec.ts` | 前端+测试  | T-FN-022,T-FN-023 | 中   |
 
 ## 9. 验收标准
 

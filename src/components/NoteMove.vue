@@ -47,19 +47,19 @@ async function onSelected(id: string) {
   if (currentNote.value) {
     const oldParentId = currentNote.value.parent_id
     const newParentId = id === 'root' ? '' : id
-    
+
     // 如果没有变化，直接返回
     if (oldParentId === newParentId) {
       dismiss()
       return
     }
-    
+
     currentNote.value.parent_id = newParentId
     currentNote.value.updated = getTime()
-    
+
     // 保存更改到数据库
     await updateNote(currentNote.value.id, currentNote.value)
-    
+
     // 更新旧父文件夹的计数
     if (oldParentId) {
       const oldParent = getNote(oldParentId)
@@ -71,7 +71,7 @@ async function onSelected(id: string) {
         })
       }
     }
-    
+
     // 更新新父文件夹的计数
     if (newParentId) {
       const newParent = getNote(newParentId)

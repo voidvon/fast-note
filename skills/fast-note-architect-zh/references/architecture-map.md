@@ -25,6 +25,7 @@
 4. Mount app after initialization (fallback mount on failure).
 
 含义：
+
 1. 创建 Vue 应用，Ionic 使用 iOS 模式。
 2. 挂载路由。
 3. 并行初始化路由、数据库、笔记状态。
@@ -111,6 +112,7 @@
 4. `useRefDBSync` in store persists changes to Dexie `notes` table.
 
 含义：
+
 1. `NoteDetail.vue` 负责编辑器生命周期和保存触发。
 2. 通过 `useNote()` 调用 store API。
 3. `stores/notes.ts` 更新响应式状态和索引。
@@ -125,6 +127,7 @@
 5. Persist updated sync watermark.
 
 含义：
+
 1. `useSync().sync()` 检查认证状态。
 2. 依据 `updated` 水位读取本地变更。
 3. 通过 `notesService` 上传/更新云端。
@@ -139,6 +142,7 @@
 4. Public notes are stored in user-scoped state/DB.
 
 含义：
+
 1. 路由守卫识别 `/:username...` 路径。
 2. `initializeUserPublicNotes(username)` 打开该用户的独立 Dexie 库。
 3. `useUserPublicNotesSync(username)` 拉取公开笔记。

@@ -56,7 +56,7 @@
 - 建议数据结构：
 
 ```ts
-type DesktopActiveNoteSnapshot = {
+interface DesktopActiveNoteSnapshot {
   folderId: string
   noteId: string
   parentId: string
@@ -177,11 +177,11 @@ type DesktopActiveNoteSnapshot = {
 
 ## 8. 任务拆分
 
-| 任务ID | 优先级 | 任务描述 | 变更文件 | 负责人角色 | 依赖 | 风险 |
-| --- | --- | --- | --- | --- | --- | --- |
-| T-FN-019 | P1 | 新增桌面当前笔记快照 hook，封装读写/清理/校验逻辑 | `src/hooks/useDesktopActiveNote.ts` | 前端 | 无 | 低 |
-| T-FN-020 | P1 | `HomePage` 接入恢复与回写流程，统一目录/笔记选择处理 | `src/views/HomePage.vue` | 前端 | T-FN-019 | 中 |
-| T-FN-021 | P1 | 补充桌面刷新恢复单测/集成测试，覆盖失效降级场景 | `tests/unit/views/home-desktop-restore.spec.ts`, `tests/integration/home/desktop-refresh-restore.spec.ts` | 前端+测试 | T-FN-020 | 中 |
+| 任务ID   | 优先级 | 任务描述                                             | 变更文件                                                                                                  | 负责人角色 | 依赖     | 风险 |
+| -------- | ------ | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------- | -------- | ---- |
+| T-FN-019 | P1     | 新增桌面当前笔记快照 hook，封装读写/清理/校验逻辑    | `src/hooks/useDesktopActiveNote.ts`                                                                       | 前端       | 无       | 低   |
+| T-FN-020 | P1     | `HomePage` 接入恢复与回写流程，统一目录/笔记选择处理 | `src/views/HomePage.vue`                                                                                  | 前端       | T-FN-019 | 中   |
+| T-FN-021 | P1     | 补充桌面刷新恢复单测/集成测试，覆盖失效降级场景      | `tests/unit/views/home-desktop-restore.spec.ts`, `tests/integration/home/desktop-refresh-restore.spec.ts` | 前端+测试  | T-FN-020 | 中   |
 
 ## 9. 验收标准
 

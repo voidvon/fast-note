@@ -1,12 +1,13 @@
 @font-face {
-  font-family: "iconfont"; /* Project id 168058 */
-  src: url('iconfont.woff2?t=1750728848107') format('woff2'),
-       url('iconfont.woff?t=1750728848107') format('woff'),
-       url('iconfont.ttf?t=1750728848107') format('truetype');
+  font-family: 'iconfont'; /* Project id 168058 */
+  src:
+    url('iconfont.woff2?t=1750728848107') format('woff2'),
+    url('iconfont.woff?t=1750728848107') format('woff'),
+    url('iconfont.ttf?t=1750728848107') format('truetype');
 }
 
 .iconfont {
-  font-family: "iconfont" !important;
+  font-family: 'iconfont' !important;
   font-size: 16px;
   font-style: normal;
   -webkit-font-smoothing: antialiased;
@@ -14,110 +15,109 @@
 }
 
 .icon-insert-right-column:before {
-  content: "\e6ef";
+  content: '\e6ef';
 }
 
 .icon-insert-bottom-row:before {
-  content: "\e846";
+  content: '\e846';
 }
 
 .icon-remove-row:before {
-  content: "\e680";
+  content: '\e680';
 }
 
 .icon-remove-column:before {
-  content: "\e845";
+  content: '\e845';
 }
 
 .icon-table:before {
-  content: "\e7df";
+  content: '\e7df';
 }
 
 .icon-circle:before {
-  content: "\e601";
+  content: '\e601';
 }
 
 .icon-check-circle-fill:before {
-  content: "\e844";
+  content: '\e844';
 }
 
 .icon-image:before {
-  content: "\e7de";
+  content: '\e7de';
 }
 
 .icon-qianbi:before {
-  content: "\e651";
+  content: '\e651';
 }
 
 .icon-qianbi1:before {
-  content: "\e6c7";
+  content: '\e6c7';
 }
 
 .icon-xueyuanbeiwang-qianbi:before {
-  content: "\e63c";
+  content: '\e63c';
 }
 
 .icon-todolist-line:before {
-  content: "\e6bb";
+  content: '\e6bb';
 }
 
 .icon-to-do:before {
-  content: "\e64f";
+  content: '\e64f';
 }
 
 .icon-icon_todo_16px:before {
-  content: "\e72c";
+  content: '\e72c';
 }
 
 .icon-indent:before {
-  content: "\e7f3";
+  content: '\e7f3';
 }
 
 .icon-outdent:before {
-  content: "\e7f4";
+  content: '\e7f4';
 }
 
 .icon-unorderedlist:before {
-  content: "\e7f5";
+  content: '\e7f5';
 }
 
 .icon-orderedlist:before {
-  content: "\e7f6";
+  content: '\e7f6';
 }
 
 .icon-align-right:before {
-  content: "\e7f7";
+  content: '\e7f7';
 }
 
 .icon-align-center:before {
-  content: "\e7f8";
+  content: '\e7f8';
 }
 
 .icon-align-left:before {
-  content: "\e7f9";
+  content: '\e7f9';
 }
 
 .icon-bold:before {
-  content: "\e7fa";
+  content: '\e7fa';
 }
 
 .icon-strikethrough:before {
-  content: "\e7fb";
+  content: '\e7fb';
 }
 
 .icon-underline:before {
-  content: "\e7fc";
+  content: '\e7fc';
 }
 
 .icon-italic:before {
-  content: "\e7fd";
+  content: '\e7fd';
 }
 
 .icon-yousuojin:before {
-  content: "\e62b";
+  content: '\e62b';
 }
 
 .icon-zuosuojin:before {
-  content: "\e631";
+  content: '\e631';
 }
-

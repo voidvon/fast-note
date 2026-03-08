@@ -491,7 +491,6 @@ onIonViewWillLeave(() => {
     <NoteMore v-if="!isReadOnly" v-model:is-open="state.showNoteMore" />
     <TableFormatModal v-if="!isReadOnly" v-model:is-open="state.showTableFormat" :editor="((editorRef?.editor || {}) as Editor)" />
     <TextFormatModal v-if="!isReadOnly" v-model:is-open="state.showFormat" :editor="((editorRef?.editor || {}) as Editor)" />
-
   </IonPage>
 </template>
 

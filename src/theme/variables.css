@@ -10,5 +10,4 @@ http://ionicframework.com/docs/theming/ */
   /* 主色系 */
   --ion-color-primary: theme('colors.primary');
   --ion-color-danger: theme('colors.danger');
-  
 }

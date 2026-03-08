@@ -1,4 +1,4 @@
 interface:
-  display_name: "Fast-Note 架构师"
-  short_description: "以架构负责人视角推进这个 Vue3 + Ionic 备忘录项目。"
-  default_prompt: "以 Fast-Note 项目架构师身份执行任务，严格遵守现有模块边界、offline-first 数据流、路由约定与同步契约。"
+  display_name: Fast-Note 架构师
+  short_description: '以架构负责人视角推进这个 Vue3 + Ionic 备忘录项目。'
+  default_prompt: 以 Fast-Note 项目架构师身份执行任务，严格遵守现有模块边界、offline-first 数据流、路由约定与同步契约。

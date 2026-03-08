@@ -11,6 +11,9 @@ const state = reactive<ExtensionState>({
 // 用于防止重复初始化的 Promise
 let initPromise: Promise<void> | null = null
 
+// 全局标记，防止多次调用
+let isInitializing = false
+
 // 用于防止重复加载扩展的 Promise Map
 const loadingPromises = new Map<string, Promise<boolean>>()
 
@@ -161,9 +164,6 @@ function saveExtensionState() {
 
 // 监听扩展状态变化并保存
 watch(() => [...state.extensions], saveExtensionState, { deep: true })
-
-// 全局标记，防止多次调用
-let isInitializing = false
 
 export function useExtensions() {
   // 确保扩展已初始化（只初始化一次）

@@ -351,7 +351,7 @@ defineExpose({
       header="请输入文件夹名称"
       :buttons="addButtons"
       :inputs="[{ name: 'newFolderName', placeholder: '请输入文件夹名称' }]"
-      @didPresent="focusFolderAlertInput"
+      @did-present="focusFolderAlertInput"
       @did-dismiss="showAddFolderAlert = false"
     />
   </IonPage>

@@ -411,45 +411,44 @@
 
 ## 12. 证据索引
 
-| 证据 ID | 文件路径 | 代码位置 | 证据摘要 |
-| --- | --- | --- | --- |
-| E1 | `src/router/index.ts` | line 9-60 | 核心路由：私有、公开、认证、回收站 |
-| E2 | `src/router/index.ts` | line 77-81 | 桌面端访问 `/n/*` `/f/*` 重定向 `/home` |
-| E3 | `src/router/index.ts` | line 85-99 | 公开用户路由首次进入触发公开数据初始化与同步 |
-| E4 | `src/main.ts` | line 55-71 | 启动并行初始化，失败仍挂载应用 |
-| E5 | `src/App.vue` | line 67-92 | 登录态变化后统一触发 Realtime + Sync |
-| E6 | `src/types/index.ts` | line 14-32 | `Note` 数据契约 |
-| E7 | `src/database/dexie.ts` | line 29-33 | Dexie 表结构定义 |
-| E8 | `src/database/sync.ts` | line 35-43, 220-226 | `useRefDBSync` 自动同步与防抖 |
-| E9 | `src/stores/notes.ts` | line 9-12, 189-239 | 笔记内存索引与 CRUD |
-| E10 | `src/stores/notes.ts` | line 264-267 | 最近删除按 30 天过滤 |
-| E11 | `src/stores/notes.ts` | line 382-411 | 父级文件夹 note_count 递归更新 |
-| E12 | `src/views/HomePage.vue` | line 106-127 | 首页新增根文件夹 |
-| E13 | `src/views/FolderPage.vue` | line 109-129 | 文件夹页新增子文件夹 |
-| E14 | `src/views/NoteDetail.vue` | line 281-292, 411-412 | 编辑器 blur 触发 800ms 防抖保存 |
-| E15 | `src/views/NoteDetail.vue` | line 177-249 | 新建/更新笔记主流程 |
-| E16 | `src/views/NoteDetail.vue` | line 254-271 | 保存后触发静默同步并提示结果 |
-| E17 | `src/views/NoteDetail.vue` | line 274-277 | 空内容时删除笔记 |
-| E18 | `src/components/NoteMore.vue` | line 81-133, 160-193 | 分享、锁定、删除行为 |
-| E19 | `src/components/LongPressMenu.vue` | line 57-104 | 重命名/删除/恢复/永久删除/移动菜单 |
-| E20 | `src/components/NoteMove.vue` | line 46-85 | 移动笔记并更新旧/新父级计数 |
-| E21 | `src/views/LoginPage.vue` + `src/views/RegisterPage.vue` | line 40-73, 42-58/63-103 | 登录与注册输入校验及提交 |
-| E22 | `src/core/auth-manager.ts` | line 118-145 | 认证初始化：本地态 + authRefresh |
-| E23 | `src/pocketbase/auth.ts` | line 12-20, 34-55, 103-120 | 登录/注册/刷新认证接口 |
-| E24 | `src/hooks/useSync.ts` | line 242-253 | 未登录时静默同步直接返回 |
-| E25 | `src/hooks/useSync.ts` | line 307-415 | 双向增量同步与冲突处理 |
-| E26 | `src/hooks/useEditor.ts` + `src/hooks/useSync.ts` | line 137-157, 60-147, 425-458 | 附件 hash 本地化与上传回填 |
-| E27 | `src/pocketbase/notes.ts` | line 116-119, 150-193, 204-208 | 用户级过滤查询、upsert 回退、公开笔记查询 |
-| E28 | `src/adapters/pocketbase/realtime-adapter.ts` | line 51-57, 135-143 | 实时订阅按 user_id 过滤并按时间戳更新 |
-| E29 | `src/components/UserProfile.vue` | line 126-155 | 手动同步与结果统计展示 |
-| E30 | `src/stores/publicNotes.ts` | line 13-18, 46-70 | 每个公开用户独立本地数据库 |
-| E31 | `src/hooks/useUserPublicNotesSync.ts` | line 20-27 | username -> userInfo -> publicNotes 同步 |
-| E32 | `src/views/UserPublicNotesPage.vue` | line 61-76, 161-169 | 公开主页加载、桌面分栏 |
-| E33 | `src/components/GlobalSearch/GlobalSearch.vue` | line 47-57 | 全局搜索 300ms 防抖 |
-| E34 | `src/hooks/useWebAuthn.ts` | line 59, 184-189 | 生物识别验证 1 分钟有效期 |
-| E35 | `src/hooks/useLastVisitedRoute.ts` | line 15-18, 38-42 | 保存并恢复上次访问路由 |
-| E36 | `src/hooks/useDeviceType.ts` | line 7-9 | 640px 桌面阈值 |
-| E37 | `src/components/NoteListItem.vue` | line 53-90 | 列表项根据上下文生成路由 |
-| E38 | `src/pocketbase/client.ts` | line 7, 20-34 | PocketBase 地址与错误消息映射 |
-| E39 | `src/hooks/useExtensions.ts` | line 18-19, 110-113 | 扩展系统无可用扩展且标注废弃 |
-
+| 证据 ID | 文件路径                                                 | 代码位置                       | 证据摘要                                     |
+| ------- | -------------------------------------------------------- | ------------------------------ | -------------------------------------------- |
+| E1      | `src/router/index.ts`                                    | line 9-60                      | 核心路由：私有、公开、认证、回收站           |
+| E2      | `src/router/index.ts`                                    | line 77-81                     | 桌面端访问 `/n/*` `/f/*` 重定向 `/home`      |
+| E3      | `src/router/index.ts`                                    | line 85-99                     | 公开用户路由首次进入触发公开数据初始化与同步 |
+| E4      | `src/main.ts`                                            | line 55-71                     | 启动并行初始化，失败仍挂载应用               |
+| E5      | `src/App.vue`                                            | line 67-92                     | 登录态变化后统一触发 Realtime + Sync         |
+| E6      | `src/types/index.ts`                                     | line 14-32                     | `Note` 数据契约                              |
+| E7      | `src/database/dexie.ts`                                  | line 29-33                     | Dexie 表结构定义                             |
+| E8      | `src/database/sync.ts`                                   | line 35-43, 220-226            | `useRefDBSync` 自动同步与防抖                |
+| E9      | `src/stores/notes.ts`                                    | line 9-12, 189-239             | 笔记内存索引与 CRUD                          |
+| E10     | `src/stores/notes.ts`                                    | line 264-267                   | 最近删除按 30 天过滤                         |
+| E11     | `src/stores/notes.ts`                                    | line 382-411                   | 父级文件夹 note_count 递归更新               |
+| E12     | `src/views/HomePage.vue`                                 | line 106-127                   | 首页新增根文件夹                             |
+| E13     | `src/views/FolderPage.vue`                               | line 109-129                   | 文件夹页新增子文件夹                         |
+| E14     | `src/views/NoteDetail.vue`                               | line 281-292, 411-412          | 编辑器 blur 触发 800ms 防抖保存              |
+| E15     | `src/views/NoteDetail.vue`                               | line 177-249                   | 新建/更新笔记主流程                          |
+| E16     | `src/views/NoteDetail.vue`                               | line 254-271                   | 保存后触发静默同步并提示结果                 |
+| E17     | `src/views/NoteDetail.vue`                               | line 274-277                   | 空内容时删除笔记                             |
+| E18     | `src/components/NoteMore.vue`                            | line 81-133, 160-193           | 分享、锁定、删除行为                         |
+| E19     | `src/components/LongPressMenu.vue`                       | line 57-104                    | 重命名/删除/恢复/永久删除/移动菜单           |
+| E20     | `src/components/NoteMove.vue`                            | line 46-85                     | 移动笔记并更新旧/新父级计数                  |
+| E21     | `src/views/LoginPage.vue` + `src/views/RegisterPage.vue` | line 40-73, 42-58/63-103       | 登录与注册输入校验及提交                     |
+| E22     | `src/core/auth-manager.ts`                               | line 118-145                   | 认证初始化：本地态 + authRefresh             |
+| E23     | `src/pocketbase/auth.ts`                                 | line 12-20, 34-55, 103-120     | 登录/注册/刷新认证接口                       |
+| E24     | `src/hooks/useSync.ts`                                   | line 242-253                   | 未登录时静默同步直接返回                     |
+| E25     | `src/hooks/useSync.ts`                                   | line 307-415                   | 双向增量同步与冲突处理                       |
+| E26     | `src/hooks/useEditor.ts` + `src/hooks/useSync.ts`        | line 137-157, 60-147, 425-458  | 附件 hash 本地化与上传回填                   |
+| E27     | `src/pocketbase/notes.ts`                                | line 116-119, 150-193, 204-208 | 用户级过滤查询、upsert 回退、公开笔记查询    |
+| E28     | `src/adapters/pocketbase/realtime-adapter.ts`            | line 51-57, 135-143            | 实时订阅按 user_id 过滤并按时间戳更新        |
+| E29     | `src/components/UserProfile.vue`                         | line 126-155                   | 手动同步与结果统计展示                       |
+| E30     | `src/stores/publicNotes.ts`                              | line 13-18, 46-70              | 每个公开用户独立本地数据库                   |
+| E31     | `src/hooks/useUserPublicNotesSync.ts`                    | line 20-27                     | username -> userInfo -> publicNotes 同步     |
+| E32     | `src/views/UserPublicNotesPage.vue`                      | line 61-76, 161-169            | 公开主页加载、桌面分栏                       |
+| E33     | `src/components/GlobalSearch/GlobalSearch.vue`           | line 47-57                     | 全局搜索 300ms 防抖                          |
+| E34     | `src/hooks/useWebAuthn.ts`                               | line 59, 184-189               | 生物识别验证 1 分钟有效期                    |
+| E35     | `src/hooks/useLastVisitedRoute.ts`                       | line 15-18, 38-42              | 保存并恢复上次访问路由                       |
+| E36     | `src/hooks/useDeviceType.ts`                             | line 7-9                       | 640px 桌面阈值                               |
+| E37     | `src/components/NoteListItem.vue`                        | line 53-90                     | 列表项根据上下文生成路由                     |
+| E38     | `src/pocketbase/client.ts`                               | line 7, 20-34                  | PocketBase 地址与错误消息映射                |
+| E39     | `src/hooks/useExtensions.ts`                             | line 18-19, 110-113            | 扩展系统无可用扩展且标注废弃                 |

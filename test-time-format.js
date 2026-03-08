@@ -20,7 +20,7 @@ const parsedDate = new Date(now)
 console.log('\n2. 时间解析测试:')
 console.log('   原始字符串:', now)
 console.log('   解析后:', parsedDate.toISOString())
-console.log('   解析成功:', !isNaN(parsedDate.getTime()))
+console.log('   解析成功:', !Number.isNaN(parsedDate.getTime()))
 
 // 3. 测试字符串比较
 const time1 = getTime('2026-02-11 10:30:45.123Z')

@@ -188,11 +188,6 @@ export function useUserPublicNotes(username: string) {
     return count
   }
 
-  function getPublicNotesByUpdated(updated: string) {
-    const publicNotes = state.publicNotes.value || []
-    return publicNotes.filter(note => note.updated > updated)
-  }
-
   function getPublicFolderTreeByPUuid(parent_id: string = ''): FolderTreeNode[] {
     /**
      * 先获取全部文件夹，再根据parent_id获取对应的文件夹，再递归寻找每个文件夹的子文件夹

@@ -1,7 +1,8 @@
-import { defineComponent, h, nextTick, ref } from 'vue'
+import type { Note } from '@/types'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { NOTE_TYPE, type Note } from '@/types'
+import { defineComponent, h, nextTick, ref } from 'vue'
+import { NOTE_TYPE } from '@/types'
 import FolderPage from '@/views/FolderPage.vue'
 
 const routeMock = ref({
@@ -110,7 +111,7 @@ function mountFolderPage() {
   })
 }
 
-describe('FolderPage desktop add-folder alert regression', () => {
+describe('folderPage desktop add-folder alert regression', () => {
   beforeEach(() => {
     routeMock.value = {
       params: {},
