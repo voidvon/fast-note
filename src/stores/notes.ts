@@ -1,6 +1,6 @@
 import type { FolderTreeNode, Note } from '@/types'
 import { onUnmounted, ref } from 'vue'
-import { useDexie, useRefDBSync } from '@/database'
+import { getCurrentDatabaseName, useDexie, useRefDBSync } from '@/database'
 import { NOTE_TYPE } from '@/types'
 import { getTime } from '@/utils/date'
 
@@ -16,6 +16,7 @@ const onNoteUpdateArr: UpdateFn[] = []
 
 // 全局同步实例
 let notesSync: ReturnType<typeof useRefDBSync<Note>> | null = null
+let initializedDatabaseName = ''
 
 function normalizeParentIdKey(parentId?: string | null) {
   return parentId || 'root'
@@ -141,39 +142,59 @@ function updateIndexes(note: Note, operation: 'add' | 'update' | 'delete') {
   }
 }
 
-// 全局初始化函数
+function resetNotesState() {
+  if (notesSync) {
+    notesSync.stopAutoSync()
+    notesSync = null
+  }
+
+  notes.value = []
+  rebuildIndexMaps()
+  isInitialized = false
+}
+
 export async function initializeNotes() {
-  if (!isInitialized && !initializing) {
-    initializing = true
-    try {
-      const { db } = useDexie()
-      if (!db.value) {
-        throw new Error('数据库未初始化')
-      }
-      const data = await db.value.notes
-        .orderBy('created')
-        .toArray()
-      notes.value = data
+  const nextDatabaseName = getCurrentDatabaseName()
 
-      // 初始化后重建索引
-      rebuildIndexMaps()
+  if (!nextDatabaseName)
+    throw new Error('数据库未初始化')
 
-      // 初始化 useRefDBSync
-      notesSync = useRefDBSync({
-        data: notes,
-        table: db.value.notes,
-        idField: 'id',
-        debounceMs: 300,
-      })
+  if (isInitialized && initializedDatabaseName === nextDatabaseName)
+    return
 
-      isInitialized = true
+  if (initializing)
+    return
+
+  initializing = true
+  try {
+    resetNotesState()
+
+    const { db } = useDexie()
+    if (!db.value) {
+      throw new Error('数据库未初始化')
     }
-    catch (error) {
-      console.error('Error initializing notes:', error)
-    }
-    finally {
-      initializing = false
-    }
+
+    const data = await db.value.notes
+      .orderBy('created')
+      .toArray()
+    notes.value = data
+    rebuildIndexMaps()
+
+    notesSync = useRefDBSync({
+      data: notes,
+      table: db.value.notes,
+      idField: 'id',
+      debounceMs: 300,
+    })
+
+    initializedDatabaseName = nextDatabaseName
+    isInitialized = true
+  }
+  catch (error) {
+    console.error('Error initializing notes:', error)
+  }
+  finally {
+    initializing = false
   }
 }
 

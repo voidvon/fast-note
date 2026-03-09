@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { Editor } from '@tiptap/vue-3'
+import type { Note } from '@/types'
 import { IonBackButton, IonButton, IonButtons, IonContent, IonFooter, IonHeader, IonIcon, IonPage, IonSpinner, IonToolbar, isPlatform, onIonViewWillLeave, toastController } from '@ionic/vue'
 import { attachOutline, checkmarkCircleOutline, ellipsisHorizontalCircleOutline, textOutline } from 'ionicons/icons'
 import { nanoid } from 'nanoid'
-import { computed, nextTick, onMounted, reactive, ref, toRaw, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, toRaw, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Icon from '@/components/Icon.vue'
 import NoteMore from '@/components/NoteMore.vue'
@@ -34,11 +35,12 @@ const emit = defineEmits(['noteSaved'])
 
 const route = useRoute()
 const router = useRouter()
-const { addNote, getNote, updateNote, deleteNote, updateParentFolderSubcount } = useNote()
+const { addNote, getNote, updateNote, deleteNote, updateParentFolderSubcount, getNotesSync } = useNote()
 const { isDesktop } = useDeviceType()
 const { restoreHeight } = useVisualViewport()
 const { state: authState, verify, register } = useWebAuthn()
-const { sync } = useSync()
+const syncApi = useSync()
+const { sync } = syncApi
 
 const isIos = isPlatform('ios')
 const pageRef = ref()
@@ -47,6 +49,7 @@ const fileInputRef = ref()
 const imageInputRef = ref()
 const data = ref()
 const newNoteId = ref<string | null>(null)
+const missingPrivateNoteRepairId = ref<string | null>(null)
 const lastSavedContent = ref<string>('') // 记录上次保存的内容
 const saveTimer = ref<number | null>(null) // 防抖定时器
 
@@ -57,6 +60,7 @@ const state = reactive({
   isAuth: false,
   isFormatModalOpen: false, // 标记格式化面板是否打开
   isSaving: false,
+  isMissingPrivateNote: false,
 })
 
 const idFromRoute = computed(() => route.params.id as string || route.params.noteId as string)
@@ -64,7 +68,9 @@ const idFromSource = computed(() => props.noteId || idFromRoute.value)
 const isNewNote = computed(() => idFromSource.value === '0')
 const username = computed(() => route.params.username as string)
 const isUserContext = computed(() => !!username.value)
+const isMissingPrivateNote = computed(() => !isUserContext.value && !isNewNote.value && state.isMissingPrivateNote)
 const isReadOnly = computed(() => isUserContext.value || data.value?.is_deleted === 1)
+const isEditorBlocked = computed(() => isReadOnly.value || isMissingPrivateNote.value)
 
 // 智能返回按钮
 const { backButtonProps } = useNoteBackButton(route, data, username.value)
@@ -82,6 +88,9 @@ const effectiveUuid = computed(() => {
 })
 
 watch(idFromSource, async (id, oldId) => {
+  if (id !== oldId)
+    missingPrivateNoteRepairId.value = null
+
   // 如果从一个笔记切换到另一个笔记，先保存当前笔记（静默保存，不触发列表刷新）
   // 但如果是切换到新建笔记（id === '0'），不保存
   if (oldId && oldId !== '0' && oldId !== id && id !== '0' && isDesktop.value) {
@@ -89,9 +98,11 @@ watch(idFromSource, async (id, oldId) => {
   }
 
   if (id && id !== '0') {
+    state.isMissingPrivateNote = false
     init(id)
   }
   else if (id === '0') {
+    state.isMissingPrivateNote = false
     // 新建笔记，立即清空编辑器和数据
     data.value = null
     newNoteId.value = nanoid(12)
@@ -111,6 +122,7 @@ watch(idFromSource, async (id, oldId) => {
     })
   }
   else if (!isNewNote.value) { // This condition means id is falsy (e.g. '', undefined)
+    state.isMissingPrivateNote = false
     // No note selected, clear editor
     data.value = null
     lastSavedContent.value = '' // 重置上次保存的内容
@@ -165,7 +177,89 @@ async function presentTopError(message: string) {
   await toast.present()
 }
 
-async function handleNoteSaving(silent = false) {
+function syncMissingPrivateNoteState() {
+  if (!editorRef.value)
+    return
+
+  editorRef.value.setContent('')
+  editorRef.value.setEditable(false)
+}
+
+async function applyPrivateNoteState(note: Note) {
+  data.value = note
+  state.isMissingPrivateNote = false
+  missingPrivateNoteRepairId.value = null
+
+  nextTick(() => {
+    editorRef.value?.setEditable(data.value?.is_deleted !== 1)
+  })
+
+  if (data.value?.is_locked === 1) {
+    if (authState.isRegistered)
+      state.isAuth = await verify()
+    else
+      state.isAuth = await register()
+  }
+
+  nextTick(() => {
+    editorRef.value?.setContent(data.value?.content || '')
+    lastSavedContent.value = data.value?.content || ''
+  })
+}
+
+type LeaveFlushReason = 'view-leave' | 'pagehide' | 'beforeunload'
+
+function clearPendingSaveTimer() {
+  if (saveTimer.value) {
+    clearTimeout(saveTimer.value)
+    saveTimer.value = null
+  }
+}
+
+async function flushNotesToLocal(reason: LeaveFlushReason) {
+  const notesSync = getNotesSync()
+  if (!notesSync)
+    return
+
+  try {
+    console.warn('NoteDetail 离开页触发本地落盘', {
+      reason,
+      noteId: effectiveUuid.value,
+    })
+    await notesSync.manualSync()
+  }
+  catch (error) {
+    console.error('NoteDetail 本地落盘兜底失败:', error)
+  }
+}
+
+function triggerLeavePageLocalFlush(reason: LeaveFlushReason) {
+  clearPendingSaveTimer()
+  void handleNoteSaving(true, reason)
+}
+
+async function tryRepairMissingPrivateNote(id: string) {
+  if (missingPrivateNoteRepairId.value === id)
+    return
+
+  missingPrivateNoteRepairId.value = id
+
+  try {
+    const repaired = await syncApi.repairMissingPrivateNoteIfNeeded?.(id)
+    if (!repaired)
+      return
+
+    const repairedNote = await getNote(id)
+    if (repairedNote) {
+      await applyPrivateNoteState(repairedNote)
+    }
+  }
+  catch (error) {
+    console.error('缺失私有备忘录补齐失败:', error)
+  }
+}
+
+async function handleNoteSaving(silent = false, leaveFlushReason: LeaveFlushReason | null = null) {
   // 如果格式化面板打开，不触发保存
   if (state.isFormatModalOpen) {
     return
@@ -177,12 +271,26 @@ async function handleNoteSaving(silent = false) {
   let { title, summary } = editorRef.value.getTitle()
 
   // 如果是新笔记且内容为空，则不执行任何操作
-  if (isNewNote.value && !content)
+  if (isNewNote.value && !content) {
+    if (leaveFlushReason)
+      await flushNotesToLocal(leaveFlushReason)
     return
+  }
 
   // 检查内容是否真正发生变化
   if (content === lastSavedContent.value) {
+    if (leaveFlushReason)
+      await flushNotesToLocal(leaveFlushReason)
     return // 内容未变化，不保存
+  }
+
+  if (isMissingPrivateNote.value) {
+    if (leaveFlushReason)
+      await flushNotesToLocal(leaveFlushReason)
+    if (!silent) {
+      await presentTopError('当前备忘录不存在或尚未同步完成')
+    }
+    return
   }
 
   // 如果标题为空，使用默认标题
@@ -234,6 +342,16 @@ async function handleNoteSaving(silent = false) {
         }
       }
       else {
+        if (!wasNewNote) {
+          state.isMissingPrivateNote = true
+          data.value = null
+          syncMissingPrivateNoteState()
+          if (!silent) {
+            await presentTopError('当前备忘录不存在或尚未同步完成')
+          }
+          return
+        }
+
         // 新增笔记
         const newNote = {
           title,
@@ -267,6 +385,9 @@ async function handleNoteSaving(silent = false) {
       // 更新上次保存的内容
       lastSavedContent.value = content
 
+      if (leaveFlushReason)
+        await flushNotesToLocal(leaveFlushReason)
+
       // 自动同步笔记到云端（静默模式）
       // 静默模式：未登录时不会抛出错误，直接跳过
       if (!silent) {
@@ -283,6 +404,9 @@ async function handleNoteSaving(silent = false) {
       // 内容为空，删除笔记
       await deleteNote(id)
       lastSavedContent.value = ''
+
+      if (leaveFlushReason)
+        await flushNotesToLocal(leaveFlushReason)
     }
   }
   catch (error) {
@@ -298,14 +422,12 @@ async function handleNoteSaving(silent = false) {
 
 // 防抖保存函数
 function debouncedSave(silent = false) {
-  // 清除之前的定时器
-  if (saveTimer.value) {
-    clearTimeout(saveTimer.value)
-  }
+  clearPendingSaveTimer()
 
   // 设置新的定时器，800ms 后执行保存
   saveTimer.value = window.setTimeout(() => {
-    handleNoteSaving(silent)
+    saveTimer.value = null
+    void handleNoteSaving(silent)
   }, 800)
 }
 
@@ -326,24 +448,17 @@ async function init(id: string) {
     }
     else {
       // 获取当前用户的笔记
-      data.value = await getNote(id)
-      if (data.value) {
+      const note = await getNote(id)
+      if (note) {
+        await applyPrivateNoteState(note)
+      }
+      else {
+        state.isMissingPrivateNote = true
+        lastSavedContent.value = ''
         nextTick(() => {
-          editorRef.value?.setEditable(data.value?.is_deleted !== 1)
+          syncMissingPrivateNoteState()
         })
-
-        if (data.value?.is_locked === 1) {
-          if (authState.isRegistered)
-            state.isAuth = await verify()
-          else
-            state.isAuth = await register()
-        }
-
-        nextTick(() => {
-          editorRef.value?.setContent(data.value?.content || '')
-          // 记录初始内容
-          lastSavedContent.value = data.value?.content || ''
-        })
+        void tryRepairMissingPrivateNote(id)
       }
     }
   }
@@ -387,6 +502,14 @@ function openTextFormatModal() {
   // }
 }
 
+function handlePageHide() {
+  triggerLeavePageLocalFlush('pagehide')
+}
+
+function handleBeforeUnload() {
+  triggerLeavePageLocalFlush('beforeunload')
+}
+
 onMounted(() => {
   if (isNewNote.value && !isDesktop.value) {
     if (route.query.parent_id) {
@@ -396,10 +519,19 @@ onMounted(() => {
       window.history.replaceState(null, '', `/n/${newNoteId.value}`)
     }
   }
+
+  window.addEventListener('pagehide', handlePageHide)
+  window.addEventListener('beforeunload', handleBeforeUnload)
+})
+
+onBeforeUnmount(() => {
+  clearPendingSaveTimer()
+  window.removeEventListener('pagehide', handlePageHide)
+  window.removeEventListener('beforeunload', handleBeforeUnload)
 })
 
 onIonViewWillLeave(() => {
-  handleNoteSaving()
+  triggerLeavePageLocalFlush('view-leave')
   setTimeout(() => {
     state.showFormat = false
   }, 300)
@@ -413,7 +545,7 @@ onIonViewWillLeave(() => {
         <IonButtons slot="start">
           <IonBackButton v-bind="backButtonProps" />
         </IonButtons>
-        <IonButtons v-if="!isReadOnly" slot="end" class="note-detail__header-buttons">
+        <IonButtons v-if="!isEditorBlocked" slot="end" class="note-detail__header-buttons">
           <IonSpinner
             v-if="state.isSaving"
             class="note-detail__saving-spinner"
@@ -427,9 +559,13 @@ onIonViewWillLeave(() => {
     </IonHeader>
 
     <IonContent force-overscroll>
-      <div v-if="data?.is_locked !== 1 || state.isAuth" class="ion-padding">
+      <div v-if="data?.is_locked !== 1 || state.isAuth || isMissingPrivateNote" class="ion-padding">
+        <div v-if="isMissingPrivateNote" data-testid="note-detail-missing-note" class="note-detail__missing-state">
+          当前备忘录不存在或尚未同步完成
+        </div>
         <YYEditor
           v-if="effectiveUuid"
+          v-show="!isMissingPrivateNote"
           ref="editorRef"
           @blur="debouncedSave"
         />
@@ -439,7 +575,7 @@ onIonViewWillLeave(() => {
       </div> -->
     </IonContent>
     <!-- <IonFooter v-if="keyboardHeight > 0" style="overscroll-behavior: none;"> -->
-    <IonFooter v-if="!isReadOnly">
+    <IonFooter v-if="!isEditorBlocked">
       <IonToolbar class="note-detail__toolbar">
         <div class="flex justify-evenly items-center select-none">
           <IonButton
@@ -488,9 +624,9 @@ onIonViewWillLeave(() => {
         </div>
       </IonToolbar>
     </IonFooter>
-    <NoteMore v-if="!isReadOnly" v-model:is-open="state.showNoteMore" />
-    <TableFormatModal v-if="!isReadOnly" v-model:is-open="state.showTableFormat" :editor="((editorRef?.editor || {}) as Editor)" />
-    <TextFormatModal v-if="!isReadOnly" v-model:is-open="state.showFormat" :editor="((editorRef?.editor || {}) as Editor)" />
+    <NoteMore v-if="!isEditorBlocked" v-model:is-open="state.showNoteMore" />
+    <TableFormatModal v-if="!isEditorBlocked" v-model:is-open="state.showTableFormat" :editor="((editorRef?.editor || {}) as Editor)" />
+    <TextFormatModal v-if="!isEditorBlocked" v-model:is-open="state.showFormat" :editor="((editorRef?.editor || {}) as Editor)" />
   </IonPage>
 </template>
 
@@ -528,6 +664,14 @@ onIonViewWillLeave(() => {
   width: 18px;
   height: 18px;
   color: var(--ion-color-medium);
+}
+
+.note-detail__missing-state {
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--ion-color-light, #f4f5f8);
+  color: var(--ion-color-medium-shade, #666);
+  text-align: center;
 }
 </style>
 

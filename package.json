@@ -12,9 +12,10 @@
     "test:unit": "vitest",
     "test:p0:unit": "vitest --run tests/unit/stores/notes-delete-subtree.spec.ts tests/unit/hooks/useSync-retry.spec.ts tests/integration/editor/attachment-retry.spec.ts",
     "test:p0:e2e": "cypress run --spec \"tests/e2e/public/public-home-smoke.cy.ts,tests/e2e/public/public-note-detail.cy.ts,tests/e2e/public/public-init-retry.cy.ts\"",
-    "test:p0": "npm run test:p0:unit",
+    "test:p0": "npm run test:p0:unit && npm run test:p0:sync-integrity",
     "lint": "eslint .",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test:p0:sync-integrity": "vitest --run tests/unit/hooks/useSync-user-scope.spec.ts tests/unit/hooks/useDesktopActiveNote.spec.ts tests/unit/views/note-detail-missing-note.spec.ts tests/unit/views/home-desktop-restore.spec.ts tests/integration/home/desktop-refresh-restore.spec.ts tests/integration/home/desktop-folder-refresh-restore.spec.ts tests/integration/sync/private-route-restore.spec.ts tests/integration/sync/public-home-restore.spec.ts tests/integration/sync/cache-repair.spec.ts"
   },
   "dependencies": {
     "@capacitor/app": "7.0.0",

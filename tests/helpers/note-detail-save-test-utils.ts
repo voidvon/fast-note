@@ -84,6 +84,7 @@ export async function mountNoteDetailForSaveTest(options: {
   addNoteImpl?: (note: Note) => Promise<unknown>
   deleteNoteImpl?: (id: string) => Promise<unknown>
   syncImpl?: (silent?: boolean) => Promise<unknown>
+  manualSyncImpl?: () => Promise<unknown>
 } = {}) {
   vi.resetModules()
 
@@ -103,9 +104,11 @@ export async function mountNoteDetailForSaveTest(options: {
   const getNoteMock = vi.fn(options.getNoteImpl ?? (async (id: string) => notesById[id] ?? null))
   const updateNoteMock = vi.fn(options.updateNoteImpl ?? (async () => undefined))
   const syncMock = vi.fn(options.syncImpl ?? (async () => null))
+  const manualSyncMock = vi.fn(options.manualSyncImpl ?? (async () => null))
   const restoreHeightMock = vi.fn()
   const routerReplaceMock = vi.fn()
   const toastDismissMock = vi.fn(async () => undefined)
+  let ionViewWillLeaveCallback: (() => void | Promise<void>) | null = null
   const toastPresentMock = vi.fn(async () => undefined)
   const toastCreateMock = vi.fn(async () => ({
     present: toastPresentMock,
@@ -153,6 +156,9 @@ export async function mountNoteDetailForSaveTest(options: {
         updateNote: updateNoteMock,
         deleteNote: deleteNoteMock,
         updateParentFolderSubcount: updateParentFolderSubcountMock,
+        getNotesSync: () => ({
+          manualSync: manualSyncMock,
+        }),
       }),
       useUserPublicNotes: () => ({
         getPublicNote: vi.fn(() => null),
@@ -228,7 +234,9 @@ export async function mountNoteDetailForSaveTest(options: {
     IonSpinner: createIonicStub('IonSpinner'),
     IonToolbar: createIonicStub('IonToolbar'),
     isPlatform: () => false,
-    onIonViewWillLeave: () => {},
+    onIonViewWillLeave: (callback: () => void | Promise<void>) => {
+      ionViewWillLeaveCallback = callback
+    },
     toastController: {
       dismiss: toastDismissMock,
       create: toastCreateMock,
@@ -261,6 +269,7 @@ export async function mountNoteDetailForSaveTest(options: {
       getNoteMock,
       routerReplaceMock,
       restoreHeightMock,
+      manualSyncMock,
       syncMock,
       toastCreateMock,
       toastDismissMock,
@@ -269,5 +278,10 @@ export async function mountNoteDetailForSaveTest(options: {
       updateParentFolderSubcountMock,
     },
     noteFactory: makeNote,
+    triggerIonViewWillLeave: async () => {
+      await ionViewWillLeaveCallback?.()
+      await flushPromises()
+      await nextTick()
+    },
   }
 }

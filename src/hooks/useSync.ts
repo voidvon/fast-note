@@ -8,13 +8,67 @@ import { useNoteFiles } from '@/hooks/useNoteFiles'
 import { authService, notesService } from '@/pocketbase'
 import { useNote } from '@/stores'
 import { getTime } from '@/utils/date'
+import { createScopedStorageKey, resolveScopedUserId } from '@/utils/userScope'
+
+export const SYNC_CURSOR_STORAGE_PREFIX = 'pocketbaseUpdated'
 
 const defaultUpdated = JSON.stringify(getTime('2010/01/01 00:00:00'))
-const updated = ref(JSON.parse(localStorage.pocketbaseUpdated || defaultUpdated))
+
+export type CacheRepairReason = 'empty-local-stale-cursor' | 'private-note-miss'
+
+export function getInitialSyncCursor() {
+  return JSON.parse(defaultUpdated)
+}
+
+export function isInitialSyncCursor(updatedAt: string) {
+  return updatedAt === getInitialSyncCursor()
+}
+
+export function getSyncCursorStorageKey(userId?: string | null) {
+  return createScopedStorageKey(SYNC_CURSOR_STORAGE_PREFIX, userId)
+}
+
+export function readSyncCursor(userId?: string | null) {
+  return JSON.parse(localStorage.getItem(getSyncCursorStorageKey(userId)) || defaultUpdated)
+}
+
+const syncScopeUserId = ref<string | null>(resolveScopedUserId())
+const updated = ref(readSyncCursor(syncScopeUserId.value))
+
+export function writeSyncCursor(updatedAt: string, userId?: string | null) {
+  const currentUserId = resolveScopedUserId(userId)
+
+  localStorage.setItem(getSyncCursorStorageKey(currentUserId), JSON.stringify(updatedAt))
+
+  if (syncScopeUserId.value === currentUserId) {
+    updated.value = updatedAt
+  }
+}
 
 const syncing = ref(false)
 // 存储同步成功的回调函数
 const syncSyncedCallbacks: Array<(result?: any) => void> = []
+
+function ensureSyncScopeReady(userId = resolveScopedUserId()) {
+  if (syncScopeUserId.value !== userId) {
+    syncScopeUserId.value = userId
+    updated.value = readSyncCursor(userId)
+  }
+
+  return userId
+}
+
+const pendingCacheRepairReason = ref<CacheRepairReason | null>(null)
+
+export function resetSyncCursor(userId?: string | null) {
+  const currentUserId = ensureSyncScopeReady(userId)
+  const initialUpdated = getInitialSyncCursor()
+
+  updated.value = initialUpdated
+  writeSyncCursor(initialUpdated, currentUserId)
+
+  return initialUpdated
+}
 
 export function useSync() {
   const { getNotesByUpdated, getNote, addNote, deleteNote, updateNote } = useNote()
@@ -237,11 +291,69 @@ export function useSync() {
     }
   }
 
+  function scheduleCacheRepair(reason: CacheRepairReason, userId?: string | null) {
+    const currentUserId = ensureSyncScopeReady(userId)
+    const initialUpdated = resetSyncCursor(currentUserId)
+
+    pendingCacheRepairReason.value = reason
+
+    console.warn('已安排缓存补齐式增量同步', {
+      currentUserId,
+      reason,
+      updated: initialUpdated,
+    })
+
+    return reason
+  }
+
+  async function ensureCacheHealth() {
+    const currentUserId = ensureSyncScopeReady()
+    const localStats = await getLocalDataStats()
+    let repairReason: CacheRepairReason | null = pendingCacheRepairReason.value
+
+    if (localStats.notes === 0 && !isInitialSyncCursor(updated.value)) {
+      repairReason = scheduleCacheRepair('empty-local-stale-cursor', currentUserId)
+    }
+
+    if (!repairReason)
+      return null
+
+    pendingCacheRepairReason.value = null
+
+    console.warn('执行缓存补齐式增量同步', {
+      currentUserId,
+      reason: repairReason,
+    })
+
+    return repairReason
+  }
+
+  async function repairMissingPrivateNoteIfNeeded(noteId: string) {
+    const currentUserId = ensureSyncScopeReady()
+
+    if (!authService.isAuthenticated() || syncing.value)
+      return false
+
+    if (isInitialSyncCursor(updated.value)) {
+      console.warn('当前已处于初始游标，跳过缺失私有备忘录补齐', {
+        currentUserId,
+        noteId,
+      })
+      return false
+    }
+
+    scheduleCacheRepair('private-note-miss', currentUserId)
+    await sync(true)
+    return true
+  }
+
   /**
    * 主同步函数
    * @param silent 是否静默同步，静默模式下未登录不会抛出错误，直接返回 null
    */
   async function sync(silent = false) {
+    ensureSyncScopeReady()
+
     // 检查登录状态
     if (!authService.isAuthenticated()) {
       if (silent) {
@@ -253,6 +365,15 @@ export function useSync() {
         // 非静默模式：抛出错误，让调用方处理并显示提示
         throw new Error('用户未登录，请先登录')
       }
+    }
+
+    const cacheRepairReason = await ensureCacheHealth()
+
+    if (cacheRepairReason) {
+      console.warn('本次同步将以补齐模式执行', {
+        cacheRepairReason,
+        updated: updated.value,
+      })
     }
 
     syncing.value = true
@@ -275,6 +396,8 @@ export function useSync() {
    * 同步笔记
    */
   async function syncNote() {
+    const currentUserId = ensureSyncScopeReady()
+
     console.warn('PocketBase同步开始，updated:', updated.value)
 
     // 获取本地变更数据
@@ -527,7 +650,7 @@ export function useSync() {
         // 每成功同步一条记录，就更新updated
         if (new Date(note.updated).getTime() > new Date(updated.value).getTime()) {
           updated.value = note.updated
-          localStorage.pocketbaseUpdated = JSON.stringify(note.updated)
+          writeSyncCursor(note.updated, currentUserId)
         }
       }
       catch (error) {
@@ -642,5 +765,7 @@ export function useSync() {
     fullSyncToPocketBase,
     getLocalDataStats,
     clearLocalData,
+    ensureCacheHealth,
+    repairMissingPrivateNoteIfNeeded,
   }
 }

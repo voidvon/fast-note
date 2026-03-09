@@ -21,4 +21,22 @@ describe('home desktop restore fallback (t-fn-020 / tc-fn-013)', () => {
     expect(getFolderPage().props('selectedNoteId')).toBe('note-2')
     expect(getNoteDetail().props('noteId')).toBe('note-2')
   })
+
+  it('restores desktop snapshot from the current user scope', async () => {
+    const noteA = makeNote({ id: 'note-a', updated: '2026-03-06 09:00:00' })
+    const noteB = makeNote({ id: 'note-b', updated: '2026-03-06 10:00:00' })
+
+    const { getFolderPage, getNoteDetail } = await mountHomePageForDesktopRestore({
+      notes: [noteA, noteB],
+      userId: 'user-b',
+      snapshots: [
+        { userId: 'user-a', folderId: 'allnotes', noteId: 'note-a' },
+        { userId: 'user-b', folderId: 'allnotes', noteId: 'note-b' },
+      ],
+    })
+
+    expect(getFolderPage().props('currentFolder')).toBe('allnotes')
+    expect(getFolderPage().props('selectedNoteId')).toBe('note-b')
+    expect(getNoteDetail().props('noteId')).toBe('note-b')
+  })
 })

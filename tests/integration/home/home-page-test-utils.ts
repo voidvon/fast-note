@@ -2,7 +2,7 @@ import type { Note } from '@/types'
 import { mount } from '@vue/test-utils'
 import { vi } from 'vitest'
 import { defineComponent, h, nextTick } from 'vue'
-import { DESKTOP_ACTIVE_NOTE_STORAGE_KEY } from '@/hooks/useDesktopActiveNote'
+import { getDesktopActiveNoteStorageKey } from '@/hooks/useDesktopActiveNote'
 
 function createIonicStub(name: string) {
   return defineComponent({
@@ -45,19 +45,34 @@ function createNoteDetailStub() {
 
 export async function mountHomePageForDesktopRestore(options: {
   notes: Note[]
+  userId?: string | null
   snapshot?: {
     folderId: string
     noteId: string
     parentId?: string
   }
+  snapshots?: Array<{
+    userId?: string | null
+    folderId: string
+    noteId: string
+    parentId?: string
+  }>
 }) {
   vi.resetModules()
   localStorage.clear()
 
-  if (options.snapshot) {
-    localStorage.setItem(DESKTOP_ACTIVE_NOTE_STORAGE_KEY, JSON.stringify({
-      ...options.snapshot,
-      parentId: options.snapshot.parentId || '',
+  const scopedSnapshots = options.snapshots ?? (options.snapshot
+    ? [{
+        userId: options.userId ?? null,
+        ...options.snapshot,
+      }]
+    : [])
+
+  for (const snapshot of scopedSnapshots) {
+    localStorage.setItem(getDesktopActiveNoteStorageKey(snapshot.userId), JSON.stringify({
+      folderId: snapshot.folderId,
+      noteId: snapshot.noteId,
+      parentId: snapshot.parentId || '',
       savedAt: Date.now(),
     }))
   }
@@ -73,6 +88,17 @@ export async function mountHomePageForDesktopRestore(options: {
         addNote: vi.fn(async (note: Note) => note),
         getFolderTreeByParentId: vi.fn(() => []),
       }),
+    }
+  })
+
+  vi.doMock('@/core/auth-manager', async () => {
+    const { computed, ref } = await import('vue')
+    const currentUser = ref(options.userId ? { id: options.userId } : null)
+
+    return {
+      authManager: {
+        userInfo: computed(() => currentUser.value),
+      },
     }
   })
 

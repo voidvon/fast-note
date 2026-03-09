@@ -29,6 +29,7 @@ import GlobalSearch from '@/components/GlobalSearch/GlobalSearch.vue'
 import { useGlobalSearch } from '@/components/GlobalSearch/useGlobalSearch'
 import NoteList from '@/components/NoteList.vue'
 import UserProfile from '@/components/UserProfile.vue'
+import { authManager } from '@/core/auth-manager'
 import {
   getDesktopNotesForFolder,
   isDesktopFolderAvailable,
@@ -49,6 +50,7 @@ const { isDesktop } = useDeviceType()
 const { showGlobalSearch } = useGlobalSearch()
 const { isExtensionEnabled, getExtensionModule } = useExtensions()
 const { getSnapshot, saveSnapshot, clearSnapshot } = useDesktopActiveNote()
+const currentUserId = computed(() => authManager.userInfo.value?.id || null)
 
 // 扩展管理器状态
 // const showExtensionManager = ref(false)
@@ -193,7 +195,7 @@ function persistDesktopSelection(noteId = state.noteId) {
     folderId: state.folerId,
     noteId,
     parentId: state.parentId,
-  })
+  }, currentUserId.value)
 }
 
 function restoreDesktopSelection() {
@@ -202,13 +204,13 @@ function restoreDesktopSelection() {
   }
 
   const selection = resolveDesktopActiveNoteSelection(
-    getSnapshot(),
+    getSnapshot(currentUserId.value),
     notes.value,
     deletedNotes.value,
   )
 
   if (!selection) {
-    clearSnapshot()
+    clearSnapshot(currentUserId.value)
     return false
   }
 
@@ -222,10 +224,10 @@ function restoreDesktopSelection() {
   })
 
   if (selection.noteId) {
-    saveSnapshot(selection)
+    saveSnapshot(selection, currentUserId.value)
   }
   else {
-    clearSnapshot()
+    clearSnapshot(currentUserId.value)
   }
 
   return true
@@ -239,7 +241,7 @@ watch(() => state.folerId, () => {
 
   state.noteId = ''
   state.parentId = ''
-  clearSnapshot()
+  clearSnapshot(currentUserId.value)
   init()
 })
 
@@ -249,7 +251,7 @@ watch(() => state.noteId, (noteId) => {
   }
 
   if (noteId === '0') {
-    clearSnapshot()
+    clearSnapshot(currentUserId.value)
     return
   }
 
@@ -257,6 +259,38 @@ watch(() => state.noteId, (noteId) => {
     persistDesktopSelection(noteId)
   }
 })
+
+watch(currentUserId, (nextUserId, previousUserId) => {
+  if (!isDesktop.value || nextUserId === previousUserId) {
+    return
+  }
+
+  void resetDesktopSelectionForUserScope()
+})
+
+function hasCurrentDesktopNoteSelection() {
+  if (!state.noteId || state.noteId === '0') {
+    return false
+  }
+
+  return getSortedNotesForFolder(state.folerId).some(note => note.id === state.noteId)
+}
+
+async function resetDesktopSelectionForUserScope() {
+  if (!isDesktop.value) {
+    return
+  }
+
+  isRestoringDesktopSelection.value = true
+  hasAttemptedDesktopRestore.value = false
+  state.folerId = 'allnotes'
+  state.noteId = ''
+  state.parentId = ''
+
+  await nextTick()
+  isRestoringDesktopSelection.value = false
+  await init({ preferPersistedSelection: true })
+}
 
 async function refresh(ev: CustomEvent) {
   await init()
@@ -273,6 +307,11 @@ async function init(options: { preferPersistedSelection?: boolean } = {}) {
 
   if (isDesktop.value && !isDesktopFolderAvailable(state.folerId, notes.value, deletedNotes.value)) {
     state.folerId = 'allnotes'
+  }
+
+  if (isDesktop.value && !hasCurrentDesktopNoteSelection()) {
+    state.noteId = ''
+    state.parentId = ''
   }
 
   if (isDesktop.value && !state.noteId) {
@@ -295,7 +334,7 @@ function handleNoteSelected(id: string) {
 function handleCreateNote(parentId = '') {
   state.parentId = parentId
   state.noteId = '0'
-  clearSnapshot()
+  clearSnapshot(currentUserId.value)
 }
 
 onIonViewWillEnter(() => {

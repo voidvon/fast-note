@@ -1,7 +1,12 @@
 import type { Note } from '@/types'
 import { NOTE_TYPE } from '@/types'
+import { createScopedStorageKey } from '@/utils/userScope'
 
-export const DESKTOP_ACTIVE_NOTE_STORAGE_KEY = 'flashnote_desktop_active_note_v1'
+export const DESKTOP_ACTIVE_NOTE_STORAGE_PREFIX = 'flashnote_desktop_active_note_v1'
+
+export function getDesktopActiveNoteStorageKey(userId?: string | null) {
+  return createScopedStorageKey(DESKTOP_ACTIVE_NOTE_STORAGE_PREFIX, userId)
+}
 
 export interface DesktopActiveNoteSelection {
   folderId: string
@@ -139,9 +144,11 @@ export function resolveDesktopActiveNoteSelection(
 }
 
 export function useDesktopActiveNote(storage: Storage = localStorage) {
-  function getSnapshot() {
+  function getSnapshot(userId?: string | null) {
+    const storageKey = getDesktopActiveNoteStorageKey(userId)
+
     try {
-      const rawValue = storage.getItem(DESKTOP_ACTIVE_NOTE_STORAGE_KEY)
+      const rawValue = storage.getItem(storageKey)
       if (!rawValue) {
         return null
       }
@@ -149,25 +156,26 @@ export function useDesktopActiveNote(storage: Storage = localStorage) {
       const parsedValue = JSON.parse(rawValue)
       const snapshot = normalizeDesktopActiveNoteSnapshot(parsedValue)
       if (!snapshot) {
-        storage.removeItem(DESKTOP_ACTIVE_NOTE_STORAGE_KEY)
+        storage.removeItem(storageKey)
       }
 
       return snapshot
     }
     catch {
-      storage.removeItem(DESKTOP_ACTIVE_NOTE_STORAGE_KEY)
+      storage.removeItem(storageKey)
       return null
     }
   }
 
-  function saveSnapshot(selection: DesktopActiveNoteSelection) {
+  function saveSnapshot(selection: DesktopActiveNoteSelection, userId?: string | null) {
     const snapshot = createDesktopActiveNoteSnapshot(selection)
+    const storageKey = getDesktopActiveNoteStorageKey(userId)
     if (!snapshot) {
       return false
     }
 
     try {
-      storage.setItem(DESKTOP_ACTIVE_NOTE_STORAGE_KEY, JSON.stringify(snapshot))
+      storage.setItem(storageKey, JSON.stringify(snapshot))
       return true
     }
     catch {
@@ -175,9 +183,11 @@ export function useDesktopActiveNote(storage: Storage = localStorage) {
     }
   }
 
-  function clearSnapshot() {
+  function clearSnapshot(userId?: string | null) {
+    const storageKey = getDesktopActiveNoteStorageKey(userId)
+
     try {
-      storage.removeItem(DESKTOP_ACTIVE_NOTE_STORAGE_KEY)
+      storage.removeItem(storageKey)
     }
     catch {
     }

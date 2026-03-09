@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  DESKTOP_ACTIVE_NOTE_STORAGE_KEY,
+  getDesktopActiveNoteStorageKey,
   getDesktopNotesForFolder,
   resolveDesktopActiveNoteSelection,
   useDesktopActiveNote,
@@ -16,34 +16,34 @@ describe('useDesktopActiveNote (t-fn-019 / tc-fn-013)', () => {
       folderId: 'allnotes',
       noteId: 'note-1',
       parentId: '',
-    })
+    }, 'user-a')
 
     expect(saved).toBe(true)
-    expect(getSnapshot()).toMatchObject({
+    expect(getSnapshot('user-a')).toMatchObject({
       folderId: 'allnotes',
       noteId: 'note-1',
       parentId: '',
     })
 
-    clearSnapshot()
-    expect(getSnapshot()).toBeNull()
+    clearSnapshot('user-a')
+    expect(getSnapshot('user-a')).toBeNull()
   })
 
   it('rejects empty and new-note snapshots', () => {
     const { saveSnapshot, getSnapshot } = useDesktopActiveNote(localStorage)
 
-    expect(saveSnapshot({ folderId: 'allnotes', noteId: '', parentId: '' })).toBe(false)
-    expect(saveSnapshot({ folderId: 'allnotes', noteId: '0', parentId: '' })).toBe(false)
-    expect(getSnapshot()).toBeNull()
+    expect(saveSnapshot({ folderId: 'allnotes', noteId: '', parentId: '' }, 'user-a')).toBe(false)
+    expect(saveSnapshot({ folderId: 'allnotes', noteId: '0', parentId: '' }, 'user-a')).toBe(false)
+    expect(getSnapshot('user-a')).toBeNull()
   })
 
   it('clears corrupted snapshot payloads while reading', () => {
-    localStorage.setItem(DESKTOP_ACTIVE_NOTE_STORAGE_KEY, '{bad-json')
+    localStorage.setItem(getDesktopActiveNoteStorageKey('user-a'), '{bad-json')
 
     const { getSnapshot } = useDesktopActiveNote(localStorage)
 
-    expect(getSnapshot()).toBeNull()
-    expect(localStorage.getItem(DESKTOP_ACTIVE_NOTE_STORAGE_KEY)).toBeNull()
+    expect(getSnapshot('user-a')).toBeNull()
+    expect(localStorage.getItem(getDesktopActiveNoteStorageKey('user-a'))).toBeNull()
   })
 
   it('falls back to the first available note in the recorded folder', () => {
