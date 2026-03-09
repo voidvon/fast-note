@@ -553,8 +553,8 @@ export function useSync() {
 
           // 上传到PocketBase
           const result = filesForUpload !== undefined
-            ? await notesService.updateNote(updatedNote, filesForUpload)
-            : await notesService.updateNote(updatedNote)
+            ? await notesService.updateNote(updatedNote, filesForUpload, 'create')
+            : await notesService.updateNote(updatedNote, undefined, 'create')
 
           // 如果有需要上传的文件，处理返回结果
           if (filesForUpload && filesForUpload.length > 0 && result.success && result.record) {
@@ -579,7 +579,7 @@ export function useSync() {
                 // 更新本地笔记
                 await updateNote(note.id, finalNote)
                 // 将更新后的内容同步到PocketBase服务端（不包含文件，只更新内容）
-                await notesService.updateNote(finalNote)
+                await notesService.updateNote(finalNote, undefined, 'update')
                 console.warn(`已更新笔记 ${note.id} 的附件引用并同步到服务端`)
               }
             }
@@ -593,8 +593,8 @@ export function useSync() {
 
           // 上传到PocketBase
           const result = filesForUpload !== undefined
-            ? await notesService.updateNote(updatedNote, filesForUpload)
-            : await notesService.updateNote(updatedNote)
+            ? await notesService.updateNote(updatedNote, filesForUpload, 'update')
+            : await notesService.updateNote(updatedNote, undefined, 'update')
 
           // 如果有需要上传的文件，处理返回结果
           if (filesForUpload && filesForUpload.length > 0 && result.success && result.record) {
@@ -619,7 +619,7 @@ export function useSync() {
                 // 更新本地笔记
                 await updateNote(note.id, finalNote)
                 // 将更新后的内容同步到PocketBase服务端（不包含文件，只更新内容）
-                await notesService.updateNote(finalNote)
+                await notesService.updateNote(finalNote, undefined, 'update')
                 console.warn(`已更新笔记 ${note.id} 的附件引用并同步到服务端`)
               }
             }
@@ -643,7 +643,7 @@ export function useSync() {
         }
         else if (action === 'delete') {
           // 请求云端删除（标记为删除状态）
-          await notesService.updateNote(note)
+          await notesService.updateNote(note, undefined, 'update')
           deletedCount++
         }
 

@@ -62,4 +62,42 @@ describe('note detail save status (t-fn-028 / tc-fn-020, tc-fn-021)', () => {
     expect(mocks.toastPresentMock).toHaveBeenCalledTimes(1)
     expect(wrapper.find('.note-detail__saving-spinner').exists()).toBe(false)
   })
+
+  it('updates mobile new-note URL without triggering vue-router navigation on first save', async () => {
+    const replaceStateMock = vi.spyOn(window.history, 'replaceState')
+
+    const { wrapper, editorApi, mocks } = await mountNoteDetailForSaveTest({
+      noteId: '',
+      isDesktop: false,
+      route: {
+        params: {
+          id: '0',
+        },
+        query: {
+          parent_id: 'folder-1',
+        },
+      },
+      notesById: {},
+    })
+
+    editorApi.getContent.mockReturnValue('<p>新建内容</p>')
+    editorApi.getTitle.mockReturnValue({
+      title: '新建备忘录',
+      summary: '新建摘要',
+    })
+
+    wrapper.getComponent({ name: 'YYEditor' }).vm.$emit('blur')
+    await nextTick()
+    vi.advanceTimersByTime(800)
+    await flushPromises()
+    await nextTick()
+
+    expect(mocks.addNoteMock).toHaveBeenCalledTimes(1)
+
+    const savedNoteId = mocks.addNoteMock.mock.calls[0][0].id
+    expect(mocks.routerReplaceMock).not.toHaveBeenCalled()
+    expect(replaceStateMock).toHaveBeenCalledWith(null, '', `/n/${savedNoteId}`)
+
+    replaceStateMock.mockRestore()
+  })
 })

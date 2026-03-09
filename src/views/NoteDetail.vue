@@ -5,7 +5,7 @@ import { IonBackButton, IonButton, IonButtons, IonContent, IonFooter, IonHeader,
 import { attachOutline, checkmarkCircleOutline, ellipsisHorizontalCircleOutline, textOutline } from 'ionicons/icons'
 import { nanoid } from 'nanoid'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, toRaw, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import Icon from '@/components/Icon.vue'
 import NoteMore from '@/components/NoteMore.vue'
 import TableFormatModal from '@/components/TableFormatModal.vue'
@@ -34,7 +34,6 @@ const props = withDefaults(
 const emit = defineEmits(['noteSaved'])
 
 const route = useRoute()
-const router = useRouter()
 const { addNote, getNote, updateNote, deleteNote, updateParentFolderSubcount, getNotesSync } = useNote()
 const { isDesktop } = useDeviceType()
 const { restoreHeight } = useVisualViewport()
@@ -49,6 +48,7 @@ const fileInputRef = ref()
 const imageInputRef = ref()
 const data = ref()
 const newNoteId = ref<string | null>(null)
+const hasCreatedRouteDraft = ref(false)
 const missingPrivateNoteRepairId = ref<string | null>(null)
 const lastSavedContent = ref<string>('') // 记录上次保存的内容
 const saveTimer = ref<number | null>(null) // 防抖定时器
@@ -65,7 +65,7 @@ const state = reactive({
 
 const idFromRoute = computed(() => route.params.id as string || route.params.noteId as string)
 const idFromSource = computed(() => props.noteId || idFromRoute.value)
-const isNewNote = computed(() => idFromSource.value === '0')
+const isNewNote = computed(() => idFromSource.value === '0' && !hasCreatedRouteDraft.value)
 const username = computed(() => route.params.username as string)
 const isUserContext = computed(() => !!username.value)
 const isMissingPrivateNote = computed(() => !isUserContext.value && !isNewNote.value && state.isMissingPrivateNote)
@@ -81,15 +81,17 @@ watch(isNewNote, (isNew) => {
 }, { immediate: true })
 
 const effectiveUuid = computed(() => {
-  if (isNewNote.value)
+  if (idFromSource.value === '0')
     return newNoteId.value
 
   return idFromSource.value
 })
 
 watch(idFromSource, async (id, oldId) => {
-  if (id !== oldId)
+  if (id !== oldId) {
     missingPrivateNoteRepairId.value = null
+    hasCreatedRouteDraft.value = false
+  }
 
   // 如果从一个笔记切换到另一个笔记，先保存当前笔记（静默保存，不触发列表刷新）
   // 但如果是切换到新建笔记（id === '0'），不保存
@@ -175,6 +177,13 @@ async function presentTopError(message: string) {
   })
 
   await toast.present()
+}
+
+function replaceMobileDraftUrl(noteId: string) {
+  if (typeof window === 'undefined')
+    return
+
+  window.history.replaceState(null, '', `/n/${noteId}`)
 }
 
 function syncMissingPrivateNoteState() {
@@ -298,11 +307,6 @@ async function handleNoteSaving(silent = false, leaveFlushReason: LeaveFlushReas
     title = '新建备忘录'
   }
 
-  // 如果在桌面端首次保存新笔记，更新 noteId 以便后续保存
-  // 移动端则需要更新路由
-  if (isNewNote.value && !isDesktop.value)
-    router.replace({ path: `/n/${effectiveUuid.value}` })
-
   const id = effectiveUuid.value
   if (!id)
     return
@@ -373,9 +377,11 @@ async function handleNoteSaving(silent = false, leaveFlushReason: LeaveFlushReas
         updateParentFolderSubcount(newNote)
         data.value = newNote
 
-        // 新建笔记保存后，重置 newNoteId，这样下次就不会被认为是新笔记
         if (wasNewNote) {
-          newNoteId.value = null
+          hasCreatedRouteDraft.value = true
+
+          if (!isDesktop.value)
+            replaceMobileDraftUrl(id)
         }
 
         // 新建笔记总是发出事件，需要刷新列表
@@ -511,15 +517,6 @@ function handleBeforeUnload() {
 }
 
 onMounted(() => {
-  if (isNewNote.value && !isDesktop.value) {
-    if (route.query.parent_id) {
-      window.history.replaceState(null, '', `/n/${newNoteId.value}?parent_id=${route.query.parent_id}`)
-    }
-    else {
-      window.history.replaceState(null, '', `/n/${newNoteId.value}`)
-    }
-  }
-
   window.addEventListener('pagehide', handlePageHide)
   window.addEventListener('beforeunload', handleBeforeUnload)
 })
