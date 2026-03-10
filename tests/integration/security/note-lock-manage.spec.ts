@@ -87,7 +87,6 @@ describe('note lock manage modal integration (t-fn-043 / tc-fn-036)', () => {
 
     await wrapper.get('[data-testid="note-lock-manage-change-pin"]').trigger('click')
     await wrapper.get('[data-testid="note-lock-manage-pin"]').setValue('123456')
-    await wrapper.get('[data-testid="note-lock-manage-confirm-pin"]').setValue('123456')
     await wrapper.get('[data-testid="note-lock-manage-submit-pin"]').trigger('click')
     await flushPromises()
 

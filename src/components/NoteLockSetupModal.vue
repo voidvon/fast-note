@@ -26,7 +26,6 @@ const { isDesktop } = useDeviceType()
 const noteLock = useNoteLock()
 
 const form = reactive({
-  confirmPin: '',
   errorMessage: '',
   isSubmitting: false,
   pin: '',
@@ -40,16 +39,15 @@ const canSubmit = computed(() => {
 
   return !form.isSubmitting
     && form.pin.length === 6
-    && form.confirmPin.length === 6
     && !!props.noteId
 })
 
 const modalBreakpoints = computed(() => {
-  return isDesktop.value ? undefined : [0, 0.72]
+  return isDesktop.value ? undefined : [0, 1]
 })
 
 const modalInitialBreakpoint = computed(() => {
-  return isDesktop.value ? undefined : 0.72
+  return isDesktop.value ? undefined : 1
 })
 
 watch(() => props.isOpen, (isOpen) => {
@@ -58,7 +56,6 @@ watch(() => props.isOpen, (isOpen) => {
   }
 
   form.pin = ''
-  form.confirmPin = ''
   form.errorMessage = ''
   form.isSubmitting = false
   form.biometricEnabled = props.deviceSupportsBiometric && props.defaultBiometricEnabled
@@ -85,7 +82,7 @@ async function handleSubmit() {
       ? await noteLock.enableLockForNote(props.noteId, {
           biometricEnabled: form.biometricEnabled,
         })
-      : await noteLock.setupGlobalPin(props.noteId, form.pin, form.confirmPin, {
+      : await noteLock.setupGlobalPin(props.noteId, form.pin, form.pin, {
           biometricEnabled: form.biometricEnabled,
         })
 
@@ -114,11 +111,7 @@ async function handleSubmit() {
     <div class="note-lock-setup-modal__sheet">
       <div class="note-lock-setup-modal__header">
         <div>
-          <div class="note-lock-setup-modal__eyebrow">
-            备忘录锁
-          </div>
-          <h2>{{ hasGlobalPin ? '锁定这篇备忘录' : '创建全局 PIN 并锁定' }}</h2>
-          <p>PIN 适用于所有浏览器，生物识别仅作为当前设备的快捷解锁。</p>
+          <h2>{{ hasGlobalPin ? '锁定这篇备忘录' : '设置全局 PIN' }}</h2>
         </div>
         <button
           type="button"
@@ -133,43 +126,22 @@ async function handleSubmit() {
       <div class="note-lock-setup-modal__body">
         <template v-if="!hasGlobalPin">
           <label class="note-lock-setup-modal__field">
-            <span>输入 6 位全局 PIN</span>
             <input
               data-testid="note-lock-setup-pin"
               :value="form.pin"
               inputmode="numeric"
               maxlength="6"
               placeholder="请输入 6 位数字"
-              type="password"
+              type="text"
               @input="form.pin = normalizePinValue(($event.target as HTMLInputElement).value)"
-            >
-          </label>
-
-          <label class="note-lock-setup-modal__field">
-            <span>再次确认全局 PIN</span>
-            <input
-              data-testid="note-lock-setup-confirm-pin"
-              :value="form.confirmPin"
-              inputmode="numeric"
-              maxlength="6"
-              placeholder="请再次输入 6 位数字"
-              type="password"
-              @input="form.confirmPin = normalizePinValue(($event.target as HTMLInputElement).value)"
             >
           </label>
         </template>
 
-        <div v-else class="note-lock-setup-modal__summary">
-          当前账号已创建全局 PIN。本次仅为这篇备忘录开启锁，解锁时仍使用同一个全局 PIN。
-        </div>
-
         <label class="note-lock-setup-modal__toggle" :class="{ 'is-disabled': !deviceSupportsBiometric }">
           <div>
             <div class="note-lock-setup-modal__toggle-title">
-              当前设备启用生物识别快捷解锁
-            </div>
-            <div class="note-lock-setup-modal__toggle-desc">
-              {{ deviceSupportsBiometric ? '解锁时可优先尝试生物识别，失败后仍可回退 PIN。' : '当前设备不支持生物识别，仍可正常使用 PIN 解锁。' }}
+              生物识别快捷解锁
             </div>
           </div>
           <input
@@ -195,7 +167,7 @@ async function handleSubmit() {
           :disabled="!canSubmit"
           @click="handleSubmit"
         >
-          {{ form.isSubmitting ? '处理中...' : (hasGlobalPin ? '确认锁定' : '创建并锁定') }}
+          {{ form.isSubmitting ? '处理中...' : '确认' }}
         </IonButton>
       </div>
     </div>
@@ -206,6 +178,17 @@ async function handleSubmit() {
 .note-lock-setup-modal {
   --height: auto;
   --border-radius: 24px 24px 0 0;
+  --note-lock-setup-panel-bg: var(--c-blue-gray-900);
+  --note-lock-setup-text: var(--c-text-primary);
+  --note-lock-setup-muted: var(--c-text-secondary);
+  --note-lock-setup-input-bg: var(--c-blue-gray-950);
+  --note-lock-setup-input-border: var(--c-border);
+  --note-lock-setup-input-focus: var(--primary);
+  --note-lock-setup-input-ring: color-mix(in srgb, var(--primary) 24%, transparent);
+  --note-lock-setup-toggle-bg: var(--c-blue-gray-800);
+  --note-lock-setup-toggle-text: var(--c-text-primary);
+  --note-lock-setup-error-bg: color-mix(in srgb, var(--danger) 18%, var(--c-blue-gray-800));
+  --note-lock-setup-error-text: var(--c-text-primary);
 
   &::part(content) {
     max-width: 460px;
@@ -215,8 +198,8 @@ async function handleSubmit() {
 
 .note-lock-setup-modal__sheet {
   padding: 20px 20px 24px;
-  background: linear-gradient(180deg, rgba(244, 248, 252, 0.96) 0%, rgba(255, 255, 255, 0.98) 100%);
-  color: #122033;
+  background: var(--note-lock-setup-panel-bg);
+  color: var(--note-lock-setup-text);
 }
 
 .note-lock-setup-modal__header {
@@ -226,29 +209,16 @@ async function handleSubmit() {
   gap: 12px;
 
   h2 {
-    margin: 6px 0 8px;
+    margin: 0;
     font-size: 24px;
     line-height: 1.2;
   }
-
-  p {
-    margin: 0;
-    color: #5b6b7d;
-    line-height: 1.5;
-  }
-}
-
-.note-lock-setup-modal__eyebrow {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: #4b6b96;
 }
 
 .note-lock-setup-modal__close {
   border: 0;
   background: transparent;
-  color: #6b7a8b;
+  color: var(--note-lock-setup-muted);
   font-size: 14px;
 }
 
@@ -259,40 +229,35 @@ async function handleSubmit() {
 }
 
 .note-lock-setup-modal__field {
-  display: grid;
-  gap: 8px;
-
-  span {
-    font-size: 14px;
-    font-weight: 600;
-    color: #314255;
-  }
-
   input {
     width: 100%;
-    border: 1px solid #d5deea;
+    border: 1px solid var(--note-lock-setup-input-border);
     border-radius: 14px;
     padding: 14px 16px;
-    background: rgba(255, 255, 255, 0.9);
+    background: var(--note-lock-setup-input-bg);
     font-size: 16px;
-    color: #122033;
+    color: var(--note-lock-setup-text);
     outline: none;
 
+    &::placeholder {
+      color: var(--note-lock-setup-muted);
+    }
+
     &:focus {
-      border-color: #4f7fb7;
-      box-shadow: 0 0 0 3px rgba(79, 127, 183, 0.15);
+      border-color: var(--note-lock-setup-input-focus);
+      box-shadow: 0 0 0 3px var(--note-lock-setup-input-ring);
     }
   }
 }
 
 .note-lock-setup-modal__toggle {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   border-radius: 16px;
   padding: 14px 16px;
-  background: rgba(224, 233, 243, 0.55);
+  background: var(--note-lock-setup-toggle-bg);
 
   input {
     width: 18px;
@@ -308,21 +273,14 @@ async function handleSubmit() {
 .note-lock-setup-modal__toggle-title {
   font-size: 14px;
   font-weight: 600;
-  color: #223145;
-}
-
-.note-lock-setup-modal__toggle-desc {
-  margin-top: 4px;
-  font-size: 13px;
-  line-height: 1.5;
-  color: #607184;
+  color: var(--note-lock-setup-toggle-text);
 }
 
 .note-lock-setup-modal__error {
   border-radius: 14px;
   padding: 12px 14px;
-  background: #fdeaea;
-  color: #a74141;
+  background: var(--note-lock-setup-error-bg);
+  color: var(--note-lock-setup-error-text);
   font-size: 13px;
   line-height: 1.5;
 }

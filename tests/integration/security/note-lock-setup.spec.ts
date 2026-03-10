@@ -71,11 +71,10 @@ describe('note lock setup modal integration (t-fn-037 / tc-fn-028)', () => {
     })
 
     await wrapper.get('[data-testid="note-lock-setup-pin"]').setValue('123456')
-    await wrapper.get('[data-testid="note-lock-setup-confirm-pin"]').setValue('123456')
 
     const biometricInput = wrapper.get('[data-testid="note-lock-setup-biometric"]')
     expect((biometricInput.element as HTMLInputElement).disabled).toBe(true)
-    expect(wrapper.text()).toContain('当前设备不支持生物识别')
+    expect(wrapper.text()).toContain('设置全局 PIN')
 
     await wrapper.get('[data-testid="note-lock-setup-submit"]').trigger('click')
     await flushPromises()
@@ -83,7 +82,7 @@ describe('note lock setup modal integration (t-fn-037 / tc-fn-028)', () => {
     expect(setupGlobalPinMock).toHaveBeenCalledWith('note-1', '123456', '123456', {
       biometricEnabled: false,
     })
-    expect(wrapper.emitted('confirm')?.[0]?.[0]).toMatchObject({
+    expect(wrapper.emitted('confirm')?.[0]?.[0]?.note).toMatchObject({
       id: 'note-1',
       is_locked: 1,
     })
@@ -128,7 +127,7 @@ describe('note lock setup modal integration (t-fn-037 / tc-fn-028)', () => {
     })
 
     expect(wrapper.find('[data-testid="note-lock-setup-pin"]').exists()).toBe(false)
-    expect(wrapper.text()).toContain('当前账号已创建全局 PIN')
+    expect(wrapper.text()).toContain('锁定这篇备忘录')
 
     await wrapper.get('[data-testid="note-lock-setup-submit"]').trigger('click')
     await flushPromises()
@@ -136,7 +135,7 @@ describe('note lock setup modal integration (t-fn-037 / tc-fn-028)', () => {
     expect(enableLockForNoteMock).toHaveBeenCalledWith('note-1', {
       biometricEnabled: true,
     })
-    expect(wrapper.emitted('confirm')?.[0]?.[0]).toMatchObject({
+    expect(wrapper.emitted('confirm')?.[0]?.[0]?.note).toMatchObject({
       id: 'note-1',
       is_locked: 1,
     })

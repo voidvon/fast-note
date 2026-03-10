@@ -101,8 +101,7 @@ function submit() {
       <div class="note-unlock-panel__icon">
         <IonIcon :icon="lockClosedOutline" />
       </div>
-      <h2>这篇备忘录已锁定</h2>
-      <p>输入 6 位全局 PIN 解锁，支持时也可以使用生物识别快捷解锁。</p>
+      <h2>输入 PIN</h2>
 
       <IonButton
         v-if="biometricEnabled && deviceSupportsBiometric"
@@ -116,7 +115,6 @@ function submit() {
       </IonButton>
 
       <label class="note-unlock-panel__field">
-        <span>输入 6 位全局 PIN</span>
         <input
           data-testid="note-unlock-panel-pin"
           :value="pin"
@@ -124,7 +122,7 @@ function submit() {
           inputmode="numeric"
           maxlength="6"
           placeholder="请输入 6 位数字"
-          type="password"
+          type="text"
           @input="normalizePinValue(($event.target as HTMLInputElement).value)"
           @keyup.enter="submit"
         >
@@ -151,6 +149,19 @@ function submit() {
 
 <style lang="scss">
 .note-unlock-panel {
+  --note-unlock-card-bg: var(--c-blue-gray-900);
+  --note-unlock-card-border: var(--c-border);
+  --note-unlock-shadow: 0 18px 40px rgba(34, 49, 69, 0.12);
+  --note-unlock-text: var(--c-text-primary);
+  --note-unlock-muted: var(--c-text-secondary);
+  --note-unlock-icon-bg: var(--c-blue-gray-800);
+  --note-unlock-icon-text: var(--primary);
+  --note-unlock-input-bg: var(--c-blue-gray-950);
+  --note-unlock-input-border: var(--c-border);
+  --note-unlock-input-focus: var(--primary);
+  --note-unlock-input-ring: color-mix(in srgb, var(--primary) 24%, transparent);
+  --note-unlock-message-bg: color-mix(in srgb, var(--danger) 18%, var(--c-blue-gray-800));
+  --note-unlock-message-text: var(--c-text-primary);
   min-height: calc(100vh - 112px);
   display: grid;
   place-items: center;
@@ -161,21 +172,15 @@ function submit() {
   width: min(100%, 420px);
   padding: 28px 24px;
   border-radius: 28px;
-  background: linear-gradient(180deg, rgba(245, 248, 252, 0.98) 0%, rgba(255, 255, 255, 0.98) 100%);
-  border: 1px solid rgba(177, 194, 214, 0.5);
-  box-shadow: 0 18px 40px rgba(34, 49, 69, 0.12);
+  background: var(--note-unlock-card-bg);
+  border: 1px solid var(--note-unlock-card-border);
+  box-shadow: var(--note-unlock-shadow);
   text-align: center;
 
   h2 {
-    margin: 14px 0 8px;
+    margin: 14px 0 0;
     font-size: 26px;
-    color: #132033;
-  }
-
-  p {
-    margin: 0;
-    color: #607184;
-    line-height: 1.6;
+    color: var(--note-unlock-text);
   }
 }
 
@@ -186,8 +191,8 @@ function submit() {
   width: 72px;
   height: 72px;
   border-radius: 24px;
-  background: #e8eef6;
-  color: #355578;
+  background: var(--note-unlock-icon-bg);
+  color: var(--note-unlock-icon-text);
 
   ion-icon {
     font-size: 36px;
@@ -199,30 +204,26 @@ function submit() {
 }
 
 .note-unlock-panel__field {
-  display: grid;
-  gap: 8px;
   margin-top: 18px;
   text-align: left;
 
-  span {
-    font-size: 14px;
-    font-weight: 600;
-    color: #314255;
-  }
-
   input {
     width: 100%;
-    border: 1px solid #d5deea;
+    border: 1px solid var(--note-unlock-input-border);
     border-radius: 14px;
     padding: 14px 16px;
-    background: rgba(255, 255, 255, 0.92);
+    background: var(--note-unlock-input-bg);
     font-size: 16px;
-    color: #122033;
+    color: var(--note-unlock-text);
     outline: none;
 
+    &::placeholder {
+      color: var(--note-unlock-muted);
+    }
+
     &:focus {
-      border-color: #4f7fb7;
-      box-shadow: 0 0 0 3px rgba(79, 127, 183, 0.15);
+      border-color: var(--note-unlock-input-focus);
+      box-shadow: 0 0 0 3px var(--note-unlock-input-ring);
     }
   }
 }
@@ -231,8 +232,8 @@ function submit() {
   margin-top: 14px;
   border-radius: 14px;
   padding: 12px 14px;
-  background: #f6ece5;
-  color: #92552f;
+  background: var(--note-unlock-message-bg);
+  color: var(--note-unlock-message-text);
   text-align: left;
   font-size: 13px;
   line-height: 1.5;

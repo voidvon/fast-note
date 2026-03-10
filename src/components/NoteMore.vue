@@ -28,6 +28,7 @@ const { db } = useDexie()
 
 const modalRef = ref()
 const note = ref<Note | undefined>(undefined)
+const pendingLockModal = ref<'setup' | 'manage' | null>(null)
 const lockModalState = reactive({
   defaultBiometricEnabled: false,
   hasGlobalPin: false,
@@ -176,13 +177,21 @@ async function onLock() {
   const deviceState = await noteLock.getDeviceSecurityState()
   lockModalState.defaultBiometricEnabled = deviceState.biometric_enabled === 1
   lockModalState.hasGlobalPin = await noteLock.hasGlobalPin(true)
-  if (noteLock.isPinLockNote(note.value)) {
+  pendingLockModal.value = noteLock.isPinLockNote(note.value) ? 'manage' : 'setup'
+  emit('update:isOpen', false)
+}
+
+function onMoreModalDidDismiss() {
+  emit('update:isOpen', false)
+
+  if (pendingLockModal.value === 'manage') {
     lockModalState.manageOpen = true
   }
-  else {
+  else if (pendingLockModal.value === 'setup') {
     lockModalState.isOpen = true
   }
-  emit('update:isOpen', false)
+
+  pendingLockModal.value = null
 }
 
 async function onLockConfirmed(payload: NoteLockSetupResult & { note: Note }) {
@@ -251,7 +260,7 @@ async function onDelete() {
     :initial-breakpoint="0.5"
     :breakpoints="[0, 0.5, 1]"
     @will-present="onWillPresent"
-    @did-dismiss="$emit('update:isOpen', false)"
+    @did-dismiss="onMoreModalDidDismiss"
   >
     <div>
       <IonGrid>
