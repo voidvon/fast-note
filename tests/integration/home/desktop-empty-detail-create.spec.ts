@@ -139,8 +139,21 @@ async function mountHomePageForEmptyDetailCreate(options: {
   vi.doMock('@/hooks/useWebAuthn', () => ({
     useWebAuthn: () => ({
       state: { isRegistered: false },
-      verify: vi.fn(async () => true),
-      register: vi.fn(async () => true),
+      checkSupport: vi.fn(() => false),
+      checkRegistrationStatus: vi.fn(() => false),
+      clearLegacyCredential: vi.fn(),
+      getLegacyCredential: vi.fn(() => null),
+      verify: vi.fn(async () => ({
+        ok: true,
+        code: 'ok',
+        message: null,
+      })),
+      register: vi.fn(async () => ({
+        ok: true,
+        code: 'ok',
+        message: null,
+        credentialId: 'credential-id',
+      })),
     }),
   }))
 

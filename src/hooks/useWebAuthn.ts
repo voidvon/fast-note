@@ -1,7 +1,22 @@
-import { toastController } from '@ionic/vue'
 import { reactive } from 'vue'
 
-const unSupportText = '此浏览器不支持生物识别，请更换设备再查看！'
+const LEGACY_CREDENTIAL_STORAGE_KEY = 'webauthn_credential_id'
+const LEGACY_VERIFIED_AT_STORAGE_KEY = 'webauthn_last_verified_at'
+const LEGACY_VERIFICATION_EXPIRY = 60 * 1000
+
+export type WebAuthnResultCode = 'ok' | 'unsupported' | 'not_registered' | 'cancelled' | 'timeout' | 'failed'
+
+export interface WebAuthnOperationResult {
+  ok: boolean
+  code: WebAuthnResultCode
+  message: string | null
+  credentialId?: string | null
+}
+
+export interface WebAuthnVerifyOptions {
+  credentialId?: string | null
+  force?: boolean
+}
 
 export interface WebAuthnState {
   isSupported: boolean
@@ -12,75 +27,175 @@ export interface WebAuthnState {
   successMessage: string | null
 }
 
-// 检查浏览器是否支持WebAuthn
-const isWebAuthnSupported = typeof window !== 'undefined' && !!window.PublicKeyCredential
+export interface UseWebAuthnCapability {
+  state: WebAuthnState
+  checkSupport: () => boolean
+  checkRegistrationStatus: (credentialId?: string | null) => boolean
+  clearLegacyCredential: () => void
+  getLegacyCredential: () => string | null
+  register: () => Promise<WebAuthnOperationResult>
+  verify: (options?: WebAuthnVerifyOptions) => Promise<WebAuthnOperationResult>
+}
 
-// 生成随机挑战
+function isWebAuthnSupported() {
+  return typeof window !== 'undefined' && !!window.PublicKeyCredential
+}
+
 function generateChallenge(): ArrayBuffer {
   const challenge = new Uint8Array(32)
-  window.crypto.getRandomValues(challenge)
+  globalThis.crypto.getRandomValues(challenge)
   return challenge.buffer
 }
 
-// 保存凭据到 localStorage
-function saveCredential(credentialId: ArrayBuffer) {
-  const credentialIdBase64 = btoa(
-    String.fromCharCode(...new Uint8Array(credentialId)),
-  )
-  localStorage.setItem('webauthn_credential_id', credentialIdBase64)
+function encodeCredentialId(credentialId: ArrayBuffer) {
+  return btoa(String.fromCharCode(...new Uint8Array(credentialId)))
 }
 
-// 从 localStorage 获取凭据
-function getCredentialId(): ArrayBuffer | null {
-  const credentialIdBase64 = localStorage.getItem('webauthn_credential_id')
-  if (!credentialIdBase64)
-    return null
-
-  const binary = atob(credentialIdBase64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i)
+function decodeCredentialId(credentialId: string) {
+  try {
+    const binary = atob(credentialId)
+    const bytes = new Uint8Array(binary.length)
+    for (let index = 0; index < binary.length; index++) {
+      bytes[index] = binary.charCodeAt(index)
+    }
+    return bytes.buffer
   }
-  return bytes.buffer
+  catch {
+    return null
+  }
 }
 
-// 检查是否已注册
-function checkRegistrationStatus(): boolean {
-  return localStorage.getItem('webauthn_credential_id') !== null
+function saveLegacyCredential(credentialId: string) {
+  if (typeof localStorage === 'undefined') {
+    return
+  }
+
+  localStorage.setItem(LEGACY_CREDENTIAL_STORAGE_KEY, credentialId)
 }
 
-// 清除消息辅助函数
+function getLegacyCredential() {
+  if (typeof localStorage === 'undefined') {
+    return null
+  }
+
+  return localStorage.getItem(LEGACY_CREDENTIAL_STORAGE_KEY)
+}
+
+function saveVerificationTimestamp(timestamp: number) {
+  if (typeof localStorage === 'undefined') {
+    return
+  }
+
+  localStorage.setItem(LEGACY_VERIFIED_AT_STORAGE_KEY, String(timestamp))
+}
+
+function getVerificationTimestamp() {
+  if (typeof localStorage === 'undefined') {
+    return null
+  }
+
+  const timestamp = localStorage.getItem(LEGACY_VERIFIED_AT_STORAGE_KEY)
+  return timestamp ? Number.parseInt(timestamp, 10) : null
+}
+
+function isVerificationExpired() {
+  const lastVerifiedAt = getVerificationTimestamp()
+  if (!lastVerifiedAt) {
+    return true
+  }
+
+  return Date.now() - lastVerifiedAt > LEGACY_VERIFICATION_EXPIRY
+}
+
 function clearMessages(state: WebAuthnState) {
   state.errorMessage = null
   state.successMessage = null
 }
 
-// 验证过期时间（毫秒）
-const VERIFICATION_EXPIRY = 60 * 1000 // 1分钟
-
-// 保存验证时间戳到 localStorage
-function saveVerificationTimestamp(timestamp: number) {
-  localStorage.setItem('webauthn_last_verified_at', timestamp.toString())
+function createUnsupportedResult(): WebAuthnOperationResult {
+  return {
+    ok: false,
+    code: 'unsupported',
+    message: '当前设备不支持生物识别，请改用 PIN 解锁',
+  }
 }
 
-// 获取验证时间戳
-function getVerificationTimestamp(): number | null {
-  const timestamp = localStorage.getItem('webauthn_last_verified_at')
-  return timestamp ? Number.parseInt(timestamp, 10) : null
+function createNotRegisteredResult(): WebAuthnOperationResult {
+  return {
+    ok: false,
+    code: 'not_registered',
+    message: '当前设备尚未启用生物识别，请改用 PIN 解锁',
+  }
 }
 
-// 检查验证是否过期
-function isVerificationExpired(): boolean {
-  const lastVerifiedAt = getVerificationTimestamp()
-  if (!lastVerifiedAt)
-    return true
-  return Date.now() - lastVerifiedAt > VERIFICATION_EXPIRY
+function inferErrorCode(error: unknown): Exclude<WebAuthnResultCode, 'ok' | 'unsupported' | 'not_registered'> {
+  const name = error instanceof Error ? error.name : ''
+  const message = error instanceof Error ? error.message : ''
+
+  if (name === 'AbortError') {
+    return 'cancelled'
+  }
+
+  if (name === 'NotAllowedError') {
+    return /timed?\s*out/i.test(message) ? 'timeout' : 'cancelled'
+  }
+
+  return 'failed'
 }
 
-export function useWebAuthn() {
-  // 状态管理
+function createErrorResult(error: unknown, action: 'register' | 'verify'): WebAuthnOperationResult {
+  const code = inferErrorCode(error)
+
+  if (action === 'register') {
+    if (code === 'cancelled') {
+      return {
+        ok: false,
+        code,
+        message: '已取消生物识别启用，当前仅可使用 PIN 解锁',
+      }
+    }
+
+    if (code === 'timeout') {
+      return {
+        ok: false,
+        code,
+        message: '生物识别启用超时，当前仅可使用 PIN 解锁',
+      }
+    }
+
+    return {
+      ok: false,
+      code,
+      message: '生物识别启用失败，当前仅可使用 PIN 解锁',
+    }
+  }
+
+  if (code === 'cancelled') {
+    return {
+      ok: false,
+      code,
+      message: '已取消生物识别验证，请输入 PIN 解锁',
+    }
+  }
+
+  if (code === 'timeout') {
+    return {
+      ok: false,
+      code,
+      message: '生物识别验证超时，请输入 PIN 解锁',
+    }
+  }
+
+  return {
+    ok: false,
+    code,
+    message: '生物识别验证失败，请输入 PIN 解锁',
+  }
+}
+
+export function useWebAuthn(): UseWebAuthnCapability {
   const state = reactive<WebAuthnState>({
-    isSupported: isWebAuthnSupported,
+    isSupported: isWebAuthnSupported(),
     isRegistered: false,
     isRegistering: false,
     isVerifying: false,
@@ -88,164 +203,174 @@ export function useWebAuthn() {
     successMessage: null,
   })
 
-  // 初始检查注册状态
-  state.isRegistered = checkRegistrationStatus()
+  function checkSupport() {
+    state.isSupported = isWebAuthnSupported()
+    return state.isSupported
+  }
 
-  // 注册生物识别
-  async function register() {
+  function checkRegistrationStatus(credentialId?: string | null) {
+    const source = credentialId ?? getLegacyCredential()
+    const isRegistered = !!source && !!decodeCredentialId(source)
+    state.isRegistered = isRegistered
+    return isRegistered
+  }
+
+  async function register(): Promise<WebAuthnOperationResult> {
     clearMessages(state)
 
-    if (!state.isSupported) {
-      state.errorMessage = unSupportText
-      const toast = await toastController.create({
-        message: unSupportText,
-        duration: 1500,
-        position: 'top',
-      })
-
-      await toast.present()
-      return false
+    if (!checkSupport()) {
+      const result = createUnsupportedResult()
+      state.errorMessage = result.message
+      return result
     }
 
     state.isRegistering = true
 
     try {
-      const challenge = generateChallenge()
+      const credential = await navigator.credentials.create({
+        publicKey: {
+          challenge: generateChallenge(),
+          rp: {
+            name: 'Fast Note',
+            id: window.location.hostname,
+          },
+          user: {
+            id: new Uint8Array([1, 2, 3, 4]),
+            name: 'local-user',
+            displayName: '本地用户',
+          },
+          pubKeyCredParams: [{ alg: -7, type: 'public-key' }],
+          authenticatorSelection: {
+            authenticatorAttachment: 'platform',
+            userVerification: 'required',
+          },
+          timeout: 60000,
+        },
+      }) as PublicKeyCredential | null
 
-      const publicKeyCredentialCreationOptions: PublicKeyCredentialCreationOptions = {
-        challenge,
-        rp: {
-          name: 'WebAuthn本地测试',
-          id: window.location.hostname,
-        },
-        user: {
-          id: new Uint8Array([1, 2, 3, 4]), // 简化的固定用户ID
-          name: 'local-user',
-          displayName: '本地用户',
-        },
-        pubKeyCredParams: [{ alg: -7, type: 'public-key' }],
-        authenticatorSelection: {
-          authenticatorAttachment: 'platform', // 使用平台认证器(指纹/人脸等)
-          userVerification: 'required',
-        },
-        timeout: 60000,
+      if (!credential) {
+        const result = createErrorResult(new Error('credential_missing'), 'register')
+        state.errorMessage = result.message
+        return result
       }
 
-      const credential = await navigator.credentials.create({
-        publicKey: publicKeyCredentialCreationOptions,
-      }) as PublicKeyCredential
-
-      // 保存凭据ID到本地存储
-      saveCredential(credential.rawId)
-
-      state.successMessage = '生物识别注册成功！'
+      const credentialId = encodeCredentialId(credential.rawId)
+      saveLegacyCredential(credentialId)
       state.isRegistered = true
+      state.successMessage = 'ok'
 
-      return true
+      return {
+        ok: true,
+        code: 'ok',
+        message: null,
+        credentialId,
+      }
     }
-    catch (err: any) {
-      const registerErrorText = `❌ 生物识别注册失败: ${err.message}`
-      state.errorMessage = registerErrorText
-      const toast = await toastController.create({
-        message: registerErrorText,
-        duration: 1500,
-        position: 'top',
-      })
-
-      await toast.present()
-      return false
+    catch (error) {
+      const result = createErrorResult(error, 'register')
+      state.errorMessage = result.message
+      return result
     }
     finally {
       state.isRegistering = false
     }
   }
 
-  // 验证生物识别
-  async function verify(force = false) {
+  async function verify(options: WebAuthnVerifyOptions = {}): Promise<WebAuthnOperationResult> {
     clearMessages(state)
 
-    if (!state.isSupported) {
-      state.errorMessage = unSupportText
-      const toast = await toastController.create({
-        message: unSupportText,
-        duration: 1500,
-        position: 'top',
-      })
-
-      await toast.present()
-      return false
+    if (!checkSupport()) {
+      const result = createUnsupportedResult()
+      state.errorMessage = result.message
+      return result
     }
 
-    if (!state.isRegistered) {
-      state.errorMessage = '请先注册生物识别'
-      return false
+    const credentialId = options.credentialId ?? getLegacyCredential()
+    if (!checkRegistrationStatus(credentialId)) {
+      const result = createNotRegisteredResult()
+      state.errorMessage = result.message
+      return result
     }
 
-    // 如果不是强制验证且验证未过期，直接返回成功
-    if (!force && !isVerificationExpired()) {
-      state.successMessage = '验证有效期内，无需重新验证'
-      // 更新验证时间
+    if (!options.force && !options.credentialId && !isVerificationExpired()) {
       saveVerificationTimestamp(Date.now())
-      return true
+      state.successMessage = 'ok'
+      return {
+        ok: true,
+        code: 'ok',
+        message: null,
+        credentialId,
+      }
+    }
+
+    const decodedCredentialId = decodeCredentialId(credentialId!)
+    if (!decodedCredentialId) {
+      const result = createNotRegisteredResult()
+      state.errorMessage = result.message
+      return result
     }
 
     state.isVerifying = true
 
     try {
-      const challenge = generateChallenge()
-      const credentialId = getCredentialId()
-
-      if (!credentialId) {
-        throw new Error('找不到已保存的凭据')
-      }
-
-      const publicKeyCredentialRequestOptions: PublicKeyCredentialRequestOptions = {
-        challenge,
-        allowCredentials: [
-          {
-            id: credentialId,
-            type: 'public-key',
-          },
-        ],
-        userVerification: 'required',
-        timeout: 60000,
-      }
-
       await navigator.credentials.get({
-        publicKey: publicKeyCredentialRequestOptions,
+        publicKey: {
+          challenge: generateChallenge(),
+          allowCredentials: [
+            {
+              id: decodedCredentialId,
+              type: 'public-key',
+            },
+          ],
+          userVerification: 'required',
+          timeout: 60000,
+        },
       })
 
-      // 更新验证时间
       saveVerificationTimestamp(Date.now())
-      state.successMessage = '验证成功！'
-      return true
+      state.successMessage = 'ok'
+
+      return {
+        ok: true,
+        code: 'ok',
+        message: null,
+        credentialId,
+      }
     }
-    catch (err: any) {
-      state.errorMessage = `验证失败: ${err.message}`
-      return false
+    catch (error) {
+      const result = createErrorResult(error, 'verify')
+      state.errorMessage = result.message
+      return result
     }
     finally {
       state.isVerifying = false
     }
   }
 
-  // 清除已保存的凭据
-  function clearCredentials() {
-    localStorage.removeItem('webauthn_credential_id')
-    localStorage.removeItem('webauthn_last_verified_at')
+  function clearLegacyCredential() {
+    if (typeof localStorage === 'undefined') {
+      state.isRegistered = false
+      state.errorMessage = null
+      state.successMessage = null
+      return
+    }
+
+    localStorage.removeItem(LEGACY_CREDENTIAL_STORAGE_KEY)
+    localStorage.removeItem(LEGACY_VERIFIED_AT_STORAGE_KEY)
     state.isRegistered = false
-    state.successMessage = '凭据已清除'
+    state.errorMessage = null
+    state.successMessage = null
   }
+
+  checkRegistrationStatus()
 
   return {
     state,
+    checkSupport,
+    checkRegistrationStatus,
+    clearLegacyCredential,
+    getLegacyCredential,
     register,
     verify,
-    clearCredentials,
-    checkRegistrationStatus: () => {
-      state.isRegistered = checkRegistrationStatus()
-      return state.isRegistered
-    },
-    isVerificationExpired,
   }
 }

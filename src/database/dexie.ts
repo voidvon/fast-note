@@ -1,5 +1,5 @@
 import type { Ref } from 'vue'
-import type { Metadata, Note, NoteFile, UserInfo } from './types'
+import type { DeviceSecurityState, Metadata, Note, NoteFile, NoteUnlockSession, SecuritySettings, UserInfo } from './types'
 import Dexie from 'dexie'
 import { ref } from 'vue'
 import { getScopedDatabaseName } from '@/utils/userScope'
@@ -9,20 +9,44 @@ export interface NoteDatabase extends Dexie {
   note_files: Dexie.Table<NoteFile, string>
   user_info: Dexie.Table<UserInfo, string>
   metadata: Dexie.Table<Metadata, string>
+  security_settings: Dexie.Table<SecuritySettings, string>
+  device_security_state: Dexie.Table<DeviceSecurityState, string>
+  note_unlock_sessions: Dexie.Table<NoteUnlockSession, string>
   [key: string]: any
 }
+
+export const NOTE_DATABASE_VERSION = 3
+
+export const NOTE_DATABASE_SCHEMA_V1 = {
+  notes: '&id, [item_type+parent_id+is_deleted], title, created, item_type, parent_id, content, updated, version, is_deleted, note_count, files',
+  note_files: '&hash, fileName, fileSize, fileType, created, updated',
+  user_info: '&id, username, name',
+  metadata: '&key, value',
+} as const
+
+export const NOTE_DATABASE_SCHEMA_V2 = {
+  ...NOTE_DATABASE_SCHEMA_V1,
+  notes: `${NOTE_DATABASE_SCHEMA_V1.notes}, is_locked, lock_type, lock_secret_salt, lock_secret_hash, lock_version`,
+  device_security_state: '&scope_key, updated',
+  note_unlock_sessions: '&note_id, expires_at, updated',
+} as const
+
+export const NOTE_DATABASE_SCHEMA_V3 = {
+  ...NOTE_DATABASE_SCHEMA_V1,
+  notes: `${NOTE_DATABASE_SCHEMA_V1.notes}, is_locked`,
+  security_settings: '&scope_key, updated',
+  device_security_state: '&scope_key, updated',
+  note_unlock_sessions: '&note_id, expires_at, updated',
+} as const
 
 const db = ref<NoteDatabase>()
 const onNoteUpdateArr: (() => void)[] = []
 let currentDatabaseName = ''
 
 function applySchema(database: NoteDatabase) {
-  database.version(1).stores({
-    notes: '&id, [item_type+parent_id+is_deleted], title, created, item_type, parent_id, content, updated, version, is_deleted, note_count, files',
-    note_files: '&hash, fileName, fileSize, fileType, created, updated',
-    user_info: '&id, username, name',
-    metadata: '&key, value',
-  })
+  database.version(1).stores(NOTE_DATABASE_SCHEMA_V1)
+  database.version(2).stores(NOTE_DATABASE_SCHEMA_V2)
+  database.version(NOTE_DATABASE_VERSION).stores(NOTE_DATABASE_SCHEMA_V3)
 }
 
 async function openDatabase(databaseName: string) {

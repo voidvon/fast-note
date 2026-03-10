@@ -17,8 +17,13 @@ export {
 } from './sync'
 
 export type {
+  DeviceSecurityState,
   Metadata,
   Note,
+  NoteLockFields,
+  NoteLockType,
+  NoteUnlockSession,
+  SecuritySettings,
   SyncableItem,
   SyncStatus,
   TypedFile,

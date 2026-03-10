@@ -74,6 +74,8 @@ export async function mountNoteDetailForSaveTest(options: {
   noteId?: string
   parentId?: string
   isDesktop?: boolean
+  lockViewState?: 'unlocked' | 'locked' | 'unlocking' | 'cooldown'
+  isPinLockNote?: boolean
   route?: {
     params?: Record<string, unknown>
     query?: Record<string, unknown>
@@ -83,8 +85,30 @@ export async function mountNoteDetailForSaveTest(options: {
   updateNoteImpl?: (id: string, note: Note) => Promise<unknown>
   addNoteImpl?: (note: Note) => Promise<unknown>
   deleteNoteImpl?: (id: string) => Promise<unknown>
+  getLockViewStateImpl?: (noteId: string, note?: Note | null) => Promise<{
+    viewState: 'unlocked' | 'locked' | 'unlocking' | 'cooldown'
+    failedAttempts: number
+    cooldownUntil: number | null
+    biometricEnabled: boolean
+    deviceSupportsBiometric: boolean
+    session: null
+  }>
   syncImpl?: (silent?: boolean) => Promise<unknown>
   manualSyncImpl?: () => Promise<unknown>
+  verifyPinImpl?: (noteId: string, pin: string) => Promise<{
+    ok: boolean
+    code: string
+    message: string | null
+    failedAttempts: number
+    cooldownUntil: number | null
+  }>
+  tryBiometricUnlockImpl?: (noteId: string, note?: Note | null) => Promise<{
+    ok: boolean
+    code: string
+    message: string | null
+    failedAttempts: number
+    cooldownUntil: number | null
+  }>
 } = {}) {
   vi.resetModules()
 
@@ -107,7 +131,29 @@ export async function mountNoteDetailForSaveTest(options: {
   const manualSyncMock = vi.fn(options.manualSyncImpl ?? (async () => null))
   const restoreHeightMock = vi.fn()
   const routerReplaceMock = vi.fn()
+  const getLockViewStateMock = vi.fn(options.getLockViewStateImpl ?? (async () => ({
+    viewState: options.lockViewState ?? 'unlocked',
+    failedAttempts: 0,
+    cooldownUntil: null,
+    biometricEnabled: false,
+    deviceSupportsBiometric: false,
+    session: null,
+  })))
   const toastDismissMock = vi.fn(async () => undefined)
+  const verifyPinMock = vi.fn(options.verifyPinImpl ?? (async () => ({
+    ok: true,
+    code: 'ok',
+    message: null,
+    failedAttempts: 0,
+    cooldownUntil: null,
+  })))
+  const tryBiometricUnlockMock = vi.fn(options.tryBiometricUnlockImpl ?? (async () => ({
+    ok: true,
+    code: 'ok',
+    message: null,
+    failedAttempts: 0,
+    cooldownUntil: null,
+  })))
   let ionViewWillLeaveCallback: (() => void | Promise<void>) | null = null
   const toastPresentMock = vi.fn(async () => undefined)
   const toastCreateMock = vi.fn(async () => ({
@@ -194,8 +240,35 @@ export async function mountNoteDetailForSaveTest(options: {
   vi.doMock('@/hooks/useWebAuthn', () => ({
     useWebAuthn: () => ({
       state: { isRegistered: false },
-      verify: vi.fn(async () => true),
-      register: vi.fn(async () => true),
+      checkSupport: vi.fn(() => false),
+      checkRegistrationStatus: vi.fn(() => false),
+      clearLegacyCredential: vi.fn(),
+      getLegacyCredential: vi.fn(() => null),
+      verify: vi.fn(async () => ({
+        ok: true,
+        code: 'ok',
+        message: null,
+      })),
+      register: vi.fn(async () => ({
+        ok: true,
+        code: 'ok',
+        message: null,
+        credentialId: 'credential-id',
+      })),
+    }),
+  }))
+
+  vi.doMock('@/hooks/useNoteLock', () => ({
+    useNoteLock: () => ({
+      getLockViewState: getLockViewStateMock,
+      isBiometricSupported: vi.fn(() => false),
+      isPinLockNote: vi.fn((note?: Note | null) => {
+        if (typeof options.isPinLockNote === 'boolean')
+          return options.isPinLockNote
+        return note?.is_locked === 1
+      }),
+      tryBiometricUnlock: tryBiometricUnlockMock,
+      verifyPin: verifyPinMock,
     }),
   }))
 
@@ -271,11 +344,14 @@ export async function mountNoteDetailForSaveTest(options: {
       restoreHeightMock,
       manualSyncMock,
       syncMock,
+      getLockViewStateMock,
       toastCreateMock,
       toastDismissMock,
       toastPresentMock,
       updateNoteMock,
       updateParentFolderSubcountMock,
+      tryBiometricUnlockMock,
+      verifyPinMock,
     },
     noteFactory: makeNote,
     triggerIonViewWillLeave: async () => {

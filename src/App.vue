@@ -10,6 +10,7 @@ import type { GuestDataDecision } from '@/database/guestData'
 import { initializeDatabase } from '@/database'
 import { hasGuestData, mergeGuestDataIntoCurrent } from '@/database/guestData'
 import { useLastVisitedRoute } from '@/hooks/useLastVisitedRoute'
+import { useNoteLock } from '@/hooks/useNoteLock'
 import { useSync } from '@/hooks/useSync'
 import { useTheme } from '@/hooks/useTheme'
 import { authService } from '@/pocketbase'
@@ -25,6 +26,7 @@ const {
   restoreImmediateLastVisitedRoute,
   setupAutoSave,
 } = useLastVisitedRoute()
+const noteLock = useNoteLock()
 
 const isPrivateRouteRestoreReady = ref(!authService.isAuthenticated())
 
@@ -130,6 +132,9 @@ async function bootstrapLoggedInSession() {
     const { sync } = useSync()
     await sync(true)
     logger.info('会话同步完成')
+
+    await noteLock.syncSecuritySettingsFromCloud(true)
+    logger.info('全局 PIN 配置同步完成')
 
     isPrivateRouteRestoreReady.value = true
     await restoreDeferredLastVisitedRoute(router, authManager.userInfo.value?.id)

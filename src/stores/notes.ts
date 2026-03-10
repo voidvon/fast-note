@@ -1,7 +1,7 @@
 import type { FolderTreeNode, Note } from '@/types'
 import { onUnmounted, ref } from 'vue'
 import { getCurrentDatabaseName, useDexie, useRefDBSync } from '@/database'
-import { NOTE_TYPE } from '@/types'
+import { normalizeNoteLockFields, NOTE_TYPE } from '@/types'
 import { getTime } from '@/utils/date'
 
 type UpdateFn = (item: Note) => void
@@ -71,13 +71,15 @@ function rebuildIndexMaps() {
 async function searchNotesInDatabase(keyword: string) {
   const { db } = useDexie()
   // 使用数据库层面的模糊搜索，比内存遍历更高效
-  return await db.value.notes
+  const result = await db.value.notes
     .filter(note =>
       note.item_type === NOTE_TYPE.NOTE
       && note.is_deleted !== 1
       && (note.content.includes(keyword) || note.title.includes(keyword)),
     )
     .toArray()
+
+  return result.map(note => normalizeNoteLockFields(note))
 }
 
 /**
@@ -177,7 +179,7 @@ export async function initializeNotes() {
     const data = await db.value.notes
       .orderBy('created')
       .toArray()
-    notes.value = data
+    notes.value = data.map(note => normalizeNoteLockFields(note))
     rebuildIndexMaps()
 
     notesSync = useRefDBSync({
@@ -217,7 +219,7 @@ export function useNote() {
       .orderBy('created') // 按 created 排序
       .toArray() // 将结果转换为数组
       .then((data: Note[]) => {
-        notes.value = data
+        notes.value = data.map(note => normalizeNoteLockFields(note))
         // 重建索引
         rebuildIndexMaps()
       })
@@ -228,9 +230,9 @@ export function useNote() {
 
   function addNote(note: Note) {
     // 确保有 updated 字段用于同步检测
-    const noteWithTime = Object.assign({}, note, {
+    const noteWithTime = normalizeNoteLockFields(Object.assign({}, note, {
       updated: note.updated || getTime(),
-    })
+    }))
 
     // 直接添加到 notes ref 变量
     notes.value.push(noteWithTime)
@@ -272,7 +274,7 @@ export function useNote() {
         : updates.updated
 
       // 确保更新 updated 用于同步检测
-      const updatedNote = Object.assign({}, existingNote, updates, { updated: nextUpdated })
+      const updatedNote = normalizeNoteLockFields(Object.assign({}, existingNote, updates, { updated: nextUpdated }))
 
       // 更新数组中的数据 - 使用 splice 确保触发响应式更新
       const noteIndex = notes.value.findIndex(n => n.id === id)

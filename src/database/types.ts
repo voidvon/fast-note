@@ -7,7 +7,15 @@ import type Dexie from 'dexie'
 // 导入必要的类型
 import type { Ref } from 'vue'
 
-export type { Note, TypedFile } from '@/types'
+export type {
+  DeviceSecurityState,
+  Note,
+  NoteLockFields,
+  NoteLockType,
+  NoteUnlockSession,
+  SecuritySettings,
+  TypedFile,
+} from '@/types'
 
 /**
  * 笔记文件关联表（用于存储文件与hash的映射关系）

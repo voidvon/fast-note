@@ -2,31 +2,41 @@
 import type { Note } from '@/types'
 import { IonCol, IonGrid, IonModal, IonRow, toastController, useIonRouter } from '@ionic/vue'
 import { lockClosed, lockOpen, shareOutline, trashOutline } from 'ionicons/icons'
-import { ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import IconTextButton from '@/components/IconTextButton.vue'
+import NoteLockManageModal from '@/components/NoteLockManageModal.vue'
+import NoteLockSetupModal from '@/components/NoteLockSetupModal.vue'
 import { useDexie } from '@/database'
-import { useWebAuthn } from '@/hooks/useWebAuthn'
+import { useNoteLock } from '@/hooks/useNoteLock'
 import { useNote } from '@/stores'
 import { getTime } from '@/utils/date'
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   isOpen: boolean
+  noteId?: string
 }>(), {})
 
-const emit = defineEmits(['update:isOpen'])
+const emit = defineEmits(['noteLockUpdated', 'update:isOpen'])
 
 const route = useRoute()
 const router = useIonRouter()
 const { updateNote, getNote, updateParentFolderSubcount } = useNote()
-const { state, register, verify } = useWebAuthn()
+const noteLock = useNoteLock()
 const { db } = useDexie()
 
 const modalRef = ref()
 const note = ref<Note | undefined>(undefined)
+const lockModalState = reactive({
+  defaultBiometricEnabled: false,
+  hasGlobalPin: false,
+  manageOpen: false,
+  isOpen: false,
+})
+const currentNoteId = computed(() => props.noteId || route.params.id as string || '')
 
 async function onWillPresent() {
-  const result = await getNote(route.params.id as string)
+  const result = await getNote(currentNoteId.value)
   if (result) {
     note.value = result
   }
@@ -158,28 +168,60 @@ async function onShare() {
 }
 
 async function onLock() {
-  let isPass = false
-  if (state.isRegistered) {
-    isPass = await verify()
+  if (!note.value?.id) {
+    return
+  }
+
+  const deviceState = await noteLock.getDeviceSecurityState()
+  lockModalState.defaultBiometricEnabled = deviceState.biometric_enabled === 1
+  lockModalState.hasGlobalPin = await noteLock.hasGlobalPin(true)
+  if (noteLock.isPinLockNote(note.value)) {
+    lockModalState.manageOpen = true
   }
   else {
-    isPass = await register()
+    lockModalState.isOpen = true
   }
-  if (isPass) {
-    try {
-      if (note.value?.is_locked === 1) {
-        await updateNote(note.value.id, { ...note.value, is_locked: 0 })
-        note.value.is_locked = 0
-      }
-      else if (note.value) {
-        await updateNote(note.value.id, { ...note.value, is_locked: 1 })
-        note.value.is_locked = 1
-      }
-    }
-    finally {
-      emit('update:isOpen', false)
-    }
-  }
+  emit('update:isOpen', false)
+}
+
+async function onLockConfirmed(updatedNote: Note) {
+  note.value = updatedNote
+  emit('noteLockUpdated', updatedNote)
+
+  const toast = await toastController.create({
+    message: updatedNote.is_locked === 1 ? '已启用备忘录锁' : '已更新备忘录锁',
+    duration: 1500,
+    position: 'top',
+    color: 'success',
+  })
+
+  await toast.present()
+}
+
+async function onLockManaged(payload: {
+  action: 'change_global_pin' | 'toggle_biometric' | 'relock' | 'disable_lock'
+  note: Note
+  biometricEnabled: boolean
+}) {
+  note.value = payload.note
+  lockModalState.defaultBiometricEnabled = payload.biometricEnabled
+  emit('noteLockUpdated', payload.note)
+
+  const messageMap = {
+    change_global_pin: '已更新全局 PIN',
+    disable_lock: '已关闭备忘录锁',
+    relock: '已重新锁定',
+    toggle_biometric: payload.biometricEnabled ? '已启用生物识别快捷解锁' : '已关闭生物识别快捷解锁',
+  } as const
+
+  const toast = await toastController.create({
+    message: messageMap[payload.action],
+    duration: 1500,
+    position: 'top',
+    color: 'success',
+  })
+
+  await toast.present()
 }
 
 async function onDelete() {
@@ -199,7 +241,7 @@ async function onDelete() {
   <IonModal
     ref="modalRef"
     v-bind="$attrs"
-    :is-open
+    :is-open="isOpen"
     :initial-breakpoint="0.5"
     :breakpoints="[0, 0.5, 1]"
     @will-present="onWillPresent"
@@ -212,7 +254,7 @@ async function onDelete() {
             <IconTextButton
               :icon="note?.is_locked === 1 ? lockOpen : lockClosed"
               class="c-blue-500"
-              :text="note?.is_locked === 1 ? '移除' : '锁定'"
+              :text="note?.is_locked === 1 ? '锁设置' : '锁定'"
               color="primary"
               @click="onLock"
             />
@@ -239,6 +281,24 @@ async function onDelete() {
       </IonGrid>
     </div>
   </IonModal>
+  <NoteLockSetupModal
+    v-if="note?.id"
+    v-model:is-open="lockModalState.isOpen"
+    :note-id="note.id"
+    :device-supports-biometric="noteLock.isBiometricSupported()"
+    :default-biometric-enabled="lockModalState.defaultBiometricEnabled"
+    :has-global-pin="lockModalState.hasGlobalPin"
+    @confirm="onLockConfirmed"
+  />
+  <NoteLockManageModal
+    v-if="note?.id"
+    v-model:is-open="lockModalState.manageOpen"
+    :note-id="note.id"
+    :note="note"
+    :device-supports-biometric="noteLock.isBiometricSupported()"
+    :biometric-enabled="lockModalState.defaultBiometricEnabled"
+    @updated="onLockManaged"
+  />
 </template>
 
 <style lang="scss">

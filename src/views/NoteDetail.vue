@@ -8,14 +8,15 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, toRaw, w
 import { useRoute } from 'vue-router'
 import Icon from '@/components/Icon.vue'
 import NoteMore from '@/components/NoteMore.vue'
+import NoteUnlockPanel from '@/components/NoteUnlockPanel.vue'
 import TableFormatModal from '@/components/TableFormatModal.vue'
 import TextFormatModal from '@/components/TextFormatModal.vue'
 import YYEditor from '@/components/YYEditor.vue'
 import { useDeviceType } from '@/hooks/useDeviceType'
+import { useNoteLock } from '@/hooks/useNoteLock'
 import { useNoteBackButton } from '@/hooks/useSmartBackButton'
 import { useSync } from '@/hooks/useSync'
 import { useVisualViewport } from '@/hooks/useVisualViewport'
-import { useWebAuthn } from '@/hooks/useWebAuthn'
 import { useNote, useUserPublicNotes } from '@/stores'
 import { NOTE_TYPE } from '@/types'
 import { getTime } from '@/utils/date'
@@ -36,8 +37,8 @@ const emit = defineEmits(['noteSaved'])
 const route = useRoute()
 const { addNote, getNote, updateNote, deleteNote, updateParentFolderSubcount, getNotesSync } = useNote()
 const { isDesktop } = useDeviceType()
+const noteLock = useNoteLock()
 const { restoreHeight } = useVisualViewport()
-const { state: authState, verify, register } = useWebAuthn()
 const syncApi = useSync()
 const { sync } = syncApi
 
@@ -54,13 +55,19 @@ const lastSavedContent = ref<string>('') // 记录上次保存的内容
 const saveTimer = ref<number | null>(null) // 防抖定时器
 
 const state = reactive({
-  showFormat: false,
-  showTableFormat: false,
-  showNoteMore: false,
-  isAuth: false,
   isFormatModalOpen: false, // 标记格式化面板是否打开
-  isSaving: false,
   isMissingPrivateNote: false,
+  lockBiometricEnabled: false,
+  lockDeviceSupportsBiometric: false,
+  isPinUnlocking: false,
+  isSaving: false,
+  lockCooldownUntil: null as number | null,
+  lockErrorMessage: '',
+  lockFailedAttempts: 0,
+  lockViewState: 'unlocked' as 'unlocked' | 'locked' | 'unlocking' | 'cooldown',
+  showFormat: false,
+  showNoteMore: false,
+  showTableFormat: false,
 })
 
 const idFromRoute = computed(() => route.params.id as string || route.params.noteId as string)
@@ -70,7 +77,15 @@ const username = computed(() => route.params.username as string)
 const isUserContext = computed(() => !!username.value)
 const isMissingPrivateNote = computed(() => !isUserContext.value && !isNewNote.value && state.isMissingPrivateNote)
 const isReadOnly = computed(() => isUserContext.value || data.value?.is_deleted === 1)
-const isEditorBlocked = computed(() => isReadOnly.value || isMissingPrivateNote.value)
+const isPinLockedForView = computed(() => {
+  return !!data.value && noteLock.isPinLockNote(data.value) && state.lockViewState !== 'unlocked'
+})
+const isEditorBlocked = computed(() => {
+  return isReadOnly.value || isMissingPrivateNote.value || isPinLockedForView.value
+})
+const canShowNoteActions = computed(() => {
+  return !isEditorBlocked.value && !!data.value?.id
+})
 
 // 智能返回按钮
 const { backButtonProps } = useNoteBackButton(route, data, username.value)
@@ -105,6 +120,12 @@ watch(idFromSource, async (id, oldId) => {
   }
   else if (id === '0') {
     state.isMissingPrivateNote = false
+    state.lockViewState = 'unlocked'
+    state.lockErrorMessage = ''
+    state.lockFailedAttempts = 0
+    state.lockBiometricEnabled = false
+    state.lockDeviceSupportsBiometric = false
+    state.lockCooldownUntil = null
     // 新建笔记，立即清空编辑器和数据
     data.value = null
     newNoteId.value = nanoid(12)
@@ -125,6 +146,12 @@ watch(idFromSource, async (id, oldId) => {
   }
   else if (!isNewNote.value) { // This condition means id is falsy (e.g. '', undefined)
     state.isMissingPrivateNote = false
+    state.lockViewState = 'unlocked'
+    state.lockErrorMessage = ''
+    state.lockFailedAttempts = 0
+    state.lockBiometricEnabled = false
+    state.lockDeviceSupportsBiometric = false
+    state.lockCooldownUntil = null
     // No note selected, clear editor
     data.value = null
     lastSavedContent.value = '' // 重置上次保存的内容
@@ -194,26 +221,59 @@ function syncMissingPrivateNoteState() {
   editorRef.value.setEditable(false)
 }
 
+function syncLockedNoteState() {
+  if (!editorRef.value)
+    return
+
+  editorRef.value.setContent('')
+  editorRef.value.setEditable(false)
+}
+
+function syncUnlockedNoteState(note: Note) {
+  nextTick(() => {
+    editorRef.value?.setEditable(note.is_deleted !== 1)
+    editorRef.value?.setContent(note.content || '')
+    lastSavedContent.value = note.content || ''
+  })
+}
+
+async function refreshPinLockState(note: Note) {
+  const snapshot = await noteLock.getLockViewState(note.id, note)
+  state.lockViewState = snapshot.viewState
+  state.lockFailedAttempts = snapshot.failedAttempts
+  state.lockCooldownUntil = snapshot.cooldownUntil
+  state.lockBiometricEnabled = snapshot.biometricEnabled
+  state.lockDeviceSupportsBiometric = snapshot.deviceSupportsBiometric
+
+  if (snapshot.viewState !== 'cooldown') {
+    state.lockErrorMessage = ''
+  }
+
+  return snapshot
+}
+
 async function applyPrivateNoteState(note: Note) {
   data.value = note
   state.isMissingPrivateNote = false
   missingPrivateNoteRepairId.value = null
 
-  nextTick(() => {
-    editorRef.value?.setEditable(data.value?.is_deleted !== 1)
-  })
-
-  if (data.value?.is_locked === 1) {
-    if (authState.isRegistered)
-      state.isAuth = await verify()
-    else
-      state.isAuth = await register()
+  if (noteLock.isPinLockNote(note)) {
+    const lockSnapshot = await refreshPinLockState(note)
+    if (lockSnapshot.viewState !== 'unlocked') {
+      syncLockedNoteState()
+      return
+    }
+  }
+  else {
+    state.lockViewState = 'unlocked'
+    state.lockFailedAttempts = 0
+    state.lockBiometricEnabled = false
+    state.lockDeviceSupportsBiometric = false
+    state.lockCooldownUntil = null
+    state.lockErrorMessage = ''
   }
 
-  nextTick(() => {
-    editorRef.value?.setContent(data.value?.content || '')
-    lastSavedContent.value = data.value?.content || ''
-  })
+  syncUnlockedNoteState(note)
 }
 
 type LeaveFlushReason = 'view-leave' | 'pagehide' | 'beforeunload'
@@ -477,6 +537,76 @@ async function init(id: string) {
 //   editorRef.value.format(command)
 // }
 
+async function handlePinUnlock(pin: string) {
+  if (!data.value?.id) {
+    return
+  }
+
+  state.isPinUnlocking = true
+  state.lockViewState = 'unlocking'
+  state.lockErrorMessage = ''
+
+  try {
+    const result = await noteLock.verifyPin(data.value.id, pin)
+    state.lockFailedAttempts = result.failedAttempts
+    state.lockCooldownUntil = result.cooldownUntil
+
+    if (!result.ok) {
+      state.lockViewState = result.code === 'cooldown' ? 'cooldown' : 'locked'
+      state.lockErrorMessage = result.message || 'PIN 不正确，请重试'
+      syncLockedNoteState()
+      return
+    }
+
+    state.lockViewState = 'unlocked'
+    state.lockErrorMessage = ''
+    if (data.value) {
+      syncUnlockedNoteState(data.value)
+    }
+  }
+  finally {
+    state.isPinUnlocking = false
+  }
+}
+
+async function handleBiometricUnlock() {
+  if (!data.value?.id) {
+    return
+  }
+
+  state.isPinUnlocking = true
+  state.lockViewState = 'unlocking'
+  state.lockErrorMessage = ''
+
+  try {
+    const result = await noteLock.tryBiometricUnlock(data.value.id, data.value)
+    state.lockFailedAttempts = result.failedAttempts
+    state.lockCooldownUntil = result.cooldownUntil
+
+    if (!result.ok) {
+      state.lockViewState = result.code === 'cooldown' ? 'cooldown' : 'locked'
+      state.lockErrorMessage = result.message || '生物识别不可用，请输入 PIN 解锁'
+      syncLockedNoteState()
+      return
+    }
+
+    state.lockViewState = 'unlocked'
+    state.lockErrorMessage = ''
+    if (data.value) {
+      syncUnlockedNoteState(data.value)
+    }
+  }
+  finally {
+    state.isPinUnlocking = false
+  }
+}
+
+async function handleNoteLockUpdated(updatedNote: Note) {
+  data.value = updatedNote
+  state.showNoteMore = false
+  await applyPrivateNoteState(updatedNote)
+}
+
 async function onSelectFile(e: Event) {
   const input = e.target as HTMLInputElement
   if (input.files && input.files.length > 0) {
@@ -542,7 +672,7 @@ onIonViewWillLeave(() => {
         <IonButtons slot="start">
           <IonBackButton v-bind="backButtonProps" />
         </IonButtons>
-        <IonButtons v-if="!isEditorBlocked" slot="end" class="note-detail__header-buttons">
+        <IonButtons v-if="canShowNoteActions" slot="end" class="note-detail__header-buttons">
           <IonSpinner
             v-if="state.isSaving"
             class="note-detail__saving-spinner"
@@ -556,7 +686,19 @@ onIonViewWillLeave(() => {
     </IonHeader>
 
     <IonContent force-overscroll>
-      <div v-if="data?.is_locked !== 1 || state.isAuth || isMissingPrivateNote" class="ion-padding">
+      <NoteUnlockPanel
+        v-if="isPinLockedForView"
+        :lock-view-state="state.lockViewState"
+        :biometric-enabled="state.lockBiometricEnabled"
+        :device-supports-biometric="state.lockDeviceSupportsBiometric"
+        :failed-attempts="state.lockFailedAttempts"
+        :cooldown-until="state.lockCooldownUntil"
+        :error-message="state.lockErrorMessage"
+        :is-submitting="state.isPinUnlocking"
+        @try-biometric="handleBiometricUnlock"
+        @submit-pin="handlePinUnlock"
+      />
+      <div v-else class="ion-padding">
         <div v-if="isMissingPrivateNote" data-testid="note-detail-missing-note" class="note-detail__missing-state">
           当前备忘录不存在或尚未同步完成
         </div>
@@ -621,7 +763,12 @@ onIonViewWillLeave(() => {
         </div>
       </IonToolbar>
     </IonFooter>
-    <NoteMore v-if="!isEditorBlocked" v-model:is-open="state.showNoteMore" />
+    <NoteMore
+      v-if="canShowNoteActions"
+      v-model:is-open="state.showNoteMore"
+      :note-id="effectiveUuid || ''"
+      @note-lock-updated="handleNoteLockUpdated"
+    />
     <TableFormatModal v-if="!isEditorBlocked" v-model:is-open="state.showTableFormat" :editor="((editorRef?.editor || {}) as Editor)" />
     <TextFormatModal v-if="!isEditorBlocked" v-model:is-open="state.showFormat" :editor="((editorRef?.editor || {}) as Editor)" />
   </IonPage>
