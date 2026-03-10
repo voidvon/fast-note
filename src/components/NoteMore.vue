@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { NoteLockSetupResult } from '@/hooks/useNoteLock'
 import type { Note } from '@/types'
 import { IonCol, IonGrid, IonModal, IonRow, toastController, useIonRouter } from '@ionic/vue'
 import { lockClosed, lockOpen, shareOutline, trashOutline } from 'ionicons/icons'
@@ -184,15 +185,18 @@ async function onLock() {
   emit('update:isOpen', false)
 }
 
-async function onLockConfirmed(updatedNote: Note) {
-  note.value = updatedNote
-  emit('noteLockUpdated', updatedNote)
+async function onLockConfirmed(payload: NoteLockSetupResult & { note: Note }) {
+  note.value = payload.note
+  emit('noteLockUpdated', payload.note)
+
+  const message = payload.message || (payload.note.is_locked === 1 ? '已启用备忘录锁' : '已更新备忘录锁')
+  const color = payload.code === 'ok' ? 'success' : 'warning'
 
   const toast = await toastController.create({
-    message: updatedNote.is_locked === 1 ? '已启用备忘录锁' : '已更新备忘录锁',
-    duration: 1500,
+    message,
+    duration: 2200,
     position: 'top',
-    color: 'success',
+    color,
   })
 
   await toast.present()
@@ -202,6 +206,8 @@ async function onLockManaged(payload: {
   action: 'change_global_pin' | 'toggle_biometric' | 'relock' | 'disable_lock'
   note: Note
   biometricEnabled: boolean
+  code: string
+  message: string | null
 }) {
   note.value = payload.note
   lockModalState.defaultBiometricEnabled = payload.biometricEnabled
@@ -215,10 +221,10 @@ async function onLockManaged(payload: {
   } as const
 
   const toast = await toastController.create({
-    message: messageMap[payload.action],
-    duration: 1500,
+    message: payload.message || messageMap[payload.action],
+    duration: payload.code === 'ok' ? 1500 : 2200,
     position: 'top',
-    color: 'success',
+    color: payload.code === 'ok' ? 'success' : 'warning',
   })
 
   await toast.present()

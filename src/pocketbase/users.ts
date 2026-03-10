@@ -16,6 +16,19 @@ function toPinSettings(record: any) {
   }
 }
 
+function isPinSettingsMatched(
+  actual: ReturnType<typeof toPinSettings>,
+  expected: {
+    note_lock_pin_salt: string | null
+    note_lock_pin_hash: string | null
+    note_lock_pin_version: number | null
+  },
+) {
+  return actual?.note_lock_pin_salt === expected.note_lock_pin_salt
+    && actual?.note_lock_pin_hash === expected.note_lock_pin_hash
+    && actual?.note_lock_pin_version === expected.note_lock_pin_version
+}
+
 export const usersService = {
   /**
    * 根据用户名获取用户信息
@@ -82,9 +95,24 @@ export const usersService = {
         throw new Error('用户未登录')
       }
 
-      const record = await pb.collection('users').update(pb.authStore.model.id, payload)
-      pb.authStore.save(pb.authStore.token, record)
-      return toPinSettings(record)
+      const userId = pb.authStore.model.id
+      const record = await pb.collection('users').update(userId, payload)
+      const recordPinSettings = toPinSettings(record)
+
+      if (isPinSettingsMatched(recordPinSettings, payload)) {
+        pb.authStore.save(pb.authStore.token, record)
+        return recordPinSettings
+      }
+
+      const latestRecord = await pb.collection('users').getOne(userId)
+      const latestPinSettings = toPinSettings(latestRecord)
+      pb.authStore.save(pb.authStore.token, latestRecord)
+
+      if (isPinSettingsMatched(latestPinSettings, payload)) {
+        return latestPinSettings
+      }
+
+      throw new Error('PocketBase users 表未保存备忘录锁字段，请确认已创建并开放 note_lock_pin_salt/hash/version')
     }
     catch (error: any) {
       console.error('更新当前用户 PIN 设置失败:', error)

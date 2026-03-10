@@ -17,7 +17,13 @@ const props = withDefaults(defineProps<{
 })
 
 const emit = defineEmits<{
-  'updated': [payload: { action: 'change_global_pin' | 'toggle_biometric' | 'relock' | 'disable_lock', note: Note, biometricEnabled: boolean }]
+  'updated': [payload: {
+    action: 'change_global_pin' | 'toggle_biometric' | 'relock' | 'disable_lock'
+    note: Note
+    biometricEnabled: boolean
+    code: string
+    message: string | null
+  }]
   'update:isOpen': [value: boolean]
 }>()
 
@@ -70,11 +76,20 @@ function normalizePinValue(value: string) {
   return value.replace(/\D+/g, '').slice(0, 6)
 }
 
-function emitUpdated(action: 'change_global_pin' | 'toggle_biometric' | 'relock' | 'disable_lock', note: Note) {
+function emitUpdated(
+  action: 'change_global_pin' | 'toggle_biometric' | 'relock' | 'disable_lock',
+  note: Note,
+  options: {
+    code?: string
+    message?: string | null
+  } = {},
+) {
   emit('updated', {
     action,
     note,
     biometricEnabled: state.biometricEnabled,
+    code: options.code ?? 'ok',
+    message: options.message ?? null,
   })
   dismiss()
 }
@@ -96,7 +111,10 @@ async function handleToggleBiometric() {
     }
 
     state.biometricEnabled = Boolean(result.biometricEnabled)
-    emitUpdated('toggle_biometric', props.note)
+    emitUpdated('toggle_biometric', props.note, {
+      code: result.code,
+      message: result.message,
+    })
   }
   finally {
     state.isSubmitting = false
@@ -135,7 +153,10 @@ async function handleDisableLock() {
       return
     }
 
-    emitUpdated('disable_lock', result.note)
+    emitUpdated('disable_lock', result.note, {
+      code: result.code,
+      message: result.message,
+    })
   }
   finally {
     state.isSubmitting = false
@@ -157,7 +178,10 @@ async function handleChangePin() {
       return
     }
 
-    emitUpdated('change_global_pin', props.note!)
+    emitUpdated('change_global_pin', props.note!, {
+      code: result.code,
+      message: result.message,
+    })
   }
   finally {
     state.isSubmitting = false

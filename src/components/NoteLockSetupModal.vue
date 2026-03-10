@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { NoteLockSetupResult } from '@/hooks/useNoteLock'
 import type { Note } from '@/types'
 import { IonButton, IonModal } from '@ionic/vue'
 import { computed, reactive, watch } from 'vue'
@@ -17,7 +18,7 @@ const props = withDefaults(defineProps<{
 })
 
 const emit = defineEmits<{
-  'confirm': [note: Note]
+  'confirm': [payload: NoteLockSetupResult & { note: Note }]
   'update:isOpen': [value: boolean]
 }>()
 
@@ -93,7 +94,7 @@ async function handleSubmit() {
       return
     }
 
-    emit('confirm', result.note)
+    emit('confirm', result as NoteLockSetupResult & { note: Note })
     dismiss()
   }
   finally {
