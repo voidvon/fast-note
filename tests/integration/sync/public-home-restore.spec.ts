@@ -107,8 +107,19 @@ async function mountAppForImmediateRestore(options: {
     }),
   }))
 
+  vi.doMock('@/hooks/useNoteLock', () => ({
+    useNoteLock: () => ({
+      syncSecuritySettingsFromCloud: vi.fn(async () => undefined),
+    }),
+  }))
+
   vi.doMock('@/database', () => ({
     initializeDatabase: vi.fn(async () => undefined),
+  }))
+
+  vi.doMock('@/database/guestData', () => ({
+    hasGuestData: vi.fn(async () => false),
+    mergeGuestDataIntoCurrent: vi.fn(async () => undefined),
   }))
 
   vi.doMock('@/stores', () => ({
@@ -135,6 +146,11 @@ async function mountAppForImmediateRestore(options: {
   vi.doMock('@ionic/vue', () => ({
     IonApp: createIonicStub('IonApp'),
     IonRouterOutlet: createIonicStub('IonRouterOutlet'),
+    alertController: {
+      create: vi.fn(async () => ({
+        present: vi.fn(async () => undefined),
+      })),
+    },
   }))
 
   const App = (await import('@/App.vue')).default
