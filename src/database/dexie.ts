@@ -4,7 +4,7 @@ import Dexie from 'dexie'
 import { ref } from 'vue'
 import { getScopedDatabaseName } from '@/utils/userScope'
 
-interface NoteDatabase extends Dexie {
+export interface NoteDatabase extends Dexie {
   notes: Dexie.Table<Note, string>
   note_files: Dexie.Table<NoteFile, string>
   user_info: Dexie.Table<UserInfo, string>
@@ -30,6 +30,11 @@ async function openDatabase(databaseName: string) {
   applySchema(database)
   await database.open()
   return database
+}
+
+export async function openIsolatedDatabase(userId?: string | null) {
+  const databaseName = getScopedDatabaseName(userId)
+  return openDatabase(databaseName)
 }
 
 export async function initializeDatabase(userId?: string | null) {

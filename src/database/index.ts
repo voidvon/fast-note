@@ -5,6 +5,7 @@
 export {
   getCurrentDatabaseName,
   initializeDatabase,
+  openIsolatedDatabase,
   switchDatabase,
   toBool,
   toNumber,
