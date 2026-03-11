@@ -54,6 +54,8 @@ async function mountHomePageForEmptyDetailCreate(options: {
 
   const folderPageStub = createFolderPageStub()
   const editorApi = {
+    applyDefaultNewNoteHeading: vi.fn(() => true),
+    isMeaningfulContent: vi.fn(() => true),
     setContent: vi.fn(),
     setEditable: vi.fn(),
     focus: vi.fn(),
@@ -270,6 +272,7 @@ describe('desktop empty detail create focus (t-fn-023 / tc-fn-015, tc-fn-016)', 
 
     expect(wrapper.find('[data-testid="home-empty-detail-create"]').exists()).toBe(false)
     expect(wrapper.find('.yy-editor-stub').exists()).toBe(true)
+    expect(editorApi.applyDefaultNewNoteHeading).toHaveBeenCalledTimes(1)
     expect(editorApi.focus).toHaveBeenCalledTimes(1)
   })
 

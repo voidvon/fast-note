@@ -1,3 +1,4 @@
+import type { Content, JSONContent } from '@tiptap/core'
 import { Color } from '@tiptap/extension-color'
 import { ListItem, TaskItem, TaskList } from '@tiptap/extension-list'
 import { TableCell, TableHeader, TableRow } from '@tiptap/extension-table'
@@ -12,6 +13,67 @@ import { TableWithWrapper } from '@/components/extensions/TableWithWrapper'
 import { useNoteFiles } from '@/hooks/useNoteFiles'
 import { filesApi } from '@/pocketbase'
 import { getFileHash } from '@/utils'
+
+export const DEFAULT_NEW_NOTE_HEADING_CONTENT: JSONContent = {
+  type: 'doc',
+  content: [
+    {
+      type: 'heading',
+      attrs: { level: 1 },
+    },
+  ],
+}
+
+const NON_TEXT_MEANINGFUL_NODE_TYPES = new Set([
+  'fileUpload',
+  'table',
+  'taskList',
+])
+
+export function hasMeaningfulEditorContent(doc?: JSONContent | null): boolean {
+  if (!doc) {
+    return false
+  }
+
+  if (doc.type === 'text') {
+    return (doc.text || '').trim().length > 0
+  }
+
+  if (doc.type && NON_TEXT_MEANINGFUL_NODE_TYPES.has(doc.type)) {
+    return true
+  }
+
+  if (doc.content && Array.isArray(doc.content)) {
+    return doc.content.some(node => hasMeaningfulEditorContent(node))
+  }
+
+  return false
+}
+
+export function isDefaultNewNoteHeadingDocument(doc?: JSONContent | null): boolean {
+  if (!doc || doc.type !== 'doc' || !doc.content || doc.content.length !== 1) {
+    return false
+  }
+
+  const [firstNode] = doc.content
+  return firstNode?.type === 'heading'
+    && firstNode.attrs?.level === 1
+    && !hasMeaningfulEditorContent(firstNode)
+}
+
+export function applyDefaultHeadingIfEmptyToEditor(editorInstance?: Pick<Editor, 'getJSON' | 'commands'> | null): boolean {
+  if (!editorInstance) {
+    return false
+  }
+
+  const currentDoc = editorInstance.getJSON()
+  if (hasMeaningfulEditorContent(currentDoc) || isDefaultNewNoteHeadingDocument(currentDoc)) {
+    return false
+  }
+
+  editorInstance.commands.setContent(DEFAULT_NEW_NOTE_HEADING_CONTENT)
+  return true
+}
 
 /**
  * 编辑器组合式函数
@@ -233,9 +295,27 @@ export function useEditor() {
   }
 
   /**
+   * 给新建空白笔记设置默认一级标题骨架。
+   */
+  function applyDefaultHeadingIfEmpty() {
+    return applyDefaultHeadingIfEmptyToEditor(editor.value)
+  }
+
+  /**
+   * 判断编辑器当前是否包含语义上有效的内容。
+   */
+  function isMeaningfulContent() {
+    if (!editor.value) {
+      return false
+    }
+
+    return hasMeaningfulEditorContent(editor.value.getJSON())
+  }
+
+  /**
    * 设置编辑器内容
    */
-  function setContent(content: string) {
+  function setContent(content: Content) {
     editor.value?.commands.setContent(content)
   }
 
@@ -285,6 +365,8 @@ export function useEditor() {
     insertFiles,
     extractFileHashes,
     getContentInfo,
+    applyDefaultHeadingIfEmpty,
+    isMeaningfulContent,
     setContent,
     getContent,
     setEditable,

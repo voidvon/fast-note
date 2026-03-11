@@ -90,10 +90,32 @@ const canShowNoteActions = computed(() => {
 // 智能返回按钮
 const { backButtonProps } = useNoteBackButton(route, data, username.value)
 
+function syncNewNoteEditorState() {
+  if (!editorRef.value) {
+    return
+  }
+
+  editorRef.value.setContent('')
+  editorRef.value.setEditable(true)
+  editorRef.value.applyDefaultNewNoteHeading?.()
+
+  nextTick(() => {
+    setTimeout(() => {
+      editorRef.value?.focus()
+    }, 100)
+  })
+}
+
 watch(isNewNote, (isNew) => {
   if (isNew && !newNoteId.value)
     newNoteId.value = nanoid(12)
 }, { immediate: true })
+
+watch(editorRef, (editorInstance) => {
+  if (editorInstance && idFromSource.value === '0') {
+    syncNewNoteEditorState()
+  }
+})
 
 const effectiveUuid = computed(() => {
   if (idFromSource.value === '0')
@@ -131,18 +153,7 @@ watch(idFromSource, async (id, oldId) => {
     newNoteId.value = nanoid(12)
     lastSavedContent.value = '' // 重置上次保存的内容
 
-    // 立即清空编辑器内容，不使用 nextTick
-    if (editorRef.value) {
-      editorRef.value.setContent('')
-      editorRef.value.setEditable(true)
-    }
-
-    // 延迟聚焦，确保编辑器已经清空
-    nextTick(() => {
-      setTimeout(() => {
-        editorRef.value?.focus()
-      }, 100)
-    })
+    syncNewNoteEditorState()
   }
   else if (!isNewNote.value) { // This condition means id is falsy (e.g. '', undefined)
     state.isMissingPrivateNote = false
@@ -336,18 +347,19 @@ async function handleNoteSaving(silent = false, leaveFlushReason: LeaveFlushReas
 
   if (!editorRef.value)
     return
-  const content = editorRef.value.getContent()
+  const content = editorRef.value.getContent() || ''
+  const hasMeaningfulContent = editorRef.value.isMeaningfulContent?.() ?? !!content
   let { title, summary } = editorRef.value.getTitle()
 
-  // 如果是新笔记且内容为空，则不执行任何操作
-  if (isNewNote.value && !content) {
+  // 如果是新笔记且没有真实内容，则不执行任何操作
+  if (isNewNote.value && !hasMeaningfulContent) {
     if (leaveFlushReason)
       await flushNotesToLocal(leaveFlushReason)
     return
   }
 
   // 检查内容是否真正发生变化
-  if (content === lastSavedContent.value) {
+  if (hasMeaningfulContent && content === lastSavedContent.value) {
     if (leaveFlushReason)
       await flushNotesToLocal(leaveFlushReason)
     return // 内容未变化，不保存
@@ -384,7 +396,7 @@ async function handleNoteSaving(silent = false, leaveFlushReason: LeaveFlushReas
 
   try {
     // 保存笔记数据
-    if (content) {
+    if (hasMeaningfulContent) {
       const wasNewNote = isNewNote.value
       const noteExists = await getNote(id)
       if (noteExists) {

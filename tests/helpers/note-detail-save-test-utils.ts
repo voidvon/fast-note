@@ -161,6 +161,8 @@ export async function mountNoteDetailForSaveTest(options: {
   }))
 
   const editorApi = {
+    applyDefaultNewNoteHeading: vi.fn(() => true),
+    isMeaningfulContent: vi.fn(() => true),
     setContent: vi.fn(),
     setEditable: vi.fn(),
     focus: vi.fn(),
