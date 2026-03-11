@@ -23,6 +23,12 @@ interface CloudPinSettings {
 }
 
 export type NoteLockViewState = 'unlocked' | 'locked' | 'unlocking' | 'cooldown'
+export type NoteLockSessionChangeReason = 'verified' | 'biometric' | 'relock' | 'session_cleared'
+
+export interface NoteLockSessionChangeEvent {
+  noteId: string
+  reason: NoteLockSessionChangeReason
+}
 
 export interface NoteLockSetupResult {
   ok: boolean
@@ -93,6 +99,29 @@ const CLOUD_SYNC_CACHE_TTL = 10 * 1000
 export const DEFAULT_NOTE_UNLOCK_SESSION_TTL = 5 * 60 * 1000
 export const DEFAULT_NOTE_UNLOCK_COOLDOWN_MS = 30 * 1000
 export const DEFAULT_NOTE_UNLOCK_MAX_FAILED_ATTEMPTS = 3
+const noteLockSessionChangeListeners = new Set<(event: NoteLockSessionChangeEvent) => void>()
+
+export function onNoteLockSessionChanged(listener: (event: NoteLockSessionChangeEvent) => void) {
+  noteLockSessionChangeListeners.add(listener)
+
+  return () => {
+    noteLockSessionChangeListeners.delete(listener)
+  }
+}
+
+function emitNoteLockSessionChanged(event: NoteLockSessionChangeEvent) {
+  noteLockSessionChangeListeners.forEach((listener) => {
+    try {
+      listener(event)
+    }
+    catch (error) {
+      logger.error('note-lock session change listener failed', {
+        event,
+        error,
+      })
+    }
+  })
+}
 
 function sanitizePinSyncState(settings?: Partial<SecuritySettings> | null) {
   return {
@@ -438,8 +467,12 @@ export function useNoteLock(options: UseNoteLockOptions = {}) {
     return session
   }
 
-  async function clearSession(noteId: string) {
+  async function clearSession(noteId: string, reason: NoteLockSessionChangeReason = 'session_cleared') {
     await db?.value?.note_unlock_sessions?.delete(noteId)
+    emitNoteLockSessionChanged({
+      noteId,
+      reason,
+    })
   }
 
   function isPinLockNote(note?: Partial<Note> | null) {
@@ -718,6 +751,10 @@ export function useNoteLock(options: UseNoteLockOptions = {}) {
           sessionTtl,
         })
         await putSession(session)
+        emitNoteLockSessionChanged({
+          noteId,
+          reason: 'verified',
+        })
 
         return {
           ok: true,
@@ -852,6 +889,10 @@ export function useNoteLock(options: UseNoteLockOptions = {}) {
       sessionTtl,
     })
     await putSession(session)
+    emitNoteLockSessionChanged({
+      noteId,
+      reason: 'biometric',
+    })
 
     return {
       ok: true,
@@ -865,7 +906,7 @@ export function useNoteLock(options: UseNoteLockOptions = {}) {
   }
 
   async function relock(noteId: string) {
-    await clearSession(noteId)
+    await clearSession(noteId, 'relock')
   }
 
   async function setBiometricEnabled(enabled: boolean): Promise<NoteLockManageResult> {

@@ -3,11 +3,12 @@ import type { DefineComponent, Ref } from 'vue'
 import type { ItemType } from '@/components/LongPressMenu.vue'
 import type { FolderTreeNode } from '@/types'
 import { IonAccordionGroup, IonList } from '@ionic/vue'
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, toRef, watch } from 'vue'
 import LongPressMenu from '@/components/LongPressMenu.vue'
 import NoteMove from '@/components/NoteMove.vue'
 import { useDeviceType } from '@/hooks/useDeviceType'
 import { useIonicLongPressList } from '@/hooks/useIonicLongPressList'
+import { useNoteLockIndicatorState } from '@/hooks/useNoteLockIndicatorState'
 import { NOTE_TYPE } from '@/types'
 import NoteListItem from './NoteListItem.vue'
 
@@ -57,6 +58,7 @@ const moveNoteId = ref('')
 const expandedItems = ref<string[]>([])
 const longPressMenuRef = ref()
 const movePresentingElement = ref<HTMLElement>()
+const { indicatorStateMap } = useNoteLockIndicatorState(toRef(props, 'dataList'))
 
 const persistedExpandedStateKey = computed(() => {
   if (!props.expandedStateKey)
@@ -240,6 +242,7 @@ defineExpose({
         } as FolderTreeNode"
         :class="{ active: noteUuid === 'allnotes' }"
         :disabled-route
+        :lock-indicator-state-map="indicatorStateMap"
         @selected="onSelected('allnotes')"
       />
       <NoteListItem
@@ -263,6 +266,7 @@ defineExpose({
         } as FolderTreeNode"
         :class="{ active: noteUuid === 'unfilednotes' }"
         :disabled-route
+        :lock-indicator-state-map="indicatorStateMap"
         @selected="onSelected('unfilednotes')"
       />
       <NoteListItem
@@ -272,6 +276,7 @@ defineExpose({
         :class="{ active: noteUuid === d.originNote.id }"
         :show-parent-folder
         :disabled-route
+        :lock-indicator-state-map="indicatorStateMap"
         @selected="onSelected($event)"
       />
       <NoteListItem
@@ -294,6 +299,7 @@ defineExpose({
         } as FolderTreeNode"
         :class="{ active: noteUuid === 'deleted' }"
         :disabled-route
+        :lock-indicator-state-map="indicatorStateMap"
         @selected="onSelected('deleted')"
       />
     </IonAccordionGroup>

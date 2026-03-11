@@ -18,6 +18,7 @@ function createIonicStub(name: string, tag = 'div') {
 }
 
 async function mountNoteListItem(options: {
+  lockIndicatorStateMap?: Record<string, 'locked' | 'unlocked' | 'placeholder'>
   note?: Record<string, unknown>
 }) {
   vi.resetModules()
@@ -58,6 +59,7 @@ async function mountNoteListItem(options: {
         }),
         children: [],
       },
+      lockIndicatorStateMap: options.lockIndicatorStateMap,
     },
   })
 
@@ -84,6 +86,24 @@ describe('note list item lock indicator (t-fn-050 / tc-fn-045, tc-fn-046)', () =
     expect(wrapper.find('[data-testid="note-lock-icon"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('已锁定')
     expect(wrapper.text()).toContain('需要显示锁图标')
+  })
+
+  it('shows an unlocked icon state for notes with an active unlock session', async () => {
+    const wrapper = await mountNoteListItem({
+      lockIndicatorStateMap: {
+        'unlocked-note': 'unlocked',
+      },
+      note: makeNote({
+        id: 'unlocked-note',
+        title: '已临时解锁',
+        summary: '列表应显示解锁态',
+        is_locked: 1,
+      }),
+    })
+
+    expect(wrapper.get('[data-testid="note-leading-slot"]').attributes('data-lock-state')).toBe('unlocked')
+    expect(wrapper.find('[data-testid="note-lock-icon"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('已临时解锁')
   })
 
   it('keeps the placeholder slot for unlocked notes and missing lock fields', async () => {

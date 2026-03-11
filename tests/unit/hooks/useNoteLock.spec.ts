@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
-import { useNoteLock, validatePinSetup } from '@/hooks/useNoteLock'
+import { onNoteLockSessionChanged, useNoteLock, validatePinSetup } from '@/hooks/useNoteLock'
 import { logger } from '@/utils/logger'
 import { makeNote } from '../../factories/note.factory'
 
@@ -364,6 +364,47 @@ describe('useNoteLock setup flow (t-fn-037)', () => {
       cooldownUntil: 31000,
     }))
     warnSpy.mockRestore()
+  })
+
+  it('emits session change events after verify success and relock', async () => {
+    const note = makeNote({
+      id: 'note-session-events',
+      is_locked: 1,
+    })
+    const dbTables = createMockDb()
+    await dbTables.security_settings.put({
+      scope_key: 'note:guest',
+      pin_secret_salt: 'salt',
+      pin_secret_hash: 'expected',
+      pin_version: 1,
+      updated: '2026-03-10 10:00:00',
+    })
+    const noteLock = useNoteLock({
+      db: ref(dbTables as any),
+      getNote: async () => note,
+      hashPin: async () => 'expected',
+      now: () => 1000,
+      updateNote: vi.fn(async () => undefined),
+    })
+    const events: Array<{ noteId: string, reason: string }> = []
+    const unsubscribe = onNoteLockSessionChanged((event) => {
+      events.push(event)
+    })
+
+    await noteLock.verifyPin('note-session-events', '123456')
+    await noteLock.relock('note-session-events')
+    unsubscribe()
+
+    expect(events).toEqual([
+      {
+        noteId: 'note-session-events',
+        reason: 'verified',
+      },
+      {
+        noteId: 'note-session-events',
+        reason: 'relock',
+      },
+    ])
   })
 
   it('migrates legacy credential into device state and unlocks via biometric', async () => {

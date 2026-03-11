@@ -52,6 +52,16 @@ async function mountNoteList(options: {
   vi.doMock('@/components/NoteMove.vue', () => ({
     default: createPlainStub('NoteMove'),
   }))
+  vi.doMock('@/hooks/useNoteLockIndicatorState', () => ({
+    useNoteLockIndicatorState: () => ({
+      indicatorStateMap: ref({
+        'locked-note': 'locked',
+        'unlocked-note': 'unlocked',
+        'legacy-note': 'placeholder',
+      }),
+      refreshIndicatorStates: vi.fn(),
+    }),
+  }))
   vi.doMock('@ionic/vue', () => ({
     IonAccordion: createIonicStub('IonAccordion'),
     IonAccordionGroup: createIonicStub('IonAccordionGroup'),
@@ -90,6 +100,15 @@ async function mountNoteList(options: {
         },
         {
           originNote: makeNote({
+            id: 'unlocked-note',
+            title: '已解锁的备忘录',
+            summary: '应显示解锁图标',
+            is_locked: 1,
+          }),
+          children: [],
+        },
+        {
+          originNote: makeNote({
             id: 'legacy-note',
             title: '旧数据未锁定',
             summary: '缺失锁字段时也需要占位',
@@ -118,10 +137,16 @@ describe('note list lock indicator integration (t-fn-051 / tc-fn-047, tc-fn-048)
   it('renders lock indicators only for note rows in a mixed list', async () => {
     const wrapper = await mountNoteList({})
 
-    expect(wrapper.findAll('[data-testid="note-leading-slot"]')).toHaveLength(2)
-    expect(wrapper.findAll('[data-testid="note-lock-icon"]')).toHaveLength(1)
+    expect(wrapper.findAll('[data-testid="note-leading-slot"]')).toHaveLength(3)
+    expect(wrapper.findAll('[data-testid="note-lock-icon"]')).toHaveLength(2)
+    expect(wrapper.findAll('[data-testid="note-leading-slot"]').map(item => item.attributes('data-lock-state'))).toEqual([
+      'locked',
+      'unlocked',
+      'placeholder',
+    ])
     expect(wrapper.text()).toContain('工作')
     expect(wrapper.text()).toContain('旧数据未锁定')
+    expect(wrapper.text()).toContain('已解锁的备忘录')
   })
 
   it('keeps the lock indicator visible in dark mode scenarios', async () => {

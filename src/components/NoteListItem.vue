@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { FolderTreeNode } from '@/types'
+import type { NoteLockIndicatorState } from '@/hooks/useNoteLockIndicatorState'
 import { IonAccordion, IonIcon, IonItem, IonLabel, IonNote, useIonRouter } from '@ionic/vue'
 import dayjs from 'dayjs'
 import calendar from 'dayjs/plugin/calendar'
-import { folderOutline, lockClosed, trashOutline } from 'ionicons/icons'
+import { folderOutline, lockClosed, lockOpen, trashOutline } from 'ionicons/icons'
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useDeviceType } from '@/hooks/useDeviceType'
@@ -16,10 +17,12 @@ defineOptions({
 const props = withDefaults(
   defineProps<{
     data: FolderTreeNode
+    lockIndicatorStateMap?: Partial<Record<string, NoteLockIndicatorState>>
     showParentFolder?: boolean
     disabledRoute?: boolean
   }>(),
   {
+    lockIndicatorStateMap: () => ({}),
     showParentFolder: false,
     disabledRoute: false,
   },
@@ -43,8 +46,25 @@ const childrenData = computed(() => {
   return props.data.children || []
 })
 
+const resolvedLockIndicatorState = computed<NoteLockIndicatorState>(() => {
+  if (noteData.value.item_type !== NOTE_TYPE.NOTE) {
+    return 'placeholder'
+  }
+
+  const sessionState = props.lockIndicatorStateMap?.[noteData.value.id]
+  if (sessionState) {
+    return sessionState
+  }
+
+  return noteData.value.is_locked === 1 ? 'locked' : 'placeholder'
+})
+
 const showLockIcon = computed(() => {
-  return noteData.value.item_type === NOTE_TYPE.NOTE && noteData.value.is_locked === 1
+  return resolvedLockIndicatorState.value !== 'placeholder'
+})
+
+const lockIcon = computed(() => {
+  return resolvedLockIndicatorState.value === 'unlocked' ? lockOpen : lockClosed
 })
 
 const calendarConfig = {
@@ -127,7 +147,7 @@ function onClick() {
       </IonLabel>
     </IonItem>
     <div v-if="childrenData.length" slot="content">
-      <MessageListItem v-for="d in childrenData" :key="d.originNote.id" :data="d" :disabled-route class="child-list-item" @selected="$emit('selected', $event)" />
+      <MessageListItem v-for="d in childrenData" :key="d.originNote.id" :data="d" :lock-indicator-state-map="lockIndicatorStateMap" :disabled-route class="child-list-item" @selected="$emit('selected', $event)" />
     </div>
   </IonAccordion>
   <IonItem
@@ -139,13 +159,13 @@ function onClick() {
   >
     <div
       class="note-leading-slot"
-      :data-lock-state="showLockIcon ? 'locked' : 'placeholder'"
+      :data-lock-state="resolvedLockIndicatorState"
       data-testid="note-leading-slot"
       @click.stop="onClick"
     >
       <IonIcon
         v-if="showLockIcon"
-        :icon="lockClosed"
+        :icon="lockIcon"
         class="note-lock-icon"
         data-testid="note-lock-icon"
       />
