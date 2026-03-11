@@ -3,7 +3,7 @@ import type { FolderTreeNode } from '@/types'
 import { IonAccordion, IonIcon, IonItem, IonLabel, IonNote, useIonRouter } from '@ionic/vue'
 import dayjs from 'dayjs'
 import calendar from 'dayjs/plugin/calendar'
-import { folderOutline, lockClosedOutline, trashOutline } from 'ionicons/icons'
+import { folderOutline, lockClosed, trashOutline } from 'ionicons/icons'
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useDeviceType } from '@/hooks/useDeviceType'
@@ -145,7 +145,7 @@ function onClick() {
     >
       <IonIcon
         v-if="showLockIcon"
-        :icon="lockClosedOutline"
+        :icon="lockClosed"
         class="note-lock-icon"
         data-testid="note-lock-icon"
       />

@@ -36,7 +36,9 @@ describe('note unlock panel integration (t-fn-038 / tc-fn-030)', () => {
     })
 
     expect(wrapper.find('[data-testid="note-unlock-panel"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain('输入 PIN')
+    expect(wrapper.text()).toContain('备忘录已锁定')
+    expect(wrapper.text()).toContain('输入备忘录密码以查看')
+    expect(wrapper.get('[data-testid="note-unlock-panel-pin"]').attributes('placeholder')).toBe('输入密码')
     expect(wrapper.find('.yy-editor-stub').exists()).toBe(false)
 
     await wrapper.get('[data-testid="note-unlock-panel-pin"]').setValue('123456')

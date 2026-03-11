@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { IonButton, IonIcon } from '@ionic/vue'
-import { lockClosedOutline } from 'ionicons/icons'
+import { lockClosed } from 'ionicons/icons'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 const props = withDefaults(defineProps<{
@@ -99,15 +99,18 @@ function submit() {
   <div data-testid="note-unlock-panel" class="note-unlock-panel">
     <div class="note-unlock-panel__card">
       <div class="note-unlock-panel__icon">
-        <IonIcon :icon="lockClosedOutline" />
+        <IonIcon :icon="lockClosed" />
       </div>
-      <h2>输入 PIN</h2>
+      <h2>备忘录已锁定</h2>
+      <p class="note-unlock-panel__subtitle">
+        输入备忘录密码以查看
+      </p>
 
       <IonButton
         v-if="biometricEnabled && deviceSupportsBiometric"
         data-testid="note-unlock-panel-biometric"
         :disabled="isSubmitting || isCooldownActive"
-        fill="outline"
+        fill="clear"
         class="note-unlock-panel__biometric"
         @click="$emit('tryBiometric')"
       >
@@ -121,7 +124,7 @@ function submit() {
           :disabled="isCooldownActive"
           inputmode="numeric"
           maxlength="6"
-          placeholder="请输入 6 位数字"
+          placeholder="输入密码"
           type="text"
           @input="normalizePinValue(($event.target as HTMLInputElement).value)"
           @keyup.enter="submit"
@@ -139,6 +142,7 @@ function submit() {
       <IonButton
         data-testid="note-unlock-panel-submit"
         :disabled="!canSubmit"
+        class="note-unlock-panel__submit"
         @click="submit"
       >
         {{ isSubmitting ? '解锁中...' : '解锁' }}
@@ -149,19 +153,12 @@ function submit() {
 
 <style lang="scss">
 .note-unlock-panel {
-  --note-unlock-card-bg: var(--c-blue-gray-900);
-  --note-unlock-card-border: var(--c-border);
-  --note-unlock-shadow: 0 18px 40px rgba(34, 49, 69, 0.12);
   --note-unlock-text: var(--c-text-primary);
   --note-unlock-muted: var(--c-text-secondary);
-  --note-unlock-icon-bg: var(--c-blue-gray-800);
-  --note-unlock-icon-text: var(--primary);
-  --note-unlock-input-bg: var(--c-blue-gray-950);
+  --note-unlock-icon-text: var(--c-blue-gray-700);
   --note-unlock-input-border: var(--c-border);
   --note-unlock-input-focus: var(--primary);
   --note-unlock-input-ring: color-mix(in srgb, var(--primary) 24%, transparent);
-  --note-unlock-message-bg: color-mix(in srgb, var(--danger) 18%, var(--c-blue-gray-800));
-  --note-unlock-message-text: var(--c-text-primary);
   min-height: calc(100vh - 112px);
   display: grid;
   place-items: center;
@@ -170,51 +167,53 @@ function submit() {
 
 .note-unlock-panel__card {
   width: min(100%, 420px);
-  padding: 28px 24px;
-  border-radius: 28px;
-  background: var(--note-unlock-card-bg);
-  border: 1px solid var(--note-unlock-card-border);
-  box-shadow: var(--note-unlock-shadow);
+  padding: 12px 0;
   text-align: center;
 
   h2 {
-    margin: 14px 0 0;
-    font-size: 26px;
+    margin: 12px 0 0;
+    font-size: 24px;
+    font-weight: 600;
     color: var(--note-unlock-text);
   }
+}
+
+.note-unlock-panel__subtitle {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--note-unlock-muted);
 }
 
 .note-unlock-panel__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 72px;
-  height: 72px;
-  border-radius: 24px;
-  background: var(--note-unlock-icon-bg);
   color: var(--note-unlock-icon-text);
 
   ion-icon {
-    font-size: 36px;
+    font-size: 64px;
   }
 }
 
 .note-unlock-panel__biometric {
-  margin-top: 18px;
+  margin-top: 14px;
 }
 
 .note-unlock-panel__field {
-  margin-top: 18px;
-  text-align: left;
+  margin-top: 28px;
+  display: flex;
+  justify-content: center;
 
   input {
-    width: 100%;
+    width: min(100%, 220px);
     border: 1px solid var(--note-unlock-input-border);
-    border-radius: 14px;
-    padding: 14px 16px;
-    background: var(--note-unlock-input-bg);
+    border-radius: 10px;
+    padding: 12px 14px;
+    background: transparent;
     font-size: 16px;
     color: var(--note-unlock-text);
+    text-align: center;
     outline: none;
 
     &::placeholder {
@@ -230,12 +229,14 @@ function submit() {
 
 .note-unlock-panel__message {
   margin-top: 14px;
-  border-radius: 14px;
-  padding: 12px 14px;
-  background: var(--note-unlock-message-bg);
-  color: var(--note-unlock-message-text);
-  text-align: left;
+  color: var(--danger);
+  text-align: center;
   font-size: 13px;
   line-height: 1.5;
+}
+
+.note-unlock-panel__submit {
+  margin-top: 18px;
+  width: min(100%, 220px);
 }
 </style>

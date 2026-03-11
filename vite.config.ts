@@ -1,7 +1,7 @@
 /// <reference types="vitest" />
 
 import path from 'node:path'
-// import basicSsl from '@vitejs/plugin-basic-ssl'
+import basicSsl from '@vitejs/plugin-basic-ssl'
 // import legacy from '@vitejs/plugin-legacy'
 import vue from '@vitejs/plugin-vue'
 import UnoCSS from 'unocss/vite'
@@ -12,6 +12,7 @@ import { injectVersion } from './vite-plugin-inject-version'
 export default defineConfig(({ mode }) => {
   // 加载环境变量
   const env = loadEnv(mode, '.')
+  const isHttps = env.VITE_HTTPS === 'true'
 
   const plugins = [
     vue(),
@@ -20,8 +21,8 @@ export default defineConfig(({ mode }) => {
     injectVersion(),
   ]
 
-  if (env.VITE_HTTPS === 'true') {
-    // plugins.push(basicSsl())
+  if (isHttps) {
+    plugins.push(basicSsl())
   }
 
   return {
@@ -44,7 +45,7 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 8888,
       host: '0.0.0.0',
-      // https: true,
+      https: isHttps,
       proxy: {
         '/e': {
           target: 'https://next.0122.vip',
