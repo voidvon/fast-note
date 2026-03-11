@@ -1,8 +1,8 @@
 import type { Metadata, NoteFile, UserInfo } from './types'
 import type { Note } from '@/types'
+import { logger } from '@/utils/logger'
 import { GUEST_SCOPE_ID } from '@/utils/userScope'
 import { openIsolatedDatabase, useDexie } from './dexie'
-import { logger } from '@/utils/logger'
 
 export type GuestDataDecision = 'merge' | 'coexist'
 

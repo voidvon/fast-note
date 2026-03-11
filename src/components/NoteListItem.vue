@@ -3,7 +3,7 @@ import type { FolderTreeNode } from '@/types'
 import { IonAccordion, IonIcon, IonItem, IonLabel, IonNote, useIonRouter } from '@ionic/vue'
 import dayjs from 'dayjs'
 import calendar from 'dayjs/plugin/calendar'
-import { folderOutline, trashOutline } from 'ionicons/icons'
+import { folderOutline, lockClosedOutline, trashOutline } from 'ionicons/icons'
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useDeviceType } from '@/hooks/useDeviceType'
@@ -41,6 +41,10 @@ const noteData = computed(() => {
 // 计算属性：获取子节点数据
 const childrenData = computed(() => {
   return props.data.children || []
+})
+
+const showLockIcon = computed(() => {
+  return noteData.value.item_type === NOTE_TYPE.NOTE && noteData.value.is_locked === 1
 })
 
 const calendarConfig = {
@@ -130,11 +134,24 @@ function onClick() {
     v-else
     :detail="false"
     :data-id="noteData.id"
-    class="list-item"
+    class="list-item note-list-item--note"
     lines="inset"
   >
+    <div
+      class="note-leading-slot"
+      :data-lock-state="showLockIcon ? 'locked' : 'placeholder'"
+      data-testid="note-leading-slot"
+      @click.stop="onClick"
+    >
+      <IonIcon
+        v-if="showLockIcon"
+        :icon="lockClosedOutline"
+        class="note-lock-icon"
+        data-testid="note-lock-icon"
+      />
+    </div>
     <IonLabel
-      class="ion-text-wrap my-0! py-[10px]!"
+      class="note-label ion-text-wrap my-0! py-[10px]!"
       @click.stop="onClick"
     >
       <h2>
@@ -165,19 +182,23 @@ function onClick() {
     }
   }
   .child-list-item {
-    .folder-icon {
+    .folder-icon,
+    .note-leading-slot {
       --uno: pl-8;
     }
     .child-list-item {
-      .folder-icon {
+      .folder-icon,
+      .note-leading-slot {
         --uno: pl-16;
       }
       .child-list-item {
-        .folder-icon {
+        .folder-icon,
+        .note-leading-slot {
           --uno: pl-24;
         }
         .child-list-item {
-          .folder-icon {
+          .folder-icon,
+          .note-leading-slot {
             --uno: pl-32;
           }
         }
@@ -213,6 +234,33 @@ function onClick() {
   // --background-hover: var(--c-purple-gray-700);
   &.active {
     --background: var(--bg-active);
+  }
+}
+
+.note-list-item--note {
+  --padding-start: 10px;
+  --inner-padding-start: 0;
+
+  .note-leading-slot {
+    align-items: flex-start;
+    align-self: stretch;
+    color: var(--c-icon);
+    cursor: pointer;
+    display: flex;
+    flex: 0 0 1.5rem;
+    justify-content: flex-start;
+    min-width: 1.5rem;
+    padding: 12px 0 10px;
+    width: 1.5rem;
+  }
+
+  .note-lock-icon {
+    font-size: 1.125rem;
+    margin-top: 1px;
+  }
+
+  .note-label {
+    min-width: 0;
   }
 }
 

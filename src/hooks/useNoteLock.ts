@@ -15,7 +15,7 @@ import { logger } from '@/utils/logger'
 
 type MaybePromise<T> = T | Promise<T>
 
-type CloudPinSettings = {
+interface CloudPinSettings {
   note_lock_pin_hash: string | null
   note_lock_pin_salt: string | null
   note_lock_pin_version: number | null

@@ -3,11 +3,11 @@ name: P0 Sync Integrity
 on:
   pull_request:
     paths:
-      - 'src/**'
-      - 'tests/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.github/workflows/p0-sync-integrity.yml'
+      - src/**
+      - tests/**
+      - package.json
+      - package-lock.json
+      - .github/workflows/p0-sync-integrity.yml
   push:
     branches:
       - main
