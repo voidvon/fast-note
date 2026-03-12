@@ -63,9 +63,9 @@ describe('useSync write mode routing', () => {
     expect(syncWriteMock).toHaveBeenCalledWith(localNote, undefined, 'create')
   })
 
-  it('uses update mode for update operations', async () => {
+  it('uses update mode for synced notes even when cloud incremental list is empty', async () => {
     const localNote = createLocalNote('note-update', '2026-03-09 10:00:00.000Z')
-    const cloudNote = createLocalNote('note-update', '2026-03-09 09:00:00.000Z')
+    localNote.user_id = 'user-a'
     const syncWriteMock = vi.fn(async () => ({ success: true, record: null }))
 
     vi.doMock('@/stores', () => ({
@@ -90,7 +90,7 @@ describe('useSync write mode routing', () => {
         getCurrentAuthUser: () => ({ id: 'user-a' }),
       },
       notesService: {
-        getNotesByUpdated: vi.fn(async () => ({ d: [cloudNote] })),
+        getNotesByUpdated: vi.fn(async () => ({ d: [] })),
         updateNote: syncWriteMock,
       },
     }))
@@ -100,5 +100,95 @@ describe('useSync write mode routing', () => {
     await sync(true)
 
     expect(syncWriteMock).toHaveBeenCalledWith(localNote, undefined, 'update')
+  })
+
+  it('backfills user_id after first successful upload', async () => {
+    const localNote = createLocalNote('note-backfill', '2026-03-09 10:00:00.000Z')
+    const storeUpdateMock = vi.fn(async () => undefined)
+    const syncWriteMock = vi.fn(async () => ({
+      success: true,
+      record: {
+        id: localNote.id,
+        user_id: 'user-a',
+        updated: '2026-03-09 10:00:01.000Z',
+      },
+    }))
+
+    vi.doMock('@/stores', () => ({
+      useNote: () => ({
+        getNotesByUpdated: vi.fn(async () => [localNote]),
+        getNote: vi.fn(async () => localNote),
+        addNote: vi.fn(async () => undefined),
+        deleteNote: vi.fn(async () => undefined),
+        updateNote: storeUpdateMock,
+      }),
+    }))
+
+    vi.doMock('@/hooks/useNoteFiles', () => ({
+      useNoteFiles: () => ({
+        getNoteFileByHash: vi.fn(async () => null),
+      }),
+    }))
+
+    vi.doMock('@/pocketbase', () => ({
+      authService: {
+        isAuthenticated: () => true,
+        getCurrentAuthUser: () => ({ id: 'user-a' }),
+      },
+      notesService: {
+        getNotesByUpdated: vi.fn(async () => ({ d: [] })),
+        updateNote: syncWriteMock,
+      },
+    }))
+
+    const { useSync } = await import('@/hooks/useSync')
+    const { sync } = useSync()
+    await sync(true)
+
+    expect(storeUpdateMock).toHaveBeenCalledWith(localNote.id, {
+      user_id: 'user-a',
+      updated: '2026-03-09 10:00:01.000Z',
+    })
+  })
+
+  it('does not create cloud tombstones for deleted unsynced notes', async () => {
+    const localNote = {
+      ...createLocalNote('note-deleted-local', '2026-03-09 10:00:00.000Z'),
+      is_deleted: 1,
+    }
+    const syncWriteMock = vi.fn(async () => ({ success: true, record: null }))
+
+    vi.doMock('@/stores', () => ({
+      useNote: () => ({
+        getNotesByUpdated: vi.fn(async () => [localNote]),
+        getNote: vi.fn(async () => localNote),
+        addNote: vi.fn(async () => undefined),
+        deleteNote: vi.fn(async () => undefined),
+        updateNote: vi.fn(async () => undefined),
+      }),
+    }))
+
+    vi.doMock('@/hooks/useNoteFiles', () => ({
+      useNoteFiles: () => ({
+        getNoteFileByHash: vi.fn(async () => null),
+      }),
+    }))
+
+    vi.doMock('@/pocketbase', () => ({
+      authService: {
+        isAuthenticated: () => true,
+        getCurrentAuthUser: () => ({ id: 'user-a' }),
+      },
+      notesService: {
+        getNotesByUpdated: vi.fn(async () => ({ d: [] })),
+        updateNote: syncWriteMock,
+      },
+    }))
+
+    const { useSync } = await import('@/hooks/useSync')
+    const { sync } = useSync()
+    await sync(true)
+
+    expect(syncWriteMock).not.toHaveBeenCalled()
   })
 })

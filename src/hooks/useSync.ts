@@ -74,6 +74,35 @@ export function useSync() {
   const { getNotesByUpdated, getNote, addNote, deleteNote, updateNote } = useNote()
   const { getNoteFileByHash } = useNoteFiles()
 
+  function hasRemoteUserId(note: Pick<Note, 'user_id'>) {
+    return typeof note.user_id === 'string' && note.user_id.trim().length > 0
+  }
+
+  async function backfillRemoteNoteMetadata(noteId: string, record: Partial<Note> | null | undefined) {
+    if (!record)
+      return null
+
+    const updates: Partial<Note> = {}
+
+    if (typeof record.user_id === 'string' && record.user_id.trim()) {
+      updates.user_id = record.user_id
+    }
+
+    if (typeof record.updated === 'string' && record.updated) {
+      updates.updated = record.updated
+    }
+
+    if (Array.isArray(record.files)) {
+      updates.files = record.files
+    }
+
+    if (Object.keys(updates).length === 0)
+      return null
+
+    await updateNote(noteId, updates)
+    return updates.updated || null
+  }
+
   /**
    * 从笔记内容中提取文件引用
    */
@@ -422,7 +451,7 @@ export function useSync() {
     // 准备需要处理的操作列表
     interface SyncOperation {
       note: Note
-      action: 'upload' | 'update' | 'download' | 'delete' | 'deleteLocal'
+      action: 'upload' | 'update' | 'download' | 'delete' | 'deleteLocal' | 'skip'
     }
 
     const operations: SyncOperation[] = []
@@ -432,56 +461,63 @@ export function useSync() {
     // 处理本地笔记
     for (const note of localNotes) {
       const cloudNote = cloudNotesMap.get(note.id)
+      const isSyncedNote = hasRemoteUserId(note)
+      const localTime = new Date(note.updated).getTime()
+      const cloudTime = cloudNote ? new Date(cloudNote.updated).getTime() : null
 
       // 处理本地已删除的笔记
       if (note.is_deleted === 1) {
         // 如果删除时间超过30天
-        if (now - new Date(note.updated).getTime() > thirtyDaysInMs) {
+        if (now - localTime > thirtyDaysInMs) {
           // 从本地删除
           operations.push({ note, action: 'deleteLocal' })
 
-          // 如果云端有此笔记，请求云端删除
-          if (cloudNote) {
+          // 已同步过的笔记需要继续同步删除状态到云端
+          if (isSyncedNote) {
             const noteToUpdate = { ...note }
             operations.push({ note: noteToUpdate, action: 'delete' })
           }
           continue
         }
 
-        // 如果删除时间在30天内
-        // 如果云端不存在此笔记，上传删除状态到云端
-        if (!cloudNote) {
-          operations.push({ note, action: 'upload' })
+        // 未同步过的删除笔记只保留本地删除态，不创建云端墓碑
+        if (!isSyncedNote) {
+          operations.push({ note, action: 'skip' })
           continue
         }
 
-        // 如果本地时间更新，上传删除状态到云端
-        const localTime = new Date(note.updated).getTime()
-        const cloudTime = new Date(cloudNote.updated).getTime()
-
-        if (localTime > cloudTime) {
+        // 已同步过的删除笔记需要同步删除状态
+        if (!cloudNote || cloudTime === null || localTime > cloudTime) {
           const noteToUpdate = { ...note }
-          operations.push({ note: noteToUpdate, action: 'update' })
+          operations.push({ note: noteToUpdate, action: 'delete' })
         }
+        else if (localTime < cloudTime) {
+          operations.push({ note: cloudNote, action: 'download' })
+        }
+        continue
+      }
+
+      if (!isSyncedNote) {
+        // 本地未同步过的笔记首次上传到云端
+        operations.push({ note, action: 'upload' })
         continue
       }
 
       // 处理未删除的笔记
       if (!cloudNote) {
-        // 本地存在但云端不存在 - 上传到云端
-        operations.push({ note, action: 'upload' })
+        // 已同步过但本次云端增量中未出现，仍应按更新处理
+        operations.push({ note, action: 'update' })
       }
       else {
         // 本地和云端都存在 - 比较时间戳
-        const localTime = new Date(note.updated).getTime()
-        const cloudTime = new Date(cloudNote.updated).getTime()
+        const remoteUpdatedTime = new Date(cloudNote.updated).getTime()
 
-        if (localTime > cloudTime) {
+        if (localTime > remoteUpdatedTime) {
           // 本地版本更新，上传到云端
           const noteToUpdate = { ...note }
           operations.push({ note: noteToUpdate, action: 'update' })
         }
-        else if (localTime < cloudTime) {
+        else if (localTime < remoteUpdatedTime) {
           // 云端版本更新，下载到本地
           operations.push({ note: cloudNote, action: 'download' })
         }
@@ -547,6 +583,8 @@ export function useSync() {
     // 按顺序执行所有同步操作
     for (const { note, action } of operations) {
       try {
+        let syncedUpdatedAt = note.updated
+
         if (action === 'upload') {
           // 使用新的优雅方案处理附件
           const { updatedNote, filesForUpload } = await handleNoteFilesElegant(note)
@@ -555,6 +593,9 @@ export function useSync() {
           const result = filesForUpload !== undefined
             ? await notesService.updateNote(updatedNote, filesForUpload, 'create')
             : await notesService.updateNote(updatedNote, undefined, 'create')
+
+          const remoteUpdatedAt = await backfillRemoteNoteMetadata(note.id, result.record)
+          syncedUpdatedAt = remoteUpdatedAt || syncedUpdatedAt
 
           // 如果有需要上传的文件，处理返回结果
           if (filesForUpload && filesForUpload.length > 0 && result.success && result.record) {
@@ -579,7 +620,9 @@ export function useSync() {
                 // 更新本地笔记
                 await updateNote(note.id, finalNote)
                 // 将更新后的内容同步到PocketBase服务端（不包含文件，只更新内容）
-                await notesService.updateNote(finalNote, undefined, 'update')
+                const finalResult = await notesService.updateNote(finalNote, undefined, 'update')
+                const finalRemoteUpdatedAt = await backfillRemoteNoteMetadata(note.id, finalResult.record)
+                syncedUpdatedAt = finalRemoteUpdatedAt || finalNote.updated
                 console.warn(`已更新笔记 ${note.id} 的附件引用并同步到服务端`)
               }
             }
@@ -596,6 +639,9 @@ export function useSync() {
             ? await notesService.updateNote(updatedNote, filesForUpload, 'update')
             : await notesService.updateNote(updatedNote, undefined, 'update')
 
+          const remoteUpdatedAt = await backfillRemoteNoteMetadata(note.id, result.record)
+          syncedUpdatedAt = remoteUpdatedAt || syncedUpdatedAt
+
           // 如果有需要上传的文件，处理返回结果
           if (filesForUpload && filesForUpload.length > 0 && result.success && result.record) {
             const uploadedRecord = result.record
@@ -619,7 +665,9 @@ export function useSync() {
                 // 更新本地笔记
                 await updateNote(note.id, finalNote)
                 // 将更新后的内容同步到PocketBase服务端（不包含文件，只更新内容）
-                await notesService.updateNote(finalNote, undefined, 'update')
+                const finalResult = await notesService.updateNote(finalNote, undefined, 'update')
+                const finalRemoteUpdatedAt = await backfillRemoteNoteMetadata(note.id, finalResult.record)
+                syncedUpdatedAt = finalRemoteUpdatedAt || finalNote.updated
                 console.warn(`已更新笔记 ${note.id} 的附件引用并同步到服务端`)
               }
             }
@@ -643,14 +691,16 @@ export function useSync() {
         }
         else if (action === 'delete') {
           // 请求云端删除（标记为删除状态）
-          await notesService.updateNote(note, undefined, 'update')
+          const result = await notesService.updateNote(note, undefined, 'update')
+          const remoteUpdatedAt = await backfillRemoteNoteMetadata(note.id, result.record)
+          syncedUpdatedAt = remoteUpdatedAt || syncedUpdatedAt
           deletedCount++
         }
 
         // 每成功同步一条记录，就更新updated
-        if (new Date(note.updated).getTime() > new Date(updated.value).getTime()) {
-          updated.value = note.updated
-          writeSyncCursor(note.updated, currentUserId)
+        if (new Date(syncedUpdatedAt).getTime() > new Date(updated.value).getTime()) {
+          updated.value = syncedUpdatedAt
+          writeSyncCursor(syncedUpdatedAt, currentUserId)
         }
       }
       catch (error) {
