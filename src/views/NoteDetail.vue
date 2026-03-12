@@ -35,7 +35,7 @@ const props = withDefaults(
 const emit = defineEmits(['noteSaved'])
 
 const route = useRoute()
-const { addNote, getNote, updateNote, deleteNote, updateParentFolderSubcount, getNotesSync } = useNote()
+const { addNote, getNote, updateNote, updateParentFolderSubcount, getNotesSync } = useNote()
 const { isDesktop } = useDeviceType()
 const noteLock = useNoteLock()
 const { restoreHeight } = useVisualViewport()
@@ -125,15 +125,20 @@ const effectiveUuid = computed(() => {
 })
 
 watch(idFromSource, async (id, oldId) => {
+  const previousEffectiveId = oldId === '0' ? newNoteId.value : oldId
+  const previousWasNewNote = oldId === '0' && !hasCreatedRouteDraft.value
+
+  // 桌面端详情页常驻，切换选中项就是“离开当前笔记”。
+  if (oldId && oldId !== id && isDesktop.value) {
+    await handleNoteSaving(true, null, {
+      noteId: previousEffectiveId,
+      wasNewNote: previousWasNewNote,
+    })
+  }
+
   if (id !== oldId) {
     missingPrivateNoteRepairId.value = null
     hasCreatedRouteDraft.value = false
-  }
-
-  // 如果从一个笔记切换到另一个笔记，先保存当前笔记（静默保存，不触发列表刷新）
-  // 但如果是切换到新建笔记（id === '0'），不保存
-  if (oldId && oldId !== '0' && oldId !== id && id !== '0' && isDesktop.value) {
-    await handleNoteSaving(true) // 传入 silent 参数，表示静默保存
   }
 
   if (id && id !== '0') {
@@ -288,6 +293,10 @@ async function applyPrivateNoteState(note: Note) {
 }
 
 type LeaveFlushReason = 'view-leave' | 'pagehide' | 'beforeunload'
+interface SaveTargetContext {
+  noteId?: string | null
+  wasNewNote?: boolean
+}
 
 function clearPendingSaveTimer() {
   if (saveTimer.value) {
@@ -339,7 +348,11 @@ async function tryRepairMissingPrivateNote(id: string) {
   }
 }
 
-async function handleNoteSaving(silent = false, leaveFlushReason: LeaveFlushReason | null = null) {
+async function handleNoteSaving(
+  silent = false,
+  leaveFlushReason: LeaveFlushReason | null = null,
+  saveTargetContext: SaveTargetContext = {},
+) {
   // 如果格式化面板打开，不触发保存
   if (state.isFormatModalOpen) {
     return
@@ -350,16 +363,23 @@ async function handleNoteSaving(silent = false, leaveFlushReason: LeaveFlushReas
   const content = editorRef.value.getContent() || ''
   const hasMeaningfulContent = editorRef.value.isMeaningfulContent?.() ?? !!content
   let { title, summary } = editorRef.value.getTitle()
+  const id = saveTargetContext.noteId ?? effectiveUuid.value
+  const wasNewNote = saveTargetContext.wasNewNote ?? isNewNote.value
 
-  // 如果是新笔记且没有真实内容，则不执行任何操作
-  if (isNewNote.value && !hasMeaningfulContent) {
+  if (!id)
+    return
+
+  const noteExists = await getNote(id)
+
+  // 未持久化的新建草稿在离开时可直接丢弃，不进入删除链路。
+  if (wasNewNote && !noteExists && !hasMeaningfulContent) {
     if (leaveFlushReason)
       await flushNotesToLocal(leaveFlushReason)
     return
   }
 
-  // 检查内容是否真正发生变化
-  if (hasMeaningfulContent && content === lastSavedContent.value) {
+  // 已持久化内容未变化时直接跳过，避免旧空白笔记在失焦时被误删。
+  if (content === lastSavedContent.value) {
     if (leaveFlushReason)
       await flushNotesToLocal(leaveFlushReason)
     return // 内容未变化，不保存
@@ -379,10 +399,6 @@ async function handleNoteSaving(silent = false, leaveFlushReason: LeaveFlushReas
     title = '新建备忘录'
   }
 
-  const id = effectiveUuid.value
-  if (!id)
-    return
-
   if (!silent) {
     state.isSaving = true
   }
@@ -395,96 +411,84 @@ async function handleNoteSaving(silent = false, leaveFlushReason: LeaveFlushReas
   const fileHashes: string[] = []
 
   try {
-    // 保存笔记数据
-    if (hasMeaningfulContent) {
-      const wasNewNote = isNewNote.value
-      const noteExists = await getNote(id)
-      if (noteExists) {
-        // 更新笔记
-        const updatedNote = Object.assign(toRaw(data.value) || {}, {
-          title,
-          summary,
-          content,
-          updated: time,
-          version: (data.value?.version || 1) + 1,
-          files: fileHashes,
-        })
-        await updateNote(id, updatedNote)
-        data.value = updatedNote
+    if (noteExists) {
+      // 已持久化笔记允许保存为空内容；删除只能走显式操作。
+      const baseNote = toRaw(data.value) || noteExists
+      const updatedNote = Object.assign({}, baseNote, {
+        title,
+        summary,
+        content,
+        updated: time,
+        version: (baseNote?.version || 1) + 1,
+        files: fileHashes,
+      })
+      await updateNote(id, updatedNote)
+      data.value = updatedNote
 
-        // 静默保存时不发出事件，避免触发列表刷新
-        if (!silent) {
-          emit('noteSaved', { noteId: id, isNew: false })
-        }
-      }
-      else {
-        if (!wasNewNote) {
-          state.isMissingPrivateNote = true
-          data.value = null
-          syncMissingPrivateNoteState()
-          if (!silent) {
-            await presentTopError('当前备忘录不存在或尚未同步完成')
-          }
-          return
-        }
-
-        // 新增笔记
-        const newNote = {
-          title,
-          summary,
-          content,
-          created: getTime(),
-          updated: time,
-          item_type: NOTE_TYPE.NOTE,
-          parent_id: isDesktop.value
-            ? (props.parentId || '')
-            : ((!route.query.parent_id || route.query.parent_id === 'unfilednotes') ? '' : route.query.parent_id as string),
-          id,
-          is_deleted: 0,
-          is_locked: 0,
-          note_count: 0,
-          files: fileHashes,
-        }
-        await addNote(newNote)
-        updateParentFolderSubcount(newNote)
-        data.value = newNote
-
-        if (wasNewNote) {
-          hasCreatedRouteDraft.value = true
-
-          if (!isDesktop.value)
-            replaceMobileDraftUrl(id)
-        }
-
-        // 新建笔记总是发出事件，需要刷新列表
-        emit('noteSaved', { noteId: id, isNew: true })
-      }
-
-      // 更新上次保存的内容
-      lastSavedContent.value = content
-
-      if (leaveFlushReason)
-        await flushNotesToLocal(leaveFlushReason)
-
-      // 自动同步笔记到云端（静默模式）
-      // 静默模式：未登录时不会抛出错误，直接跳过
+      // 静默保存时不发出事件，避免触发列表刷新
       if (!silent) {
-        try {
-          await sync(true)
-        }
-        catch (error) {
-          console.error('自动同步失败:', error)
-          await presentTopError('同步失败，请检查网络连接')
-        }
+        emit('noteSaved', { noteId: id, isNew: false })
       }
     }
     else {
-      // 内容为空，删除笔记
-      await deleteNote(id)
-      lastSavedContent.value = ''
+      if (!wasNewNote) {
+        state.isMissingPrivateNote = true
+        data.value = null
+        syncMissingPrivateNoteState()
+        if (!silent) {
+          await presentTopError('当前备忘录不存在或尚未同步完成')
+        }
+        return
+      }
 
-      if (leaveFlushReason)
-        await flushNotesToLocal(leaveFlushReason)
+      // 新建笔记只在出现有效内容后才真正落盘。
+      const newNote = {
+        title,
+        summary,
+        content,
+        created: getTime(),
+        updated: time,
+        item_type: NOTE_TYPE.NOTE,
+        parent_id: isDesktop.value
+          ? (props.parentId || '')
+          : ((!route.query.parent_id || route.query.parent_id === 'unfilednotes') ? '' : route.query.parent_id as string),
+        id,
+        is_deleted: 0,
+        is_locked: 0,
+        note_count: 0,
+        files: fileHashes,
+      }
+      await addNote(newNote)
+      updateParentFolderSubcount(newNote)
+      data.value = newNote
+
+      if (wasNewNote) {
+        hasCreatedRouteDraft.value = true
+
+        if (!isDesktop.value)
+          replaceMobileDraftUrl(id)
+      }
+
+      // 新建笔记总是发出事件，需要刷新列表
+      emit('noteSaved', { noteId: id, isNew: true })
+    }
+
+    // 更新上次保存的内容
+    lastSavedContent.value = content
+
+    if (leaveFlushReason)
+      await flushNotesToLocal(leaveFlushReason)
+
+    // 自动同步笔记到云端（静默模式）
+    // 静默模式：未登录时不会抛出错误，直接跳过
+    if (!silent) {
+      try {
+        await sync(true)
+      }
+      catch (error) {
+        console.error('自动同步失败:', error)
+        await presentTopError('同步失败，请检查网络连接')
+      }
     }
   }
   catch (error) {
