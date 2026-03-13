@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { AlertButton } from '@ionic/vue'
 import type { FolderTreeNode, Note } from '@/types'
 import {
   IonAlert,
@@ -154,7 +155,7 @@ function focusFolderAlertInput(event: CustomEvent) {
   }, 50)
 }
 
-const addButtons = [
+const addButtons: AlertButton[] = [
   { text: '取消', role: 'cancel' },
   {
     text: '确认',
