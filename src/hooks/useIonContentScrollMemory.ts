@@ -12,10 +12,6 @@ interface IonContentElementLike extends HTMLElement {
 
 const STORAGE_PREFIX = 'ion-content-scroll:'
 
-function getStorageKey(key: string) {
-  return `${STORAGE_PREFIX}${key}`
-}
-
 function getIonContentElement(contentRef: Ref<IonContentLike | undefined>) {
   if (!contentRef.value)
     return null
@@ -24,6 +20,10 @@ function getIonContentElement(contentRef: Ref<IonContentLike | undefined>) {
     return contentRef.value
 
   return contentRef.value.$el ?? null
+}
+
+function getStorageKey(key: string) {
+  return `${STORAGE_PREFIX}${key}`
 }
 
 async function getScrollElement(contentRef: Ref<IonContentLike | undefined>) {

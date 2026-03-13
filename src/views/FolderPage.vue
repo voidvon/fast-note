@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { AlertButton } from '@ionic/vue'
 import type { FolderTreeNode, Note } from '@/types'
 import {
   IonAlert,
@@ -50,8 +49,46 @@ const data = ref<Note>({} as Note)
 const contentRef = ref()
 const showAddFolderAlert = ref(false)
 
-const username = computed(() => route.params.username as string)
+const routeUsername = computed(() => route.params.username as string)
+const activeMobileFolderPath = ref('')
+const activeMobileFolderId = ref('')
+const activeMobileUsername = ref('')
+
+const username = computed(() => {
+  if (isDesktop.value)
+    return routeUsername.value
+
+  return activeMobileUsername.value
+})
 const isUserContext = computed(() => !!username.value)
+
+function isFolderRoutePath(path: string) {
+  return /^\/f\/.+$/.test(path) || /^\/[^/]+\/f\/.+$/.test(path)
+}
+
+function resolveFolderIdFromCurrentRoute() {
+  if (route.params.pathMatch) {
+    const pathMatch = Array.isArray(route.params.pathMatch)
+      ? route.params.pathMatch.join('/')
+      : route.params.pathMatch
+    const segments = pathMatch.split('/')
+    return segments[segments.length - 1]
+  }
+
+  const segments = route.path.split('/')
+  return segments[segments.length - 1]
+}
+
+function syncActiveMobileFolderRoute() {
+  const currentPath = route.fullPath || route.path
+  if (isDesktop.value || !isFolderRoutePath(currentPath))
+    return false
+
+  activeMobileFolderPath.value = currentPath
+  activeMobileFolderId.value = resolveFolderIdFromCurrentRoute()
+  activeMobileUsername.value = routeUsername.value || ''
+  return true
+}
 
 const folderId = computed(() => {
   // 桌面端：使用 props.currentFolder
@@ -59,20 +96,7 @@ const folderId = computed(() => {
     return props.currentFolder
   }
 
-  // 移动端：从路由解析
-  // 对于 /f/:pathMatch(.*)*，使用 route.params.pathMatch
-  if (route.params.pathMatch) {
-    const pathMatch = Array.isArray(route.params.pathMatch)
-      ? route.params.pathMatch.join('/')
-      : route.params.pathMatch
-    // 如果 pathMatch 包含多级路径，取最后一段
-    const segments = pathMatch.split('/')
-    return segments[segments.length - 1]
-  }
-
-  // 兜底：从 path 中解析
-  const segments = route.path.split('/')
-  return segments[segments.length - 1]
+  return activeMobileFolderId.value
 })
 
 // 将 folderList 和 noteList 改为计算属性，自动响应 notes 变化
@@ -130,7 +154,7 @@ function focusFolderAlertInput(event: CustomEvent) {
   }, 50)
 }
 
-const addButtons: AlertButton[] = [
+const addButtons = [
   { text: '取消', role: 'cancel' },
   {
     text: '确认',
@@ -152,10 +176,10 @@ const addButtons: AlertButton[] = [
       init()
     },
   },
-]
+] as const
 
 const isTopFolder = computed(() => {
-  const path = route.path
+  const path = isDesktop.value ? route.path : activeMobileFolderPath.value
   const lastId = path.split('/')
   lastId.pop()
   return !/^\d+$/.test(lastId[lastId.length - 1])
@@ -194,7 +218,8 @@ const expandedStateKey = computed(() => {
 })
 const scrollMemoryKey = computed(() => {
   const context = isUserContext.value ? `public:${username.value}` : 'private'
-  return `${context}:${route.fullPath || route.path}`
+  const path = isDesktop.value ? (route.fullPath || route.path) : activeMobileFolderPath.value
+  return `${context}:${path}`
 })
 const { saveScrollPosition, restoreScrollPosition, scrollToTop } = useIonContentScrollMemory(
   contentRef,
@@ -224,19 +249,24 @@ watch(
 watch(
   () => route.path,
   () => {
-    if (!isDesktop.value) {
+    if (!isDesktop.value && syncActiveMobileFolderRoute()) {
       init()
     }
   },
+  { immediate: true },
 )
 
 onMounted(() => {
   if (!isDesktop.value) {
+    syncActiveMobileFolderRoute()
     init()
   }
 })
 
 async function init() {
+  if (!isDesktop.value && !syncActiveMobileFolderRoute() && !activeMobileFolderId.value)
+    return
+
   const id = folderId.value
 
   if (!id)
@@ -272,13 +302,12 @@ async function init() {
 }
 
 onIonViewWillEnter(() => {
-  if (!isDesktop.value)
+  if (!isDesktop.value && syncActiveMobileFolderRoute())
     init()
 })
 
 onIonViewDidEnter(() => {
   if (!isDesktop.value) {
-    init()
     if (resolveFolderEnterMode(scrollMemoryKey.value) === 'restore') {
       void restoreScrollPosition()
     }
@@ -315,7 +344,11 @@ defineExpose({
       </IonToolbar>
     </IonHeader>
 
-    <IonContent ref="contentRef" class="folder-page-content" :fullscreen="true">
+    <IonContent
+      ref="contentRef"
+      class="folder-page-content"
+      :fullscreen="true"
+    >
       <IonHeader collapse="condense">
         <IonToolbar>
           <IonTitle size="large">
