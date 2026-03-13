@@ -3,7 +3,6 @@ import type { AlertButton } from '@ionic/vue'
 import type { FolderTreeNode, Note } from '@/types'
 import {
   IonAlert,
-  IonBackButton,
   IonButton,
   IonButtons,
   IonContent,
@@ -21,6 +20,7 @@ import { nanoid } from 'nanoid'
 import { computed, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute } from 'vue-router'
 import NoteList from '@/components/NoteList.vue'
+import SmartBackButton from '@/components/SmartBackButton.vue'
 import { useDeviceType } from '@/hooks/useDeviceType'
 import { useIonContentScrollMemory } from '@/hooks/useIonContentScrollMemory'
 import { useRouteStateRestore } from '@/hooks/useRouteStateRestore'
@@ -229,7 +229,7 @@ const { saveScrollPosition, restoreScrollPosition, scrollToTop } = useIonContent
 const { resolveFolderEnterMode, shouldSaveFolderLeave } = useRouteStateRestore()
 
 // 智能返回按钮
-const { backButtonProps } = useFolderBackButton(
+const { fallbackPath, smartBackPath } = useFolderBackButton(
   route,
   () => isTopFolder.value,
   username.value,
@@ -340,7 +340,7 @@ defineExpose({
     <IonHeader v-if="!isDesktop" :translucent="true">
       <IonToolbar>
         <IonButtons slot="start">
-          <IonBackButton v-bind="backButtonProps" text="返回" />
+          <SmartBackButton :target-path="smartBackPath" :fallback-path="fallbackPath" />
         </IonButtons>
       </IonToolbar>
     </IonHeader>
