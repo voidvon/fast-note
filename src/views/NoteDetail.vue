@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Editor } from '@tiptap/vue-3'
 import type { Note } from '@/types'
-import { IonButton, IonButtons, IonContent, IonFooter, IonHeader, IonIcon, IonPage, IonSpinner, IonToolbar, isPlatform, onIonViewWillLeave, toastController } from '@ionic/vue'
+import { IonBackButton, IonButton, IonButtons, IonContent, IonFooter, IonHeader, IonIcon, IonPage, IonSpinner, IonToolbar, isPlatform, onIonViewWillLeave, toastController } from '@ionic/vue'
 import { attachOutline, checkmarkCircleOutline, ellipsisHorizontalCircleOutline, textOutline } from 'ionicons/icons'
 import { nanoid } from 'nanoid'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, toRaw, watch } from 'vue'
@@ -9,7 +9,6 @@ import { useRoute } from 'vue-router'
 import Icon from '@/components/Icon.vue'
 import NoteMore from '@/components/NoteMore.vue'
 import NoteUnlockPanel from '@/components/NoteUnlockPanel.vue'
-import SmartBackButton from '@/components/SmartBackButton.vue'
 import TableFormatModal from '@/components/TableFormatModal.vue'
 import TextFormatModal from '@/components/TextFormatModal.vue'
 import YYEditor from '@/components/YYEditor.vue'
@@ -89,7 +88,7 @@ const canShowNoteActions = computed(() => {
 })
 
 // 智能返回按钮
-const { fallbackPath, smartBackPath } = useNoteBackButton(route, data, username.value)
+const { backButtonProps } = useNoteBackButton(route, data, username.value)
 
 function syncNewNoteEditorState() {
   if (!editorRef.value) {
@@ -687,7 +686,7 @@ onIonViewWillLeave(() => {
     <IonHeader :translucent="true">
       <IonToolbar>
         <IonButtons slot="start">
-          <SmartBackButton :target-path="smartBackPath" :fallback-path="fallbackPath" />
+          <IonBackButton v-bind="backButtonProps" />
         </IonButtons>
         <IonButtons v-if="canShowNoteActions" slot="end" class="note-detail__header-buttons">
           <IonSpinner

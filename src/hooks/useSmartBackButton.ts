@@ -20,8 +20,10 @@ export function useNoteBackButton(
   })
 
   return {
-    fallbackPath,
-    smartBackPath: computed(() => getSmartBackPath(route, fallbackPath.value)),
+    backButtonProps: computed(() => ({
+      text: '返回',
+      defaultHref: getSmartBackPath(route, fallbackPath.value),
+    })),
   }
 }
 
@@ -45,8 +47,10 @@ export function useFolderBackButton(
   })
 
   return {
-    fallbackPath,
-    smartBackPath: computed(() => getSmartBackPath(route, fallbackPath.value)),
+    backButtonProps: computed(() => ({
+      text: '返回',
+      defaultHref: getSmartBackPath(route, fallbackPath.value),
+    })),
   }
 }
 
