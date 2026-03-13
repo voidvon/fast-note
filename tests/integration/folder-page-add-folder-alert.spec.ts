@@ -16,6 +16,7 @@ const getFolderTreeByParentIdMock = vi.fn(() => [])
 const addNoteMock = vi.fn()
 
 vi.mock('vue-router', () => ({
+  onBeforeRouteLeave: vi.fn(),
   useRoute: () => routeMock.value,
 }))
 

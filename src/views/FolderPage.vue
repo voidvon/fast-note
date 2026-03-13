@@ -19,9 +19,11 @@ import {
 import { addOutline, createOutline } from 'ionicons/icons'
 import { nanoid } from 'nanoid'
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { onBeforeRouteLeave, useRoute } from 'vue-router'
 import NoteList from '@/components/NoteList.vue'
 import { useDeviceType } from '@/hooks/useDeviceType'
+import { useIonContentScrollMemory } from '@/hooks/useIonContentScrollMemory'
+import { useRouteStateRestore } from '@/hooks/useRouteStateRestore'
 import { useFolderBackButton } from '@/hooks/useSmartBackButton'
 import { useNote, useUserPublicNotes } from '@/stores'
 import { NOTE_TYPE } from '@/types'
@@ -45,6 +47,7 @@ const { notes, addNote, getNote, getFolderTreeByParentId } = useNote()
 const { isDesktop } = useDeviceType()
 
 const data = ref<Note>({} as Note)
+const contentRef = ref()
 const showAddFolderAlert = ref(false)
 
 const username = computed(() => route.params.username as string)
@@ -189,6 +192,15 @@ const expandedStateKey = computed(() => {
   const context = isUserContext.value ? `public:${username.value}` : 'private'
   return `folder:${context}:${folderId.value}`
 })
+const scrollMemoryKey = computed(() => {
+  const context = isUserContext.value ? `public:${username.value}` : 'private'
+  return `${context}:${route.fullPath || route.path}`
+})
+const { saveScrollPosition, restoreScrollPosition, scrollToTop } = useIonContentScrollMemory(
+  contentRef,
+  () => scrollMemoryKey.value,
+)
+const { resolveFolderEnterMode, shouldSaveFolderLeave } = useRouteStateRestore()
 
 // 智能返回按钮
 const { backButtonProps } = useFolderBackButton(
@@ -265,8 +277,26 @@ onIonViewWillEnter(() => {
 })
 
 onIonViewDidEnter(() => {
-  if (!isDesktop.value)
+  if (!isDesktop.value) {
     init()
+    if (resolveFolderEnterMode(scrollMemoryKey.value) === 'restore') {
+      void restoreScrollPosition()
+    }
+    else {
+      void scrollToTop()
+    }
+  }
+})
+
+onBeforeRouteLeave(async (to, from) => {
+  if (isDesktop.value)
+    return
+
+  const toPath = to.fullPath || to.path
+  const fromPath = from.fullPath || from.path
+  if (shouldSaveFolderLeave(fromPath, toPath)) {
+    await saveScrollPosition()
+  }
 })
 
 // 暴露 refresh 方法给父组件
@@ -285,7 +315,7 @@ defineExpose({
       </IonToolbar>
     </IonHeader>
 
-    <IonContent class="folder-page-content" :fullscreen="true">
+    <IonContent ref="contentRef" class="folder-page-content" :fullscreen="true">
       <IonHeader collapse="condense">
         <IonToolbar>
           <IonTitle size="large">
