@@ -1,5 +1,5 @@
 import { IonicVue } from '@ionic/vue'
-// import VConsole from 'vconsole'
+import VConsole from 'vconsole'
 import { createApp } from 'vue'
 import { initializeDatabase } from '@/database'
 import { initializeNotes } from '@/stores'
@@ -41,7 +41,7 @@ import './css/common.scss'
 
 import 'virtual:uno.css'
 
-// const _vConsole = new VConsole({ theme: 'dark' })
+const vConsole = new VConsole({ theme: 'dark' })
 
 const app = createApp(App)
   .use(IonicVue as any, {
@@ -51,6 +51,7 @@ const app = createApp(App)
 
 // 将Vue应用实例存储在全局对象中，以便扩展可以访问
 ;(window as any).__VUE_APP__ = app
+;(window as any).__VCONSOLE__ = vConsole
 
 async function bootstrapApp() {
   try {

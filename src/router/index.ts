@@ -5,6 +5,7 @@ import { useRouteStateRestore } from '@/hooks/useRouteStateRestore'
 import { useUserPublicNotesSync } from '@/hooks/useUserPublicNotesSync'
 import { initializeUserPublicNotes } from '@/stores'
 import HomePage from '../views/HomePage.vue'
+import { setupRouteDebug } from './routeDebug'
 import { routeManager } from './routeManager'
 
 const routes: Array<RouteRecordRaw> = [
@@ -69,6 +70,7 @@ const router = createRouter({
 // 初始化导航历史记录
 const { setRouter } = useNavigationHistory()
 setRouter(router)
+setupRouteDebug(router)
 
 const { setRouter: setRouteStateRestoreRouter } = useRouteStateRestore()
 setRouteStateRestoreRouter(router)
