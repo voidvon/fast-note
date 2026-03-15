@@ -46,6 +46,8 @@ async function mountAppForNoteLockSync(options: {
 
   vi.doMock('@/hooks/useLastVisitedRoute', () => ({
     useLastVisitedRoute: () => ({
+      getLastVisitedRoute: vi.fn(() => null),
+      getRouteRestoreMode: vi.fn(() => 'immediate'),
       isDeferredPrivateRoute: vi.fn(() => false),
       restoreDeferredLastVisitedRoute: vi.fn(async () => undefined),
       restoreImmediateLastVisitedRoute: vi.fn(async () => undefined),
@@ -137,6 +139,9 @@ async function mountAppForNoteLockSync(options: {
   vi.doMock('@ionic/vue', () => ({
     IonApp: createIonicStub('IonApp'),
     IonRouterOutlet: createIonicStub('IonRouterOutlet'),
+    useIonRouter: () => ({
+      navigate: vi.fn(),
+    }),
     alertController: {
       create: vi.fn(async () => ({
         present: vi.fn(async () => undefined),

@@ -225,10 +225,11 @@ onMounted(() => {
 
   <!-- 用户信息详情弹窗 -->
   <IonModal
+    class="user-profile-modal"
     :is-open="isModalOpen"
     :breakpoints="modalBreakpoints"
     :initial-breakpoint="modalInitialBreakpoint"
-    :class="['user-profile-modal', { 'user-profile-modal--desktop': isDesktop }]"
+    :class="{ 'user-profile-modal--desktop': isDesktop }"
     @did-dismiss="closeModal"
   >
     <IonHeader>

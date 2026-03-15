@@ -53,6 +53,12 @@ async function mountAppForImmediateRestore(options: {
 
   const syncDeferred = deferred<null>()
   const syncMock = vi.fn(async () => syncDeferred.promise)
+  const ionNavigateMock = vi.fn(async (target: string) => {
+    currentRoute.value = {
+      fullPath: target,
+      name: target === '/home' ? 'Home' : 'UserHome',
+    }
+  })
 
   vi.doMock('vue-router', () => ({
     useRouter: () => ({
@@ -146,6 +152,9 @@ async function mountAppForImmediateRestore(options: {
   vi.doMock('@ionic/vue', () => ({
     IonApp: createIonicStub('IonApp'),
     IonRouterOutlet: createIonicStub('IonRouterOutlet'),
+    useIonRouter: () => ({
+      navigate: ionNavigateMock,
+    }),
     alertController: {
       create: vi.fn(async () => ({
         present: vi.fn(async () => undefined),

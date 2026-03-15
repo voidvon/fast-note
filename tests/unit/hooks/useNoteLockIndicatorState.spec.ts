@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, h, ref, toRef } from 'vue'
+import { defineComponent, h, toRef } from 'vue'
 import { makeNote } from '../../factories/note.factory'
 
 async function mountIndicatorHarness(options: {

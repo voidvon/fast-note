@@ -126,6 +126,7 @@ async function mountHomePageForFolderAlert() {
   const ionAlertStub = createAlertStub()
 
   vi.doMock('vue-router', () => ({
+    onBeforeRouteLeave: vi.fn(),
     useRoute: () => route,
   }))
 
@@ -241,6 +242,7 @@ async function mountFolderPageForAlert() {
   const ionAlertStub = createAlertStub()
 
   vi.doMock('vue-router', () => ({
+    onBeforeRouteLeave: vi.fn(),
     useRoute: () => route,
   }))
 

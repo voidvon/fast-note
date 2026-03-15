@@ -10,7 +10,7 @@ export function getLastVisitedRouteStorageKey(userId?: string | null) {
   return createScopedStorageKey(LAST_ROUTE_STORAGE_PREFIX, userId)
 }
 
-export function isDeferredPrivateRoute(path: string) {
+export function isDeferredPrivateRoute(_path: string) {
   return false
 }
 
