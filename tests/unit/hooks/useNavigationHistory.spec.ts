@@ -82,72 +82,39 @@ describe('useNavigationHistory', () => {
     expect(navigationHistory.getRestoreBackStack('/n/note-1')).toEqual(['/f/folder-a'])
   })
 
-  it('consumes virtual back stack step by step after restoring a route', async () => {
+  it('rebuilds browser session history from cached routes without visible navigation', () => {
     const navigationHistory = useNavigationHistory()
-    const { router, emitTransition, replace } = createRouterStub()
+    const { router, emitTransition } = createRouterStub()
     navigationHistory.setRouter(router)
 
     emitTransition('/f/folder-a', '/home')
     emitTransition('/n/note-1', '/f/folder-a')
 
+    const baselineLength = window.history.length
     expect(navigationHistory.installRestoredRouteVirtualBackStack(router, '/n/note-1')).toEqual(['/f/folder-a'])
-    expect(window.history.state.__flashnoteVirtualBackCurrent).toBe(true)
-
-    window.dispatchEvent(new PopStateEvent('popstate', {
-      state: {
-        __flashnoteVirtualBack: {
-          remaining: [],
-          target: '/f/folder-a',
-        },
-      },
-    }))
-
-    await Promise.resolve()
-
-    expect(replace).toHaveBeenCalledWith('/f/folder-a')
-    expect(navigationHistory.getHistory.value.map(item => item.path)).toEqual(['/f/folder-a'])
+    expect(window.location.pathname).toBe('/n/note-1')
+    expect(window.history.length).toBe(baselineLength + 1)
+    expect(window.history.state.current).toBe('/n/note-1')
+    expect(window.history.state.back).toBe('/f/folder-a')
   })
 
-  it('re-arms virtual back stack for multiple restored history levels', async () => {
+  it('rebuilds multiple history levels in session history order', () => {
     const navigationHistory = useNavigationHistory()
-    const { router, emitTransition, replace } = createRouterStub()
+    const { router, emitTransition } = createRouterStub()
     navigationHistory.setRouter(router)
 
     emitTransition('/f/folder-a', '/home')
     emitTransition('/n/note-1', '/f/folder-a')
     emitTransition('/f/folder-b', '/n/note-1')
 
+    const baselineLength = window.history.length
     expect(navigationHistory.installRestoredRouteVirtualBackStack(router, '/f/folder-b')).toEqual([
       '/f/folder-a',
       '/n/note-1',
     ])
-
-    window.dispatchEvent(new PopStateEvent('popstate', {
-      state: {
-        __flashnoteVirtualBack: {
-          remaining: ['/f/folder-a'],
-          target: '/n/note-1',
-        },
-      },
-    }))
-
-    await Promise.resolve()
-
-    expect(replace).toHaveBeenLastCalledWith('/n/note-1')
-    expect(window.history.state.__flashnoteVirtualBackCurrent).toBe(true)
-
-    window.dispatchEvent(new PopStateEvent('popstate', {
-      state: {
-        __flashnoteVirtualBack: {
-          remaining: [],
-          target: '/f/folder-a',
-        },
-      },
-    }))
-
-    await Promise.resolve()
-
-    expect(replace).toHaveBeenLastCalledWith('/f/folder-a')
-    expect(window.history.state.__flashnoteVirtualBackCurrent).toBe(true)
+    expect(window.location.pathname).toBe('/f/folder-b')
+    expect(window.history.length).toBe(baselineLength + 2)
+    expect(window.history.state.current).toBe('/f/folder-b')
+    expect(window.history.state.back).toBe('/n/note-1')
   })
 })

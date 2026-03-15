@@ -42,8 +42,11 @@ const shouldBlockPrivateRoute = computed(() => {
 useVisualViewport(true)
 setupAutoSave(router)
 
-function shouldInstallStandaloneVirtualBackStack() {
+function shouldInstallRestoreBackStack(restoredPath: string | null) {
   if (typeof window === 'undefined')
+    return false
+
+  if (!restoredPath)
     return false
 
   if (window.innerWidth >= 640)
@@ -54,7 +57,7 @@ function shouldInstallStandaloneVirtualBackStack() {
     : false
   const navigatorStandalone = (window.navigator as Navigator & { standalone?: boolean }).standalone === true
 
-  return standaloneMedia || navigatorStandalone
+  return standaloneMedia || navigatorStandalone || window.history.length <= 1
 }
 
 async function restoreRouteWithVirtualBackStack(
@@ -63,7 +66,7 @@ async function restoreRouteWithVirtualBackStack(
 ) {
   const restoredPath = await restoreRoute(router, userId)
 
-  if (shouldInstallStandaloneVirtualBackStack()) {
+  if (shouldInstallRestoreBackStack(restoredPath)) {
     installRestoredRouteVirtualBackStack(router, restoredPath)
   }
 

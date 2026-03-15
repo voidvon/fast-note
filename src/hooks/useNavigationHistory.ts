@@ -9,8 +9,6 @@ interface HistoryItem {
 export const NAVIGATION_HISTORY_STORAGE_KEY = 'app_navigation_history'
 const MAX_HISTORY_LENGTH = 15
 const TOP_LEVEL_RESERVED_ROUTES = new Set(['home', 'login', 'register', 'deleted'])
-const VIRTUAL_BACK_STATE_KEY = '__flashnoteVirtualBack'
-const VIRTUAL_BACK_CURRENT_STATE_KEY = '__flashnoteVirtualBackCurrent'
 
 type StorageType = 'localStorage' | 'sessionStorage'
 
@@ -19,11 +17,7 @@ type RouteKind = 'note-detail' | 'folder-list' | 'home' | 'public-home' | 'other
 class NavigationHistory {
   private history = ref<HistoryItem[]>([])
   private storageType: StorageType = 'localStorage'
-  private virtualBackStack: string[] = []
-  private virtualBackRouter: Router | null = null
-  private virtualBackSignature = ''
-  private isVirtualPopHandling = false
-  private isVirtualPopListenerRegistered = false
+  private restoredSessionHistorySignature = ''
 
   constructor() {
     this.loadFromStorage()
@@ -35,9 +29,6 @@ class NavigationHistory {
   }
 
   setRouter(router: Router) {
-    this.virtualBackRouter = router
-    this.ensureVirtualPopListener()
-
     router.afterEach((to, from) => {
       if (to.fullPath !== from.fullPath) {
         this.handleNavigation(to.fullPath, from.fullPath)
@@ -46,6 +37,7 @@ class NavigationHistory {
   }
 
   private handleNavigation(toPath: string, fromPath: string) {
+    this.restoredSessionHistorySignature = ''
     const toIndex = this.history.value.findIndex(item => item.path === toPath)
     const fromIndex = this.history.value.findIndex(item => item.path === fromPath)
 
@@ -153,80 +145,29 @@ class NavigationHistory {
     }
   }
 
-  private ensureVirtualPopListener() {
-    if (typeof window === 'undefined' || this.isVirtualPopListenerRegistered)
-      return
-
-    window.addEventListener('popstate', this.handleVirtualPopState)
-    this.isVirtualPopListenerRegistered = true
-  }
-
-  private normalizeVirtualBackState(state: unknown) {
+  private normalizeBrowserHistoryState(state: unknown) {
     const nextState = typeof state === 'object' && state !== null
       ? { ...(state as Record<string, unknown>) }
       : {}
 
-    delete nextState[VIRTUAL_BACK_STATE_KEY]
-    delete nextState[VIRTUAL_BACK_CURRENT_STATE_KEY]
-
     return nextState
   }
 
-  private armVirtualBackEntry(currentPath: string) {
-    if (typeof window === 'undefined' || this.virtualBackStack.length === 0)
-      return
-
-    const target = this.virtualBackStack[this.virtualBackStack.length - 1]
-    const remaining = this.virtualBackStack.slice(0, -1)
-    const baseState = this.normalizeVirtualBackState(window.history.state)
-    this.virtualBackSignature = `${currentPath}::${this.virtualBackStack.join('>>')}`
-
-    window.history.replaceState({
+  private createSyntheticHistoryState(
+    baseState: Record<string, unknown>,
+    path: string,
+    back: string | null,
+    forward: string | null,
+    position: number,
+  ) {
+    return {
       ...baseState,
-      [VIRTUAL_BACK_STATE_KEY]: {
-        remaining,
-        target,
-      },
-    }, '', currentPath)
-
-    window.history.pushState({
-      ...baseState,
-      [VIRTUAL_BACK_CURRENT_STATE_KEY]: true,
-    }, '', currentPath)
-  }
-
-  private handleVirtualPopState = async (event: PopStateEvent) => {
-    const payload = (event.state as Record<string, unknown> | null)?.[VIRTUAL_BACK_STATE_KEY] as Record<string, unknown> | undefined
-    if (!payload || !this.virtualBackRouter || this.isVirtualPopHandling)
-      return
-
-    const target = typeof payload.target === 'string' ? payload.target : ''
-    const remaining = Array.isArray(payload.remaining)
-      ? payload.remaining.filter((item): item is string => typeof item === 'string' && item.length > 0)
-      : []
-
-    if (!target) {
-      this.virtualBackStack = []
-      this.virtualBackSignature = ''
-      return
-    }
-
-    this.isVirtualPopHandling = true
-
-    try {
-      this.virtualBackStack = [...remaining]
-      this.virtualBackSignature = `${target}::${this.virtualBackStack.join('>>')}`
-
-      if (this.virtualBackRouter.currentRoute.value.fullPath !== target) {
-        await this.virtualBackRouter.replace(target)
-      }
-
-      if (this.virtualBackStack.length > 0) {
-        this.armVirtualBackEntry(target)
-      }
-    }
-    finally {
-      this.isVirtualPopHandling = false
+      back,
+      current: path,
+      forward,
+      position,
+      replaced: false,
+      scroll: null,
     }
   }
 
@@ -240,29 +181,44 @@ class NavigationHistory {
       .map(item => item.path)
   }
 
-  installRestoredRouteVirtualBackStack(router: Router, currentPath?: string | null) {
-    this.virtualBackRouter = router
-    this.ensureVirtualPopListener()
-
+  installRestoredRouteVirtualBackStack(_router: Router, currentPath?: string | null) {
     if (!currentPath || typeof window === 'undefined') {
-      this.virtualBackStack = []
-      this.virtualBackSignature = ''
+      this.restoredSessionHistorySignature = ''
       return []
     }
 
     const backStack = this.getRestoreBackStack(currentPath)
     const nextSignature = `${currentPath}::${backStack.join('>>')}`
-    if (backStack.length > 0 && this.virtualBackSignature === nextSignature) {
+    if (backStack.length > 0 && this.restoredSessionHistorySignature === nextSignature) {
       return backStack
     }
 
-    this.virtualBackStack = [...backStack]
-    this.virtualBackSignature = nextSignature
+    if (backStack.length > 0) {
+      const historyChain = [...backStack, currentPath]
+      const baseState = this.normalizeBrowserHistoryState(window.history.state)
+      const basePosition = typeof baseState.position === 'number'
+        ? Math.max(0, baseState.position - backStack.length)
+        : Math.max(0, window.history.length - 1)
 
-    if (this.virtualBackStack.length > 0) {
-      this.armVirtualBackEntry(currentPath)
+      historyChain.forEach((path, index) => {
+        const syntheticState = this.createSyntheticHistoryState(
+          baseState,
+          path,
+          index > 0 ? historyChain[index - 1] : null,
+          index < historyChain.length - 1 ? historyChain[index + 1] : null,
+          basePosition + index,
+        )
+
+        if (index === 0) {
+          window.history.replaceState(syntheticState, '', path)
+        }
+        else {
+          window.history.pushState(syntheticState, '', path)
+        }
+      })
     }
 
+    this.restoredSessionHistorySignature = nextSignature
     return backStack
   }
 
@@ -279,8 +235,7 @@ class NavigationHistory {
 
   clearHistory() {
     this.history.value = []
-    this.virtualBackStack = []
-    this.virtualBackSignature = ''
+    this.restoredSessionHistorySignature = ''
     try {
       const storage = this.storageType === 'localStorage' ? localStorage : sessionStorage
       storage.removeItem(NAVIGATION_HISTORY_STORAGE_KEY)

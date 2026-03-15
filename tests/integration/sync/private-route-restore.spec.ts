@@ -238,6 +238,8 @@ describe('private route restore timing (t-fn-031 / tc-fn-023)', () => {
       savedLastRoute: '/n/private-note',
     })
 
-    expect(window.history.state.__flashnoteVirtualBackCurrent).toBe(true)
+    expect(window.location.pathname).toBe('/n/private-note')
+    expect(window.history.state.current).toBe('/n/private-note')
+    expect(window.history.state.back).toBe('/f/folder-a')
   })
 })
