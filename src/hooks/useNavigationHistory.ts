@@ -8,8 +8,11 @@ interface HistoryItem {
 
 const STORAGE_KEY = 'app_navigation_history'
 const MAX_HISTORY_LENGTH = 15
+const TOP_LEVEL_RESERVED_ROUTES = new Set(['home', 'login', 'register', 'deleted'])
 
 type StorageType = 'localStorage' | 'sessionStorage'
+
+type RouteKind = 'note-detail' | 'folder-list' | 'home' | 'public-home' | 'other'
 
 class NavigationHistory {
   private history = ref<HistoryItem[]>([])
@@ -35,6 +38,12 @@ class NavigationHistory {
   private handleNavigation(toPath: string, fromPath: string) {
     const toIndex = this.history.value.findIndex(item => item.path === toPath)
     const fromIndex = this.history.value.findIndex(item => item.path === fromPath)
+
+    if (this.shouldReplaceOrphanDetailWithFallback(toPath, fromPath)) {
+      this.history.value = [{ path: toPath, timestamp: Date.now() }]
+      this.saveToStorage()
+      return
+    }
 
     // 检测后退导航：目标路径在历史中且位置更早
     if (toIndex !== -1 && fromIndex > toIndex) {
@@ -71,6 +80,43 @@ class NavigationHistory {
     }
 
     this.saveToStorage()
+  }
+
+  private normalizePath(path: string) {
+    return path.split('?')[0]?.split('#')[0] || ''
+  }
+
+  private classifyRoute(path: string): RouteKind {
+    const normalizedPath = this.normalizePath(path)
+
+    if (normalizedPath === '/home')
+      return 'home'
+
+    if (/^\/f\/.+$/.test(normalizedPath) || /^\/[^/]+\/f\/.+$/.test(normalizedPath))
+      return 'folder-list'
+
+    if (/^\/n\/[^/]+$/.test(normalizedPath) || /^\/[^/]+\/n\/[^/]+$/.test(normalizedPath))
+      return 'note-detail'
+
+    const topLevelSegment = normalizedPath.replace(/^\//, '')
+    if (topLevelSegment && !topLevelSegment.includes('/') && !TOP_LEVEL_RESERVED_ROUTES.has(topLevelSegment))
+      return 'public-home'
+
+    return 'other'
+  }
+
+  private shouldReplaceOrphanDetailWithFallback(toPath: string, fromPath: string) {
+    if (this.history.value.length !== 1)
+      return false
+
+    if (this.history.value[0]?.path !== fromPath)
+      return false
+
+    if (this.classifyRoute(fromPath) !== 'note-detail')
+      return false
+
+    const targetKind = this.classifyRoute(toPath)
+    return targetKind === 'folder-list' || targetKind === 'home' || targetKind === 'public-home'
   }
 
   private loadFromStorage() {
