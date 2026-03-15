@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { Router } from 'vue-router'
 import type { GuestDataDecision } from '@/database/guestData'
-import { alertController, IonApp, IonRouterOutlet } from '@ionic/vue'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { alertController, IonApp, IonRouterOutlet, useIonRouter } from '@ionic/vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { pocketbaseAuthAdapter } from '@/adapters/pocketbase/auth-adapter'
 import { PocketBaseRealtimeAdapter } from '@/adapters/pocketbase/realtime-adapter'
@@ -22,16 +22,25 @@ import { useVisualViewport } from './hooks/useVisualViewport'
 
 const { initTheme } = useTheme()
 const router = useRouter()
+const ionRouter = useIonRouter()
 const {
+  getLastVisitedRoute,
+  getRouteRestoreMode,
   isDeferredPrivateRoute,
   restoreDeferredLastVisitedRoute,
   restoreImmediateLastVisitedRoute,
   setupAutoSave,
 } = useLastVisitedRoute()
-const { installRestoredRouteVirtualBackStack } = useNavigationHistory()
+const {
+  getRestoreBackStack,
+  installRestoredRouteVirtualBackStack,
+  pauseTracking,
+  resumeTracking,
+} = useNavigationHistory()
 const noteLock = useNoteLock()
 
 const isPrivateRouteRestoreReady = ref(!authService.isAuthenticated())
+const isSilentRestoreReplaying = ref(false)
 
 const shouldBlockPrivateRoute = computed(() => {
   return authService.isAuthenticated()
@@ -60,20 +69,90 @@ function shouldInstallRestoreBackStack(restoredPath: string | null) {
   return standaloneMedia || navigatorStandalone || window.history.length <= 1
 }
 
-async function restoreRouteWithVirtualBackStack(
-  restoreRoute: (router: Router, userId?: string | null) => Promise<string | null> | string | null,
-  userId?: string | null,
-) {
-  const restoredPath = await restoreRoute(router, userId)
-
-  if (shouldInstallRestoreBackStack(restoredPath)) {
-    installRestoredRouteVirtualBackStack(router, restoredPath)
-  }
-
-  return restoredPath
+function normalizePath(path: string) {
+  return path.split('?')[0]?.split('#')[0] || ''
 }
 
-void restoreRouteWithVirtualBackStack(restoreImmediateLastVisitedRoute, authService.getCurrentAuthUser()?.id)
+function isNoteDetailPath(path: string) {
+  const normalizedPath = normalizePath(path)
+  return /^\/n\/[^/]+$/.test(normalizedPath) || /^\/[^/]+\/n\/[^/]+$/.test(normalizedPath)
+}
+
+function waitForRoutePath(targetPath: string, timeout = 2000) {
+  if (router.currentRoute.value.fullPath === targetPath) {
+    return Promise.resolve()
+  }
+
+  return new Promise<void>((resolve) => {
+    const stop = watch(() => router.currentRoute.value.fullPath, (path) => {
+      if (path === targetPath) {
+        cleanup()
+      }
+    })
+
+    const timer = window.setTimeout(() => {
+      cleanup()
+    }, timeout)
+
+    function cleanup() {
+      stop()
+      window.clearTimeout(timer)
+      resolve()
+    }
+  })
+}
+
+function delay(ms: number) {
+  return new Promise(resolve => window.setTimeout(resolve, ms))
+}
+
+async function replayRecentIonicStack(parentPath: string, restoredPath: string) {
+  isSilentRestoreReplaying.value = true
+  pauseTracking()
+
+  try {
+    ionRouter.navigate(parentPath, 'root', 'replace')
+    await waitForRoutePath(parentPath)
+    await nextTick()
+
+    ionRouter.navigate(restoredPath, 'forward', 'push')
+    await waitForRoutePath(restoredPath)
+    await delay(360)
+  }
+  finally {
+    resumeTracking()
+    isSilentRestoreReplaying.value = false
+  }
+}
+
+async function restoreRouteWithStackHydration(
+  restoreRoute: (router: Router, userId?: string | null) => Promise<string | null> | string | null,
+  mode: 'deferred' | 'immediate',
+  userId?: string | null,
+) {
+  const restoredPath = getLastVisitedRoute(userId)
+  if (!restoredPath || getRouteRestoreMode(restoredPath) !== mode) {
+    return null
+  }
+
+  const backStack = getRestoreBackStack(restoredPath)
+  const parentPath = backStack[backStack.length - 1] || null
+
+  if (shouldInstallRestoreBackStack(restoredPath) && parentPath && parentPath !== restoredPath && isNoteDetailPath(restoredPath)) {
+    await replayRecentIonicStack(parentPath, restoredPath)
+    return restoredPath
+  }
+
+  const finalPath = await restoreRoute(router, userId)
+
+  if (shouldInstallRestoreBackStack(finalPath)) {
+    installRestoredRouteVirtualBackStack(router, finalPath)
+  }
+
+  return finalPath
+}
+
+void restoreRouteWithStackHydration(restoreImmediateLastVisitedRoute, 'immediate', authService.getCurrentAuthUser()?.id)
 
 let hasRealtimeService = false
 let sessionBootstrapPromise: Promise<void> | null = null
@@ -179,7 +258,7 @@ async function bootstrapLoggedInSession() {
     logger.info('全局 PIN 配置同步完成')
 
     isPrivateRouteRestoreReady.value = true
-    await restoreRouteWithVirtualBackStack(restoreDeferredLastVisitedRoute, authManager.userInfo.value?.id)
+    await restoreRouteWithStackHydration(restoreDeferredLastVisitedRoute, 'deferred', authManager.userInfo.value?.id)
   })().catch(async (error) => {
     isPrivateRouteRestoreReady.value = true
 
@@ -215,7 +294,7 @@ onMounted(async () => {
 
     if (token && user) {
       try {
-        await restoreRouteWithVirtualBackStack(restoreImmediateLastVisitedRoute, user.id)
+        await restoreRouteWithStackHydration(restoreImmediateLastVisitedRoute, 'immediate', user.id)
         if (shouldPromptGuestData) {
           await handleGuestDataDecision()
         }
@@ -229,7 +308,7 @@ onMounted(async () => {
       isPrivateRouteRestoreReady.value = true
       realtimeManager.disconnect()
       guestDecisionHandled = false
-      await restoreRouteWithVirtualBackStack(restoreImmediateLastVisitedRoute, null)
+      await restoreRouteWithStackHydration(restoreImmediateLastVisitedRoute, 'immediate', null)
     }
   })
 
@@ -266,7 +345,14 @@ onUnmounted(() => {
 <template>
   <IonApp>
     <div v-if="shouldBlockPrivateRoute" data-testid="app-private-route-pending" class="app-private-route-pending" />
-    <IonRouterOutlet v-else />
+    <template v-else>
+      <IonRouterOutlet />
+      <div
+        v-if="isSilentRestoreReplaying"
+        data-testid="app-silent-restore-mask"
+        class="app-silent-restore-mask"
+      />
+    </template>
   </IonApp>
 </template>
 
@@ -274,5 +360,12 @@ onUnmounted(() => {
 .app-private-route-pending {
   width: 100%;
   min-height: 100vh;
+}
+
+.app-silent-restore-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: var(--ion-background-color, var(--c-blue-gray-950));
 }
 </style>

@@ -66,6 +66,12 @@ async function mountAppForRouteRestore(options: {
   const initializeDatabaseMock = vi.fn(async () => undefined)
   const initializeNotesMock = vi.fn(async () => undefined)
   const authChangeMock = vi.fn(() => vi.fn())
+  const ionNavigateMock = vi.fn((target: string) => {
+    currentRoute.value = {
+      fullPath: target,
+      name: target === '/home' ? 'Home' : target.includes('/n/') ? 'NoteDetail' : 'Folder',
+    }
+  })
 
   vi.doMock('vue-router', () => ({
     useRouter: () => ({
@@ -154,6 +160,9 @@ async function mountAppForRouteRestore(options: {
   vi.doMock('@ionic/vue', () => ({
     IonApp: createIonicStub('IonApp'),
     IonRouterOutlet: createIonicStub('IonRouterOutlet'),
+    useIonRouter: () => ({
+      navigate: ionNavigateMock,
+    }),
     alertController: {
       create: vi.fn(async () => ({
         present: vi.fn(async () => undefined),
@@ -165,6 +174,9 @@ async function mountAppForRouteRestore(options: {
   const wrapper = mount(App)
   await flushPromises()
   await nextTick()
+  await new Promise(resolve => setTimeout(resolve, 420))
+  await flushPromises()
+  await nextTick()
 
   return {
     wrapper,
@@ -173,6 +185,7 @@ async function mountAppForRouteRestore(options: {
       authChangeMock,
       initializeDatabaseMock,
       initializeNotesMock,
+      ionNavigateMock,
       routerReplaceMock,
       syncDeferred,
       syncMock,
@@ -222,7 +235,7 @@ describe('private route restore timing (t-fn-031 / tc-fn-023)', () => {
     expect(mocks.routerReplaceMock).toHaveBeenCalledWith('/n/private-note')
   })
 
-  it('installs a virtual back stack when standalone mode restores a private route', async () => {
+  it('silently replays one Ionic parent level before restoring a private detail route', async () => {
     vi.mocked(window.matchMedia).mockReturnValue({
       addEventListener: vi.fn(),
       matches: true,
@@ -231,15 +244,16 @@ describe('private route restore timing (t-fn-031 / tc-fn-023)', () => {
       removeEventListener: vi.fn(),
     } as MediaQueryList)
 
-    await mountAppForRouteRestore({
+    const { mocks, wrapper } = await mountAppForRouteRestore({
       currentPath: '/home',
       currentName: 'Home',
       navigationHistory: ['/home', '/f/folder-a', '/n/private-note'],
       savedLastRoute: '/n/private-note',
     })
 
-    expect(window.location.pathname).toBe('/n/private-note')
-    expect(window.history.state.current).toBe('/n/private-note')
-    expect(window.history.state.back).toBe('/f/folder-a')
+    expect(mocks.ionNavigateMock).toHaveBeenNthCalledWith(1, '/f/folder-a', 'root', 'replace')
+    expect(mocks.ionNavigateMock).toHaveBeenNthCalledWith(2, '/n/private-note', 'forward', 'push')
+    expect(mocks.routerReplaceMock).not.toHaveBeenCalledWith('/n/private-note')
+    expect(wrapper.find('[data-testid="app-silent-restore-mask"]').exists()).toBe(false)
   })
 })

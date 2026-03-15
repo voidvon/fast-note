@@ -18,6 +18,7 @@ class NavigationHistory {
   private history = ref<HistoryItem[]>([])
   private storageType: StorageType = 'localStorage'
   private restoredSessionHistorySignature = ''
+  private trackingPauseDepth = 0
 
   constructor() {
     this.loadFromStorage()
@@ -37,6 +38,9 @@ class NavigationHistory {
   }
 
   private handleNavigation(toPath: string, fromPath: string) {
+    if (this.trackingPauseDepth > 0)
+      return
+
     this.restoredSessionHistorySignature = ''
     const toIndex = this.history.value.findIndex(item => item.path === toPath)
     const fromIndex = this.history.value.findIndex(item => item.path === fromPath)
@@ -252,6 +256,14 @@ class NavigationHistory {
   canGoBack() {
     return computed(() => this.history.value.length > 1)
   }
+
+  pauseTracking() {
+    this.trackingPauseDepth++
+  }
+
+  resumeTracking() {
+    this.trackingPauseDepth = Math.max(0, this.trackingPauseDepth - 1)
+  }
 }
 
 const navigationHistory = new NavigationHistory()
@@ -268,6 +280,8 @@ export function useNavigationHistory() {
     getHistory: navigationHistory.getHistory(),
     installRestoredRouteVirtualBackStack: (router: Router, currentPath?: string | null) =>
       navigationHistory.installRestoredRouteVirtualBackStack(router, currentPath),
+    pauseTracking: () => navigationHistory.pauseTracking(),
+    resumeTracking: () => navigationHistory.resumeTracking(),
     clearHistory: () => navigationHistory.clearHistory(),
   }
 }

@@ -117,4 +117,19 @@ describe('useNavigationHistory', () => {
     expect(window.history.state.current).toBe('/f/folder-b')
     expect(window.history.state.back).toBe('/n/note-1')
   })
+
+  it('does not mutate cached history while tracking is paused', () => {
+    const navigationHistory = useNavigationHistory()
+    const { router, emitTransition } = createRouterStub()
+    navigationHistory.setRouter(router)
+
+    emitTransition('/f/folder-a', '/home')
+    expect(navigationHistory.getHistory.value.map(item => item.path)).toEqual(['/f/folder-a'])
+
+    navigationHistory.pauseTracking()
+    emitTransition('/n/note-1', '/f/folder-a')
+    navigationHistory.resumeTracking()
+
+    expect(navigationHistory.getHistory.value.map(item => item.path)).toEqual(['/f/folder-a'])
+  })
 })
