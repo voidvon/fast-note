@@ -228,7 +228,7 @@ onMounted(() => {
     :is-open="isModalOpen"
     :breakpoints="modalBreakpoints"
     :initial-breakpoint="modalInitialBreakpoint"
-    class="user-profile-modal"
+    :class="['user-profile-modal', { 'user-profile-modal--desktop': isDesktop }]"
     @did-dismiss="closeModal"
   >
     <IonHeader>
@@ -351,13 +351,17 @@ onMounted(() => {
 
 <style lang="scss">
 .user-profile-modal {
-  --height: auto;
   --border-radius: 24px 24px 0 0;
 
   &::part(content) {
     max-width: 520px;
     margin: auto;
   }
+}
+
+.user-profile-modal--desktop {
+  --height: auto;
+  --width: min(520px, calc(100vw - 32px));
 }
 </style>
 
