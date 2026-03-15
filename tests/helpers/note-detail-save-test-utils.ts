@@ -155,6 +155,7 @@ export async function mountNoteDetailForSaveTest(options: {
     cooldownUntil: null,
   })))
   let ionViewWillLeaveCallback: (() => void | Promise<void>) | null = null
+  let ionViewDidLeaveCallback: (() => void | Promise<void>) | null = null
   const toastPresentMock = vi.fn(async () => undefined)
   const toastCreateMock = vi.fn(async () => ({
     present: toastPresentMock,
@@ -309,6 +310,9 @@ export async function mountNoteDetailForSaveTest(options: {
     IonSpinner: createIonicStub('IonSpinner'),
     IonToolbar: createIonicStub('IonToolbar'),
     isPlatform: () => false,
+    onIonViewDidLeave: (callback: () => void | Promise<void>) => {
+      ionViewDidLeaveCallback = callback
+    },
     onIonViewWillLeave: (callback: () => void | Promise<void>) => {
       ionViewWillLeaveCallback = callback
     },
@@ -358,6 +362,11 @@ export async function mountNoteDetailForSaveTest(options: {
     noteFactory: makeNote,
     triggerIonViewWillLeave: async () => {
       await ionViewWillLeaveCallback?.()
+      await flushPromises()
+      await nextTick()
+    },
+    triggerIonViewDidLeave: async () => {
+      await ionViewDidLeaveCallback?.()
       await flushPromises()
       await nextTick()
     },
