@@ -11,11 +11,7 @@ export function getLastVisitedRouteStorageKey(userId?: string | null) {
 }
 
 export function isDeferredPrivateRoute(path: string) {
-  const pathWithoutQuery = path.split('?')[0]?.split('#')[0] || ''
-
-  return pathWithoutQuery.startsWith('/n/')
-    && pathWithoutQuery.length > 3
-    && !pathWithoutQuery.slice(3).includes('/')
+  return false
 }
 
 export function getRouteRestoreMode(path: string): Exclude<RouteRestoreMode, 'all'> {
