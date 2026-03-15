@@ -2,6 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick, ref } from 'vue'
 import { getLastVisitedRouteStorageKey } from '@/hooks/useLastVisitedRoute'
+import { NAVIGATION_HISTORY_STORAGE_KEY } from '@/hooks/useNavigationHistory'
 
 function createIonicStub(name: string) {
   return defineComponent({
@@ -29,6 +30,7 @@ async function mountAppForRouteRestore(options: {
   currentName?: string
   savedLastRoute?: string
   isAuthenticated?: boolean
+  navigationHistory?: string[]
 }) {
   vi.resetModules()
   localStorage.clear()
@@ -48,6 +50,15 @@ async function mountAppForRouteRestore(options: {
 
   if (options.savedLastRoute) {
     localStorage.setItem(getLastVisitedRouteStorageKey('user-a'), options.savedLastRoute)
+  }
+
+  if (options.navigationHistory) {
+    localStorage.setItem(NAVIGATION_HISTORY_STORAGE_KEY, JSON.stringify(
+      options.navigationHistory.map(path => ({
+        path,
+        timestamp: Date.now(),
+      })),
+    ))
   }
 
   const syncDeferred = deferred<null>()
@@ -172,6 +183,18 @@ async function mountAppForRouteRestore(options: {
 describe('private route restore timing (t-fn-031 / tc-fn-023)', () => {
   beforeEach(() => {
     vi.useRealTimers()
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 390,
+      writable: true,
+    })
+    vi.stubGlobal('matchMedia', vi.fn(() => ({
+      addEventListener: vi.fn(),
+      matches: false,
+      media: '(display-mode: standalone)',
+      onchange: null,
+      removeEventListener: vi.fn(),
+    })))
   })
 
   afterEach(() => {
@@ -197,5 +220,24 @@ describe('private route restore timing (t-fn-031 / tc-fn-023)', () => {
     })
 
     expect(mocks.routerReplaceMock).toHaveBeenCalledWith('/n/private-note')
+  })
+
+  it('installs a virtual back stack when standalone mode restores a private route', async () => {
+    vi.mocked(window.matchMedia).mockReturnValue({
+      addEventListener: vi.fn(),
+      matches: true,
+      media: '(display-mode: standalone)',
+      onchange: null,
+      removeEventListener: vi.fn(),
+    } as MediaQueryList)
+
+    await mountAppForRouteRestore({
+      currentPath: '/home',
+      currentName: 'Home',
+      navigationHistory: ['/home', '/f/folder-a', '/n/private-note'],
+      savedLastRoute: '/n/private-note',
+    })
+
+    expect(window.history.state.__flashnoteVirtualBackCurrent).toBe(true)
   })
 })

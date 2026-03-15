@@ -6,9 +6,11 @@ interface HistoryItem {
   timestamp: number
 }
 
-const STORAGE_KEY = 'app_navigation_history'
+export const NAVIGATION_HISTORY_STORAGE_KEY = 'app_navigation_history'
 const MAX_HISTORY_LENGTH = 15
 const TOP_LEVEL_RESERVED_ROUTES = new Set(['home', 'login', 'register', 'deleted'])
+const VIRTUAL_BACK_STATE_KEY = '__flashnoteVirtualBack'
+const VIRTUAL_BACK_CURRENT_STATE_KEY = '__flashnoteVirtualBackCurrent'
 
 type StorageType = 'localStorage' | 'sessionStorage'
 
@@ -17,6 +19,11 @@ type RouteKind = 'note-detail' | 'folder-list' | 'home' | 'public-home' | 'other
 class NavigationHistory {
   private history = ref<HistoryItem[]>([])
   private storageType: StorageType = 'localStorage'
+  private virtualBackStack: string[] = []
+  private virtualBackRouter: Router | null = null
+  private virtualBackSignature = ''
+  private isVirtualPopHandling = false
+  private isVirtualPopListenerRegistered = false
 
   constructor() {
     this.loadFromStorage()
@@ -28,6 +35,9 @@ class NavigationHistory {
   }
 
   setRouter(router: Router) {
+    this.virtualBackRouter = router
+    this.ensureVirtualPopListener()
+
     router.afterEach((to, from) => {
       if (to.fullPath !== from.fullPath) {
         this.handleNavigation(to.fullPath, from.fullPath)
@@ -122,7 +132,7 @@ class NavigationHistory {
   private loadFromStorage() {
     try {
       const storage = this.storageType === 'localStorage' ? localStorage : sessionStorage
-      const stored = storage.getItem(STORAGE_KEY)
+      const stored = storage.getItem(NAVIGATION_HISTORY_STORAGE_KEY)
       if (stored) {
         const parsed = JSON.parse(stored)
         this.history.value = Array.isArray(parsed) ? parsed : []
@@ -136,11 +146,124 @@ class NavigationHistory {
   private saveToStorage() {
     try {
       const storage = this.storageType === 'localStorage' ? localStorage : sessionStorage
-      storage.setItem(STORAGE_KEY, JSON.stringify(this.history.value))
+      storage.setItem(NAVIGATION_HISTORY_STORAGE_KEY, JSON.stringify(this.history.value))
     }
     catch {
       // 静默处理存储错误
     }
+  }
+
+  private ensureVirtualPopListener() {
+    if (typeof window === 'undefined' || this.isVirtualPopListenerRegistered)
+      return
+
+    window.addEventListener('popstate', this.handleVirtualPopState)
+    this.isVirtualPopListenerRegistered = true
+  }
+
+  private normalizeVirtualBackState(state: unknown) {
+    const nextState = typeof state === 'object' && state !== null
+      ? { ...(state as Record<string, unknown>) }
+      : {}
+
+    delete nextState[VIRTUAL_BACK_STATE_KEY]
+    delete nextState[VIRTUAL_BACK_CURRENT_STATE_KEY]
+
+    return nextState
+  }
+
+  private armVirtualBackEntry(currentPath: string) {
+    if (typeof window === 'undefined' || this.virtualBackStack.length === 0)
+      return
+
+    const target = this.virtualBackStack[this.virtualBackStack.length - 1]
+    const remaining = this.virtualBackStack.slice(0, -1)
+    const baseState = this.normalizeVirtualBackState(window.history.state)
+    this.virtualBackSignature = `${currentPath}::${this.virtualBackStack.join('>>')}`
+
+    window.history.replaceState({
+      ...baseState,
+      [VIRTUAL_BACK_STATE_KEY]: {
+        remaining,
+        target,
+      },
+    }, '', currentPath)
+
+    window.history.pushState({
+      ...baseState,
+      [VIRTUAL_BACK_CURRENT_STATE_KEY]: true,
+    }, '', currentPath)
+  }
+
+  private handleVirtualPopState = async (event: PopStateEvent) => {
+    const payload = (event.state as Record<string, unknown> | null)?.[VIRTUAL_BACK_STATE_KEY] as Record<string, unknown> | undefined
+    if (!payload || !this.virtualBackRouter || this.isVirtualPopHandling)
+      return
+
+    const target = typeof payload.target === 'string' ? payload.target : ''
+    const remaining = Array.isArray(payload.remaining)
+      ? payload.remaining.filter((item): item is string => typeof item === 'string' && item.length > 0)
+      : []
+
+    if (!target) {
+      this.virtualBackStack = []
+      this.virtualBackSignature = ''
+      return
+    }
+
+    this.isVirtualPopHandling = true
+
+    try {
+      this.virtualBackStack = [...remaining]
+      this.virtualBackSignature = `${target}::${this.virtualBackStack.join('>>')}`
+
+      if (this.virtualBackRouter.currentRoute.value.fullPath !== target) {
+        await this.virtualBackRouter.replace(target)
+      }
+
+      if (this.virtualBackStack.length > 0) {
+        this.armVirtualBackEntry(target)
+      }
+    }
+    finally {
+      this.isVirtualPopHandling = false
+    }
+  }
+
+  getRestoreBackStack(currentPath: string) {
+    const targetIndex = this.history.value.map(item => item.path).lastIndexOf(currentPath)
+    if (targetIndex <= 0)
+      return []
+
+    return this.history.value
+      .slice(0, targetIndex)
+      .map(item => item.path)
+  }
+
+  installRestoredRouteVirtualBackStack(router: Router, currentPath?: string | null) {
+    this.virtualBackRouter = router
+    this.ensureVirtualPopListener()
+
+    if (!currentPath || typeof window === 'undefined') {
+      this.virtualBackStack = []
+      this.virtualBackSignature = ''
+      return []
+    }
+
+    const backStack = this.getRestoreBackStack(currentPath)
+    const nextSignature = `${currentPath}::${backStack.join('>>')}`
+    if (backStack.length > 0 && this.virtualBackSignature === nextSignature) {
+      return backStack
+    }
+
+    this.virtualBackStack = [...backStack]
+    this.virtualBackSignature = nextSignature
+
+    if (this.virtualBackStack.length > 0) {
+      this.armVirtualBackEntry(currentPath)
+    }
+
+    return backStack
   }
 
   getPreviousRoute(): string | null {
@@ -156,9 +279,11 @@ class NavigationHistory {
 
   clearHistory() {
     this.history.value = []
+    this.virtualBackStack = []
+    this.virtualBackSignature = ''
     try {
       const storage = this.storageType === 'localStorage' ? localStorage : sessionStorage
-      storage.removeItem(STORAGE_KEY)
+      storage.removeItem(NAVIGATION_HISTORY_STORAGE_KEY)
     }
     catch {
       // 静默处理
@@ -182,9 +307,12 @@ export function useNavigationHistory() {
     setStorageType: (type: StorageType) => navigationHistory.setStorageType(type),
     getSmartBackPath: (currentRoute: RouteLocationNormalized, fallbackPath: string) =>
       navigationHistory.getSmartBackPath(currentRoute, fallbackPath),
+    getRestoreBackStack: (currentPath: string) => navigationHistory.getRestoreBackStack(currentPath),
     getPreviousRoute: () => navigationHistory.getPreviousRoute(),
     canGoBack: navigationHistory.canGoBack(),
     getHistory: navigationHistory.getHistory(),
+    installRestoredRouteVirtualBackStack: (router: Router, currentPath?: string | null) =>
+      navigationHistory.installRestoredRouteVirtualBackStack(router, currentPath),
     clearHistory: () => navigationHistory.clearHistory(),
   }
 }

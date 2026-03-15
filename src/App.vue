@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { Router } from 'vue-router'
 import type { GuestDataDecision } from '@/database/guestData'
 import { alertController, IonApp, IonRouterOutlet } from '@ionic/vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
@@ -10,6 +11,7 @@ import { realtimeManager } from '@/core/realtime-manager'
 import { initializeDatabase } from '@/database'
 import { hasGuestData, mergeGuestDataIntoCurrent } from '@/database/guestData'
 import { useLastVisitedRoute } from '@/hooks/useLastVisitedRoute'
+import { useNavigationHistory } from '@/hooks/useNavigationHistory'
 import { useNoteLock } from '@/hooks/useNoteLock'
 import { useSync } from '@/hooks/useSync'
 import { useTheme } from '@/hooks/useTheme'
@@ -26,6 +28,7 @@ const {
   restoreImmediateLastVisitedRoute,
   setupAutoSave,
 } = useLastVisitedRoute()
+const { installRestoredRouteVirtualBackStack } = useNavigationHistory()
 const noteLock = useNoteLock()
 
 const isPrivateRouteRestoreReady = ref(!authService.isAuthenticated())
@@ -38,7 +41,36 @@ const shouldBlockPrivateRoute = computed(() => {
 
 useVisualViewport(true)
 setupAutoSave(router)
-restoreImmediateLastVisitedRoute(router, authService.getCurrentAuthUser()?.id)
+
+function shouldInstallStandaloneVirtualBackStack() {
+  if (typeof window === 'undefined')
+    return false
+
+  if (window.innerWidth >= 640)
+    return false
+
+  const standaloneMedia = typeof window.matchMedia === 'function'
+    ? window.matchMedia('(display-mode: standalone)').matches
+    : false
+  const navigatorStandalone = (window.navigator as Navigator & { standalone?: boolean }).standalone === true
+
+  return standaloneMedia || navigatorStandalone
+}
+
+async function restoreRouteWithVirtualBackStack(
+  restoreRoute: (router: Router, userId?: string | null) => Promise<string | null> | string | null,
+  userId?: string | null,
+) {
+  const restoredPath = await restoreRoute(router, userId)
+
+  if (shouldInstallStandaloneVirtualBackStack()) {
+    installRestoredRouteVirtualBackStack(router, restoredPath)
+  }
+
+  return restoredPath
+}
+
+void restoreRouteWithVirtualBackStack(restoreImmediateLastVisitedRoute, authService.getCurrentAuthUser()?.id)
 
 let hasRealtimeService = false
 let sessionBootstrapPromise: Promise<void> | null = null
@@ -144,7 +176,7 @@ async function bootstrapLoggedInSession() {
     logger.info('全局 PIN 配置同步完成')
 
     isPrivateRouteRestoreReady.value = true
-    await restoreDeferredLastVisitedRoute(router, authManager.userInfo.value?.id)
+    await restoreRouteWithVirtualBackStack(restoreDeferredLastVisitedRoute, authManager.userInfo.value?.id)
   })().catch(async (error) => {
     isPrivateRouteRestoreReady.value = true
 
@@ -180,7 +212,7 @@ onMounted(async () => {
 
     if (token && user) {
       try {
-        await restoreImmediateLastVisitedRoute(router, user.id)
+        await restoreRouteWithVirtualBackStack(restoreImmediateLastVisitedRoute, user.id)
         if (shouldPromptGuestData) {
           await handleGuestDataDecision()
         }
@@ -194,7 +226,7 @@ onMounted(async () => {
       isPrivateRouteRestoreReady.value = true
       realtimeManager.disconnect()
       guestDecisionHandled = false
-      await restoreImmediateLastVisitedRoute(router, null)
+      await restoreRouteWithVirtualBackStack(restoreImmediateLastVisitedRoute, null)
     }
   })
 
