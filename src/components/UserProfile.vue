@@ -30,6 +30,7 @@ import {
 import { computed, onMounted, ref } from 'vue'
 import { authManager } from '@/core/auth-manager'
 import { realtimeManager } from '@/core/realtime-manager'
+import { useDeviceType } from '@/hooks/useDeviceType'
 import { useSync } from '@/hooks/useSync'
 import { pb } from '@/pocketbase'
 
@@ -37,6 +38,7 @@ import { pb } from '@/pocketbase'
 const version = (window as any).version
 
 const router = useIonRouter()
+const { isDesktop } = useDeviceType()
 const { sync, syncing, syncStatus, getLocalDataStats } = useSync()
 
 // 使用核心 authManager
@@ -57,6 +59,8 @@ const avatarUrl = computed(() => {
 // 弹窗控制
 const isModalOpen = ref(false)
 const isLoading = ref(false)
+const modalBreakpoints = computed(() => (isDesktop.value ? undefined : [0, 0.72, 1]))
+const modalInitialBreakpoint = computed(() => (isDesktop.value ? undefined : 0.72))
 
 // 同步相关状态
 const syncResult = ref<{ uploaded: number, downloaded: number, deleted: number } | null>(null)
@@ -220,7 +224,13 @@ onMounted(() => {
   </div>
 
   <!-- 用户信息详情弹窗 -->
-  <IonModal :is-open="isModalOpen" @did-dismiss="closeModal">
+  <IonModal
+    :is-open="isModalOpen"
+    :breakpoints="modalBreakpoints"
+    :initial-breakpoint="modalInitialBreakpoint"
+    class="user-profile-modal"
+    @did-dismiss="closeModal"
+  >
     <IonHeader>
       <IonToolbar>
         <IonTitle>用户信息</IonTitle>
@@ -338,6 +348,18 @@ onMounted(() => {
     </IonContent>
   </IonModal>
 </template>
+
+<style lang="scss">
+.user-profile-modal {
+  --height: auto;
+  --border-radius: 24px 24px 0 0;
+
+  &::part(content) {
+    max-width: 520px;
+    margin: auto;
+  }
+}
+</style>
 
 <style lang="scss">
 .example-test {
