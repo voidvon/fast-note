@@ -17,8 +17,6 @@ type RouteKind = 'note-detail' | 'folder-list' | 'home' | 'public-home' | 'other
 class NavigationHistory {
   private history = ref<HistoryItem[]>([])
   private storageType: StorageType = 'localStorage'
-  private restoredSessionHistorySignature = ''
-  private trackingPauseDepth = 0
 
   constructor() {
     this.loadFromStorage()
@@ -38,10 +36,6 @@ class NavigationHistory {
   }
 
   private handleNavigation(toPath: string, fromPath: string) {
-    if (this.trackingPauseDepth > 0)
-      return
-
-    this.restoredSessionHistorySignature = ''
     const toIndex = this.history.value.findIndex(item => item.path === toPath)
     const fromIndex = this.history.value.findIndex(item => item.path === fromPath)
 
@@ -149,83 +143,6 @@ class NavigationHistory {
     }
   }
 
-  private normalizeBrowserHistoryState(state: unknown) {
-    const nextState = typeof state === 'object' && state !== null
-      ? { ...(state as Record<string, unknown>) }
-      : {}
-
-    return nextState
-  }
-
-  private createSyntheticHistoryState(
-    baseState: Record<string, unknown>,
-    path: string,
-    back: string | null,
-    forward: string | null,
-    position: number,
-  ) {
-    return {
-      ...baseState,
-      back,
-      current: path,
-      forward,
-      position,
-      replaced: false,
-      scroll: null,
-    }
-  }
-
-  getRestoreBackStack(currentPath: string) {
-    const targetIndex = this.history.value.map(item => item.path).lastIndexOf(currentPath)
-    if (targetIndex <= 0)
-      return []
-
-    return this.history.value
-      .slice(0, targetIndex)
-      .map(item => item.path)
-  }
-
-  installRestoredRouteVirtualBackStack(_router: Router, currentPath?: string | null) {
-    if (!currentPath || typeof window === 'undefined') {
-      this.restoredSessionHistorySignature = ''
-      return []
-    }
-
-    const backStack = this.getRestoreBackStack(currentPath)
-    const nextSignature = `${currentPath}::${backStack.join('>>')}`
-    if (backStack.length > 0 && this.restoredSessionHistorySignature === nextSignature) {
-      return backStack
-    }
-
-    if (backStack.length > 0) {
-      const historyChain = [...backStack, currentPath]
-      const baseState = this.normalizeBrowserHistoryState(window.history.state)
-      const basePosition = typeof baseState.position === 'number'
-        ? Math.max(0, baseState.position - backStack.length)
-        : Math.max(0, window.history.length - 1)
-
-      historyChain.forEach((path, index) => {
-        const syntheticState = this.createSyntheticHistoryState(
-          baseState,
-          path,
-          index > 0 ? historyChain[index - 1] : null,
-          index < historyChain.length - 1 ? historyChain[index + 1] : null,
-          basePosition + index,
-        )
-
-        if (index === 0) {
-          window.history.replaceState(syntheticState, '', path)
-        }
-        else {
-          window.history.pushState(syntheticState, '', path)
-        }
-      })
-    }
-
-    this.restoredSessionHistorySignature = nextSignature
-    return backStack
-  }
-
   getPreviousRoute(): string | null {
     return this.history.value.length >= 2
       ? this.history.value[this.history.value.length - 2]?.path || null
@@ -239,7 +156,6 @@ class NavigationHistory {
 
   clearHistory() {
     this.history.value = []
-    this.restoredSessionHistorySignature = ''
     try {
       const storage = this.storageType === 'localStorage' ? localStorage : sessionStorage
       storage.removeItem(NAVIGATION_HISTORY_STORAGE_KEY)
@@ -256,14 +172,6 @@ class NavigationHistory {
   canGoBack() {
     return computed(() => this.history.value.length > 1)
   }
-
-  pauseTracking() {
-    this.trackingPauseDepth++
-  }
-
-  resumeTracking() {
-    this.trackingPauseDepth = Math.max(0, this.trackingPauseDepth - 1)
-  }
 }
 
 const navigationHistory = new NavigationHistory()
@@ -274,14 +182,9 @@ export function useNavigationHistory() {
     setStorageType: (type: StorageType) => navigationHistory.setStorageType(type),
     getSmartBackPath: (currentRoute: RouteLocationNormalized, fallbackPath: string) =>
       navigationHistory.getSmartBackPath(currentRoute, fallbackPath),
-    getRestoreBackStack: (currentPath: string) => navigationHistory.getRestoreBackStack(currentPath),
     getPreviousRoute: () => navigationHistory.getPreviousRoute(),
     canGoBack: navigationHistory.canGoBack(),
     getHistory: navigationHistory.getHistory(),
-    installRestoredRouteVirtualBackStack: (router: Router, currentPath?: string | null) =>
-      navigationHistory.installRestoredRouteVirtualBackStack(router, currentPath),
-    pauseTracking: () => navigationHistory.pauseTracking(),
-    resumeTracking: () => navigationHistory.resumeTracking(),
     clearHistory: () => navigationHistory.clearHistory(),
   }
 }
