@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Editor } from '@tiptap/vue-3'
 import type { Note } from '@/types'
-import { IonBackButton, IonButton, IonButtons, IonContent, IonFooter, IonHeader, IonIcon, IonPage, IonSpinner, IonToolbar, isPlatform, onIonViewWillLeave, toastController } from '@ionic/vue'
+import { IonBackButton, IonButton, IonButtons, IonContent, IonFooter, IonHeader, IonIcon, IonPage, IonSpinner, IonToolbar, isPlatform, onIonViewDidLeave, onIonViewWillLeave, toastController } from '@ionic/vue'
 import { attachOutline, checkmarkCircleOutline, ellipsisHorizontalCircleOutline, textOutline } from 'ionicons/icons'
 import { nanoid } from 'nanoid'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, toRaw, watch } from 'vue'
@@ -53,6 +53,7 @@ const hasCreatedRouteDraft = ref(false)
 const missingPrivateNoteRepairId = ref<string | null>(null)
 const lastSavedContent = ref<string>('') // 记录上次保存的内容
 const saveTimer = ref<number | null>(null) // 防抖定时器
+const retainedEffectiveUuid = ref<string | null>(null)
 
 const state = reactive({
   isFormatModalOpen: false, // 标记格式化面板是否打开
@@ -121,12 +122,17 @@ const effectiveUuid = computed(() => {
   if (idFromSource.value === '0')
     return newNoteId.value
 
-  return idFromSource.value
+  return idFromSource.value || retainedEffectiveUuid.value
 })
 
 watch(idFromSource, async (id, oldId) => {
   const previousEffectiveId = oldId === '0' ? newNoteId.value : oldId
   const previousWasNewNote = oldId === '0' && !hasCreatedRouteDraft.value
+  const isMobileLeavingDetailPage = !isDesktop.value && !!oldId && !id
+
+  if (id) {
+    retainedEffectiveUuid.value = null
+  }
 
   // 桌面端详情页常驻，切换选中项就是“离开当前笔记”。
   if (oldId && oldId !== id && isDesktop.value) {
@@ -161,6 +167,12 @@ watch(idFromSource, async (id, oldId) => {
     syncNewNoteEditorState()
   }
   else if (!isNewNote.value) { // This condition means id is falsy (e.g. '', undefined)
+    // 移动端返回时保留详情页内容到转场结束，避免底层列表页露出时看到正文被提前清空。
+    if (isMobileLeavingDetailPage) {
+      retainedEffectiveUuid.value = previousEffectiveId || null
+      return
+    }
+
     state.isMissingPrivateNote = false
     state.lockViewState = 'unlocked'
     state.lockErrorMessage = ''
@@ -678,6 +690,10 @@ onIonViewWillLeave(() => {
   setTimeout(() => {
     state.showFormat = false
   }, 300)
+})
+
+onIonViewDidLeave(() => {
+  retainedEffectiveUuid.value = null
 })
 </script>
 
