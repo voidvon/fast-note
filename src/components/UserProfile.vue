@@ -245,7 +245,11 @@ onMounted(() => {
       </IonToolbar>
     </IonHeader>
 
-    <IonContent class="ion-padding">
+    <component
+      :is="isDesktop ? 'div' : IonContent"
+      class="user-profile-modal__body ion-padding"
+      :class="{ 'user-profile-modal__body--desktop': isDesktop }"
+    >
       <IonGrid>
         <IonRow>
           <IonCol size="12">
@@ -346,7 +350,7 @@ onMounted(() => {
           </IonCol>
         </IonRow>
       </IonGrid>
-    </IonContent>
+    </component>
   </IonModal>
 </template>
 
@@ -363,6 +367,14 @@ onMounted(() => {
 .user-profile-modal--desktop {
   --height: auto;
   --width: min(520px, calc(100vw - 32px));
+
+  &::part(content) {
+    max-height: min(80vh, 720px);
+  }
+}
+
+.user-profile-modal__body--desktop {
+  overflow-y: auto;
 }
 </style>
 
