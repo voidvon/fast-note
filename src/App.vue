@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { GuestDataDecision } from '@/database/guestData'
+import type { GuestDataDecision } from '@/shared/lib/storage/guest-data'
 import { alertController, IonApp, IonRouterOutlet } from '@ionic/vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -7,14 +7,13 @@ import { pocketbaseAuthAdapter } from '@/adapters/pocketbase/auth-adapter'
 import { PocketBaseRealtimeAdapter } from '@/adapters/pocketbase/realtime-adapter'
 import { authManager } from '@/core/auth-manager'
 import { realtimeManager } from '@/core/realtime-manager'
-import { initializeDatabase } from '@/database'
-import { hasGuestData, mergeGuestDataIntoCurrent } from '@/database/guestData'
 import { useLastVisitedRoute } from '@/hooks/useLastVisitedRoute'
 import { useNoteLock } from '@/hooks/useNoteLock'
 import { useSync } from '@/hooks/useSync'
 import { useTheme } from '@/hooks/useTheme'
-import { authService } from '@/pocketbase'
-import { initializeNotes } from '@/stores'
+import { prepareSessionContext } from '@/processes/session/model/prepare-session-context'
+import { authService } from '@/shared/api/pocketbase'
+import { hasGuestData, mergeGuestDataIntoCurrent } from '@/shared/lib/storage/guest-data'
 import { logger } from '@/utils/logger'
 import { useVisualViewport } from './hooks/useVisualViewport'
 
@@ -46,11 +45,6 @@ let authChangeUnsubscribe: (() => void) | null = null
 let guestDecisionPromise: Promise<void> | null = null
 let guestDecisionHandled = false
 let lastKnownAuthenticated = authService.isAuthenticated()
-
-async function prepareSessionContext(userId?: string | null) {
-  await initializeDatabase(userId)
-  await initializeNotes()
-}
 
 async function promptGuestDataDecision(): Promise<GuestDataDecision> {
   return await new Promise((resolve, reject) => {
@@ -97,7 +91,7 @@ async function handleGuestDataDecision() {
 
     if (decision === 'merge') {
       await mergeGuestDataIntoCurrent()
-      await initializeNotes()
+      await prepareSessionContext(authManager.userInfo.value?.id)
     }
   })().catch((error) => {
     logger.error('游客态数据处理失败:', error)

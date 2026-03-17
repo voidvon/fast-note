@@ -207,7 +207,7 @@ async function mountHomePageForEmptyDetailCreate(options: {
   }))
 
   vi.doMock('@ionic/vue', async () => {
-    const { onMounted } = await import('vue')
+    const { onMounted, onUnmounted } = await import('vue')
 
     return {
       IonAlert: createIonicStub('IonAlert'),
@@ -227,6 +227,7 @@ async function mountHomePageForEmptyDetailCreate(options: {
       isPlatform: () => false,
       onIonViewWillEnter: (callback: () => void) => onMounted(callback),
       onIonViewWillLeave: () => {},
+      onIonViewDidLeave: (callback: () => void) => onUnmounted(callback),
     }
   })
 
