@@ -1,1 +1,1 @@
-export { default } from '@/views/DeletedPage.vue'
+export { default } from './ui/deleted-page.vue'

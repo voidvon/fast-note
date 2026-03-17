@@ -1,1 +1,1 @@
-export { default } from '@/views/LoginPage.vue'
+export { default } from './ui/login-page.vue'

@@ -24,9 +24,9 @@ import { useDeviceType } from '@/hooks/useDeviceType'
 import { useSimpleBackButton } from '@/hooks/useSmartBackButton'
 import { useUserCache } from '@/hooks/useUserCache'
 import { useUserPublicNotesSync } from '@/hooks/useUserPublicNotesSync'
+import FolderPage from '@/pages/folder/ui/folder-page.vue'
+import NoteDetail from '@/pages/note-detail/ui/note-detail-page.vue'
 import { useUserPublicNotes } from '@/stores'
-import FolderPage from './FolderPage.vue'
-import NoteDetail from './NoteDetail.vue'
 
 const route = useRoute()
 const { isDesktop } = useDeviceType()

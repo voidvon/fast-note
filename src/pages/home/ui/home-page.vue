@@ -38,12 +38,12 @@ import {
 } from '@/hooks/useDesktopActiveNote'
 import { useDeviceType } from '@/hooks/useDeviceType'
 import { useExtensions } from '@/hooks/useExtensions'
+import DeletedPage from '@/pages/deleted/ui/deleted-page.vue'
+import FolderPage from '@/pages/folder/ui/folder-page.vue'
+import NoteDetail from '@/pages/note-detail/ui/note-detail-page.vue'
 import { useNote } from '@/stores'
 import { NOTE_TYPE } from '@/types'
 import { getTime } from '@/utils/date'
-import DeletedPage from './DeletedPage.vue'
-import FolderPage from './FolderPage.vue'
-import NoteDetail from './NoteDetail.vue'
 
 const { notes, addNote, getFolderTreeByParentId } = useNote()
 const { isDesktop } = useDeviceType()

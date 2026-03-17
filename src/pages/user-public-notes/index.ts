@@ -1,1 +1,1 @@
-export { default } from '@/views/UserPublicNotesPage.vue'
+export { default } from './ui/user-public-notes-page.vue'

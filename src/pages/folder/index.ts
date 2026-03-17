@@ -1,1 +1,1 @@
-export { default } from '@/views/FolderPage.vue'
+export { default } from './ui/folder-page.vue'
