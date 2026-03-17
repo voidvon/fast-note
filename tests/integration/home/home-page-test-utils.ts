@@ -111,9 +111,10 @@ export async function mountHomePageForDesktopRestore(options: {
     }
   })
 
-  vi.doMock('@/components/GlobalSearch/useGlobalSearch', async () => {
+  vi.doMock('@/features/global-search', async () => {
     const { ref } = await import('vue')
     return {
+      default: createPlainStub('GlobalSearch'),
       useGlobalSearch: () => ({
         showGlobalSearch: ref(false),
       }),
@@ -127,28 +128,25 @@ export async function mountHomePageForDesktopRestore(options: {
     }),
   }))
 
-  vi.doMock('@/components/DarkModeToggle.vue', () => ({
+  vi.doMock('@/features/theme-switch', () => ({
     default: createPlainStub('DarkModeToggle'),
   }))
-  vi.doMock('@/components/ExtensionRenderer.vue', () => ({
+  vi.doMock('@/widgets/extension-renderer', () => ({
     default: createPlainStub('ExtensionRenderer'),
   }))
-  vi.doMock('@/components/GlobalSearch/GlobalSearch.vue', () => ({
-    default: createPlainStub('GlobalSearch'),
-  }))
-  vi.doMock('@/components/NoteList.vue', () => ({
+  vi.doMock('@/widgets/note-list', () => ({
     default: createPlainStub('NoteList'),
   }))
-  vi.doMock('@/components/UserProfile.vue', () => ({
+  vi.doMock('@/widgets/user-profile', () => ({
     default: createPlainStub('UserProfile'),
   }))
-  vi.doMock('@/views/DeletedPage.vue', () => ({
+  vi.doMock('@/pages/deleted/ui/deleted-page.vue', () => ({
     default: createPlainStub('DeletedPage'),
   }))
-  vi.doMock('@/views/FolderPage.vue', () => ({
+  vi.doMock('@/pages/folder/ui/folder-page.vue', () => ({
     default: folderPageStub,
   }))
-  vi.doMock('@/views/NoteDetail.vue', () => ({
+  vi.doMock('@/pages/note-detail/ui/note-detail-page.vue', () => ({
     default: noteDetailStub,
   }))
 
@@ -172,7 +170,7 @@ export async function mountHomePageForDesktopRestore(options: {
     }
   })
 
-  const HomePage = (await import('@/views/HomePage.vue')).default
+  const HomePage = (await import('@/pages/home/ui/home-page.vue')).default
   const wrapper = mount(HomePage, {
     global: {
       stubs: {

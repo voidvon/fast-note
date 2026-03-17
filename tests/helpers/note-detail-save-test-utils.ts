@@ -399,7 +399,7 @@ export async function mountNoteDetailForSaveTest(options: {
     },
   }))
 
-  const NoteDetail = (await import('@/views/NoteDetail.vue')).default
+  const NoteDetail = (await import('@/pages/note-detail/ui/note-detail-page.vue')).default
   const wrapper = mount(NoteDetail, {
     props: {
       noteId,
