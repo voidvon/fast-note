@@ -80,7 +80,7 @@ export async function mountHomePageForDesktopRestore(options: {
   const folderPageStub = createFolderPageStub()
   const noteDetailStub = createNoteDetailStub()
 
-  vi.doMock('@/stores', async () => {
+  vi.doMock('@/entities/note', async () => {
     const { ref } = await import('vue')
     return {
       useNote: () => ({

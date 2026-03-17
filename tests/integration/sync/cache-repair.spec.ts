@@ -34,7 +34,7 @@ describe('cache repair sync (t-fn-032 / tc-fn-025)', () => {
     const getNotesByUpdatedMock = vi.fn(async () => [])
     const getNotesByUpdatedFromCloudMock = vi.fn(async () => ({ d: [cloudNote] }))
 
-    vi.doMock('@/stores', () => ({
+    vi.doMock('@/entities/note', () => ({
       useNote: () => ({
         getNotesByUpdated: getNotesByUpdatedMock,
         getNote: getNoteMock,
@@ -94,7 +94,7 @@ describe('cache repair sync (t-fn-032 / tc-fn-025)', () => {
     const getNotesByUpdatedMock = vi.fn(async () => [])
     const getNotesByUpdatedFromCloudMock = vi.fn(async () => ({ d: [cloudNote] }))
 
-    vi.doMock('@/stores', () => ({
+    vi.doMock('@/entities/note', () => ({
       useNote: () => ({
         getNotesByUpdated: getNotesByUpdatedMock,
         getNote: vi.fn(async () => null),

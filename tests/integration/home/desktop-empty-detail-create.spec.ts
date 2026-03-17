@@ -79,7 +79,7 @@ async function mountHomePageForEmptyDetailCreate(options: {
     },
   })
 
-  vi.doMock('@/stores', async () => {
+  vi.doMock('@/entities/note', async () => {
     const { ref } = await import('vue')
     return {
       useNote: () => ({
