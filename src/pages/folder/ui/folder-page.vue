@@ -20,7 +20,6 @@ import { addOutline, createOutline } from 'ionicons/icons'
 import { nanoid } from 'nanoid'
 import { computed, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute } from 'vue-router'
-import NoteList from '@/components/NoteList.vue'
 import { useDeviceType } from '@/hooks/useDeviceType'
 import { useIonContentScrollMemory } from '@/hooks/useIonContentScrollMemory'
 import { useRouteStateRestore } from '@/hooks/useRouteStateRestore'
@@ -28,6 +27,7 @@ import { useFolderBackButton } from '@/hooks/useSmartBackButton'
 import { useNote, useUserPublicNotes } from '@/stores'
 import { NOTE_TYPE } from '@/types'
 import { getTime } from '@/utils/date'
+import NoteList from '@/widgets/note-list'
 
 const props = withDefaults(
   defineProps<{

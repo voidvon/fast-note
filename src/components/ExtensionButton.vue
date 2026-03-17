@@ -1,12 +1,5 @@
-<script setup lang="ts">
-import { IonButton, IonIcon } from '@ionic/vue'
-import { extensionPuzzleOutline } from 'ionicons/icons'
+<script lang="ts">
+import ExtensionButton from '@/shared/ui/extension-button'
 
-defineEmits(['click'])
+export default ExtensionButton
 </script>
-
-<template>
-  <IonButton fill="clear" @click="$emit('click')">
-    <IonIcon :icon="extensionPuzzleOutline" />
-  </IonButton>
-</template>

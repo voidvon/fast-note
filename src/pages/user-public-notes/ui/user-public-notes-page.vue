@@ -19,7 +19,6 @@ import {
 import { alertCircleOutline, folderOutline } from 'ionicons/icons'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import NoteList from '@/components/NoteList.vue'
 import { useDeviceType } from '@/hooks/useDeviceType'
 import { useSimpleBackButton } from '@/hooks/useSmartBackButton'
 import { useUserCache } from '@/hooks/useUserCache'
@@ -27,6 +26,7 @@ import { useUserPublicNotesSync } from '@/hooks/useUserPublicNotesSync'
 import FolderPage from '@/pages/folder/ui/folder-page.vue'
 import NoteDetail from '@/pages/note-detail/ui/note-detail-page.vue'
 import { useUserPublicNotes } from '@/stores'
+import NoteList from '@/widgets/note-list'
 
 const route = useRoute()
 const { isDesktop } = useDeviceType()

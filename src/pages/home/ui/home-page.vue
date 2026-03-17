@@ -21,15 +21,11 @@ import {
 import { addOutline, createOutline } from 'ionicons/icons'
 import { nanoid } from 'nanoid'
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
-import DarkModeToggle from '@/components/DarkModeToggle.vue'
-// import ExtensionButton from '@/components/ExtensionButton.vue'
-// import ExtensionManager from '@/components/ExtensionManager.vue'
-import ExtensionRenderer from '@/components/ExtensionRenderer.vue'
-import GlobalSearch from '@/components/GlobalSearch/GlobalSearch.vue'
-import { useGlobalSearch } from '@/components/GlobalSearch/useGlobalSearch'
-import NoteList from '@/components/NoteList.vue'
-import UserProfile from '@/components/UserProfile.vue'
+// import ExtensionButton from '@/shared/ui/extension-button'
+// import ExtensionManager from '@/features/extension-manager'
 import { authManager } from '@/core/auth-manager'
+import GlobalSearch, { useGlobalSearch } from '@/features/global-search'
+import DarkModeToggle from '@/features/theme-switch'
 import {
   getDesktopNotesForFolder,
   isDesktopFolderAvailable,
@@ -44,6 +40,9 @@ import NoteDetail from '@/pages/note-detail/ui/note-detail-page.vue'
 import { useNote } from '@/stores'
 import { NOTE_TYPE } from '@/types'
 import { getTime } from '@/utils/date'
+import ExtensionRenderer from '@/widgets/extension-renderer'
+import NoteList from '@/widgets/note-list'
+import UserProfile from '@/widgets/user-profile'
 
 const { notes, addNote, getFolderTreeByParentId } = useNote()
 const { isDesktop } = useDeviceType()

@@ -5,11 +5,11 @@ import { IonCol, IonGrid, IonModal, IonRow, toastController, useIonRouter } from
 import { lockClosed, lockOpen, shareOutline, trashOutline } from 'ionicons/icons'
 import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import IconTextButton from '@/components/IconTextButton.vue'
 import { useNoteRepository } from '@/entities/note'
 import { useNoteDelete } from '@/features/note-delete'
 import { NoteLockManageModal, NoteLockSetupModal, useNoteLockModalFlow } from '@/features/note-lock'
 import { usePublicNoteShare } from '@/features/public-note-share'
+import IconTextButton from '@/shared/ui/icon-text-button'
 
 const props = withDefaults(defineProps<{
   isOpen: boolean

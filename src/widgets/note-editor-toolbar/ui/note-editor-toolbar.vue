@@ -3,9 +3,9 @@ import type { Editor } from '@tiptap/vue-3'
 import { IonButton, IonFooter, IonIcon, IonToolbar } from '@ionic/vue'
 import { attachOutline, checkmarkCircleOutline, textOutline } from 'ionicons/icons'
 import { ref, watch } from 'vue'
-import Icon from '@/components/Icon.vue'
-import TableFormatModal from '@/components/TableFormatModal.vue'
-import TextFormatModal from '@/components/TextFormatModal.vue'
+import Icon from '@/shared/ui/icon'
+import TableFormatModal from './table-format-modal.vue'
+import TextFormatModal from './text-format-modal.vue'
 
 interface NoteEditorToolbarHost {
   editor?: Editor

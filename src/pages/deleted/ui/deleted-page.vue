@@ -11,10 +11,10 @@ import {
   IonToolbar,
 } from '@ionic/vue'
 import { computed, onMounted, onUnmounted, reactive } from 'vue'
-import NoteList from '@/components/NoteList.vue'
 import { useDeviceType } from '@/hooks/useDeviceType'
 import { useSimpleBackButton } from '@/hooks/useSmartBackButton'
 import { useNote } from '@/stores'
+import NoteList from '@/widgets/note-list'
 
 const props = withDefaults(defineProps<{
   selectedNoteId?: string

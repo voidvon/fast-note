@@ -1,13 +1,5 @@
-<template>
-  <svg :class="{ [`icon-color-${$attrs.color}`]: $attrs.color }" class="icon-component icon" aria-hidden="true">
-    <use :xlink:href="`#icon-${$attrs.name}`" />
-  </svg>
-</template>
+<script lang="ts">
+import Icon from '@/shared/ui/icon'
 
-<style lang="scss">
-.icon-component {
-  &.icon-color-danger {
-    color: var(--danger);
-  }
-}
-</style>
+export default Icon
+</script>
