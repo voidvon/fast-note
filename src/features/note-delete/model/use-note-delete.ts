@@ -1,5 +1,6 @@
+import type { NoteRepository } from '@/entities/note'
 import type { Note } from '@/types'
-import { useNote } from '@/stores'
+import { useNoteRepository } from '@/entities/note'
 import { getTime } from '@/utils/date'
 
 export interface NoteDeleteResult {
@@ -8,12 +9,12 @@ export interface NoteDeleteResult {
 }
 
 export interface UseNoteDeleteOptions {
-  updateNote?: ReturnType<typeof useNote>['updateNote']
-  updateParentFolderSubcount?: ReturnType<typeof useNote>['updateParentFolderSubcount']
+  updateNote?: NoteRepository['updateNote']
+  updateParentFolderSubcount?: NoteRepository['updateParentFolderSubcount']
 }
 
 export function useNoteDelete(options: UseNoteDeleteOptions = {}) {
-  const noteStore = useNote()
+  const noteStore = useNoteRepository()
   const updateNote = options.updateNote || noteStore.updateNote
   const updateParentFolderSubcount = options.updateParentFolderSubcount || noteStore.updateParentFolderSubcount
 

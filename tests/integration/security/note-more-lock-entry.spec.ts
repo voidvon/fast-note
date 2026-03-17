@@ -118,8 +118,8 @@ describe('note more lock entry integration', () => {
         },
       }),
     }))
-    vi.doMock('@/stores', () => ({
-      useNote: () => ({
+    vi.doMock('@/entities/note', () => ({
+      useNoteRepository: () => ({
         getNote: getNoteMock,
         updateNote: vi.fn(),
         updateParentFolderSubcount: vi.fn(),
@@ -203,8 +203,8 @@ describe('note more lock entry integration', () => {
         },
       }),
     }))
-    vi.doMock('@/stores', () => ({
-      useNote: () => ({
+    vi.doMock('@/entities/note', () => ({
+      useNoteRepository: () => ({
         getNote: vi.fn(async () => ({
           id: 'note-2',
           is_locked: 1,
@@ -298,8 +298,8 @@ describe('note more lock entry integration', () => {
         },
       }),
     }))
-    vi.doMock('@/stores', () => ({
-      useNote: () => ({
+    vi.doMock('@/entities/note', () => ({
+      useNoteRepository: () => ({
         getNote: getNoteMock,
         updateNote: vi.fn(),
         updateParentFolderSubcount: vi.fn(),

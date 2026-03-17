@@ -1,35 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { makeNote } from '../../../factories/note.factory'
 
-function createDbMock(notes: any[]) {
-  return {
-    value: {
-      notes: {
-        where(field: string) {
-          return {
-            equals(value: string) {
-              const matched = notes.filter(note => note[field] === value)
-
-              return {
-                and(predicate: (item: any) => boolean) {
-                  return {
-                    async toArray() {
-                      return matched.filter(predicate)
-                    },
-                  }
-                },
-                async first() {
-                  return matched[0] || null
-                },
-              }
-            },
-          }
-        },
-      },
-    },
-  }
-}
-
 describe('usePublicNoteShare', () => {
   afterEach(() => {
     vi.clearAllMocks()
@@ -54,13 +25,12 @@ describe('usePublicNoteShare', () => {
       Object.assign(target!, updates)
     })
 
-    vi.doMock('@/database', () => ({
-      useDexie: () => ({
-        db: createDbMock(notes),
-      }),
-    }))
-    vi.doMock('@/stores', () => ({
-      useNote: () => ({
+    vi.doMock('@/entities/note', () => ({
+      useNoteRepository: () => ({
+        getNote: vi.fn((id: string) => notes.find(note => note.id === id) || null),
+        getNotesByParentId: vi.fn(async (parentId: string) => {
+          return notes.filter(note => note.parent_id === parentId && note.is_deleted !== 1)
+        }),
         updateNote,
       }),
     }))
@@ -110,13 +80,12 @@ describe('usePublicNoteShare', () => {
       Object.assign(target!, updates)
     })
 
-    vi.doMock('@/database', () => ({
-      useDexie: () => ({
-        db: createDbMock(notes),
-      }),
-    }))
-    vi.doMock('@/stores', () => ({
-      useNote: () => ({
+    vi.doMock('@/entities/note', () => ({
+      useNoteRepository: () => ({
+        getNote: vi.fn((id: string) => notes.find(note => note.id === id) || null),
+        getNotesByParentId: vi.fn(async (parentId: string) => {
+          return notes.filter(note => note.parent_id === parentId && note.is_deleted !== 1)
+        }),
         updateNote,
       }),
     }))

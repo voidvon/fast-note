@@ -16,8 +16,8 @@ describe('useNoteDelete', () => {
       is_deleted: 0,
     })
 
-    vi.doMock('@/stores', () => ({
-      useNote: () => ({
+    vi.doMock('@/entities/note', () => ({
+      useNoteRepository: () => ({
         updateNote,
         updateParentFolderSubcount,
       }),

@@ -32,6 +32,8 @@ export type {
   NoteLockModalState,
   PendingNoteLockModal,
 } from './model/use-note-lock-modal-flow'
+export { useNoteLockViewFlow } from './model/use-note-lock-view-flow'
+export type { NoteLockViewFlowState, UseNoteLockViewFlowOptions } from './model/use-note-lock-view-flow'
 
 export { default as NoteLockManageModal } from './ui/note-lock-manage-modal.vue'
 export { default as NoteLockSetupModal } from './ui/note-lock-setup-modal.vue'

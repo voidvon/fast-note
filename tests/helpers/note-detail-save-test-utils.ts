@@ -329,20 +329,25 @@ export async function mountNoteDetailForSaveTest(options: {
     }),
   }))
 
-  vi.doMock('@/features/note-lock', () => ({
-    NoteUnlockPanel: NoteUnlockPanelStub,
-    useNoteLock: () => ({
-      getLockViewState: getLockViewStateMock,
-      isBiometricSupported: vi.fn(() => false),
-      isPinLockNote: vi.fn((note?: Note | null) => {
-        if (typeof options.isPinLockNote === 'boolean')
-          return options.isPinLockNote
-        return note?.is_locked === 1
+  vi.doMock('@/features/note-lock', async () => {
+    const actual = await vi.importActual<typeof import('@/features/note-lock')>('@/features/note-lock')
+
+    return {
+      ...actual,
+      NoteUnlockPanel: NoteUnlockPanelStub,
+      useNoteLock: () => ({
+        getLockViewState: getLockViewStateMock,
+        isBiometricSupported: vi.fn(() => false),
+        isPinLockNote: vi.fn((note?: Note | null) => {
+          if (typeof options.isPinLockNote === 'boolean')
+            return options.isPinLockNote
+          return note?.is_locked === 1
+        }),
+        tryBiometricUnlock: tryBiometricUnlockMock,
+        verifyPin: verifyPinMock,
       }),
-      tryBiometricUnlock: tryBiometricUnlockMock,
-      verifyPin: verifyPinMock,
-    }),
-  }))
+    }
+  })
 
   vi.doMock('vue-router', () => ({
     useRoute: () => route,
@@ -356,6 +361,9 @@ export async function mountNoteDetailForSaveTest(options: {
   }))
   vi.doMock('@/widgets/note-more', () => ({
     default: createPlainStub('NoteMore'),
+  }))
+  vi.doMock('@/widgets/note-editor-toolbar', () => ({
+    default: createPlainStub('NoteEditorToolbar'),
   }))
   vi.doMock('@/components/TableFormatModal.vue', () => ({
     default: createPlainStub('TableFormatModal'),

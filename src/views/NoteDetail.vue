@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import type { Editor } from '@tiptap/vue-3'
+import type { LeaveFlushReason, SaveTargetContext } from '@/features/note-save'
 import type { Note } from '@/types'
-import { IonBackButton, IonButton, IonButtons, IonContent, IonFooter, IonHeader, IonIcon, IonPage, IonSpinner, IonToolbar, isPlatform, onIonViewDidLeave, onIonViewWillLeave, toastController } from '@ionic/vue'
-import { attachOutline, checkmarkCircleOutline, ellipsisHorizontalCircleOutline, textOutline } from 'ionicons/icons'
+import { IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonPage, IonSpinner, IonToolbar, isPlatform, toastController } from '@ionic/vue'
+import { ellipsisHorizontalCircleOutline } from 'ionicons/icons'
 import { nanoid } from 'nanoid'
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, toRaw, watch } from 'vue'
+import { computed, nextTick, reactive, ref, toRaw, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import Icon from '@/components/Icon.vue'
-import TableFormatModal from '@/components/TableFormatModal.vue'
-import TextFormatModal from '@/components/TextFormatModal.vue'
-import { NoteUnlockPanel, useNoteLock } from '@/features/note-lock'
+import { useNoteDetailEditorState } from '@/features/note-detail-editor'
+import { useNoteDetailEntry } from '@/features/note-detail-entry'
+import { useNoteDetailLeave, useNoteDetailLeaveLifecycle } from '@/features/note-detail-leave'
+import { useNoteDetailPrivate } from '@/features/note-detail-private'
+import { useNoteDetailViewState } from '@/features/note-detail-view'
+import { NoteUnlockPanel, useNoteLock, useNoteLockViewFlow } from '@/features/note-lock'
 import { useNoteSave } from '@/features/note-save'
 import { useDeviceType } from '@/hooks/useDeviceType'
 import { useNoteBackButton } from '@/hooks/useSmartBackButton'
@@ -17,6 +19,7 @@ import { useSync } from '@/hooks/useSync'
 import { useVisualViewport } from '@/hooks/useVisualViewport'
 import { useNote, useUserPublicNotes } from '@/stores'
 import YYEditor from '@/widgets/editor'
+import NoteEditorToolbar from '@/widgets/note-editor-toolbar'
 import NoteMore from '@/widgets/note-more'
 
 const props = withDefaults(
@@ -43,28 +46,36 @@ const { sync } = syncApi
 const isIos = isPlatform('ios')
 const pageRef = ref()
 const editorRef = ref()
-const fileInputRef = ref()
-const imageInputRef = ref()
+const editorToolbarRef = ref<{ closePanels: () => void } | null>(null)
 const data = ref()
 const newNoteId = ref<string | null>(null)
 const hasCreatedRouteDraft = ref(false)
-const missingPrivateNoteRepairId = ref<string | null>(null)
-const saveTimer = ref<number | null>(null) // 防抖定时器
 const retainedEffectiveUuid = ref<string | null>(null)
 
 const state = reactive({
   isFormatModalOpen: false, // 标记格式化面板是否打开
   isMissingPrivateNote: false,
-  lockBiometricEnabled: false,
-  lockDeviceSupportsBiometric: false,
-  isPinUnlocking: false,
-  lockCooldownUntil: null as number | null,
-  lockErrorMessage: '',
-  lockFailedAttempts: 0,
-  lockViewState: 'unlocked' as 'unlocked' | 'locked' | 'unlocking' | 'cooldown',
-  showFormat: false,
   showNoteMore: false,
-  showTableFormat: false,
+})
+const idFromRoute = computed(() => route.params.id as string || route.params.noteId as string)
+const idFromSource = computed(() => props.noteId || idFromRoute.value)
+const noteDetailLeave = useNoteDetailLeave({
+  getDraftId() {
+    return newNoteId.value
+  },
+  getEffectiveUuid() {
+    return idFromSource.value === '0'
+      ? newNoteId.value
+      : (idFromSource.value || retainedEffectiveUuid.value)
+  },
+  getNotesSync,
+  isDesktop() {
+    return isDesktop.value
+  },
+  isRouteDraftCreated() {
+    return hasCreatedRouteDraft.value
+  },
+  onSave: handleNoteSaving,
 })
 const {
   isSaving: isNoteSaving,
@@ -78,7 +89,7 @@ const {
   sync,
   restoreHeight,
   presentTopError,
-  flushNotesToLocal,
+  flushNotesToLocal: noteDetailLeave.flushNotesToLocal,
   emitNoteSaved(payload) {
     emit('noteSaved', payload)
   },
@@ -92,7 +103,8 @@ const {
     state.isMissingPrivateNote = value
   },
   onMissingPrivateNote() {
-    syncMissingPrivateNoteState()
+    editorRef.value?.setContent('')
+    editorRef.value?.setEditable(false)
   },
   onRouteDraftCreated(noteId) {
     hasCreatedRouteDraft.value = true
@@ -101,53 +113,104 @@ const {
       replaceMobileDraftUrl(noteId)
   },
 })
-
-const idFromRoute = computed(() => route.params.id as string || route.params.noteId as string)
-const idFromSource = computed(() => props.noteId || idFromRoute.value)
-const isNewNote = computed(() => idFromSource.value === '0' && !hasCreatedRouteDraft.value)
+const noteDetailEditorState = useNoteDetailEditorState({
+  getEditor() {
+    return editorRef.value
+  },
+  setLastSavedContent(content) {
+    lastSavedContent.value = content
+  },
+})
+const noteLockView = useNoteLockViewFlow({
+  noteLock,
+  onLocked() {
+    noteDetailEditorState.showLockedNote()
+  },
+  onUnlocked(note) {
+    noteDetailEditorState.showUnlockedNote(note)
+  },
+})
 const username = computed(() => route.params.username as string)
 const isUserContext = computed(() => !!username.value)
-const isMissingPrivateNote = computed(() => !isUserContext.value && !isNewNote.value && state.isMissingPrivateNote)
-const isReadOnly = computed(() => isUserContext.value || data.value?.is_deleted === 1)
-const isPinLockedForView = computed(() => {
-  return !!data.value && noteLock.isPinLockNote(data.value) && state.lockViewState !== 'unlocked'
+const privateNoteDetail = useNoteDetailPrivate({
+  getNote,
+  onLoaded: applyPrivateNoteState,
+  onMissing() {
+    state.isMissingPrivateNote = true
+    lastSavedContent.value = ''
+    noteDetailEditorState.showMissingPrivateNote()
+  },
+  repairMissingPrivateNoteIfNeeded: syncApi.repairMissingPrivateNoteIfNeeded,
 })
-const isEditorBlocked = computed(() => {
-  return isReadOnly.value || isMissingPrivateNote.value || isPinLockedForView.value
+const noteDetailEntry = useNoteDetailEntry({
+  applyPublicNote(note) {
+    data.value = note || null
+    if (!note) {
+      lastSavedContent.value = ''
+      return
+    }
+
+    noteDetailEditorState.showReadOnlyNote(note)
+  },
+  async clearSelection() {
+    data.value = null
+    lastSavedContent.value = ''
+    noteDetailEditorState.clearSelection()
+  },
+  createDraftId() {
+    return nanoid(12)
+  },
+  async enterNewDraft(draftId) {
+    data.value = null
+    newNoteId.value = draftId
+    lastSavedContent.value = ''
+    await nextTick()
+    noteDetailEditorState.showNewDraft()
+  },
+  getPublicNote(id) {
+    return useUserPublicNotes(username.value).getPublicNote(id) || null
+  },
+  loadPrivateNote: privateNoteDetail.loadPrivateNote,
+  resetLockView: noteLockView.reset,
+  resetMissingPrivateNote() {
+    state.isMissingPrivateNote = false
+  },
 })
-const canShowNoteActions = computed(() => {
-  return !isEditorBlocked.value && !!data.value?.id
+const isNewNote = computed(() => idFromSource.value === '0' && !hasCreatedRouteDraft.value)
+const {
+  canShowNoteActions,
+  isEditorBlocked,
+  isMissingPrivateNote,
+  isPinLockedForView,
+} = useNoteDetailViewState({
+  getCurrentNote() {
+    return data.value
+  },
+  getLockViewState() {
+    return noteLockView.state.viewState
+  },
+  isNewNote() {
+    return isNewNote.value
+  },
+  isPinLockNote(note) {
+    return noteLock.isPinLockNote(note)
+  },
+  isUserContext() {
+    return isUserContext.value
+  },
+  isMissingPrivateNoteState() {
+    return state.isMissingPrivateNote
+  },
+})
+
+watch(isEditorBlocked, (blocked) => {
+  if (blocked) {
+    state.isFormatModalOpen = false
+  }
 })
 
 // 智能返回按钮
 const { backButtonProps } = useNoteBackButton(route, data, username.value)
-
-function syncNewNoteEditorState() {
-  if (!editorRef.value) {
-    return
-  }
-
-  editorRef.value.setContent('')
-  editorRef.value.setEditable(true)
-  editorRef.value.applyDefaultNewNoteHeading?.()
-
-  nextTick(() => {
-    setTimeout(() => {
-      editorRef.value?.focus()
-    }, 100)
-  })
-}
-
-watch(isNewNote, (isNew) => {
-  if (isNew && !newNoteId.value)
-    newNoteId.value = nanoid(12)
-}, { immediate: true })
-
-watch(editorRef, (editorInstance) => {
-  if (editorInstance && idFromSource.value === '0') {
-    syncNewNoteEditorState()
-  }
-})
 
 const effectiveUuid = computed(() => {
   if (idFromSource.value === '0')
@@ -157,99 +220,44 @@ const effectiveUuid = computed(() => {
 })
 
 watch(idFromSource, async (id, oldId) => {
-  const previousEffectiveId = oldId === '0' ? newNoteId.value : oldId
-  const previousWasNewNote = oldId === '0' && !hasCreatedRouteDraft.value
-  const isMobileLeavingDetailPage = !isDesktop.value && !!oldId && !id
+  const transition = await noteDetailLeave.handleRouteTransition(oldId, id)
 
   if (id) {
     retainedEffectiveUuid.value = null
   }
 
-  // 桌面端详情页常驻，切换选中项就是“离开当前笔记”。
-  if (oldId && oldId !== id && isDesktop.value) {
-    await handleNoteSaving(true, null, {
-      noteId: previousEffectiveId,
-      wasNewNote: previousWasNewNote,
-    })
-  }
-
   if (id !== oldId) {
-    missingPrivateNoteRepairId.value = null
+    privateNoteDetail.reset()
     hasCreatedRouteDraft.value = false
   }
 
   if (id && id !== '0') {
-    state.isMissingPrivateNote = false
-    init(id)
+    await openExistingEntry(id)
   }
   else if (id === '0') {
-    state.isMissingPrivateNote = false
-    state.lockViewState = 'unlocked'
-    state.lockErrorMessage = ''
-    state.lockFailedAttempts = 0
-    state.lockBiometricEnabled = false
-    state.lockDeviceSupportsBiometric = false
-    state.lockCooldownUntil = null
-    // 新建笔记，立即清空编辑器和数据
-    data.value = null
-    newNoteId.value = nanoid(12)
-    lastSavedContent.value = '' // 重置上次保存的内容
-
-    syncNewNoteEditorState()
+    await noteDetailEntry.openNewDraft()
   }
   else if (!isNewNote.value) { // This condition means id is falsy (e.g. '', undefined)
     // 移动端返回时保留详情页内容到转场结束，避免底层列表页露出时看到正文被提前清空。
-    if (isMobileLeavingDetailPage) {
-      retainedEffectiveUuid.value = previousEffectiveId || null
+    if (transition.isMobileLeavingDetailPage) {
+      retainedEffectiveUuid.value = transition.previousEffectiveId
       return
     }
 
-    state.isMissingPrivateNote = false
-    state.lockViewState = 'unlocked'
-    state.lockErrorMessage = ''
-    state.lockFailedAttempts = 0
-    state.lockBiometricEnabled = false
-    state.lockDeviceSupportsBiometric = false
-    state.lockCooldownUntil = null
-    // No note selected, clear editor
-    data.value = null
-    lastSavedContent.value = '' // 重置上次保存的内容
-    // Using nextTick to ensure editorRef is available
-    nextTick(() => {
-      if (editorRef.value) {
-        editorRef.value.setContent('')
-        editorRef.value.setEditable(true)
-      }
-    })
+    await noteDetailEntry.clearDetailSelection()
   }
 }, { immediate: true })
 
-watch(() => state.showTableFormat, (n) => {
-  state.isFormatModalOpen = n
-  changeFormatModal(n)
+useNoteDetailLeaveLifecycle({
+  clearPendingSaveTimer: noteDetailLeave.clearPendingSaveTimer,
+  closeToolbarPanels() {
+    editorToolbarRef.value?.closePanels()
+  },
+  onDetailDidLeave() {
+    retainedEffectiveUuid.value = null
+  },
+  triggerLeavePageLocalFlush: noteDetailLeave.triggerLeavePageLocalFlush,
 })
-watch(() => state.showFormat, (n) => {
-  state.isFormatModalOpen = n
-  changeFormatModal(n)
-})
-
-function changeFormatModal(n: boolean) {
-  if (n) {
-    editorRef.value?.setInputMode('none')
-    setTimeout(() => {
-      editorRef.value?.editor.chain().focus()
-    }, 500)
-  }
-  else {
-    editorRef.value?.setInputMode('text')
-    setTimeout(() => {
-      editorRef.value?.editor.chain().blur()
-      setTimeout(() => {
-        editorRef.value?.editor.chain().focus()
-      }, 300)
-    }, 10)
-  }
-}
 
 async function presentTopError(message: string) {
   await toastController.dismiss(undefined, undefined, 'note-detail-error-toast')
@@ -272,123 +280,11 @@ function replaceMobileDraftUrl(noteId: string) {
   window.history.replaceState(null, '', `/n/${noteId}`)
 }
 
-function syncMissingPrivateNoteState() {
-  if (!editorRef.value)
-    return
-
-  editorRef.value.setContent('')
-  editorRef.value.setEditable(false)
-}
-
-function syncLockedNoteState() {
-  if (!editorRef.value)
-    return
-
-  editorRef.value.setContent('')
-  editorRef.value.setEditable(false)
-}
-
-function syncUnlockedNoteState(note: Note) {
-  nextTick(() => {
-    editorRef.value?.setEditable(note.is_deleted !== 1)
-    editorRef.value?.setContent(note.content || '')
-    lastSavedContent.value = note.content || ''
-  })
-}
-
-async function refreshPinLockState(note: Note) {
-  const snapshot = await noteLock.getLockViewState(note.id, note)
-  state.lockViewState = snapshot.viewState
-  state.lockFailedAttempts = snapshot.failedAttempts
-  state.lockCooldownUntil = snapshot.cooldownUntil
-  state.lockBiometricEnabled = snapshot.biometricEnabled
-  state.lockDeviceSupportsBiometric = snapshot.deviceSupportsBiometric
-
-  if (snapshot.viewState !== 'cooldown') {
-    state.lockErrorMessage = ''
-  }
-
-  return snapshot
-}
-
 async function applyPrivateNoteState(note: Note) {
   data.value = note
   state.isMissingPrivateNote = false
-  missingPrivateNoteRepairId.value = null
-
-  if (noteLock.isPinLockNote(note)) {
-    const lockSnapshot = await refreshPinLockState(note)
-    if (lockSnapshot.viewState !== 'unlocked') {
-      syncLockedNoteState()
-      return
-    }
-  }
-  else {
-    state.lockViewState = 'unlocked'
-    state.lockFailedAttempts = 0
-    state.lockBiometricEnabled = false
-    state.lockDeviceSupportsBiometric = false
-    state.lockCooldownUntil = null
-    state.lockErrorMessage = ''
-  }
-
-  syncUnlockedNoteState(note)
-}
-
-type LeaveFlushReason = 'view-leave' | 'pagehide' | 'beforeunload'
-interface SaveTargetContext {
-  noteId?: string | null
-  wasNewNote?: boolean
-}
-
-function clearPendingSaveTimer() {
-  if (saveTimer.value) {
-    clearTimeout(saveTimer.value)
-    saveTimer.value = null
-  }
-}
-
-async function flushNotesToLocal(reason: LeaveFlushReason) {
-  const notesSync = getNotesSync()
-  if (!notesSync)
-    return
-
-  try {
-    console.warn('NoteDetail 离开页触发本地落盘', {
-      reason,
-      noteId: effectiveUuid.value,
-    })
-    await notesSync.manualSync()
-  }
-  catch (error) {
-    console.error('NoteDetail 本地落盘兜底失败:', error)
-  }
-}
-
-function triggerLeavePageLocalFlush(reason: LeaveFlushReason) {
-  clearPendingSaveTimer()
-  void handleNoteSaving(true, reason)
-}
-
-async function tryRepairMissingPrivateNote(id: string) {
-  if (missingPrivateNoteRepairId.value === id)
-    return
-
-  missingPrivateNoteRepairId.value = id
-
-  try {
-    const repaired = await syncApi.repairMissingPrivateNoteIfNeeded?.(id)
-    if (!repaired)
-      return
-
-    const repairedNote = await getNote(id)
-    if (repairedNote) {
-      await applyPrivateNoteState(repairedNote)
-    }
-  }
-  catch (error) {
-    console.error('缺失私有备忘录补齐失败:', error)
-  }
+  privateNoteDetail.reset()
+  await noteLockView.applyNoteState(note)
 }
 
 async function handleNoteSaving(
@@ -413,45 +309,12 @@ async function handleNoteSaving(
 
 // 防抖保存函数
 function debouncedSave(silent = false) {
-  clearPendingSaveTimer()
-
-  // 设置新的定时器，800ms 后执行保存
-  saveTimer.value = window.setTimeout(() => {
-    saveTimer.value = null
-    void handleNoteSaving(silent)
-  }, 800)
+  noteDetailLeave.debouncedSave(silent)
 }
 
-async function init(id: string) {
+async function openExistingEntry(id: string) {
   try {
-    if (isUserContext.value) {
-      const { getPublicNote } = useUserPublicNotes(username.value)
-      // 获取用户公开笔记
-      data.value = getPublicNote(id)
-      if (data.value) {
-        nextTick(() => {
-          editorRef.value?.setEditable(false)
-          editorRef.value?.setContent(data.value?.content || '')
-          // 记录初始内容
-          lastSavedContent.value = data.value?.content || ''
-        })
-      }
-    }
-    else {
-      // 获取当前用户的笔记
-      const note = await getNote(id)
-      if (note) {
-        await applyPrivateNoteState(note)
-      }
-      else {
-        state.isMissingPrivateNote = true
-        lastSavedContent.value = ''
-        nextTick(() => {
-          syncMissingPrivateNoteState()
-        })
-        void tryRepairMissingPrivateNote(id)
-      }
-    }
+    await noteDetailEntry.openExisting(id, isUserContext.value)
   }
   catch (error) {
     console.error('初始化笔记失败:', error)
@@ -467,31 +330,7 @@ async function handlePinUnlock(pin: string) {
     return
   }
 
-  state.isPinUnlocking = true
-  state.lockViewState = 'unlocking'
-  state.lockErrorMessage = ''
-
-  try {
-    const result = await noteLock.verifyPin(data.value.id, pin)
-    state.lockFailedAttempts = result.failedAttempts
-    state.lockCooldownUntil = result.cooldownUntil
-
-    if (!result.ok) {
-      state.lockViewState = result.code === 'cooldown' ? 'cooldown' : 'locked'
-      state.lockErrorMessage = result.message || 'PIN 不正确，请重试'
-      syncLockedNoteState()
-      return
-    }
-
-    state.lockViewState = 'unlocked'
-    state.lockErrorMessage = ''
-    if (data.value) {
-      syncUnlockedNoteState(data.value)
-    }
-  }
-  finally {
-    state.isPinUnlocking = false
-  }
+  await noteLockView.unlockWithPin(data.value, pin)
 }
 
 async function handleBiometricUnlock() {
@@ -499,31 +338,7 @@ async function handleBiometricUnlock() {
     return
   }
 
-  state.isPinUnlocking = true
-  state.lockViewState = 'unlocking'
-  state.lockErrorMessage = ''
-
-  try {
-    const result = await noteLock.tryBiometricUnlock(data.value.id, data.value)
-    state.lockFailedAttempts = result.failedAttempts
-    state.lockCooldownUntil = result.cooldownUntil
-
-    if (!result.ok) {
-      state.lockViewState = result.code === 'cooldown' ? 'cooldown' : 'locked'
-      state.lockErrorMessage = result.message || '生物识别不可用，请输入 PIN 解锁'
-      syncLockedNoteState()
-      return
-    }
-
-    state.lockViewState = 'unlocked'
-    state.lockErrorMessage = ''
-    if (data.value) {
-      syncUnlockedNoteState(data.value)
-    }
-  }
-  finally {
-    state.isPinUnlocking = false
-  }
+  await noteLockView.unlockWithBiometric(data.value)
 }
 
 async function handleNoteLockUpdated(updatedNote: Note) {
@@ -531,67 +346,6 @@ async function handleNoteLockUpdated(updatedNote: Note) {
   state.showNoteMore = false
   await applyPrivateNoteState(updatedNote)
 }
-
-async function onSelectFile(e: Event) {
-  const input = e.target as HTMLInputElement
-  if (input.files && input.files.length > 0) {
-    // 插入文件到编辑器，富文本编辑器会自动处理文件管理
-    await editorRef.value?.insertFiles(input.files)
-
-    // 清空 input 以允许重复选择同一文件
-    input.value = ''
-  }
-}
-
-function onInsertTodo() {
-  editorRef.value?.editor.chain().focus().toggleTaskList().run()
-}
-
-function openTableFormatModal() {
-  editorRef.value?.setInputMode('none')
-  setTimeout(() => {
-    state.showTableFormat = true
-  }, 300)
-}
-
-function openTextFormatModal() {
-  // if (isPlatform('desktop')) {
-  editorRef.value?.setInputMode('none')
-  setTimeout(() => {
-    state.showFormat = true
-  }, 300)
-  // }
-}
-
-function handlePageHide() {
-  triggerLeavePageLocalFlush('pagehide')
-}
-
-function handleBeforeUnload() {
-  triggerLeavePageLocalFlush('beforeunload')
-}
-
-onMounted(() => {
-  window.addEventListener('pagehide', handlePageHide)
-  window.addEventListener('beforeunload', handleBeforeUnload)
-})
-
-onBeforeUnmount(() => {
-  clearPendingSaveTimer()
-  window.removeEventListener('pagehide', handlePageHide)
-  window.removeEventListener('beforeunload', handleBeforeUnload)
-})
-
-onIonViewWillLeave(() => {
-  triggerLeavePageLocalFlush('view-leave')
-  setTimeout(() => {
-    state.showFormat = false
-  }, 300)
-})
-
-onIonViewDidLeave(() => {
-  retainedEffectiveUuid.value = null
-})
 </script>
 
 <template>
@@ -617,13 +371,13 @@ onIonViewDidLeave(() => {
     <IonContent force-overscroll>
       <NoteUnlockPanel
         v-if="isPinLockedForView"
-        :lock-view-state="state.lockViewState"
-        :biometric-enabled="state.lockBiometricEnabled"
-        :device-supports-biometric="state.lockDeviceSupportsBiometric"
-        :failed-attempts="state.lockFailedAttempts"
-        :cooldown-until="state.lockCooldownUntil"
-        :error-message="state.lockErrorMessage"
-        :is-submitting="state.isPinUnlocking"
+        :lock-view-state="noteLockView.state.viewState"
+        :biometric-enabled="noteLockView.state.biometricEnabled"
+        :device-supports-biometric="noteLockView.state.deviceSupportsBiometric"
+        :failed-attempts="noteLockView.state.failedAttempts"
+        :cooldown-until="noteLockView.state.cooldownUntil"
+        :error-message="noteLockView.state.errorMessage"
+        :is-submitting="noteLockView.state.isPinUnlocking"
         @try-biometric="handleBiometricUnlock"
         @submit-pin="handlePinUnlock"
       />
@@ -642,92 +396,23 @@ onIonViewDidLeave(() => {
         Fixed Button
       </div> -->
     </IonContent>
-    <!-- <IonFooter v-if="keyboardHeight > 0" style="overscroll-behavior: none;"> -->
-    <IonFooter v-if="!isEditorBlocked">
-      <IonToolbar class="note-detail__toolbar">
-        <div class="flex justify-evenly items-center select-none">
-          <IonButton
-            fill="clear"
-            size="large"
-            @touchstart.prevent="openTableFormatModal"
-            @click="openTableFormatModal"
-          >
-            <Icon name="table" class="text-6.5" />
-          </IonButton>
-          <IonButton
-            fill="clear"
-            size="large"
-            @touchstart.prevent="openTextFormatModal"
-            @click="openTextFormatModal"
-          >
-            <IonIcon :icon="textOutline" />
-          </IonButton>
-          <IonButton
-            fill="clear"
-            size="large"
-            @touchstart.prevent="onInsertTodo"
-            @click="onInsertTodo"
-          >
-            <IonIcon :icon="checkmarkCircleOutline" />
-          </IonButton>
-          <IonButton
-            v-if="!isIos"
-            fill="clear"
-            size="large"
-            @touchstart.prevent="imageInputRef.click()"
-            @click="imageInputRef.click()"
-          >
-            <Icon name="image" class="text-6.5" />
-            <input ref="imageInputRef" type="file" accept="image/*" class="pointer-events-none absolute text-0 opacity-0" @change="onSelectFile">
-          </IonButton>
-          <IonButton
-            fill="clear"
-            size="large"
-            @click="fileInputRef.click()"
-          >
-            <Icon v-if="isIos" name="image" class="text-6.5" />
-            <IonIcon v-else :icon="attachOutline" />
-            <input ref="fileInputRef" type="file" class="pointer-events-none absolute text-0 opacity-0" @change="onSelectFile">
-          </IonButton>
-        </div>
-      </IonToolbar>
-    </IonFooter>
+    <NoteEditorToolbar
+      v-if="!isEditorBlocked"
+      ref="editorToolbarRef"
+      :editor-host="editorRef"
+      :is-ios="isIos"
+      @update:is-format-modal-open="state.isFormatModalOpen = $event"
+    />
     <NoteMore
       v-if="canShowNoteActions"
       v-model:is-open="state.showNoteMore"
       :note-id="effectiveUuid || ''"
       @note-lock-updated="handleNoteLockUpdated"
     />
-    <TableFormatModal v-if="!isEditorBlocked" v-model:is-open="state.showTableFormat" :editor="((editorRef?.editor || {}) as Editor)" />
-    <TextFormatModal v-if="!isEditorBlocked" v-model:is-open="state.showFormat" :editor="((editorRef?.editor || {}) as Editor)" />
   </IonPage>
 </template>
 
 <style lang="scss">
-.note-detail__toolbar {
-  // --background: #000;
-  --padding-top: 0;
-  --padding-bottom: 0;
-  --padding-start: 0;
-  --padding-end: 0;
-  ion-button {
-    --padding-top: 0;
-    --padding-bottom: 0;
-    min-height: 0;
-    height: 44px;
-    width: 24%;
-    margin: 0;
-    &:first-child {
-      width: 26%;
-      padding-left: 2%;
-    }
-    &:last-child {
-      width: 26%;
-      padding-right: 2%;
-    }
-  }
-}
-
 .note-detail__header-buttons {
   align-items: center;
   gap: 4px;

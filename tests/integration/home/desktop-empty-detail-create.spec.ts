@@ -190,6 +190,9 @@ async function mountHomePageForEmptyDetailCreate(options: {
   vi.doMock('@/widgets/note-more', () => ({
     default: createPlainStub('NoteMore'),
   }))
+  vi.doMock('@/widgets/note-editor-toolbar', () => ({
+    default: createPlainStub('NoteEditorToolbar'),
+  }))
   vi.doMock('@/components/TableFormatModal.vue', () => ({
     default: createPlainStub('TableFormatModal'),
   }))

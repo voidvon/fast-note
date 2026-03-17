@@ -1,6 +1,6 @@
+import type { NoteRepository } from '@/entities/note'
 import type { Note } from '@/types'
-import { useDexie } from '@/database'
-import { useNote } from '@/stores'
+import { useNoteRepository } from '@/entities/note'
 import { getTime } from '@/utils/date'
 
 export interface PublicNoteShareResult {
@@ -11,20 +11,19 @@ export interface PublicNoteShareResult {
 }
 
 export interface UsePublicNoteShareOptions {
-  updateNote?: ReturnType<typeof useNote>['updateNote']
+  getNote?: NoteRepository['getNote']
+  getNotesByParentId?: NoteRepository['getNotesByParentId']
+  updateNote?: NoteRepository['updateNote']
 }
 
 export function usePublicNoteShare(options: UsePublicNoteShareOptions = {}) {
-  const { db } = useDexie()
-  const noteStore = useNote()
+  const noteStore = useNoteRepository()
+  const getNote = options.getNote || noteStore.getNote
+  const getNotesByParentId = options.getNotesByParentId || noteStore.getNotesByParentId
   const updateNote = options.updateNote || noteStore.updateNote
 
   async function getAllChildrenNotes(noteUuid: string): Promise<Note[]> {
-    const children = await db.value.notes
-      .where('parent_id')
-      .equals(noteUuid)
-      .and((item: Note) => item.is_deleted !== 1)
-      .toArray()
+    const children = await getNotesByParentId(noteUuid)
 
     let allChildren: Note[] = [...children]
 
@@ -43,7 +42,7 @@ export function usePublicNoteShare(options: UsePublicNoteShareOptions = {}) {
       return null
     }
 
-    return await db.value.notes.where('id').equals(parentId).first() || null
+    return getNote(parentId)
   }
 
   async function getAllParentNotes(currentNote: Note): Promise<Note[]> {

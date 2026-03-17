@@ -1,1 +1,1 @@
-export { authService } from '@/shared/api/pocketbase'
+export { authService, usersService } from '@/shared/api/pocketbase'
