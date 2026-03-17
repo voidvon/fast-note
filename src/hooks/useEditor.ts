@@ -1,7 +1,6 @@
 import type { Content, JSONContent } from '@tiptap/core'
 import { Color } from '@tiptap/extension-color'
 import { ListItem, TaskList } from '@tiptap/extension-list'
-import { TableCell, TableHeader, TableRow } from '@tiptap/extension-table'
 import TextAlign from '@tiptap/extension-text-align'
 import { TextStyleKit } from '@tiptap/extension-text-style'
 import StarterKit from '@tiptap/starter-kit'
@@ -10,6 +9,7 @@ import GlobalDragHandle from 'tiptap-extension-global-drag-handle'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { FileUpload } from '@/components/extensions/FileUpload/FileUpload'
 import { TableWithWrapper } from '@/components/extensions/TableWithWrapper'
+import { TableCell, TableHeader, TableRow } from '@/components/extensions/tiptap-table'
 import { TaskItem } from '@/components/extensions/TaskItem'
 import { useNoteFiles } from '@/hooks/useNoteFiles'
 import { filesApi } from '@/pocketbase'
@@ -169,7 +169,7 @@ export function useEditor() {
         }),
         TaskList,
         TaskItem,
-        // 使用自定义的TableWithWrapper替代TableKit
+        // 使用项目内 vendored 的 tiptap table 扩展，便于后续深度定制
         TableWithWrapper,
         TableRow,
         TableHeader,

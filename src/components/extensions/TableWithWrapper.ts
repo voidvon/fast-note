@@ -1,40 +1,10 @@
-import { mergeAttributes } from '@tiptap/core'
-import { Table } from '@tiptap/extension-table'
+import { Table } from '@/components/extensions/tiptap-table'
 
 /**
- * 自定义Table扩展，在表格外层添加滚动容器
- * 继承自官方的Table扩展，增强横向滚动功能
+ * 基于项目内 vendored tiptap table 源码生成的默认表格扩展。
+ * 当前保持外层滚动容器，以兼容既有 `.table-wrapper` 样式。
  */
-export const TableWithWrapper = Table.extend({
-  name: 'table',
-
-  // 自定义渲染HTML，在table外层包裹一个div
-  renderHTML({ HTMLAttributes }: { HTMLAttributes: Record<string, any> }) {
-    return [
-      'div',
-      { class: 'table-wrapper' },
-      [
-        'table',
-        mergeAttributes(HTMLAttributes),
-        ['tbody', 0],
-      ],
-    ]
-  },
-
-  // 解析HTML时也需要处理wrapper
-  parseHTML() {
-    return [
-      {
-        tag: 'table',
-        // 优先级高于默认的table解析
-        priority: 51,
-      },
-      // 也支持从带wrapper的HTML中解析
-      {
-        tag: 'div.table-wrapper',
-        // 跳过wrapper，直接解析内部的table
-        skip: true,
-      },
-    ]
-  },
+export const TableWithWrapper = Table.configure({
+  renderWrapper: true,
+  wrapperClass: 'table-wrapper',
 })
