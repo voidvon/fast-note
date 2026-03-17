@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
-import { onNoteLockSessionChanged, useNoteLock, validatePinSetup } from '@/hooks/useNoteLock'
+import { onNoteLockSessionChanged, useNoteLock, validatePinSetup } from '@/features/note-lock'
 import { logger } from '@/utils/logger'
 import { makeNote } from '../../factories/note.factory'
 

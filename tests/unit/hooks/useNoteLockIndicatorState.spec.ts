@@ -12,17 +12,21 @@ async function mountIndicatorHarness(options: {
   const listeners = new Set<(event: { noteId: string }) => void>()
   const getLockViewState = vi.fn(options.getLockViewState)
 
-  vi.doMock('@/hooks/useNoteLock', () => ({
-    onNoteLockSessionChanged: (listener: (event: { noteId: string }) => void) => {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
-    },
-    useNoteLock: () => ({
-      getLockViewState,
-    }),
-  }))
+  vi.doMock('@/features/note-lock/model/use-note-lock', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@/features/note-lock/model/use-note-lock')>()
+    return {
+      ...actual,
+      onNoteLockSessionChanged: (listener: (event: { noteId: string }) => void) => {
+        listeners.add(listener)
+        return () => listeners.delete(listener)
+      },
+      useNoteLock: () => ({
+        getLockViewState,
+      }),
+    }
+  })
 
-  const { useNoteLockIndicatorState } = await import('@/hooks/useNoteLockIndicatorState')
+  const { useNoteLockIndicatorState } = await import('@/features/note-lock')
 
   const Harness = defineComponent({
     props: {

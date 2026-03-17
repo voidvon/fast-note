@@ -49,7 +49,7 @@ describe('note lock setup modal integration (t-fn-037 / tc-fn-028)', () => {
         isDesktop: ref(false),
       }),
     }))
-    vi.doMock('@/hooks/useNoteLock', () => ({
+    vi.doMock('@/features/note-lock/model/use-note-lock', () => ({
       useNoteLock: () => ({
         enableLockForNote: vi.fn(),
         setupGlobalPin: setupGlobalPinMock,
@@ -60,7 +60,7 @@ describe('note lock setup modal integration (t-fn-037 / tc-fn-028)', () => {
       IonModal: createIonicStub('IonModal'),
     }))
 
-    const NoteLockSetupModal = (await import('@/components/NoteLockSetupModal.vue')).default
+    const NoteLockSetupModal = (await import('@/features/note-lock/ui/note-lock-setup-modal.vue')).default
     const wrapper = mount(NoteLockSetupModal, {
       props: {
         isOpen: true,
@@ -104,7 +104,7 @@ describe('note lock setup modal integration (t-fn-037 / tc-fn-028)', () => {
         isDesktop: ref(false),
       }),
     }))
-    vi.doMock('@/hooks/useNoteLock', () => ({
+    vi.doMock('@/features/note-lock/model/use-note-lock', () => ({
       useNoteLock: () => ({
         enableLockForNote: enableLockForNoteMock,
         setupGlobalPin: vi.fn(),
@@ -115,7 +115,7 @@ describe('note lock setup modal integration (t-fn-037 / tc-fn-028)', () => {
       IonModal: createIonicStub('IonModal'),
     }))
 
-    const NoteLockSetupModal = (await import('@/components/NoteLockSetupModal.vue')).default
+    const NoteLockSetupModal = (await import('@/features/note-lock/ui/note-lock-setup-modal.vue')).default
     const wrapper = mount(NoteLockSetupModal, {
       props: {
         isOpen: true,

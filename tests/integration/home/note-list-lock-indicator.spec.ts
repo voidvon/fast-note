@@ -52,7 +52,7 @@ async function mountNoteList(options: {
   vi.doMock('@/components/NoteMove.vue', () => ({
     default: createPlainStub('NoteMove'),
   }))
-  vi.doMock('@/hooks/useNoteLockIndicatorState', () => ({
+  vi.doMock('@/features/note-lock', () => ({
     useNoteLockIndicatorState: () => ({
       indicatorStateMap: ref({
         'locked-note': 'locked',

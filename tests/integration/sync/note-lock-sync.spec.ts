@@ -61,7 +61,7 @@ async function mountAppForNoteLockSync(options: {
     }),
   }))
 
-  vi.doMock('@/hooks/useNoteLock', () => ({
+  vi.doMock('@/features/note-lock', () => ({
     useNoteLock: () => ({
       syncSecuritySettingsFromCloud: syncSecuritySettingsFromCloudMock,
     }),

@@ -1,7 +1,7 @@
 import type { Note } from '@/types'
 import { flushPromises, mount } from '@vue/test-utils'
 import { vi } from 'vitest'
-import { defineComponent, h, nextTick } from 'vue'
+import { defineComponent, h, nextTick, ref } from 'vue'
 import { NOTE_TYPE } from '@/types'
 
 function createIonicStub(name: string, tag = 'div') {
@@ -35,6 +35,74 @@ function createButtonStub(name: string) {
     },
   })
 }
+
+const NoteUnlockPanelStub = defineComponent({
+  name: 'NoteUnlockPanel',
+  props: {
+    biometricEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    cooldownUntil: {
+      type: Number,
+      default: null,
+    },
+    deviceSupportsBiometric: {
+      type: Boolean,
+      default: false,
+    },
+    errorMessage: {
+      type: String,
+      default: '',
+    },
+    failedAttempts: {
+      type: Number,
+      default: 0,
+    },
+    isSubmitting: {
+      type: Boolean,
+      default: false,
+    },
+    lockViewState: {
+      type: String,
+      default: 'locked',
+    },
+  },
+  emits: ['submit-pin', 'try-biometric'],
+  setup(props, { emit }) {
+    const pin = ref('')
+
+    return () => h('div', { 'data-testid': 'note-unlock-panel' }, [
+      h('h2', '备忘录已锁定'),
+      h('p', '输入备忘录密码以查看'),
+      props.biometricEnabled && props.deviceSupportsBiometric
+        ? h('button', {
+            'disabled': props.isSubmitting,
+            'data-testid': 'note-unlock-panel-biometric',
+            'type': 'button',
+            'onClick': () => emit('try-biometric'),
+          }, '尝试生物识别')
+        : null,
+      h('input', {
+        'data-testid': 'note-unlock-panel-pin',
+        'placeholder': '输入密码',
+        'type': 'text',
+        'value': pin.value,
+        'onInput': (event: Event) => {
+          pin.value = (event.target as HTMLInputElement).value
+        },
+      }),
+      props.errorMessage || props.failedAttempts
+        ? h('div', { 'data-testid': 'note-unlock-panel-message' }, props.errorMessage || `已连续失败 ${props.failedAttempts} 次`)
+        : null,
+      h('button', {
+        'data-testid': 'note-unlock-panel-submit',
+        'type': 'button',
+        'onClick': () => emit('submit-pin', pin.value),
+      }, '解锁'),
+    ])
+  },
+})
 
 export function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
@@ -261,7 +329,8 @@ export async function mountNoteDetailForSaveTest(options: {
     }),
   }))
 
-  vi.doMock('@/hooks/useNoteLock', () => ({
+  vi.doMock('@/features/note-lock', () => ({
+    NoteUnlockPanel: NoteUnlockPanelStub,
     useNoteLock: () => ({
       getLockViewState: getLockViewStateMock,
       isBiometricSupported: vi.fn(() => false),
@@ -285,7 +354,7 @@ export async function mountNoteDetailForSaveTest(options: {
   vi.doMock('@/components/Icon.vue', () => ({
     default: createPlainStub('Icon'),
   }))
-  vi.doMock('@/components/NoteMore.vue', () => ({
+  vi.doMock('@/widgets/note-more', () => ({
     default: createPlainStub('NoteMore'),
   }))
   vi.doMock('@/components/TableFormatModal.vue', () => ({
@@ -294,7 +363,7 @@ export async function mountNoteDetailForSaveTest(options: {
   vi.doMock('@/components/TextFormatModal.vue', () => ({
     default: createPlainStub('TextFormatModal'),
   }))
-  vi.doMock('@/components/YYEditor.vue', () => ({
+  vi.doMock('@/widgets/editor', () => ({
     default: YYEditorStub,
   }))
 

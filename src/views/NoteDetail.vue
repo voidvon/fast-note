@@ -7,19 +7,17 @@ import { nanoid } from 'nanoid'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, toRaw, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import Icon from '@/components/Icon.vue'
-import NoteMore from '@/components/NoteMore.vue'
-import NoteUnlockPanel from '@/components/NoteUnlockPanel.vue'
 import TableFormatModal from '@/components/TableFormatModal.vue'
 import TextFormatModal from '@/components/TextFormatModal.vue'
-import YYEditor from '@/components/YYEditor.vue'
+import { NoteUnlockPanel, useNoteLock } from '@/features/note-lock'
+import { useNoteSave } from '@/features/note-save'
 import { useDeviceType } from '@/hooks/useDeviceType'
-import { useNoteLock } from '@/hooks/useNoteLock'
 import { useNoteBackButton } from '@/hooks/useSmartBackButton'
 import { useSync } from '@/hooks/useSync'
 import { useVisualViewport } from '@/hooks/useVisualViewport'
 import { useNote, useUserPublicNotes } from '@/stores'
-import { NOTE_TYPE } from '@/types'
-import { getTime } from '@/utils/date'
+import YYEditor from '@/widgets/editor'
+import NoteMore from '@/widgets/note-more'
 
 const props = withDefaults(
   defineProps<{
@@ -51,7 +49,6 @@ const data = ref()
 const newNoteId = ref<string | null>(null)
 const hasCreatedRouteDraft = ref(false)
 const missingPrivateNoteRepairId = ref<string | null>(null)
-const lastSavedContent = ref<string>('') // 记录上次保存的内容
 const saveTimer = ref<number | null>(null) // 防抖定时器
 const retainedEffectiveUuid = ref<string | null>(null)
 
@@ -61,7 +58,6 @@ const state = reactive({
   lockBiometricEnabled: false,
   lockDeviceSupportsBiometric: false,
   isPinUnlocking: false,
-  isSaving: false,
   lockCooldownUntil: null as number | null,
   lockErrorMessage: '',
   lockFailedAttempts: 0,
@@ -69,6 +65,41 @@ const state = reactive({
   showFormat: false,
   showNoteMore: false,
   showTableFormat: false,
+})
+const {
+  isSaving: isNoteSaving,
+  lastSavedContent,
+  saveNote,
+} = useNoteSave({
+  addNote,
+  getNote,
+  updateNote,
+  updateParentFolderSubcount,
+  sync,
+  restoreHeight,
+  presentTopError,
+  flushNotesToLocal,
+  emitNoteSaved(payload) {
+    emit('noteSaved', payload)
+  },
+  getCurrentNote() {
+    return toRaw(data.value)
+  },
+  setCurrentNote(note) {
+    data.value = note
+  },
+  setMissingPrivateNote(value) {
+    state.isMissingPrivateNote = value
+  },
+  onMissingPrivateNote() {
+    syncMissingPrivateNoteState()
+  },
+  onRouteDraftCreated(noteId) {
+    hasCreatedRouteDraft.value = true
+
+    if (!isDesktop.value)
+      replaceMobileDraftUrl(noteId)
+  },
 })
 
 const idFromRoute = computed(() => route.params.id as string || route.params.noteId as string)
@@ -365,153 +396,19 @@ async function handleNoteSaving(
   leaveFlushReason: LeaveFlushReason | null = null,
   saveTargetContext: SaveTargetContext = {},
 ) {
-  // 如果格式化面板打开，不触发保存
-  if (state.isFormatModalOpen) {
-    return
-  }
-
-  if (!editorRef.value)
-    return
-  const content = editorRef.value.getContent() || ''
-  const hasMeaningfulContent = editorRef.value.isMeaningfulContent?.() ?? !!content
-  let { title, summary } = editorRef.value.getTitle()
-  const id = saveTargetContext.noteId ?? effectiveUuid.value
-  const wasNewNote = saveTargetContext.wasNewNote ?? isNewNote.value
-
-  if (!id)
-    return
-
-  const noteExists = await getNote(id)
-
-  // 未持久化的新建草稿在离开时可直接丢弃，不进入删除链路。
-  if (wasNewNote && !noteExists && !hasMeaningfulContent) {
-    if (leaveFlushReason)
-      await flushNotesToLocal(leaveFlushReason)
-    return
-  }
-
-  // 已持久化内容未变化时直接跳过，避免旧空白笔记在失焦时被误删。
-  if (content === lastSavedContent.value) {
-    if (leaveFlushReason)
-      await flushNotesToLocal(leaveFlushReason)
-    return // 内容未变化，不保存
-  }
-
-  if (isMissingPrivateNote.value) {
-    if (leaveFlushReason)
-      await flushNotesToLocal(leaveFlushReason)
-    if (!silent) {
-      await presentTopError('当前备忘录不存在或尚未同步完成')
-    }
-    return
-  }
-
-  // 如果标题为空，使用默认标题
-  if (!title || title.trim() === '') {
-    title = '新建备忘录'
-  }
-
-  if (!silent) {
-    state.isSaving = true
-  }
-
-  restoreHeight()
-
-  const time = getTime()
-
-  // 本地保存时不处理文件hash，让富文本编辑器自主管理
-  const fileHashes: string[] = []
-
-  try {
-    if (noteExists) {
-      // 已持久化笔记允许保存为空内容；删除只能走显式操作。
-      const baseNote = toRaw(data.value) || noteExists
-      const updatedNote = Object.assign({}, baseNote, {
-        title,
-        summary,
-        content,
-        updated: time,
-        version: (baseNote?.version || 1) + 1,
-        files: fileHashes,
-      })
-      await updateNote(id, updatedNote)
-      data.value = updatedNote
-
-      // 静默保存时不发出事件，避免触发列表刷新
-      if (!silent) {
-        emit('noteSaved', { noteId: id, isNew: false })
-      }
-    }
-    else {
-      if (!wasNewNote) {
-        state.isMissingPrivateNote = true
-        data.value = null
-        syncMissingPrivateNoteState()
-        if (!silent) {
-          await presentTopError('当前备忘录不存在或尚未同步完成')
-        }
-        return
-      }
-
-      // 新建笔记只在出现有效内容后才真正落盘。
-      const newNote = {
-        title,
-        summary,
-        content,
-        created: getTime(),
-        updated: time,
-        item_type: NOTE_TYPE.NOTE,
-        parent_id: isDesktop.value
-          ? (props.parentId || '')
-          : ((!route.query.parent_id || route.query.parent_id === 'unfilednotes') ? '' : route.query.parent_id as string),
-        id,
-        is_deleted: 0,
-        is_locked: 0,
-        note_count: 0,
-        files: fileHashes,
-      }
-      await addNote(newNote)
-      updateParentFolderSubcount(newNote)
-      data.value = newNote
-
-      if (wasNewNote) {
-        hasCreatedRouteDraft.value = true
-
-        if (!isDesktop.value)
-          replaceMobileDraftUrl(id)
-      }
-
-      // 新建笔记总是发出事件，需要刷新列表
-      emit('noteSaved', { noteId: id, isNew: true })
-    }
-
-    // 更新上次保存的内容
-    lastSavedContent.value = content
-
-    if (leaveFlushReason)
-      await flushNotesToLocal(leaveFlushReason)
-
-    // 自动同步笔记到云端（静默模式）
-    // 静默模式：未登录时不会抛出错误，直接跳过
-    if (!silent) {
-      try {
-        await sync(true)
-      }
-      catch (error) {
-        console.error('自动同步失败:', error)
-        await presentTopError('同步失败，请检查网络连接')
-      }
-    }
-  }
-  catch (error) {
-    console.error('保存笔记失败:', error)
-    await presentTopError('保存失败，请重试')
-  }
-  finally {
-    if (!silent) {
-      state.isSaving = false
-    }
-  }
+  await saveNote({
+    editor: editorRef.value,
+    effectiveUuid: effectiveUuid.value,
+    isNewNote: isNewNote.value,
+    isDesktop: isDesktop.value,
+    parentId: props.parentId,
+    routeParentId: route.query.parent_id,
+    isFormatModalOpen: state.isFormatModalOpen,
+    isMissingPrivateNote: isMissingPrivateNote.value,
+    leaveFlushReason,
+    saveTargetContext,
+    silent,
+  })
 }
 
 // 防抖保存函数
@@ -706,7 +603,7 @@ onIonViewDidLeave(() => {
         </IonButtons>
         <IonButtons v-if="canShowNoteActions" slot="end" class="note-detail__header-buttons">
           <IonSpinner
-            v-if="state.isSaving"
+            v-if="isNoteSaving"
             class="note-detail__saving-spinner"
             name="crescent"
           />

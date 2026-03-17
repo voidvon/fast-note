@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { NoteLockIndicatorState } from '@/hooks/useNoteLockIndicatorState'
+import type { NoteLockIndicatorState } from '@/features/note-lock'
 import type { FolderTreeNode } from '@/types'
 import { IonAccordion, IonIcon, IonItem, IonLabel, IonNote, useIonRouter } from '@ionic/vue'
 import dayjs from 'dayjs'

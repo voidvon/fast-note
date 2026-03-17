@@ -113,7 +113,7 @@ async function mountAppForImmediateRestore(options: {
     }),
   }))
 
-  vi.doMock('@/hooks/useNoteLock', () => ({
+  vi.doMock('@/features/note-lock', () => ({
     useNoteLock: () => ({
       syncSecuritySettingsFromCloud: vi.fn(async () => undefined),
     }),

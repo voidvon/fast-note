@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { applyDefaultHeadingIfEmptyToEditor, DEFAULT_NEW_NOTE_HEADING_CONTENT, hasMeaningfulEditorContent } from '@/hooks/useEditor'
+import { applyDefaultHeadingIfEmptyToEditor, DEFAULT_NEW_NOTE_HEADING_CONTENT, hasMeaningfulEditorContent } from '@/features/note-editor'
 
 describe('useEditor meaningful content helpers (t-fn-045 / t-fn-047, tc-fn-038, tc-fn-040)', () => {
   it('applies the default heading only once for an empty editor document', () => {

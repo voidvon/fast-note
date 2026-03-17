@@ -3,7 +3,7 @@ import {
   createNoteUnlockSession,
   DEFAULT_NOTE_UNLOCK_SESSION_TTL,
   isNoteUnlockSessionValid,
-} from '@/hooks/useNoteLock'
+} from '@/features/note-lock'
 
 describe('useNoteLock session helpers (t-fn-036 / tc-fn-032 foundation)', () => {
   it('creates a valid session using the default ttl', () => {

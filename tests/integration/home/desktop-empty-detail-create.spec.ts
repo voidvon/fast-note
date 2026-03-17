@@ -187,7 +187,7 @@ async function mountHomePageForEmptyDetailCreate(options: {
   vi.doMock('@/components/Icon.vue', () => ({
     default: createPlainStub('Icon'),
   }))
-  vi.doMock('@/components/NoteMore.vue', () => ({
+  vi.doMock('@/widgets/note-more', () => ({
     default: createPlainStub('NoteMore'),
   }))
   vi.doMock('@/components/TableFormatModal.vue', () => ({
@@ -196,7 +196,7 @@ async function mountHomePageForEmptyDetailCreate(options: {
   vi.doMock('@/components/TextFormatModal.vue', () => ({
     default: createPlainStub('TextFormatModal'),
   }))
-  vi.doMock('@/components/YYEditor.vue', () => ({
+  vi.doMock('@/widgets/editor', () => ({
     default: YYEditorStub,
   }))
   vi.doMock('@/views/DeletedPage.vue', () => ({
