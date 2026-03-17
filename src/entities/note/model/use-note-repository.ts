@@ -1,5 +1,5 @@
-import type { useNote } from '@/stores/notes'
-import { useNote as useNoteStore } from '@/stores/notes'
+import type { useNote } from './state/note-store'
+import { useNote as useNoteStore } from './state/note-store'
 
 export type NoteRepository = ReturnType<typeof useNote>
 

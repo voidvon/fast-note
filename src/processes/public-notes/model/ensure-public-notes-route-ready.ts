@@ -1,8 +1,6 @@
 import type { RouteLocationNormalized } from 'vue-router'
-import { initializeUserPublicNotes } from '@/entities/public-note'
-import { useUserPublicNotesSync } from '@/hooks/useUserPublicNotesSync'
+import { ensurePublicNotesReady } from './ensure-public-notes-ready'
 
-const initializedUsers = new Set<string>()
 const publicRouteNames = new Set(['UserHome', 'UserFolder', 'UserNote'])
 
 export function shouldRedirectDesktopNoteRoute(path: string, viewportWidth: number) {
@@ -15,13 +13,5 @@ export async function ensurePublicNotesRouteReady(to: RouteLocationNormalized) {
     return
 
   const username = to.params.username as string
-  if (initializedUsers.has(username))
-    return
-
-  const { syncUserPublicNotes } = useUserPublicNotesSync(username)
-
-  await initializeUserPublicNotes(username)
-  await syncUserPublicNotes()
-
-  initializedUsers.add(username)
+  await ensurePublicNotesReady(username)
 }

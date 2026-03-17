@@ -11,8 +11,8 @@
 
 import type { RecordSubscription, UnsubscribeFunc } from 'pocketbase'
 import type { Note } from '@/types'
+import { useNote } from '@/entities/note'
 import { pb } from '@/pocketbase'
-import { useNote } from '@/stores'
 
 /**
  * Realtime 连接状态

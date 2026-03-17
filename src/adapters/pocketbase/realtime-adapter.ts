@@ -7,8 +7,8 @@ import type { RecordSubscription, UnsubscribeFunc } from 'pocketbase'
 import type { IRealtimeService, RealtimeConfig } from '@/core/realtime-types'
 import type { Note } from '@/types'
 import { RealtimeStatus } from '@/core/realtime-types'
+import { useNote } from '@/entities/note'
 import { pb } from '@/pocketbase'
-import { useNote } from '@/stores'
 import { logger } from '@/utils/logger'
 
 export class PocketBaseRealtimeAdapter implements IRealtimeService {

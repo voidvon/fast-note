@@ -31,7 +31,7 @@ import { computed, onMounted, ref } from 'vue'
 import { authManager } from '@/core/auth-manager'
 import { realtimeManager } from '@/core/realtime-manager'
 import { useDeviceType } from '@/hooks/useDeviceType'
-import { useSync } from '@/hooks/useSync'
+import { useSync } from '@/processes/sync-notes'
 import { pb } from '@/shared/api/pocketbase'
 
 // 获取全局版本号

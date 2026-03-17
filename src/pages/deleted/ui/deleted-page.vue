@@ -11,9 +11,9 @@ import {
   IonToolbar,
 } from '@ionic/vue'
 import { computed, onMounted, onUnmounted, reactive } from 'vue'
+import { useNote } from '@/entities/note'
 import { useDeviceType } from '@/hooks/useDeviceType'
 import { useSimpleBackButton } from '@/hooks/useSmartBackButton'
-import { useNote } from '@/stores'
 import NoteList from '@/widgets/note-list'
 
 const props = withDefaults(defineProps<{
