@@ -44,7 +44,7 @@ describe('note lock setup modal integration (t-fn-037 / tc-fn-028)', () => {
       },
     }))
 
-    vi.doMock('@/hooks/useDeviceType', () => ({
+    vi.doMock('@/shared/lib/device', () => ({
       useDeviceType: () => ({
         isDesktop: ref(false),
       }),
@@ -99,7 +99,7 @@ describe('note lock setup modal integration (t-fn-037 / tc-fn-028)', () => {
       },
     }))
 
-    vi.doMock('@/hooks/useDeviceType', () => ({
+    vi.doMock('@/shared/lib/device', () => ({
       useDeviceType: () => ({
         isDesktop: ref(false),
       }),

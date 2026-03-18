@@ -8,7 +8,7 @@ import type { IRealtimeService, RealtimeConfig } from '@/core/realtime-types'
 import type { Note } from '@/types'
 import { RealtimeStatus } from '@/core/realtime-types'
 import { useNote } from '@/entities/note'
-import { pb } from '@/pocketbase'
+import { pb } from '@/shared/api/pocketbase/client'
 import { logger } from '@/utils/logger'
 
 export class PocketBaseRealtimeAdapter implements IRealtimeService {

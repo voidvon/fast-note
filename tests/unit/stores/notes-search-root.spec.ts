@@ -10,7 +10,7 @@ describe('notes root search', () => {
   })
 
   it('finds root and nested notes when searching from home', async () => {
-    const { useNote } = await import('@/stores/notes')
+    const { useNote } = await import('@/entities/note')
     type NoteStore = ReturnType<typeof useNote>
     let noteStore: NoteStore | null = null
 

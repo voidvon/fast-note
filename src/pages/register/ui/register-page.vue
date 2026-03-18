@@ -18,12 +18,13 @@ import {
 } from '@ionic/vue'
 import { alertCircle, checkmarkCircle } from 'ionicons/icons'
 import { ref } from 'vue'
-import { authManager } from '@/core/auth-manager'
 import { useSimpleBackButton } from '@/processes/navigation'
+import { useAuth } from '@/processes/session'
 import { useDeviceType } from '@/shared/lib/device'
 
 const router = useIonRouter()
 const { isDesktop } = useDeviceType()
+const { register } = useAuth()
 
 // 简单的返回按钮
 const { backButtonProps } = useSimpleBackButton('/', '返回')
@@ -83,8 +84,7 @@ async function handleRegister() {
     message.value = ''
     loading.value = true
 
-    // 使用核心 authManager 注册
-    const result = await authManager.register(
+    const result = await register(
       formData.value.email,
       formData.value.password,
       formData.value.passwordConfirm,

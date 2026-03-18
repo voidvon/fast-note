@@ -1,4 +1,4 @@
-import { authService } from '@/pocketbase'
+import { authService } from '@/shared/api/pocketbase'
 
 export const GUEST_SCOPE_ID = 'guest'
 

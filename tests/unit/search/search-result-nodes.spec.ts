@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { toSearchResultNodes } from '@/components/GlobalSearch/searchResults'
+import { toSearchResultNodes } from '@/features/global-search/lib/search-results'
 import { makeNote } from '../../factories/note.factory'
 
 describe('search result nodes', () => {

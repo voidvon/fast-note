@@ -12,7 +12,7 @@
 import type { RecordSubscription, UnsubscribeFunc } from 'pocketbase'
 import type { Note } from '@/types'
 import { useNote } from '@/entities/note'
-import { pb } from '@/pocketbase'
+import { pb } from '@/shared/api/pocketbase/client'
 
 /**
  * Realtime 连接状态

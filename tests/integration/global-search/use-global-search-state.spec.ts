@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { useGlobalSearch } from '@/components/GlobalSearch/useGlobalSearch'
+import { useGlobalSearch } from '@/features/global-search'
 
 function resetGlobalSearchState() {
   const { showGlobalSearch, showGlobalSearchState } = useGlobalSearch()

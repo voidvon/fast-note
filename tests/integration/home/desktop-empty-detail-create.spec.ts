@@ -2,7 +2,7 @@ import type { Note } from '@/types'
 import { mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick } from 'vue'
-import { DESKTOP_ACTIVE_NOTE_STORAGE_KEY } from '@/hooks/useDesktopActiveNote'
+import { DESKTOP_ACTIVE_NOTE_STORAGE_KEY } from '@/processes/navigation'
 
 function createIonicStub(name: string) {
   return defineComponent({
@@ -97,7 +97,7 @@ async function mountHomePageForEmptyDetailCreate(options: {
     }
   })
 
-  vi.doMock('@/hooks/useDeviceType', async () => {
+  vi.doMock('@/shared/lib/device', async () => {
     const { ref } = await import('vue')
     return {
       useDeviceType: () => ({
@@ -106,39 +106,40 @@ async function mountHomePageForEmptyDetailCreate(options: {
     }
   })
 
-  vi.doMock('@/components/GlobalSearch/useGlobalSearch', async () => {
+  vi.doMock('@/features/global-search', async () => {
     const { ref } = await import('vue')
     return {
+      default: createPlainStub('GlobalSearch'),
       useGlobalSearch: () => ({
         showGlobalSearch: ref(false),
       }),
     }
   })
 
-  vi.doMock('@/hooks/useExtensions', () => ({
+  vi.doMock('@/features/extension-manager', () => ({
     useExtensions: () => ({
       isExtensionEnabled: () => false,
       getExtensionModule: () => null,
     }),
   }))
 
-  vi.doMock('@/hooks/useSmartBackButton', () => ({
+  vi.doMock('@/processes/navigation', () => ({
     useNoteBackButton: () => ({ backButtonProps: {} }),
   }))
 
-  vi.doMock('@/hooks/useSync', () => ({
+  vi.doMock('@/processes/sync-notes', () => ({
     useSync: () => ({
       sync: vi.fn(async () => null),
     }),
   }))
 
-  vi.doMock('@/hooks/useVisualViewport', () => ({
+  vi.doMock('@/shared/lib/viewport', () => ({
     useVisualViewport: () => ({
       restoreHeight: vi.fn(),
     }),
   }))
 
-  vi.doMock('@/hooks/useWebAuthn', () => ({
+  vi.doMock('@/shared/lib/security', () => ({
     useWebAuthn: () => ({
       state: { isRegistered: false },
       checkSupport: vi.fn(() => false),
@@ -169,22 +170,19 @@ async function mountHomePageForEmptyDetailCreate(options: {
     }),
   }))
 
-  vi.doMock('@/components/DarkModeToggle.vue', () => ({
+  vi.doMock('@/features/theme-switch', () => ({
     default: createPlainStub('DarkModeToggle'),
   }))
-  vi.doMock('@/components/ExtensionRenderer.vue', () => ({
+  vi.doMock('@/widgets/extension-renderer', () => ({
     default: createPlainStub('ExtensionRenderer'),
   }))
-  vi.doMock('@/components/GlobalSearch/GlobalSearch.vue', () => ({
-    default: createPlainStub('GlobalSearch'),
-  }))
-  vi.doMock('@/components/NoteList.vue', () => ({
+  vi.doMock('@/widgets/note-list', () => ({
     default: createPlainStub('NoteList'),
   }))
-  vi.doMock('@/components/UserProfile.vue', () => ({
+  vi.doMock('@/widgets/user-profile', () => ({
     default: createPlainStub('UserProfile'),
   }))
-  vi.doMock('@/components/Icon.vue', () => ({
+  vi.doMock('@/shared/ui/icon', () => ({
     default: createPlainStub('Icon'),
   }))
   vi.doMock('@/widgets/note-more', () => ({
@@ -193,19 +191,19 @@ async function mountHomePageForEmptyDetailCreate(options: {
   vi.doMock('@/widgets/note-editor-toolbar', () => ({
     default: createPlainStub('NoteEditorToolbar'),
   }))
-  vi.doMock('@/components/TableFormatModal.vue', () => ({
+  vi.doMock('@/widgets/note-editor-toolbar/ui/table-format-modal.vue', () => ({
     default: createPlainStub('TableFormatModal'),
   }))
-  vi.doMock('@/components/TextFormatModal.vue', () => ({
+  vi.doMock('@/widgets/note-editor-toolbar/ui/text-format-modal.vue', () => ({
     default: createPlainStub('TextFormatModal'),
   }))
   vi.doMock('@/widgets/editor', () => ({
     default: YYEditorStub,
   }))
-  vi.doMock('@/views/DeletedPage.vue', () => ({
+  vi.doMock('@/pages/deleted/ui/deleted-page.vue', () => ({
     default: createPlainStub('DeletedPage'),
   }))
-  vi.doMock('@/views/FolderPage.vue', () => ({
+  vi.doMock('@/pages/folder/ui/folder-page.vue', () => ({
     default: folderPageStub,
   }))
 
@@ -234,7 +232,7 @@ async function mountHomePageForEmptyDetailCreate(options: {
     }
   })
 
-  const HomePage = (await import('@/views/HomePage.vue')).default
+  const HomePage = (await import('@/pages/home/ui/home-page.vue')).default
   const wrapper = mount(HomePage, {
     global: {
       stubs: {

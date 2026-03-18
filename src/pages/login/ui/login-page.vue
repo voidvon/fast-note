@@ -18,12 +18,13 @@ import {
 } from '@ionic/vue'
 import { alertCircle, checkmarkCircle } from 'ionicons/icons'
 import { ref } from 'vue'
-import { authManager } from '@/core/auth-manager'
 import { useSimpleBackButton } from '@/processes/navigation'
+import { useAuth } from '@/processes/session'
 import { useDeviceType } from '@/shared/lib/device'
 
 const router = useIonRouter()
 const { isDesktop } = useDeviceType()
+const { login } = useAuth()
 
 // 简单的返回按钮
 const { backButtonProps } = useSimpleBackButton('/', '返回')
@@ -59,8 +60,7 @@ async function handleLogin() {
     message.value = ''
     loading.value = true
 
-    // 使用核心 authManager 登录
-    const result = await authManager.login(formData.value.email, formData.value.password)
+    const result = await login(formData.value.email, formData.value.password)
     if (!result.success || result.error) {
       throw new Error(result.error || '登录失败')
     }

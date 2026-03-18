@@ -5,7 +5,7 @@
 
 import type { AuthChangeCallback, AuthResult, IAuthService } from '@/core/auth-types'
 import type { UserInfo } from '@/types'
-import { pb } from '@/pocketbase'
+import { pb } from '@/shared/api/pocketbase/client'
 
 export class PocketBaseAuthAdapter implements IAuthService {
   /**

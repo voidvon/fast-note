@@ -2,7 +2,7 @@ import { Editor } from '@tiptap/core'
 import { TaskList } from '@tiptap/extension-list'
 import StarterKit from '@tiptap/starter-kit'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { TaskItem } from '@/components/extensions/TaskItem'
+import { TaskItem } from '@/shared/lib/editor/extensions/TaskItem'
 
 describe('task item', () => {
   const mounts: HTMLElement[] = []

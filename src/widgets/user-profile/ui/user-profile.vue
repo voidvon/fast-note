@@ -28,10 +28,8 @@ import {
   warningOutline,
 } from 'ionicons/icons'
 import { computed, onMounted, ref } from 'vue'
-import { authManager } from '@/core/auth-manager'
-import { realtimeManager } from '@/core/realtime-manager'
 import { useSync } from '@/processes/sync-notes'
-import { pb } from '@/shared/api/pocketbase'
+import { useAuth } from '@/processes/session'
 import { useDeviceType } from '@/shared/lib/device'
 
 // 获取全局版本号
@@ -40,21 +38,7 @@ const version = (window as any).version
 const router = useIonRouter()
 const { isDesktop } = useDeviceType()
 const { sync, syncing, syncStatus, getLocalDataStats } = useSync()
-
-// 使用核心 authManager
-const currentUser = authManager.userInfo
-const isLoggedIn = authManager.isLoggedIn
-
-// 计算头像 URL
-const avatarUrl = computed(() => {
-  if (!currentUser.value || !currentUser.value.avatar) {
-    return ''
-  }
-
-  // 构造 PocketBase 文件 URL
-  // 格式：{pocketbase_url}/api/files/{collection}/{record_id}/{filename}
-  return `${pb.baseUrl}/api/files/users/${currentUser.value.id}/${currentUser.value.avatar}`
-})
+const { avatarUrl, currentUser, isLoggedIn, logout } = useAuth()
 
 // 弹窗控制
 const isModalOpen = ref(false)
@@ -91,19 +75,20 @@ async function handleLogout() {
         {
           text: '确认',
           handler: async () => {
+            isLoading.value = true
             const loading = await loadingController.create({
               message: '正在退出...',
             })
             await loading.present()
 
-            // 断开 Realtime 连接
-            realtimeManager.disconnect()
-
-            // 使用核心 authManager 退出
-            await authManager.logout()
-
-            await loading.dismiss()
-            closeModal()
+            try {
+              await logout()
+              closeModal()
+            }
+            finally {
+              await loading.dismiss()
+              isLoading.value = false
+            }
           },
         },
       ],

@@ -1,4 +1,4 @@
-import type { NoteFile } from '@/database/types'
+import type { NoteFile } from '@/shared/lib/storage'
 import { useDexie } from '@/shared/lib/storage'
 import { getTime } from '@/utils/date'
 

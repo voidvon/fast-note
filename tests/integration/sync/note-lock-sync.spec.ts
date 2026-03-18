@@ -44,7 +44,7 @@ async function mountAppForNoteLockSync(options: {
     }),
   }))
 
-  vi.doMock('@/hooks/useLastVisitedRoute', () => ({
+  vi.doMock('@/processes/navigation', () => ({
     useLastVisitedRoute: () => ({
       getLastVisitedRoute: vi.fn(() => null),
       getRouteRestoreMode: vi.fn(() => 'immediate'),
@@ -55,7 +55,7 @@ async function mountAppForNoteLockSync(options: {
     }),
   }))
 
-  vi.doMock('@/hooks/useSync', () => ({
+  vi.doMock('@/processes/sync-notes', () => ({
     useSync: () => ({
       sync: syncMock,
     }),
@@ -118,13 +118,13 @@ async function mountAppForNoteLockSync(options: {
     pocketbaseAuthAdapter: {},
   }))
 
-  vi.doMock('@/hooks/useTheme', () => ({
+  vi.doMock('@/features/theme-switch', () => ({
     useTheme: () => ({
       initTheme: vi.fn(),
     }),
   }))
 
-  vi.doMock('@/hooks/useVisualViewport', () => ({
+  vi.doMock('@/shared/lib/viewport', () => ({
     useVisualViewport: vi.fn(),
   }))
 

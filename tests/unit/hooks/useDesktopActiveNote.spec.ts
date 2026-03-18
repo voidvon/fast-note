@@ -4,7 +4,7 @@ import {
   getDesktopNotesForFolder,
   resolveDesktopActiveNoteSelection,
   useDesktopActiveNote,
-} from '@/hooks/useDesktopActiveNote'
+} from '@/processes/navigation'
 import { NOTE_TYPE } from '@/types'
 import { makeNote } from '../../factories/note.factory'
 

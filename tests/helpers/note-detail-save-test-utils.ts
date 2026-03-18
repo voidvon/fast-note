@@ -263,7 +263,7 @@ export async function mountNoteDetailForSaveTest(options: {
     },
   })
 
-  vi.doMock('@/stores', async () => {
+  vi.doMock('@/entities/note', async () => {
     const { ref } = await import('vue')
     return {
       useNote: () => ({
@@ -277,13 +277,16 @@ export async function mountNoteDetailForSaveTest(options: {
           manualSync: manualSyncMock,
         }),
       }),
-      useUserPublicNotes: () => ({
-        getPublicNote: vi.fn(() => null),
-      }),
     }
   })
 
-  vi.doMock('@/hooks/useDeviceType', async () => {
+  vi.doMock('@/entities/public-note', () => ({
+    useUserPublicNotes: () => ({
+      getPublicNote: vi.fn(() => null),
+    }),
+  }))
+
+  vi.doMock('@/shared/lib/device', async () => {
     const { ref } = await import('vue')
     return {
       useDeviceType: () => ({
@@ -292,23 +295,23 @@ export async function mountNoteDetailForSaveTest(options: {
     }
   })
 
-  vi.doMock('@/hooks/useSmartBackButton', () => ({
+  vi.doMock('@/processes/navigation', () => ({
     useNoteBackButton: () => ({ backButtonProps: {} }),
   }))
 
-  vi.doMock('@/hooks/useSync', () => ({
+  vi.doMock('@/processes/sync-notes', () => ({
     useSync: () => ({
       sync: syncMock,
     }),
   }))
 
-  vi.doMock('@/hooks/useVisualViewport', () => ({
+  vi.doMock('@/shared/lib/viewport', () => ({
     useVisualViewport: () => ({
       restoreHeight: restoreHeightMock,
     }),
   }))
 
-  vi.doMock('@/hooks/useWebAuthn', () => ({
+  vi.doMock('@/shared/lib/security', () => ({
     useWebAuthn: () => ({
       state: { isRegistered: false },
       checkSupport: vi.fn(() => false),
@@ -356,7 +359,7 @@ export async function mountNoteDetailForSaveTest(options: {
     }),
   }))
 
-  vi.doMock('@/components/Icon.vue', () => ({
+  vi.doMock('@/shared/ui/icon', () => ({
     default: createPlainStub('Icon'),
   }))
   vi.doMock('@/widgets/note-more', () => ({
@@ -365,10 +368,10 @@ export async function mountNoteDetailForSaveTest(options: {
   vi.doMock('@/widgets/note-editor-toolbar', () => ({
     default: createPlainStub('NoteEditorToolbar'),
   }))
-  vi.doMock('@/components/TableFormatModal.vue', () => ({
+  vi.doMock('@/widgets/note-editor-toolbar/ui/table-format-modal.vue', () => ({
     default: createPlainStub('TableFormatModal'),
   }))
-  vi.doMock('@/components/TextFormatModal.vue', () => ({
+  vi.doMock('@/widgets/note-editor-toolbar/ui/text-format-modal.vue', () => ({
     default: createPlainStub('TextFormatModal'),
   }))
   vi.doMock('@/widgets/editor', () => ({

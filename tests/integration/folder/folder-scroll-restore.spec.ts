@@ -59,38 +59,38 @@ describe('folderPage mobile scroll restore', () => {
       useRoute: () => route.value,
     }))
 
-    vi.doMock('@/hooks/useDeviceType', () => ({
+    vi.doMock('@/shared/lib/device', () => ({
       useDeviceType: () => ({
         isDesktop,
       }),
     }))
 
-    vi.doMock('@/hooks/useRouteStateRestore', () => ({
+    vi.doMock('@/processes/navigation', () => ({
       useRouteStateRestore: () => ({
         resolveFolderEnterMode: vi.fn(() => 'restore'),
         shouldSaveFolderLeave: vi.fn(() => true),
       }),
-    }))
-
-    vi.doMock('@/hooks/useSmartBackButton', () => ({
       useFolderBackButton: () => ({
         backButtonProps: {},
       }),
     }))
 
-    vi.doMock('@/stores', () => ({
+    vi.doMock('@/entities/note', () => ({
       useNote: () => ({
         notes,
         addNote: vi.fn(),
         getNote: vi.fn(),
         getFolderTreeByParentId: vi.fn(() => []),
       }),
+    }))
+
+    vi.doMock('@/entities/public-note', () => ({
       useUserPublicNotes: () => ({
         getPublicNote: vi.fn(),
       }),
     }))
 
-    vi.doMock('@/components/NoteList.vue', () => ({
+    vi.doMock('@/widgets/note-list', () => ({
       default: createGenericStub('NoteList'),
     }))
 
@@ -137,7 +137,7 @@ describe('folderPage mobile scroll restore', () => {
       }
     })
 
-    const FolderPage = (await import('@/views/FolderPage.vue')).default
+    const FolderPage = (await import('@/pages/folder/ui/folder-page.vue')).default
     mount(FolderPage)
     await flushPromises()
 
@@ -176,38 +176,38 @@ describe('folderPage mobile scroll restore', () => {
       useRoute: () => route.value,
     }))
 
-    vi.doMock('@/hooks/useDeviceType', () => ({
+    vi.doMock('@/shared/lib/device', () => ({
       useDeviceType: () => ({
         isDesktop,
       }),
     }))
 
-    vi.doMock('@/hooks/useRouteStateRestore', () => ({
+    vi.doMock('@/processes/navigation', () => ({
       useRouteStateRestore: () => ({
         resolveFolderEnterMode: vi.fn(() => 'reset'),
         shouldSaveFolderLeave: vi.fn(() => true),
       }),
-    }))
-
-    vi.doMock('@/hooks/useSmartBackButton', () => ({
       useFolderBackButton: () => ({
         backButtonProps: {},
       }),
     }))
 
-    vi.doMock('@/stores', () => ({
+    vi.doMock('@/entities/note', () => ({
       useNote: () => ({
         notes,
         addNote: vi.fn(),
         getNote: vi.fn(),
         getFolderTreeByParentId: vi.fn(() => []),
       }),
+    }))
+
+    vi.doMock('@/entities/public-note', () => ({
       useUserPublicNotes: () => ({
         getPublicNote: vi.fn(),
       }),
     }))
 
-    vi.doMock('@/components/NoteList.vue', () => ({
+    vi.doMock('@/widgets/note-list', () => ({
       default: createGenericStub('NoteList'),
     }))
 
@@ -254,7 +254,7 @@ describe('folderPage mobile scroll restore', () => {
       }
     })
 
-    const FolderPage = (await import('@/views/FolderPage.vue')).default
+    const FolderPage = (await import('@/pages/folder/ui/folder-page.vue')).default
     mount(FolderPage)
     await flushPromises()
 

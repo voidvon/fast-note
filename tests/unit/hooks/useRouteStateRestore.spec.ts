@@ -1,6 +1,6 @@
 import type { Router } from 'vue-router'
 import { describe, expect, it } from 'vitest'
-import { createRouteStateRestoreManager } from '@/hooks/useRouteStateRestore'
+import { createRouteStateRestoreManager } from '@/processes/navigation'
 
 function createRouterStub() {
   let afterEachHandler: ((to: { fullPath: string }, from: { fullPath: string }) => void) | null = null

@@ -2,7 +2,7 @@ import type { Note } from '@/types'
 import { mount } from '@vue/test-utils'
 import { vi } from 'vitest'
 import { defineComponent, h, nextTick } from 'vue'
-import { getDesktopActiveNoteStorageKey } from '@/hooks/useDesktopActiveNote'
+import { getDesktopActiveNoteStorageKey } from '@/processes/navigation'
 
 function createIonicStub(name: string) {
   return defineComponent({
@@ -102,7 +102,7 @@ export async function mountHomePageForDesktopRestore(options: {
     }
   })
 
-  vi.doMock('@/hooks/useDeviceType', async () => {
+  vi.doMock('@/shared/lib/device', async () => {
     const { ref } = await import('vue')
     return {
       useDeviceType: () => ({
@@ -121,7 +121,7 @@ export async function mountHomePageForDesktopRestore(options: {
     }
   })
 
-  vi.doMock('@/hooks/useExtensions', () => ({
+  vi.doMock('@/features/extension-manager', () => ({
     useExtensions: () => ({
       isExtensionEnabled: () => false,
       getExtensionModule: () => null,

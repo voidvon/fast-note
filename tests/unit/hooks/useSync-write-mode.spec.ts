@@ -29,7 +29,7 @@ describe('useSync write mode routing', () => {
     const localNote = createLocalNote('note-upload', '2026-03-09 10:00:00.000Z')
     const syncWriteMock = vi.fn(async () => ({ success: true, record: null }))
 
-    vi.doMock('@/stores', () => ({
+    vi.doMock('@/entities/note', () => ({
       useNote: () => ({
         getNotesByUpdated: vi.fn(async () => [localNote]),
         getNote: vi.fn(async () => localNote),
@@ -37,15 +37,12 @@ describe('useSync write mode routing', () => {
         deleteNote: vi.fn(async () => undefined),
         updateNote: vi.fn(async () => undefined),
       }),
-    }))
-
-    vi.doMock('@/hooks/useNoteFiles', () => ({
       useNoteFiles: () => ({
         getNoteFileByHash: vi.fn(async () => null),
       }),
     }))
 
-    vi.doMock('@/pocketbase', () => ({
+    vi.doMock('@/shared/api/pocketbase', () => ({
       authService: {
         isAuthenticated: () => true,
         getCurrentAuthUser: () => ({ id: 'user-a' }),
@@ -56,7 +53,7 @@ describe('useSync write mode routing', () => {
       },
     }))
 
-    const { useSync } = await import('@/hooks/useSync')
+    const { useSync } = await import('@/processes/sync-notes')
     const { sync } = useSync()
     await sync(true)
 
@@ -68,7 +65,7 @@ describe('useSync write mode routing', () => {
     localNote.user_id = 'user-a'
     const syncWriteMock = vi.fn(async () => ({ success: true, record: null }))
 
-    vi.doMock('@/stores', () => ({
+    vi.doMock('@/entities/note', () => ({
       useNote: () => ({
         getNotesByUpdated: vi.fn(async () => [localNote]),
         getNote: vi.fn(async () => localNote),
@@ -76,15 +73,12 @@ describe('useSync write mode routing', () => {
         deleteNote: vi.fn(async () => undefined),
         updateNote: vi.fn(async () => undefined),
       }),
-    }))
-
-    vi.doMock('@/hooks/useNoteFiles', () => ({
       useNoteFiles: () => ({
         getNoteFileByHash: vi.fn(async () => null),
       }),
     }))
 
-    vi.doMock('@/pocketbase', () => ({
+    vi.doMock('@/shared/api/pocketbase', () => ({
       authService: {
         isAuthenticated: () => true,
         getCurrentAuthUser: () => ({ id: 'user-a' }),
@@ -95,7 +89,7 @@ describe('useSync write mode routing', () => {
       },
     }))
 
-    const { useSync } = await import('@/hooks/useSync')
+    const { useSync } = await import('@/processes/sync-notes')
     const { sync } = useSync()
     await sync(true)
 
@@ -114,7 +108,7 @@ describe('useSync write mode routing', () => {
       },
     }))
 
-    vi.doMock('@/stores', () => ({
+    vi.doMock('@/entities/note', () => ({
       useNote: () => ({
         getNotesByUpdated: vi.fn(async () => [localNote]),
         getNote: vi.fn(async () => localNote),
@@ -122,15 +116,12 @@ describe('useSync write mode routing', () => {
         deleteNote: vi.fn(async () => undefined),
         updateNote: storeUpdateMock,
       }),
-    }))
-
-    vi.doMock('@/hooks/useNoteFiles', () => ({
       useNoteFiles: () => ({
         getNoteFileByHash: vi.fn(async () => null),
       }),
     }))
 
-    vi.doMock('@/pocketbase', () => ({
+    vi.doMock('@/shared/api/pocketbase', () => ({
       authService: {
         isAuthenticated: () => true,
         getCurrentAuthUser: () => ({ id: 'user-a' }),
@@ -141,7 +132,7 @@ describe('useSync write mode routing', () => {
       },
     }))
 
-    const { useSync } = await import('@/hooks/useSync')
+    const { useSync } = await import('@/processes/sync-notes')
     const { sync } = useSync()
     await sync(true)
 
@@ -158,7 +149,7 @@ describe('useSync write mode routing', () => {
     }
     const syncWriteMock = vi.fn(async () => ({ success: true, record: null }))
 
-    vi.doMock('@/stores', () => ({
+    vi.doMock('@/entities/note', () => ({
       useNote: () => ({
         getNotesByUpdated: vi.fn(async () => [localNote]),
         getNote: vi.fn(async () => localNote),
@@ -166,15 +157,12 @@ describe('useSync write mode routing', () => {
         deleteNote: vi.fn(async () => undefined),
         updateNote: vi.fn(async () => undefined),
       }),
-    }))
-
-    vi.doMock('@/hooks/useNoteFiles', () => ({
       useNoteFiles: () => ({
         getNoteFileByHash: vi.fn(async () => null),
       }),
     }))
 
-    vi.doMock('@/pocketbase', () => ({
+    vi.doMock('@/shared/api/pocketbase', () => ({
       authService: {
         isAuthenticated: () => true,
         getCurrentAuthUser: () => ({ id: 'user-a' }),
@@ -185,7 +173,7 @@ describe('useSync write mode routing', () => {
       },
     }))
 
-    const { useSync } = await import('@/hooks/useSync')
+    const { useSync } = await import('@/processes/sync-notes')
     const { sync } = useSync()
     await sync(true)
 

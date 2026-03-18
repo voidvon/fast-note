@@ -17,7 +17,7 @@ describe('pocketbase users pin settings', () => {
       updated: '2026-03-10 10:00:00',
     })
 
-    vi.doMock('@/pocketbase/client', () => ({
+    vi.doMock('@/shared/api/pocketbase/client', () => ({
       mapErrorMessage: (error: any) => error?.message || 'error',
       pb: {
         authStore: {
@@ -30,7 +30,7 @@ describe('pocketbase users pin settings', () => {
       },
     }))
 
-    const { usersService } = await import('@/pocketbase/users')
+    const { usersService } = await import('@/shared/api/pocketbase/users')
     const result = await usersService.updateCurrentUserPinSettings({
       note_lock_pin_salt: 'salt-1',
       note_lock_pin_hash: 'hash-1',
@@ -67,7 +67,7 @@ describe('pocketbase users pin settings', () => {
       updated: '2026-03-10 10:00:05',
     })
 
-    vi.doMock('@/pocketbase/client', () => ({
+    vi.doMock('@/shared/api/pocketbase/client', () => ({
       mapErrorMessage: (error: any) => error?.message || 'error',
       pb: {
         authStore: {
@@ -80,7 +80,7 @@ describe('pocketbase users pin settings', () => {
       },
     }))
 
-    const { usersService } = await import('@/pocketbase/users')
+    const { usersService } = await import('@/shared/api/pocketbase/users')
     const result = await usersService.updateCurrentUserPinSettings({
       note_lock_pin_salt: 'salt-2',
       note_lock_pin_hash: 'hash-2',
@@ -114,7 +114,7 @@ describe('pocketbase users pin settings', () => {
       note_lock_pin_version: null,
     })
 
-    vi.doMock('@/pocketbase/client', () => ({
+    vi.doMock('@/shared/api/pocketbase/client', () => ({
       mapErrorMessage: (error: any) => error?.message || 'error',
       pb: {
         authStore: {
@@ -127,7 +127,7 @@ describe('pocketbase users pin settings', () => {
       },
     }))
 
-    const { usersService } = await import('@/pocketbase/users')
+    const { usersService } = await import('@/shared/api/pocketbase/users')
 
     await expect(usersService.updateCurrentUserPinSettings({
       note_lock_pin_salt: 'salt-3',

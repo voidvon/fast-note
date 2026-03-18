@@ -53,7 +53,7 @@ describe('note lock manage modal integration (t-fn-043 / tc-fn-036)', () => {
       biometricEnabled: false,
     }))
 
-    vi.doMock('@/hooks/useDeviceType', () => ({
+    vi.doMock('@/shared/lib/device', () => ({
       useDeviceType: () => ({
         isDesktop: ref(false),
       }),

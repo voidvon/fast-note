@@ -31,12 +31,12 @@ async function mountNoteList(options: {
   localStorage.clear()
   document.documentElement.classList.toggle('ion-palette-dark', !!options.darkMode)
 
-  vi.doMock('@/hooks/useDeviceType', () => ({
+  vi.doMock('@/shared/lib/device', () => ({
     useDeviceType: () => ({
       isDesktop: ref(false),
     }),
   }))
-  vi.doMock('@/hooks/useIonicLongPressList', () => ({
+  vi.doMock('@/shared/lib/ionic', () => ({
     useIonicLongPressList: vi.fn(),
   }))
   vi.doMock('vue-router', () => ({
@@ -46,10 +46,10 @@ async function mountNoteList(options: {
       name: 'Home',
     }),
   }))
-  vi.doMock('@/components/LongPressMenu.vue', () => ({
+  vi.doMock('@/features/note-actions-menu', () => ({
     default: createPlainStub('LongPressMenu'),
   }))
-  vi.doMock('@/components/NoteMove.vue', () => ({
+  vi.doMock('@/features/note-move', () => ({
     default: createPlainStub('NoteMove'),
   }))
   vi.doMock('@/features/note-lock', () => ({
@@ -75,7 +75,7 @@ async function mountNoteList(options: {
     }),
   }))
 
-  const NoteList = (await import('@/components/NoteList.vue')).default
+  const NoteList = (await import('@/widgets/note-list')).default
   const wrapper = mount(NoteList, {
     props: {
       allNotesCount: 4,

@@ -23,7 +23,7 @@ async function mountNoteListItem(options: {
 }) {
   vi.resetModules()
 
-  vi.doMock('@/hooks/useDeviceType', () => ({
+  vi.doMock('@/shared/lib/device', () => ({
     useDeviceType: () => ({
       isDesktop: ref(false),
     }),
@@ -46,7 +46,7 @@ async function mountNoteListItem(options: {
     }),
   }))
 
-  const NoteListItem = (await import('@/components/NoteListItem.vue')).default
+  const NoteListItem = (await import('@/widgets/note-list/ui/note-list-item.vue')).default
   const wrapper = mount(NoteListItem, {
     props: {
       disabledRoute: true,

@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick, ref } from 'vue'
 import { NOTE_TYPE } from '@/types'
-import FolderPage from '@/views/FolderPage.vue'
+import FolderPage from '@/pages/folder/ui/folder-page.vue'
 
 const routeMock = ref({
   params: {},
@@ -20,25 +20,32 @@ vi.mock('vue-router', () => ({
   useRoute: () => routeMock.value,
 }))
 
-vi.mock('@/hooks/useDeviceType', () => ({
+vi.mock('@/shared/lib/device', () => ({
   useDeviceType: () => ({
     isDesktop: isDesktopMock,
   }),
 }))
 
-vi.mock('@/hooks/useSmartBackButton', () => ({
+vi.mock('@/processes/navigation', () => ({
   useFolderBackButton: () => ({
     backButtonProps: {},
   }),
+  useRouteStateRestore: () => ({
+    resolveFolderEnterMode: vi.fn(() => 'restore'),
+    shouldSaveFolderLeave: vi.fn(() => true),
+  }),
 }))
 
-vi.mock('@/stores', () => ({
+vi.mock('@/entities/note', () => ({
   useNote: () => ({
     notes: ref<Note[]>([]),
     addNote: addNoteMock,
     getNote: getNoteMock,
     getFolderTreeByParentId: getFolderTreeByParentIdMock,
   }),
+}))
+
+vi.mock('@/entities/public-note', () => ({
   useUserPublicNotes: () => ({
     getPublicNote: vi.fn(),
   }),

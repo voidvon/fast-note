@@ -23,7 +23,6 @@ import { nanoid } from 'nanoid'
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 // import ExtensionButton from '@/shared/ui/extension-button'
 // import ExtensionManager from '@/features/extension-manager'
-import { authManager } from '@/core/auth-manager'
 import { useNote } from '@/entities/note'
 import { useExtensions } from '@/features/extension-manager'
 import GlobalSearch, { useGlobalSearch } from '@/features/global-search'
@@ -37,6 +36,7 @@ import {
   resolveDesktopActiveNoteSelection,
   useDesktopActiveNote,
 } from '@/processes/navigation'
+import { useAuth } from '@/processes/session'
 import { useDeviceType } from '@/shared/lib/device'
 import { NOTE_TYPE } from '@/types'
 import { getTime } from '@/utils/date'
@@ -46,10 +46,11 @@ import UserProfile from '@/widgets/user-profile'
 
 const { notes, addNote, getFolderTreeByParentId } = useNote()
 const { isDesktop } = useDeviceType()
+const { currentUser } = useAuth()
 const { showGlobalSearch } = useGlobalSearch()
 const { isExtensionEnabled, getExtensionModule } = useExtensions()
 const { getSnapshot, saveSnapshot, clearSnapshot } = useDesktopActiveNote()
-const currentUserId = computed(() => authManager.userInfo.value?.id || null)
+const currentUserId = computed(() => currentUser.value?.id || null)
 
 // 扩展管理器状态
 // const showExtensionManager = ref(false)

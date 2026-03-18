@@ -1,8 +1,8 @@
 import { Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import { afterEach, describe, expect, it } from 'vitest'
-import { TableWithWrapper } from '@/components/extensions/TableWithWrapper'
-import { TableCell, TableHeader, TableRow } from '@/components/extensions/tiptap-table'
+import { TableWithWrapper } from '@/shared/lib/editor/extensions/TableWithWrapper'
+import { TableCell, TableHeader, TableRow } from '@/shared/lib/editor/extensions/tiptap-table'
 
 describe('table with wrapper', () => {
   const editors: Editor[] = []

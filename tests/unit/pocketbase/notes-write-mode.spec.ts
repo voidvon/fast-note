@@ -10,7 +10,7 @@ describe('pocketbase notes write mode', () => {
     const notesCollection = createPocketBaseCollectionMock()
     notesCollection.update.mockResolvedValue({ id: 'note-1' })
 
-    vi.doMock('@/pocketbase/client', () => ({
+    vi.doMock('@/shared/api/pocketbase/client', () => ({
       mapErrorMessage: (error: any) => error?.message || 'error',
       pb: {
         authStore: {
@@ -21,7 +21,7 @@ describe('pocketbase notes write mode', () => {
       },
     }))
 
-    const { notesService } = await import('@/pocketbase/notes')
+    const { notesService } = await import('@/shared/api/pocketbase/notes')
     await notesService.updateNote({ id: 'note-1', title: '更新内容' }, undefined, 'update')
 
     expect(notesCollection.update).toHaveBeenCalledWith('note-1', expect.objectContaining({
@@ -47,7 +47,7 @@ describe('pocketbase notes write mode', () => {
     })
     notesCollection.update.mockResolvedValue({ id: 'note-1' })
 
-    vi.doMock('@/pocketbase/client', () => ({
+    vi.doMock('@/shared/api/pocketbase/client', () => ({
       mapErrorMessage: (error: any) => error?.message || 'error',
       pb: {
         authStore: {
@@ -58,7 +58,7 @@ describe('pocketbase notes write mode', () => {
       },
     }))
 
-    const { notesService } = await import('@/pocketbase/notes')
+    const { notesService } = await import('@/shared/api/pocketbase/notes')
     await notesService.updateNote({ id: 'note-1', title: '新建内容' }, undefined, 'create')
 
     expect(notesCollection.create).toHaveBeenCalledTimes(1)
@@ -75,7 +75,7 @@ describe('pocketbase notes write mode', () => {
     notesCollection.update.mockRejectedValue({ status: 404, message: 'Not found.' })
     notesCollection.create.mockResolvedValue({ id: 'note-2' })
 
-    vi.doMock('@/pocketbase/client', () => ({
+    vi.doMock('@/shared/api/pocketbase/client', () => ({
       mapErrorMessage: (error: any) => error?.message || 'error',
       pb: {
         authStore: {
@@ -86,7 +86,7 @@ describe('pocketbase notes write mode', () => {
       },
     }))
 
-    const { notesService } = await import('@/pocketbase/notes')
+    const { notesService } = await import('@/shared/api/pocketbase/notes')
     await notesService.updateNote({ id: 'note-2', title: '缺失远端' }, undefined, 'update')
 
     expect(notesCollection.update).toHaveBeenCalledTimes(1)

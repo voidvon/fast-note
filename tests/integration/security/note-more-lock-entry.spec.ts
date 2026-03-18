@@ -125,7 +125,7 @@ describe('note more lock entry integration', () => {
         updateParentFolderSubcount: vi.fn(),
       }),
     }))
-    vi.doMock('@/database', () => ({
+    vi.doMock('@/shared/lib/storage', () => ({
       useDexie: () => ({
         db: ref({}),
       }),
@@ -145,7 +145,7 @@ describe('note more lock entry integration', () => {
         toggleShare: vi.fn(),
       }),
     }))
-    vi.doMock('@/components/IconTextButton.vue', () => ({
+    vi.doMock('@/shared/ui/icon-text-button', () => ({
       default: createIconTextButtonStub(),
     }))
 
@@ -214,7 +214,7 @@ describe('note more lock entry integration', () => {
         updateParentFolderSubcount: vi.fn(),
       }),
     }))
-    vi.doMock('@/database', () => ({
+    vi.doMock('@/shared/lib/storage', () => ({
       useDexie: () => ({
         db: ref({}),
       }),
@@ -234,7 +234,7 @@ describe('note more lock entry integration', () => {
         toggleShare: vi.fn(),
       }),
     }))
-    vi.doMock('@/components/IconTextButton.vue', () => ({
+    vi.doMock('@/shared/ui/icon-text-button', () => ({
       default: createIconTextButtonStub(),
     }))
 
@@ -320,7 +320,7 @@ describe('note more lock entry integration', () => {
         toggleShare: vi.fn(),
       }),
     }))
-    vi.doMock('@/components/IconTextButton.vue', () => ({
+    vi.doMock('@/shared/ui/icon-text-button', () => ({
       default: createIconTextButtonStub(),
     }))
 

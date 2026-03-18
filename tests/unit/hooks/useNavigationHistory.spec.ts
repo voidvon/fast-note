@@ -1,7 +1,7 @@
 import type { Router } from 'vue-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
-import { useNavigationHistory } from '@/hooks/useNavigationHistory'
+import { useNavigationHistory } from '@/processes/navigation'
 
 function createRouterStub() {
   let afterEachHandler: ((to: { fullPath: string }, from: { fullPath: string }) => void) | null = null

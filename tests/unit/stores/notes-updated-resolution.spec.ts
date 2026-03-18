@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { shouldRefreshNoteUpdated } from '@/stores/notes'
+import { shouldRefreshNoteUpdated } from '@/entities/note'
 import { makeNote } from '../../factories/note.factory'
 
 describe('notes updated resolution', () => {

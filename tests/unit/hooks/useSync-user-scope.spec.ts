@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { getDesktopActiveNoteStorageKey, useDesktopActiveNote } from '@/hooks/useDesktopActiveNote'
-import { getLastVisitedRouteStorageKey, useLastVisitedRoute } from '@/hooks/useLastVisitedRoute'
-import { getSyncCursorStorageKey, readSyncCursor, writeSyncCursor } from '@/hooks/useSync'
-import { authService } from '@/pocketbase'
+import { getDesktopActiveNoteStorageKey, useDesktopActiveNote } from '@/processes/navigation'
+import { getLastVisitedRouteStorageKey, useLastVisitedRoute } from '@/processes/navigation'
+import { getSyncCursorStorageKey, readSyncCursor, writeSyncCursor } from '@/processes/sync-notes'
+import { authService } from '@/shared/api/pocketbase'
 import { getScopedDatabaseName } from '@/utils/userScope'
 
 describe('t-fn-029 / tc-fn-022 user scoped sync context', () => {

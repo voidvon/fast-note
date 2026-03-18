@@ -47,7 +47,7 @@ describe('cache repair sync (t-fn-032 / tc-fn-025)', () => {
       }),
     }))
 
-    vi.doMock('@/pocketbase', () => ({
+    vi.doMock('@/shared/api/pocketbase', () => ({
       authService: {
         isAuthenticated: () => true,
         getCurrentAuthUser: () => ({ id: 'user-a' }),
@@ -63,7 +63,7 @@ describe('cache repair sync (t-fn-032 / tc-fn-025)', () => {
       readSyncCursor,
       useSync,
       writeSyncCursor,
-    } = await import('@/hooks/useSync')
+    } = await import('@/processes/sync-notes')
 
     writeSyncCursor('2026-03-09 08:00:00.000Z', 'user-a')
 
@@ -104,7 +104,7 @@ describe('cache repair sync (t-fn-032 / tc-fn-025)', () => {
       }),
     }))
 
-    vi.doMock('@/pocketbase', () => ({
+    vi.doMock('@/shared/api/pocketbase', () => ({
       authService: {
         isAuthenticated: () => true,
         getCurrentAuthUser: () => ({ id: 'user-a' }),
@@ -120,7 +120,7 @@ describe('cache repair sync (t-fn-032 / tc-fn-025)', () => {
       readSyncCursor,
       useSync,
       writeSyncCursor,
-    } = await import('@/hooks/useSync')
+    } = await import('@/processes/sync-notes')
 
     writeSyncCursor('2026-03-09 08:00:00.000Z', 'user-a')
 

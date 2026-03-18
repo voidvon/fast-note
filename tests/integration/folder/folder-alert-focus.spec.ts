@@ -130,7 +130,7 @@ async function mountHomePageForFolderAlert() {
     useRoute: () => route,
   }))
 
-  vi.doMock('@/hooks/useDeviceType', async () => {
+  vi.doMock('@/shared/lib/device', async () => {
     const { ref } = await import('vue')
     return {
       useDeviceType: () => ({
@@ -139,23 +139,24 @@ async function mountHomePageForFolderAlert() {
     }
   })
 
-  vi.doMock('@/components/GlobalSearch/useGlobalSearch', async () => {
+  vi.doMock('@/features/global-search', async () => {
     const { ref } = await import('vue')
     return {
+      default: genericStub,
       useGlobalSearch: () => ({
         showGlobalSearch: ref(false),
       }),
     }
   })
 
-  vi.doMock('@/hooks/useExtensions', () => ({
+  vi.doMock('@/features/extension-manager', () => ({
     useExtensions: () => ({
       isExtensionEnabled: () => false,
       getExtensionModule: () => null,
     }),
   }))
 
-  vi.doMock('@/hooks/useDesktopActiveNote', () => ({
+  vi.doMock('@/processes/navigation', () => ({
     getDesktopNotesForFolder: () => [],
     isDesktopFolderAvailable: () => true,
     resolveDesktopActiveNoteSelection: () => ({
@@ -170,7 +171,7 @@ async function mountHomePageForFolderAlert() {
     }),
   }))
 
-  vi.doMock('@/stores', async () => {
+  vi.doMock('@/entities/note', async () => {
     const { ref } = await import('vue')
     return {
       useNote: () => ({
@@ -181,14 +182,19 @@ async function mountHomePageForFolderAlert() {
     }
   })
 
-  vi.doMock('@/components/DarkModeToggle.vue', () => ({ default: genericStub }))
-  vi.doMock('@/components/ExtensionRenderer.vue', () => ({ default: genericStub }))
-  vi.doMock('@/components/GlobalSearch/GlobalSearch.vue', () => ({ default: genericStub }))
-  vi.doMock('@/components/NoteList.vue', () => ({ default: noteListStub }))
-  vi.doMock('@/components/UserProfile.vue', () => ({ default: genericStub }))
-  vi.doMock('@/views/DeletedPage.vue', () => ({ default: genericStub }))
-  vi.doMock('@/views/FolderPage.vue', () => ({ default: genericStub }))
-  vi.doMock('@/views/NoteDetail.vue', () => ({ default: genericStub }))
+  vi.doMock('@/entities/public-note', () => ({
+    useUserPublicNotes: () => ({
+      getPublicNote: vi.fn(() => null),
+    }),
+  }))
+
+  vi.doMock('@/features/theme-switch', () => ({ default: genericStub }))
+  vi.doMock('@/widgets/extension-renderer', () => ({ default: genericStub }))
+  vi.doMock('@/widgets/note-list', () => ({ default: noteListStub }))
+  vi.doMock('@/widgets/user-profile', () => ({ default: genericStub }))
+  vi.doMock('@/pages/deleted/ui/deleted-page.vue', () => ({ default: genericStub }))
+  vi.doMock('@/pages/folder/ui/folder-page.vue', () => ({ default: genericStub }))
+  vi.doMock('@/pages/note-detail/ui/note-detail-page.vue', () => ({ default: genericStub }))
 
   vi.doMock('@ionic/vue', async () => {
     const { onMounted } = await import('vue')
@@ -209,7 +215,7 @@ async function mountHomePageForFolderAlert() {
     }
   })
 
-  const HomePage = (await import('@/views/HomePage.vue')).default
+  const HomePage = (await import('@/pages/home/ui/home-page.vue')).default
   const wrapper = mount(HomePage, {
     global: {
       stubs: {
@@ -228,7 +234,7 @@ async function mountHomePageForFolderAlert() {
 
 async function mountFolderPageForAlert() {
   vi.resetModules()
-  vi.doUnmock('@/views/FolderPage.vue')
+  vi.doUnmock('@/pages/folder/ui/folder-page.vue')
 
   const route = {
     params: {},
@@ -246,7 +252,7 @@ async function mountFolderPageForAlert() {
     useRoute: () => route,
   }))
 
-  vi.doMock('@/hooks/useDeviceType', async () => {
+  vi.doMock('@/shared/lib/device', async () => {
     const { ref } = await import('vue')
     return {
       useDeviceType: () => ({
@@ -255,13 +261,13 @@ async function mountFolderPageForAlert() {
     }
   })
 
-  vi.doMock('@/hooks/useSmartBackButton', () => ({
+  vi.doMock('@/processes/navigation', () => ({
     useFolderBackButton: () => ({
       backButtonProps: {},
     }),
   }))
 
-  vi.doMock('@/stores', async () => {
+  vi.doMock('@/entities/note', async () => {
     const { ref } = await import('vue')
     return {
       useNote: () => ({
@@ -270,13 +276,16 @@ async function mountFolderPageForAlert() {
         getNote: getNoteMock,
         getFolderTreeByParentId: getFolderTreeByParentIdMock,
       }),
-      useUserPublicNotes: () => ({
-        getPublicNote: vi.fn(() => null),
-      }),
     }
   })
 
-  vi.doMock('@/components/NoteList.vue', () => ({ default: noteListStub }))
+  vi.doMock('@/entities/public-note', () => ({
+    useUserPublicNotes: () => ({
+      getPublicNote: vi.fn(() => null),
+    }),
+  }))
+
+  vi.doMock('@/widgets/note-list', () => ({ default: noteListStub }))
 
   vi.doMock('@ionic/vue', async () => {
     const { onMounted } = await import('vue')
@@ -297,7 +306,7 @@ async function mountFolderPageForAlert() {
     }
   })
 
-  const FolderPage = (await import('@/views/FolderPage.vue')).default
+  const FolderPage = (await import('@/pages/folder/ui/folder-page.vue')).default
   const wrapper = mount(FolderPage, {
     props: {
       currentFolder: 'folder-1',

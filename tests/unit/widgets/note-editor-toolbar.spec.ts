@@ -45,13 +45,13 @@ describe('note-editor-toolbar widget', () => {
       IonIcon: createIonicStub('IonIcon'),
       IonToolbar: createIonicStub('IonToolbar'),
     }))
-    vi.doMock('@/components/Icon.vue', () => ({
+    vi.doMock('@/shared/ui/icon', () => ({
       default: createIonicStub('Icon'),
     }))
-    vi.doMock('@/components/TableFormatModal.vue', () => ({
+    vi.doMock('@/widgets/note-editor-toolbar/ui/table-format-modal.vue', () => ({
       default: createIonicStub('TableFormatModal'),
     }))
-    vi.doMock('@/components/TextFormatModal.vue', () => ({
+    vi.doMock('@/widgets/note-editor-toolbar/ui/text-format-modal.vue', () => ({
       default: createIonicStub('TextFormatModal'),
     }))
 
@@ -93,13 +93,13 @@ describe('note-editor-toolbar widget', () => {
       IonIcon: createIonicStub('IonIcon'),
       IonToolbar: createIonicStub('IonToolbar'),
     }))
-    vi.doMock('@/components/Icon.vue', () => ({
+    vi.doMock('@/shared/ui/icon', () => ({
       default: createIonicStub('Icon'),
     }))
-    vi.doMock('@/components/TableFormatModal.vue', () => ({
+    vi.doMock('@/widgets/note-editor-toolbar/ui/table-format-modal.vue', () => ({
       default: createIonicStub('TableFormatModal'),
     }))
-    vi.doMock('@/components/TextFormatModal.vue', () => ({
+    vi.doMock('@/widgets/note-editor-toolbar/ui/text-format-modal.vue', () => ({
       default: createIonicStub('TextFormatModal'),
     }))
 

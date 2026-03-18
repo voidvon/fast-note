@@ -1,7 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick, ref } from 'vue'
-import { getLastVisitedRouteStorageKey } from '@/hooks/useLastVisitedRoute'
+import { getLastVisitedRouteStorageKey } from '@/processes/navigation'
 
 function createIonicStub(name: string) {
   return defineComponent({
@@ -64,7 +64,7 @@ async function mountAppForRouteRestore(options: {
     }),
   }))
 
-  vi.doMock('@/pocketbase', () => ({
+  vi.doMock('@/shared/api/pocketbase', () => ({
     authService: {
       isAuthenticated: () => options.isAuthenticated ?? true,
       getCurrentAuthUser: () => ((options.isAuthenticated ?? true) ? { id: 'user-a' } : null),
@@ -98,7 +98,7 @@ async function mountAppForRouteRestore(options: {
     pocketbaseAuthAdapter: {},
   }))
 
-  vi.doMock('@/hooks/useSync', () => ({
+  vi.doMock('@/processes/sync-notes', () => ({
     useSync: () => ({
       sync: syncMock,
     }),
@@ -110,26 +110,25 @@ async function mountAppForRouteRestore(options: {
     }),
   }))
 
-  vi.doMock('@/database', () => ({
-    initializeDatabase: initializeDatabaseMock,
-  }))
-
-  vi.doMock('@/database/guestData', () => ({
+  vi.doMock('@/shared/lib/storage/guest-data', () => ({
     hasGuestData: vi.fn(async () => false),
     mergeGuestDataIntoCurrent: vi.fn(async () => undefined),
   }))
 
-  vi.doMock('@/stores', () => ({
-    initializeNotes: initializeNotesMock,
+  vi.doMock('@/processes/session/model/prepare-session-context', () => ({
+    prepareSessionContext: vi.fn(async () => {
+      await initializeDatabaseMock()
+      await initializeNotesMock()
+    }),
   }))
 
-  vi.doMock('@/hooks/useTheme', () => ({
+  vi.doMock('@/features/theme-switch', () => ({
     useTheme: () => ({
       initTheme: vi.fn(),
     }),
   }))
 
-  vi.doMock('@/hooks/useVisualViewport', () => ({
+  vi.doMock('@/shared/lib/viewport', () => ({
     useVisualViewport: vi.fn(),
   }))
 
