@@ -80,21 +80,20 @@ async function mountAppForNoteLockSync(options: {
   }))
 
   vi.doMock('@/shared/api/pocketbase', () => ({
-    authService: {
+    pocketbaseAuthService: {
       isAuthenticated: () => options.isAuthenticated !== false,
       getCurrentAuthUser: () => currentUser.value,
+      onAuthChange: (callback: typeof authChangeCallback) => {
+        authChangeCallback = callback
+        return vi.fn()
+      },
     },
+    PocketBaseRealtimeService: class {},
   }))
 
   vi.doMock('@/core/auth-manager', () => ({
     authManager: {
       setAuthService: vi.fn(),
-      getAuthService: () => ({
-        onAuthChange: (callback: typeof authChangeCallback) => {
-          authChangeCallback = callback
-          return vi.fn()
-        },
-      }),
       initialize: vi.fn(async () => undefined),
       isAuthenticated: () => !!currentUser.value,
       userInfo: currentUser,
@@ -108,14 +107,6 @@ async function mountAppForNoteLockSync(options: {
       connect: vi.fn(async () => undefined),
       disconnect: vi.fn(),
     },
-  }))
-
-  vi.doMock('@/adapters/pocketbase/realtime-adapter', () => ({
-    PocketBaseRealtimeAdapter: class {},
-  }))
-
-  vi.doMock('@/adapters/pocketbase/auth-adapter', () => ({
-    pocketbaseAuthAdapter: {},
   }))
 
   vi.doMock('@/features/theme-switch', () => ({

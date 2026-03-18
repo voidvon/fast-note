@@ -65,16 +65,17 @@ async function mountAppForRouteRestore(options: {
   }))
 
   vi.doMock('@/shared/api/pocketbase', () => ({
-    authService: {
+    pocketbaseAuthService: {
       isAuthenticated: () => options.isAuthenticated ?? true,
       getCurrentAuthUser: () => ((options.isAuthenticated ?? true) ? { id: 'user-a' } : null),
+      onAuthChange: authChangeMock,
     },
+    PocketBaseRealtimeService: class {},
   }))
 
   vi.doMock('@/core/auth-manager', async () => ({
     authManager: {
       setAuthService: vi.fn(),
-      getAuthService: () => ({ onAuthChange: authChangeMock }),
       initialize: vi.fn(async () => undefined),
       isAuthenticated: () => options.isAuthenticated ?? true,
       userInfo: ref((options.isAuthenticated ?? true) ? { id: 'user-a' } : null),
@@ -88,14 +89,6 @@ async function mountAppForRouteRestore(options: {
       connect: vi.fn(async () => undefined),
       disconnect: vi.fn(),
     },
-  }))
-
-  vi.doMock('@/adapters/pocketbase/realtime-adapter', () => ({
-    PocketBaseRealtimeAdapter: class {},
-  }))
-
-  vi.doMock('@/adapters/pocketbase/auth-adapter', () => ({
-    pocketbaseAuthAdapter: {},
   }))
 
   vi.doMock('@/processes/sync-notes', () => ({

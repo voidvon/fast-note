@@ -1,37 +1,31 @@
-import type { RealtimeEvent, RealtimeStatus } from '@/core/realtime'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { getRealtimeInstance } from '@/core/realtime'
+import type { RealtimeEvent } from '@/core/realtime-types'
+import { computed, onMounted, ref } from 'vue'
+import { RealtimeStatus } from '@/core/realtime-types'
+import { realtimeManager } from '@/core/realtime-manager'
 
 export function useRealtime() {
-  const realtime = getRealtimeInstance()
-
-  const status = ref<RealtimeStatus>(realtime.getStatus())
-  const lastMessage = ref<RealtimeEvent | null>(null)
   const lastError = ref<Error | null>(null)
-
-  const isConnected = computed(() => status.value === 'connected')
-  const isConnecting = computed(() =>
-    status.value === 'connecting'
-    || status.value === 'reconnecting',
-  )
-  const hasError = computed(() => status.value === 'error')
+  const lastMessage = ref<RealtimeEvent | null>(null)
+  const status = computed(() => realtimeManager.connectionStatus.value)
 
   async function connect() {
     try {
-      await realtime.connect()
+      await realtimeManager.connect()
+      lastError.value = null
     }
     catch (error) {
+      lastError.value = error as Error
       console.error('连接 Realtime 失败:', error)
       throw error
     }
   }
 
   function disconnect() {
-    realtime.disconnect()
+    realtimeManager.disconnect()
   }
 
-  function onStatusChange(_callback: (newStatus: RealtimeStatus) => void) {
-    status.value = realtime.getStatus()
+  function onStatusChange(callback: (newStatus: RealtimeStatus) => void) {
+    callback(status.value)
   }
 
   function onMessage(_callback: (event: RealtimeEvent) => void) {
@@ -43,10 +37,10 @@ export function useRealtime() {
   }
 
   return {
-    status: computed(() => status.value),
-    isConnected,
-    isConnecting,
-    hasError,
+    status,
+    isConnected: computed(() => realtimeManager.isConnected.value),
+    isConnecting: computed(() => realtimeManager.isConnecting.value),
+    hasError: computed(() => realtimeManager.hasError.value),
     lastMessage: computed(() => lastMessage.value),
     lastError: computed(() => lastError.value),
     connect,
@@ -67,9 +61,6 @@ export function useAutoRealtime() {
     catch (error) {
       console.error('自动连接 Realtime 失败:', error)
     }
-  })
-
-  onUnmounted(() => {
   })
 
   return realtimeHook
