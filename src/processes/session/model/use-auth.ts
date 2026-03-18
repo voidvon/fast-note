@@ -1,7 +1,7 @@
 import type { UserInfo } from '@/shared/types'
 import { computed } from 'vue'
-import { authManager } from '@/core/auth-manager'
 import { pb } from '@/shared/api/pocketbase'
+import { authManager } from './auth-manager'
 
 export function getUserAvatarUrl(user?: Pick<UserInfo, 'id' | 'avatar'> | null) {
   if (!user?.id || !user.avatar) {

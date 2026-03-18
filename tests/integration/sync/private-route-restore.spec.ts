@@ -73,7 +73,7 @@ async function mountAppForRouteRestore(options: {
     PocketBaseRealtimeService: class {},
   }))
 
-  vi.doMock('@/core/auth-manager', async () => ({
+  vi.doMock('@/processes/session/model/auth-manager', async () => ({
     authManager: {
       setAuthService: vi.fn(),
       initialize: vi.fn(async () => undefined),
@@ -82,7 +82,7 @@ async function mountAppForRouteRestore(options: {
     },
   }))
 
-  vi.doMock('@/core/realtime-manager', () => ({
+  vi.doMock('@/processes/session/model/realtime-manager', () => ({
     realtimeManager: {
       setRealtimeService: vi.fn(),
       checkIsConnected: vi.fn(() => false),

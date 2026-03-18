@@ -1,7 +1,7 @@
-import type { RealtimeEvent } from '@/core/realtime-types'
+import type { RealtimeEvent } from '@/shared/lib/realtime'
 import { computed, onMounted, ref } from 'vue'
-import { RealtimeStatus } from '@/core/realtime-types'
-import { realtimeManager } from '@/core/realtime-manager'
+import { RealtimeStatus } from '@/shared/lib/realtime'
+import { realtimeManager } from './realtime-manager'
 
 export function useRealtime() {
   const lastError = ref<Error | null>(null)

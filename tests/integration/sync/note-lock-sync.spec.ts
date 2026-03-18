@@ -91,7 +91,7 @@ async function mountAppForNoteLockSync(options: {
     PocketBaseRealtimeService: class {},
   }))
 
-  vi.doMock('@/core/auth-manager', () => ({
+  vi.doMock('@/processes/session/model/auth-manager', () => ({
     authManager: {
       setAuthService: vi.fn(),
       initialize: vi.fn(async () => undefined),
@@ -100,7 +100,7 @@ async function mountAppForNoteLockSync(options: {
     },
   }))
 
-  vi.doMock('@/core/realtime-manager', () => ({
+  vi.doMock('@/processes/session/model/realtime-manager', () => ({
     realtimeManager: {
       setRealtimeService: vi.fn(),
       checkIsConnected: vi.fn(() => false),

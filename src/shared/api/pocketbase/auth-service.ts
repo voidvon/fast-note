@@ -1,4 +1,4 @@
-import type { AuthChangeCallback, AuthResult, IAuthService } from '@/core/auth-types'
+import type { AuthChangeCallback, AuthResult, IAuthService } from '@/shared/lib/auth'
 import type { UserInfo } from '@/shared/types'
 import { pb } from './client'
 

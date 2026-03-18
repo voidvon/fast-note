@@ -91,7 +91,7 @@ export async function mountHomePageForDesktopRestore(options: {
     }
   })
 
-  vi.doMock('@/core/auth-manager', async () => {
+  vi.doMock('@/processes/session/model/auth-manager', async () => {
     const { computed, ref } = await import('vue')
     const currentUser = ref(options.userId ? { id: options.userId } : null)
 

@@ -2,15 +2,15 @@ import type { GuestDataDecision } from '@/shared/lib/storage/guest-data'
 import { alertController } from '@ionic/vue'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { authManager } from '@/core/auth-manager'
-import { realtimeManager } from '@/core/realtime-manager'
 import { useNoteLock } from '@/features/note-lock'
 import { useLastVisitedRoute } from '@/processes/navigation'
 import { useSync } from '@/processes/sync-notes'
 import { PocketBaseRealtimeService, pocketbaseAuthService } from '@/shared/api/pocketbase'
 import { hasGuestData, mergeGuestDataIntoCurrent } from '@/shared/lib/storage/guest-data'
 import { logger } from '@/utils/logger'
+import { authManager } from './auth-manager'
 import { prepareSessionContext } from './prepare-session-context'
+import { realtimeManager } from './realtime-manager'
 
 export function useSessionBootstrap() {
   const router = useRouter()
