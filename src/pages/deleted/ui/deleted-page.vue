@@ -12,8 +12,8 @@ import {
 } from '@ionic/vue'
 import { computed, onMounted, onUnmounted, reactive } from 'vue'
 import { useNote } from '@/entities/note'
-import { useDeviceType } from '@/hooks/useDeviceType'
-import { useSimpleBackButton } from '@/hooks/useSmartBackButton'
+import { useSimpleBackButton } from '@/processes/navigation'
+import { useDeviceType } from '@/shared/lib/device'
 import NoteList from '@/widgets/note-list'
 
 const props = withDefaults(defineProps<{

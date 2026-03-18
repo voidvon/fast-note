@@ -42,9 +42,6 @@ describe('cache repair sync (t-fn-032 / tc-fn-025)', () => {
         deleteNote: deleteNoteMock,
         updateNote: updateNoteMock,
       }),
-    }))
-
-    vi.doMock('@/hooks/useNoteFiles', () => ({
       useNoteFiles: () => ({
         getNoteFileByHash: vi.fn(async () => null),
       }),
@@ -102,9 +99,6 @@ describe('cache repair sync (t-fn-032 / tc-fn-025)', () => {
         deleteNote: vi.fn(async () => undefined),
         updateNote: vi.fn(async () => undefined),
       }),
-    }))
-
-    vi.doMock('@/hooks/useNoteFiles', () => ({
       useNoteFiles: () => ({
         getNoteFileByHash: vi.fn(async () => null),
       }),

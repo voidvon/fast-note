@@ -2,7 +2,7 @@
 import { IonButton, IonIcon, IonItem, IonLabel, IonList, IonPopover } from '@ionic/vue'
 import { contrastOutline, moonOutline, sunnyOutline } from 'ionicons/icons'
 import { computed, ref } from 'vue'
-import { ThemeMode, useTheme } from '@/hooks/useTheme'
+import { ThemeMode, useTheme } from '../model/use-theme'
 
 // 使用主题 composable
 const { currentMode, isDarkMode, setThemeMode } = useTheme()

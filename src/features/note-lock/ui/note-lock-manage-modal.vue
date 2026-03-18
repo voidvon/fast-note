@@ -2,7 +2,7 @@
 import type { Note } from '@/types'
 import { IonButton, IonModal } from '@ionic/vue'
 import { computed, reactive, watch } from 'vue'
-import { useDeviceType } from '@/hooks/useDeviceType'
+import { useDeviceType } from '@/shared/lib/device'
 import { useNoteLock } from '../model/use-note-lock'
 
 const props = withDefaults(defineProps<{

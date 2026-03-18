@@ -8,14 +8,14 @@ import { PocketBaseRealtimeAdapter } from '@/adapters/pocketbase/realtime-adapte
 import { authManager } from '@/core/auth-manager'
 import { realtimeManager } from '@/core/realtime-manager'
 import { useNoteLock } from '@/features/note-lock'
-import { useLastVisitedRoute } from '@/hooks/useLastVisitedRoute'
-import { useTheme } from '@/hooks/useTheme'
-import { prepareSessionContext } from '@/processes/session/model/prepare-session-context'
+import { useTheme } from '@/features/theme-switch'
+import { useLastVisitedRoute } from '@/processes/navigation'
+import { prepareSessionContext } from '@/processes/session'
 import { useSync } from '@/processes/sync-notes'
 import { authService } from '@/shared/api/pocketbase'
 import { hasGuestData, mergeGuestDataIntoCurrent } from '@/shared/lib/storage/guest-data'
+import { useVisualViewport } from '@/shared/lib/viewport'
 import { logger } from '@/utils/logger'
-import { useVisualViewport } from './hooks/useVisualViewport'
 
 const { initTheme } = useTheme()
 const router = useRouter()

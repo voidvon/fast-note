@@ -4,9 +4,8 @@
  */
 import type { Note } from '@/types'
 import { ref } from 'vue'
-import { useNote } from '@/entities/note'
-import { useNoteFiles } from '@/hooks/useNoteFiles'
-import { authService, notesService } from '@/pocketbase'
+import { useNote, useNoteFiles } from '@/entities/note'
+import { authService, notesService } from '@/shared/api/pocketbase'
 import { getTime } from '@/utils/date'
 import { createScopedStorageKey, resolveScopedUserId } from '@/utils/userScope'
 

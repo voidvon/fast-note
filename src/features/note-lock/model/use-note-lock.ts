@@ -1,11 +1,11 @@
 import type { Ref } from 'vue'
-import type { NoteDatabase } from '@/database/dexie'
-import type { UseWebAuthnCapability } from '@/hooks/useWebAuthn'
+import type { UseWebAuthnCapability } from '@/shared/lib/security'
+import type { NoteDatabase } from '@/shared/lib/storage'
 import type { DeviceSecurityState, Note, NoteUnlockSession, SecuritySettings } from '@/types'
-import { getCurrentDatabaseName, useDexie } from '@/database'
 import { authService, usersService } from '@/entities/auth'
 import { useNoteRepository } from '@/entities/note'
-import { useWebAuthn } from '@/hooks/useWebAuthn'
+import { useWebAuthn } from '@/shared/lib/security'
+import { getCurrentDatabaseName, useDexie } from '@/shared/lib/storage'
 import {
   getDefaultNoteLockFields,
   normalizeNoteLockFields,

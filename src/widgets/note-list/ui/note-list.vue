@@ -8,8 +8,8 @@ import { NOTE_TYPE } from '@/entities/note'
 import NoteActionsMenu from '@/features/note-actions-menu'
 import { useNoteLockIndicatorState } from '@/features/note-lock'
 import NoteMoveModal from '@/features/note-move/ui/note-move-modal.vue'
-import { useDeviceType } from '@/hooks/useDeviceType'
-import { useIonicLongPressList } from '@/hooks/useIonicLongPressList'
+import { useDeviceType } from '@/shared/lib/device'
+import { useIonicLongPressList } from '@/shared/lib/ionic'
 import NoteListItem from './note-list-item.vue'
 
 const props = withDefaults(

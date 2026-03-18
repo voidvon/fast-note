@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, markRaw, ref, watch } from 'vue'
-import { useExtensions } from '@/hooks/useExtensions'
+import { useExtensions } from '@/features/extension-manager'
 
 const props = defineProps({
   // 扩展ID

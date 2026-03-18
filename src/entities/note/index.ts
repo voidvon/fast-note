@@ -1,6 +1,7 @@
 export { buildFolderTree, countNotesWithinChildren, countUnfiledNotes } from './model/domain/folder-tree'
 export { isDeletedNoteRetained, matchesNoteKeyword, normalizeParentIdKey, shouldRefreshNoteUpdated } from './model/domain/note-rules'
 export { getNotesSync, initializeNotes, useNote } from './model/state/note-store'
+export { useNoteFiles } from './model/use-note-files'
 export { useNoteRepository } from './model/use-note-repository'
 export type { NoteRepository } from './model/use-note-repository'
 export type { FolderTreeNode, Note } from '@/shared/types'

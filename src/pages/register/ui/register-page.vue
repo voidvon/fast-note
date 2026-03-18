@@ -19,8 +19,8 @@ import {
 import { alertCircle, checkmarkCircle } from 'ionicons/icons'
 import { ref } from 'vue'
 import { authManager } from '@/core/auth-manager'
-import { useDeviceType } from '@/hooks/useDeviceType'
-import { useSimpleBackButton } from '@/hooks/useSmartBackButton'
+import { useSimpleBackButton } from '@/processes/navigation'
+import { useDeviceType } from '@/shared/lib/device'
 
 const router = useIonRouter()
 const { isDesktop } = useDeviceType()

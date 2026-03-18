@@ -8,7 +8,7 @@ import { folderOutline, lockClosed, lockOpen, trashOutline } from 'ionicons/icon
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { NOTE_TYPE } from '@/entities/note'
-import { useDeviceType } from '@/hooks/useDeviceType'
+import { useDeviceType } from '@/shared/lib/device'
 
 defineOptions({
   name: 'NoteListItem',

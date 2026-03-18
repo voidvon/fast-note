@@ -25,19 +25,19 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 // import ExtensionManager from '@/features/extension-manager'
 import { authManager } from '@/core/auth-manager'
 import { useNote } from '@/entities/note'
+import { useExtensions } from '@/features/extension-manager'
 import GlobalSearch, { useGlobalSearch } from '@/features/global-search'
 import DarkModeToggle from '@/features/theme-switch'
+import DeletedPage from '@/pages/deleted/ui/deleted-page.vue'
+import FolderPage from '@/pages/folder/ui/folder-page.vue'
+import NoteDetail from '@/pages/note-detail/ui/note-detail-page.vue'
 import {
   getDesktopNotesForFolder,
   isDesktopFolderAvailable,
   resolveDesktopActiveNoteSelection,
   useDesktopActiveNote,
-} from '@/hooks/useDesktopActiveNote'
-import { useDeviceType } from '@/hooks/useDeviceType'
-import { useExtensions } from '@/hooks/useExtensions'
-import DeletedPage from '@/pages/deleted/ui/deleted-page.vue'
-import FolderPage from '@/pages/folder/ui/folder-page.vue'
-import NoteDetail from '@/pages/note-detail/ui/note-detail-page.vue'
+} from '@/processes/navigation'
+import { useDeviceType } from '@/shared/lib/device'
 import { NOTE_TYPE } from '@/types'
 import { getTime } from '@/utils/date'
 import ExtensionRenderer from '@/widgets/extension-renderer'

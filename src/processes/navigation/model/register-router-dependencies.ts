@@ -1,7 +1,7 @@
 import type { Router } from 'vue-router'
 import { routeManager } from '@/app/router/route-manager'
-import { useNavigationHistory } from '@/hooks/useNavigationHistory'
-import { useRouteStateRestore } from '@/hooks/useRouteStateRestore'
+import { useNavigationHistory } from './use-navigation-history'
+import { useRouteStateRestore } from './use-route-state-restore'
 
 export function registerRouterDependencies(router: Router) {
   const { setRouter } = useNavigationHistory()

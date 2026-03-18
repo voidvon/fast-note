@@ -20,12 +20,11 @@ import { alertCircleOutline, folderOutline } from 'ionicons/icons'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useUserPublicNotes } from '@/entities/public-note'
-import { useDeviceType } from '@/hooks/useDeviceType'
-import { useSimpleBackButton } from '@/hooks/useSmartBackButton'
-import { useUserCache } from '@/hooks/useUserCache'
 import FolderPage from '@/pages/folder/ui/folder-page.vue'
 import NoteDetail from '@/pages/note-detail/ui/note-detail-page.vue'
-import { ensurePublicNotesReady } from '@/processes/public-notes/model/ensure-public-notes-ready'
+import { useSimpleBackButton } from '@/processes/navigation'
+import { ensurePublicNotesReady, usePublicUserCache } from '@/processes/public-notes'
+import { useDeviceType } from '@/shared/lib/device'
 import NoteList from '@/widgets/note-list'
 
 const route = useRoute()
@@ -37,7 +36,7 @@ const username = computed(() => route.params.username as string)
 // 简单的返回按钮
 const { backButtonProps } = useSimpleBackButton('/', '返回')
 
-const { getPublicUserInfo } = useUserCache()
+const { getPublicUserInfo } = usePublicUserCache()
 // 初始化用户公开笔记存储
 const {
   getPublicFolderTreeByPUuid,

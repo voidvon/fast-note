@@ -30,9 +30,9 @@ import {
 import { computed, onMounted, ref } from 'vue'
 import { authManager } from '@/core/auth-manager'
 import { realtimeManager } from '@/core/realtime-manager'
-import { useDeviceType } from '@/hooks/useDeviceType'
 import { useSync } from '@/processes/sync-notes'
 import { pb } from '@/shared/api/pocketbase'
+import { useDeviceType } from '@/shared/lib/device'
 
 // 获取全局版本号
 const version = (window as any).version

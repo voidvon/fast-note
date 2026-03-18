@@ -15,7 +15,7 @@ import {
 } from '@ionic/vue'
 import { closeOutline } from 'ionicons/icons'
 import { ref, watch } from 'vue'
-import { useExtensions } from '@/hooks/useExtensions'
+import { useExtensions } from '../model/use-extensions'
 
 defineProps({
   isOpen: {

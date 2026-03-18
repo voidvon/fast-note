@@ -1,6 +1,6 @@
 import { initializeUserPublicNotes, useUserPublicNotes } from '@/entities/public-note'
-import { useUserCache } from '@/hooks/useUserCache'
-import { notesApi } from '@/pocketbase'
+import { notesApi } from '@/shared/api/pocketbase'
+import { usePublicUserCache } from './use-public-user-cache'
 
 const initializedUsers = new Set<string>()
 
@@ -8,7 +8,7 @@ export async function syncPublicNotesForUser(username: string) {
   if (!username)
     return { synced: 0, notes: [] }
 
-  const { getPublicUserInfo } = useUserCache()
+  const { getPublicUserInfo } = usePublicUserCache()
   const userInfo = await getPublicUserInfo(username)
 
   if (!userInfo) {
