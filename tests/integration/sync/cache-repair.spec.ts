@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { NOTE_TYPE } from '@/types'
+import { NOTE_TYPE } from '@/shared/types'
 
 function createCloudNote(id: string) {
   return {

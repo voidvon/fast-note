@@ -1,8 +1,8 @@
-import type { Note } from '@/types'
+import type { Note } from '@/shared/types'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, onMounted, ref } from 'vue'
-import { NOTE_TYPE } from '@/types'
+import { NOTE_TYPE } from '@/shared/types'
 
 function createGenericStub(name: string) {
   return defineComponent({

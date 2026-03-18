@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Note } from '@/types'
+import type { Note } from '@/shared/types'
 import { IonButton, IonModal } from '@ionic/vue'
 import { computed, reactive, watch } from 'vue'
 import { useDeviceType } from '@/shared/lib/device'

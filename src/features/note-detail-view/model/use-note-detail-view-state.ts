@@ -1,5 +1,5 @@
 import type { NoteLockViewState } from '@/features/note-lock'
-import type { Note } from '@/types'
+import type { Note } from '@/shared/types'
 import { computed } from 'vue'
 
 export interface UseNoteDetailViewStateOptions {

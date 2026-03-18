@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { FolderTreeNode } from '@/types'
+import type { FolderTreeNode } from '@/shared/types'
 import {
   IonBackButton,
   IonButtons,

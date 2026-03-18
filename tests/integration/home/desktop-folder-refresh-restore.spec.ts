@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { NOTE_TYPE } from '@/types'
+import { NOTE_TYPE } from '@/shared/types'
 import { makeNote } from '../../factories/note.factory'
 import { mountHomePageForDesktopRestore } from './home-page-test-utils'
 

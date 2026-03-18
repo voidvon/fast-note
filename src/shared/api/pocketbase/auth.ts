@@ -1,5 +1,5 @@
-import type { UserInfo } from '@/types'
-import type { AuthResponse } from '@/types/pocketbase'
+import type { UserInfo } from '@/shared/types'
+import type { AuthResponse } from '@/shared/types/pocketbase'
 import { mapErrorMessage, pb } from './client'
 
 export const authService = {

@@ -1,5 +1,5 @@
 import type { NoteLockSetupResult } from './use-note-lock'
-import type { Note } from '@/types'
+import type { Note } from '@/shared/types'
 import { reactive, ref } from 'vue'
 import { useNoteLock } from './use-note-lock'
 

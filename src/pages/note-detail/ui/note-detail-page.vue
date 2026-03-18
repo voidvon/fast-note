@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { LeaveFlushReason, SaveTargetContext } from '@/features/note-save'
-import type { Note } from '@/types'
+import type { Note } from '@/shared/types'
 import { IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonPage, IonSpinner, IonToolbar, isPlatform, toastController } from '@ionic/vue'
 import { ellipsisHorizontalCircleOutline } from 'ionicons/icons'
 import { nanoid } from 'nanoid'

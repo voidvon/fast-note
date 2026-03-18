@@ -1,5 +1,5 @@
-import type { Note } from '@/types'
-import { NOTE_TYPE } from '@/types'
+import type { Note } from '@/shared/types'
+import { NOTE_TYPE } from '@/shared/types'
 import { getTime } from '@/shared/lib/date'
 
 export function makeNote(overrides: Partial<Note> = {}): Note {

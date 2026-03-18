@@ -5,7 +5,7 @@ import {
   resolveDesktopActiveNoteSelection,
   useDesktopActiveNote,
 } from '@/processes/navigation'
-import { NOTE_TYPE } from '@/types'
+import { NOTE_TYPE } from '@/shared/types'
 import { makeNote } from '../../factories/note.factory'
 
 describe('useDesktopActiveNote (t-fn-019 / tc-fn-013)', () => {

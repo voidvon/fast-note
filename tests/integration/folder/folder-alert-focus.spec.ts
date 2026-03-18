@@ -1,8 +1,8 @@
-import type { Note } from '@/types'
+import type { Note } from '@/shared/types'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick } from 'vue'
-import { NOTE_TYPE } from '@/types'
+import { NOTE_TYPE } from '@/shared/types'
 
 function createIonicStub(name: string) {
   return defineComponent({
@@ -264,6 +264,10 @@ async function mountFolderPageForAlert() {
   vi.doMock('@/processes/navigation', () => ({
     useFolderBackButton: () => ({
       backButtonProps: {},
+    }),
+    useRouteStateRestore: () => ({
+      resolveFolderEnterMode: vi.fn(() => 'restore'),
+      shouldSaveFolderLeave: vi.fn(() => true),
     }),
   }))
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { AlertButton } from '@ionic/vue'
-import type { FolderTreeNode, Note } from '@/types'
+import type { FolderTreeNode, Note } from '@/shared/types'
 import {
   IonAlert,
   IonBackButton,
@@ -25,7 +25,7 @@ import { useUserPublicNotes } from '@/entities/public-note'
 import { useFolderBackButton, useRouteStateRestore } from '@/processes/navigation'
 import { useDeviceType } from '@/shared/lib/device'
 import { useIonContentScrollMemory } from '@/shared/lib/ionic'
-import { NOTE_TYPE } from '@/types'
+import { NOTE_TYPE } from '@/shared/types'
 import { getTime } from '@/shared/lib/date'
 import NoteList from '@/widgets/note-list'
 

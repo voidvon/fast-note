@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { NoteLockManageUpdate, NoteLockSetupResult } from '@/features/note-lock'
-import type { Note } from '@/types'
+import type { Note } from '@/shared/types'
 import { IonCol, IonGrid, IonModal, IonRow, toastController, useIonRouter } from '@ionic/vue'
 import { lockClosed, lockOpen, shareOutline, trashOutline } from 'ionicons/icons'
 import { computed, ref } from 'vue'

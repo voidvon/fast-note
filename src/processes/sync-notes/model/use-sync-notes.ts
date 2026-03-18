@@ -2,7 +2,7 @@
  * 数据同步 Hook
  * 提供笔记与 PocketBase 的双向同步功能
  */
-import type { Note } from '@/types'
+import type { Note } from '@/shared/types'
 import { ref } from 'vue'
 import { useNote, useNoteFiles } from '@/entities/note'
 import { authService, notesService } from '@/shared/api/pocketbase'

@@ -9,7 +9,7 @@ export type {
   NoteUnlockSession,
   SecuritySettings,
   TypedFile,
-} from '@/types'
+} from '@/shared/types'
 
 export interface NoteFile {
   hash: string

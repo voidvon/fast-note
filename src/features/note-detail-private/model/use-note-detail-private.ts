@@ -1,4 +1,4 @@
-import type { Note } from '@/types'
+import type { Note } from '@/shared/types'
 import { ref } from 'vue'
 
 type MaybePromise<T> = T | Promise<T>

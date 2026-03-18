@@ -1,5 +1,5 @@
 import type { NoteRepository } from '@/entities/note'
-import type { Note } from '@/types'
+import type { Note } from '@/shared/types'
 import { useNoteRepository } from '@/entities/note'
 import { getTime } from '@/shared/lib/date'
 

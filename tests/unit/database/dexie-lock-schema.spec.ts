@@ -5,7 +5,7 @@ import {
   NOTE_DATABASE_SCHEMA_V3,
   NOTE_DATABASE_VERSION,
 } from '@/shared/lib/storage/dexie'
-import { getDefaultNoteLockFields, normalizeNoteLockFields } from '@/types'
+import { getDefaultNoteLockFields, normalizeNoteLockFields } from '@/shared/types'
 
 describe('dexie lock schema (t-fn-036)', () => {
   it('keeps database schema on v3 and adds dedicated security tables', () => {

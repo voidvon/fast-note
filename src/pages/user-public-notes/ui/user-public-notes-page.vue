@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { FolderTreeNode } from '@/types'
-import type { PublicUserInfo } from '@/types/pocketbase'
+import type { FolderTreeNode } from '@/shared/types'
+import type { PublicUserInfo } from '@/shared/types/pocketbase'
 import {
   IonBackButton,
   IonButton,

@@ -2,7 +2,7 @@
 import type {
   AlertButton,
 } from '@ionic/vue'
-import type { FolderTreeNode, Note } from '@/types'
+import type { FolderTreeNode, Note } from '@/shared/types'
 import {
   IonAlert,
   IonButton,
@@ -38,7 +38,7 @@ import {
 } from '@/processes/navigation'
 import { useAuth } from '@/processes/session'
 import { useDeviceType } from '@/shared/lib/device'
-import { NOTE_TYPE } from '@/types'
+import { NOTE_TYPE } from '@/shared/types'
 import { getTime } from '@/shared/lib/date'
 import ExtensionRenderer from '@/widgets/extension-renderer'
 import NoteList from '@/widgets/note-list'

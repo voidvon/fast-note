@@ -1,4 +1,4 @@
-import type { Extension, ExtensionState } from '@/types/extension'
+import type { Extension, ExtensionState } from '@/shared/types/extension'
 import { reactive, watch } from 'vue'
 
 const state = reactive<ExtensionState>({

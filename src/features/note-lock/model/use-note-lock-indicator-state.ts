@@ -1,7 +1,7 @@
 import type { Ref } from 'vue'
-import type { FolderTreeNode, Note } from '@/types'
+import type { FolderTreeNode, Note } from '@/shared/types'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { NOTE_TYPE } from '@/types'
+import { NOTE_TYPE } from '@/shared/types'
 import { onNoteLockSessionChanged, useNoteLock } from './use-note-lock'
 
 export type NoteLockIndicatorState = 'locked' | 'unlocked' | 'placeholder'

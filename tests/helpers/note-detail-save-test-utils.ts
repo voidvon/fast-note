@@ -1,8 +1,8 @@
-import type { Note } from '@/types'
+import type { Note } from '@/shared/types'
 import { flushPromises, mount } from '@vue/test-utils'
 import { vi } from 'vitest'
 import { defineComponent, h, nextTick, ref } from 'vue'
-import { NOTE_TYPE } from '@/types'
+import { NOTE_TYPE } from '@/shared/types'
 
 function createIonicStub(name: string, tag = 'div') {
   return defineComponent({

@@ -4,7 +4,7 @@ import type {
   NoteLockViewSnapshot,
   NoteLockViewState,
 } from './use-note-lock'
-import type { Note } from '@/types'
+import type { Note } from '@/shared/types'
 import { reactive } from 'vue'
 import { useNoteLock } from './use-note-lock'
 

@@ -1,4 +1,4 @@
-import type { PublicUserInfo } from '@/types/pocketbase'
+import type { PublicUserInfo } from '@/shared/types/pocketbase'
 import { userApi } from '@/shared/api/pocketbase'
 
 const userCache = new Map<string, PublicUserInfo>()

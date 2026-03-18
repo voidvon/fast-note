@@ -1,4 +1,4 @@
-import type { Note } from '@/types'
+import type { Note } from '@/shared/types'
 import { mount } from '@vue/test-utils'
 import { vi } from 'vitest'
 import { defineComponent, h, nextTick } from 'vue'

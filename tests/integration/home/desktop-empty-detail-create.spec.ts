@@ -1,8 +1,8 @@
-import type { Note } from '@/types'
+import type { Note } from '@/shared/types'
 import { mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, h, nextTick } from 'vue'
-import { DESKTOP_ACTIVE_NOTE_STORAGE_KEY } from '@/processes/navigation'
+import { defineComponent, h, nextTick, watch } from 'vue'
+import { getDesktopActiveNoteStorageKey } from '@/processes/navigation'
 
 function createIonicStub(name: string) {
   return defineComponent({
@@ -45,7 +45,7 @@ async function mountHomePageForEmptyDetailCreate(options: {
   localStorage.clear()
 
   if (options.snapshot) {
-    localStorage.setItem(DESKTOP_ACTIVE_NOTE_STORAGE_KEY, JSON.stringify({
+    localStorage.setItem(getDesktopActiveNoteStorageKey(), JSON.stringify({
       ...options.snapshot,
       parentId: options.snapshot.parentId || '',
       savedAt: Date.now(),
@@ -78,6 +78,31 @@ async function mountHomePageForEmptyDetailCreate(options: {
       return () => h('div', { class: 'yy-editor-stub', tabindex: '-1' })
     },
   })
+  const NoteDetailStub = defineComponent({
+    name: 'NoteDetailPage',
+    props: {
+      noteId: { type: String, default: '' },
+      parentId: { type: String, default: '' },
+    },
+    setup(props) {
+      async function syncDraftFocus(noteId: string) {
+        if (noteId !== '0') {
+          return
+        }
+
+        await nextTick()
+        editorApi.applyDefaultNewNoteHeading()
+        editorApi.focus()
+      }
+
+      void syncDraftFocus(props.noteId)
+      watch(() => props.noteId, noteId => void syncDraftFocus(noteId))
+
+      return () => h('div', { class: 'note-detail-page-stub' }, [
+        h(YYEditorStub),
+      ])
+    },
+  })
 
   vi.doMock('@/entities/note', async () => {
     const { ref } = await import('vue')
@@ -90,6 +115,11 @@ async function mountHomePageForEmptyDetailCreate(options: {
         deleteNote: vi.fn(async () => undefined),
         updateParentFolderSubcount: vi.fn(),
         getFolderTreeByParentId: vi.fn(() => []),
+      }),
+      useNoteRepository: () => ({
+        getNote: vi.fn(async () => null),
+        updateNote: vi.fn(async () => undefined),
+        updateParentFolderSubcount: vi.fn(async () => undefined),
       }),
       useUserPublicNotes: () => ({
         getPublicNote: vi.fn(() => null),
@@ -124,6 +154,31 @@ async function mountHomePageForEmptyDetailCreate(options: {
   }))
 
   vi.doMock('@/processes/navigation', () => ({
+    getDesktopNotesForFolder: () => options.notes,
+    isDesktopFolderAvailable: () => true,
+    resolveDesktopActiveNoteSelection: () => {
+      if (!options.snapshot) {
+        return null
+      }
+
+      return {
+        folderId: options.snapshot.folderId,
+        noteId: options.snapshot.noteId,
+        parentId: options.snapshot.parentId || '',
+      }
+    },
+    useDesktopActiveNote: () => ({
+      getSnapshot: () => options.snapshot
+        ? {
+            folderId: options.snapshot.folderId,
+            noteId: options.snapshot.noteId,
+            parentId: options.snapshot.parentId || '',
+            savedAt: Date.now(),
+          }
+        : null,
+      saveSnapshot: vi.fn(),
+      clearSnapshot: vi.fn(),
+    }),
     useNoteBackButton: () => ({ backButtonProps: {} }),
   }))
 
@@ -205,6 +260,9 @@ async function mountHomePageForEmptyDetailCreate(options: {
   }))
   vi.doMock('@/pages/folder/ui/folder-page.vue', () => ({
     default: folderPageStub,
+  }))
+  vi.doMock('@/pages/note-detail/ui/note-detail-page.vue', () => ({
+    default: NoteDetailStub,
   }))
 
   vi.doMock('@ionic/vue', async () => {
