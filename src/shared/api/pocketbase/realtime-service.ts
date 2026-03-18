@@ -3,7 +3,7 @@ import type { IRealtimeService, RealtimeConfig } from '@/shared/lib/realtime'
 import type { Note } from '@/shared/types'
 import { RealtimeStatus } from '@/shared/lib/realtime'
 import { useNote } from '@/entities/note'
-import { logger } from '@/utils/logger'
+import { logger } from '@/shared/lib/logger'
 import { pb } from './client'
 
 export class PocketBaseRealtimeService implements IRealtimeService {

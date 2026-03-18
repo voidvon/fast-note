@@ -1,3 +1,1 @@
-export function getTime(date?: string) {
-  return new Date(date || Date.now()).toISOString().replace('T', ' ')
-}
+export { getTime } from '@/shared/lib/date'

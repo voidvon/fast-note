@@ -2,7 +2,7 @@ import type { FolderTreeNode, Note } from '@/shared/types'
 import { onUnmounted, ref } from 'vue'
 import { getCurrentDatabaseName, useDexie, useRefDBSync } from '@/shared/lib/storage'
 import { normalizeNoteLockFields, NOTE_TYPE } from '@/shared/types'
-import { getTime } from '@/utils/date'
+import { getTime } from '@/shared/lib/date'
 import { buildFolderTree, countNotesWithinChildren, countUnfiledNotes } from '../domain/folder-tree'
 import { isDeletedNoteRetained, matchesNoteKeyword, normalizeParentIdKey, shouldRefreshNoteUpdated } from '../domain/note-rules'
 

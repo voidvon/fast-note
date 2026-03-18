@@ -1,6 +1,6 @@
 import type { Router } from 'vue-router'
 import { onBeforeUnmount } from 'vue'
-import { createScopedStorageKey } from '@/utils/userScope'
+import { createScopedStorageKey } from '@/shared/lib/user-scope'
 
 export type RouteRestoreMode = 'all' | 'deferred' | 'immediate'
 

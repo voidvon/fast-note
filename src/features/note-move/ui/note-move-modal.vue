@@ -3,7 +3,7 @@ import type { FolderTreeNode, Note } from '@/entities/note'
 import { IonButton, IonButtons, IonContent, IonHeader, IonModal, IonTitle, IonToolbar } from '@ionic/vue'
 import { ref } from 'vue'
 import { NOTE_TYPE, useNoteRepository } from '@/entities/note'
-import { getTime } from '@/utils/date'
+import { getTime } from '@/shared/lib/date'
 import NoteList from '@/widgets/note-list/ui/note-list.vue'
 
 const props = withDefaults(defineProps<{

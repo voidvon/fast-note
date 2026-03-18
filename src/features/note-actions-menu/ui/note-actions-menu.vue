@@ -4,7 +4,7 @@ import type { Note } from '@/entities/note'
 import { alertController, IonItem, IonLabel, IonList, IonModal } from '@ionic/vue'
 import { ref, toRaw, watch } from 'vue'
 import { NOTE_TYPE, useNoteRepository } from '@/entities/note'
-import { getTime } from '@/utils/date'
+import { getTime } from '@/shared/lib/date'
 
 interface IConfig {
   [key: string]: {

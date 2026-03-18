@@ -1,6 +1,6 @@
 import type { Note } from '@/shared/types'
 import { NOTE_TYPE } from '@/shared/types'
-import { createScopedStorageKey } from '@/utils/userScope'
+import { createScopedStorageKey } from '@/shared/lib/user-scope'
 
 export const DESKTOP_ACTIVE_NOTE_STORAGE_PREFIX = 'flashnote_desktop_active_note_v1'
 

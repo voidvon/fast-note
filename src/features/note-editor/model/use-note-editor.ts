@@ -13,7 +13,7 @@ import { FileUpload } from '@/shared/lib/editor/extensions/FileUpload/FileUpload
 import { TableWithWrapper } from '@/shared/lib/editor/extensions/TableWithWrapper'
 import { TaskItem } from '@/shared/lib/editor/extensions/TaskItem'
 import { TableCell, TableHeader, TableRow } from '@/shared/lib/editor/extensions/tiptap-table'
-import { getFileHash } from '@/utils'
+import { getFileHash } from '@/shared/lib/file-hash'
 
 export const DEFAULT_NEW_NOTE_HEADING_CONTENT: JSONContent = {
   type: 'doc',

@@ -34,7 +34,7 @@ describe('usePublicNoteShare', () => {
         updateNote,
       }),
     }))
-    vi.doMock('@/utils/date', () => ({
+    vi.doMock('@/shared/lib/date', () => ({
       getTime: () => '2026-03-17 11:10:00',
     }))
 
@@ -89,7 +89,7 @@ describe('usePublicNoteShare', () => {
         updateNote,
       }),
     }))
-    vi.doMock('@/utils/date', () => ({
+    vi.doMock('@/shared/lib/date', () => ({
       getTime: () => '2026-03-17 11:11:00',
     }))
 

@@ -6,7 +6,7 @@ import {
   getFileExtension,
   getMimeTypeByFilename,
   isFileTypeAllowed,
-} from '@/utils/mimeTypes'
+} from '@/shared/lib/mime-types'
 import { createMockFile } from '../../setup/test-env'
 
 describe('mimeTypes utils', () => {

@@ -125,7 +125,7 @@ async function mountAppForRouteRestore(options: {
     useVisualViewport: vi.fn(),
   }))
 
-  vi.doMock('@/utils/logger', () => ({
+  vi.doMock('@/shared/lib/logger', () => ({
     logger: {
       info: vi.fn(),
       error: vi.fn(),

@@ -22,7 +22,7 @@ describe('useNoteDelete', () => {
         updateParentFolderSubcount,
       }),
     }))
-    vi.doMock('@/utils/date', () => ({
+    vi.doMock('@/shared/lib/date', () => ({
       getTime: () => '2026-03-17 11:20:00',
     }))
 

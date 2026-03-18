@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 import { onNoteLockSessionChanged, useNoteLock, validatePinSetup } from '@/features/note-lock'
-import { logger } from '@/utils/logger'
+import { logger } from '@/shared/lib/logger'
 import { makeNote } from '../../factories/note.factory'
 
 function createMockTable<T extends Record<string, any>>(key: keyof T) {

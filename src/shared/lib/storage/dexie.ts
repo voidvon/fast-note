@@ -2,7 +2,7 @@ import type { Ref } from 'vue'
 import type { DeviceSecurityState, Metadata, Note, NoteFile, NoteUnlockSession, SecuritySettings, UserInfo } from './types'
 import Dexie from 'dexie'
 import { ref } from 'vue'
-import { getScopedDatabaseName } from '@/utils/userScope'
+import { getScopedDatabaseName } from '@/shared/lib/user-scope'
 
 export interface NoteDatabase extends Dexie {
   notes: Dexie.Table<Note, string>

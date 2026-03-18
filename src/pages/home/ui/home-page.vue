@@ -39,7 +39,7 @@ import {
 import { useAuth } from '@/processes/session'
 import { useDeviceType } from '@/shared/lib/device'
 import { NOTE_TYPE } from '@/types'
-import { getTime } from '@/utils/date'
+import { getTime } from '@/shared/lib/date'
 import ExtensionRenderer from '@/widgets/extension-renderer'
 import NoteList from '@/widgets/note-list'
 import UserProfile from '@/widgets/user-profile'

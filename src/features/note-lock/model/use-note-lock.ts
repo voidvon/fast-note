@@ -10,8 +10,8 @@ import {
   getDefaultNoteLockFields,
   normalizeNoteLockFields,
 } from '@/types'
-import { getTime } from '@/utils/date'
-import { logger } from '@/utils/logger'
+import { getTime } from '@/shared/lib/date'
+import { logger } from '@/shared/lib/logger'
 
 type MaybePromise<T> = T | Promise<T>
 

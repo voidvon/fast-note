@@ -1,7 +1,7 @@
 import type { Note } from '@/types'
 import { ref } from 'vue'
 import { NOTE_TYPE } from '@/types'
-import { getTime } from '@/utils/date'
+import { getTime } from '@/shared/lib/date'
 
 type MaybePromise<T> = T | Promise<T>
 

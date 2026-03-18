@@ -3,7 +3,7 @@ import { getDesktopActiveNoteStorageKey, useDesktopActiveNote } from '@/processe
 import { getLastVisitedRouteStorageKey, useLastVisitedRoute } from '@/processes/navigation'
 import { getSyncCursorStorageKey, readSyncCursor, writeSyncCursor } from '@/processes/sync-notes'
 import { authService } from '@/shared/api/pocketbase'
-import { getScopedDatabaseName } from '@/utils/userScope'
+import { getScopedDatabaseName } from '@/shared/lib/user-scope'
 
 describe('t-fn-029 / tc-fn-022 user scoped sync context', () => {
   it('isolates sync cursor by user id', () => {

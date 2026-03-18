@@ -1,7 +1,7 @@
 import type { NoteRepository } from '@/entities/note'
 import type { Note } from '@/types'
 import { useNoteRepository } from '@/entities/note'
-import { getTime } from '@/utils/date'
+import { getTime } from '@/shared/lib/date'
 
 export interface NoteDeleteResult {
   note: Note

@@ -26,7 +26,7 @@ import { useFolderBackButton, useRouteStateRestore } from '@/processes/navigatio
 import { useDeviceType } from '@/shared/lib/device'
 import { useIonContentScrollMemory } from '@/shared/lib/ionic'
 import { NOTE_TYPE } from '@/types'
-import { getTime } from '@/utils/date'
+import { getTime } from '@/shared/lib/date'
 import NoteList from '@/widgets/note-list'
 
 const props = withDefaults(

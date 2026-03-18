@@ -1,6 +1,6 @@
 import type { Note } from '@/types'
 import { NOTE_TYPE } from '@/types'
-import { getTime } from '@/utils/date'
+import { getTime } from '@/shared/lib/date'
 
 export function makeNote(overrides: Partial<Note> = {}): Note {
   const now = getTime()

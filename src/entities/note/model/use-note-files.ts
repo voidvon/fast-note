@@ -1,6 +1,6 @@
 import type { NoteFile } from '@/shared/lib/storage'
 import { useDexie } from '@/shared/lib/storage'
-import { getTime } from '@/utils/date'
+import { getTime } from '@/shared/lib/date'
 
 export function useNoteFiles() {
   const { db } = useDexie()

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { NodeViewWrapper } from '@tiptap/vue-3'
 import { computed, inject, onMounted, ref, watch } from 'vue'
-import { FileCategory, getFileCategoryByMimeType, getFileIcon, isImageFile } from '@/utils/mimeTypes'
+import { FileCategory, getFileCategoryByMimeType, getFileIcon, isImageFile } from '@/shared/lib/mime-types'
 
 interface Extension {
   name: string

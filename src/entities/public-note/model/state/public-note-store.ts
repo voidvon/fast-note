@@ -5,7 +5,7 @@ import { ref } from 'vue'
 import { buildFolderTree, countNotesWithinChildren, countUnfiledNotes, isDeletedNoteRetained, matchesNoteKeyword } from '@/entities/note'
 import { useRefDBSync } from '@/shared/lib/storage'
 import { NOTE_TYPE } from '@/shared/types'
-import { getTime } from '@/utils/date'
+import { getTime } from '@/shared/lib/date'
 
 // 用户数据库类
 class UserPublicNotesDB extends Dexie {

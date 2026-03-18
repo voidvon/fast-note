@@ -6,8 +6,8 @@ import type { Note } from '@/types'
 import { ref } from 'vue'
 import { useNote, useNoteFiles } from '@/entities/note'
 import { authService, notesService } from '@/shared/api/pocketbase'
-import { getTime } from '@/utils/date'
-import { createScopedStorageKey, resolveScopedUserId } from '@/utils/userScope'
+import { getTime } from '@/shared/lib/date'
+import { createScopedStorageKey, resolveScopedUserId } from '@/shared/lib/user-scope'
 
 export const SYNC_CURSOR_STORAGE_PREFIX = 'pocketbaseUpdated'
 
