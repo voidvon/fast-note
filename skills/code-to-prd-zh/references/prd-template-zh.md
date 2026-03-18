@@ -135,5 +135,5 @@
 
 | 证据 ID | 文件路径              | 代码位置  | 证据摘要                                |
 | ------- | --------------------- | --------- | --------------------------------------- |
-| E1      | `src/router/index.ts` | `line xx` | 存在 `/notes/:id` 路由，支持详情页      |
-| E2      | `src/stores/notes.ts` | `line xx` | 提供 `updateNote`，含保存与时间更新逻辑 |
+| E1      | `src/app/router/routes.ts` | `line xx` | 存在 `/n/:id` 路由，支持详情页      |
+| E2      | `src/entities/note/model/state/note-store.ts` | `line xx` | 提供 note 更新与时间更新逻辑 |

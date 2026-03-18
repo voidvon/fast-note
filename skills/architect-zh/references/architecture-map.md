@@ -2,7 +2,7 @@
 
 ## 文档范围
 
-本文描述 Fast-Note 仓库（`/root/fast-note`）的目标架构。目标不是否认现状目录，而是为后续功能设计、重构和代码评审提供统一落点与迁移方向。
+本文描述 Fast-Note 仓库（`/root/fast-note`）在 2026-03 的当前目标架构与主要落点。旧的 `components/core/utils/types/database/pocketbase/adapters` 兼容入口已从代码层下线，后续设计与重构应只基于当前目录结构推进。
 
 ## 运行时基线
 
@@ -10,7 +10,6 @@
 - 本地持久化：Dexie / IndexedDB
 - 云端同步：PocketBase 客户端与服务层
 - 编辑器：基于 Tiptap 的富文本编辑
-- 样式体系：Ionic CSS + UnoCSS + 项目 SCSS
 - 核心策略：offline-first，本地优先，云端最终一致
 
 ## 目标顶层结构
@@ -25,22 +24,24 @@
 
 - `src/main.ts`
 - `src/App.vue`
-- `src/router/*`
+- `src/app/router/*`
+- `src/app/bootstrap/*`
+- `src/app/providers/*`
 
 ### `src/processes`
 
 职责：
 
 - 跨页面、长生命周期业务流程
-- 启动初始化、同步编排、公开笔记初始化、导航恢复
+- 会话初始化、同步编排、公开笔记初始化、导航恢复
 
-当前映射候选：
+当前映射：
 
-- `src/hooks/useSync.ts`
-- `src/hooks/useUserPublicNotesSync.ts`
-- `src/hooks/useNavigationHistory.ts`
-- `src/hooks/useSmartBackButton.ts`
-- `src/hooks/useRouteStateRestore.ts`
+- `src/processes/session/*`
+- `src/processes/sync-notes/*`
+- `src/processes/public-notes/*`
+- `src/processes/navigation/*`
+- `src/processes/app-bootstrap/*`
 
 ### `src/pages`
 
@@ -50,7 +51,13 @@
 
 当前映射：
 
-- `src/views/*`
+- `src/pages/home/*`
+- `src/pages/folder/*`
+- `src/pages/note-detail/*`
+- `src/pages/deleted/*`
+- `src/pages/login/*`
+- `src/pages/register/*`
+- `src/pages/user-public-notes/*`
 
 ### `src/widgets`
 
@@ -58,14 +65,14 @@
 
 - 多个 feature/entity 组合的业务 UI 片段
 
-当前映射候选：
+当前映射：
 
-- `src/components/NoteList.vue`
-- `src/components/NoteListItem.vue`
-- `src/components/YYEditor.vue`
-- `src/components/NoteMove.vue`
-- `src/components/NoteMore.vue`
-- `src/components/UserProfile.vue`
+- `src/widgets/note-list/*`
+- `src/widgets/editor/*`
+- `src/widgets/note-more/*`
+- `src/widgets/user-profile/*`
+- `src/widgets/extension-renderer/*`
+- `src/widgets/note-editor-toolbar/*`
 
 ### `src/features`
 
@@ -74,24 +81,17 @@
 - 面向用户动作的应用用例
 - 负责命令、查询、状态协同，不直接承载底层 SDK
 
-建议切分：
+当前映射：
 
-- `features/note-editor`
-- `features/note-save`
-- `features/note-move`
-- `features/note-lock`
-- `features/auth`
-- `features/theme-switch`
-- `features/sync-trigger`
-
-当前映射候选：
-
-- `src/hooks/useEditor.ts`
-- `src/hooks/useNoteFiles.ts`
-- `src/hooks/useNoteLock.ts`
-- `src/hooks/useAuth.ts`
-- `src/hooks/useTheme.ts`
-- `src/hooks/useRealtime.ts`
+- `src/features/note-editor/*`
+- `src/features/note-save/*`
+- `src/features/note-move/*`
+- `src/features/note-lock/*`
+- `src/features/note-delete/*`
+- `src/features/note-detail-*/*`
+- `src/features/theme-switch/*`
+- `src/features/global-search/*`
+- `src/features/public-note-share/*`
 
 ### `src/entities`
 
@@ -99,20 +99,12 @@
 
 - 领域实体、聚合、值对象、领域服务、仓储端口、实体级状态模型
 
-建议上下文：
+当前映射：
 
-- `entities/note`
-- `entities/public-note`
-- `entities/user`
-- `entities/sync-state`
-
-当前映射候选：
-
-- `src/stores/notes.ts`
-- `src/stores/publicNotes.ts`
-- `src/types/index.ts`
-- `src/core/auth-types.ts`
-- `src/core/realtime-types.ts`
+- `src/entities/note/*`
+- `src/entities/public-note/*`
+- `src/entities/auth/index.ts`
+- `src/shared/types/*` 中的跨实体共享契约
 
 ### `src/shared`
 
@@ -122,13 +114,21 @@
 
 当前映射：
 
-- `src/database/*`
-- `src/pocketbase/*`
-- `src/adapters/*`
-- `src/utils/*`
-- `src/css/*`
-- `src/theme/*`
-- `src/core/*` 中无明确业务语义的通用能力
+- `src/shared/api/pocketbase/*`
+- `src/shared/lib/storage/*`
+- `src/shared/lib/auth/*`
+- `src/shared/lib/realtime/*`
+- `src/shared/lib/date/*`
+- `src/shared/lib/error-handling/*`
+- `src/shared/lib/editor/*`
+- `src/shared/lib/*`
+- `src/shared/types/*`
+- `src/shared/ui/*`
+
+补充说明：
+
+- `src/css/*`、`src/theme/*` 仍是样式资源目录，可逐步并入 `app/styles` 或 `shared`
+- `src/router/`、`src/hooks/`、`src/stores/` 当前仅剩空目录历史痕迹，不应再新增文件
 
 ## DDD 建模准则
 
@@ -140,17 +140,6 @@
 - `sync`：同步水位、冲突策略、同步任务调度
 - `editor`：编辑器状态、自动保存触发、扩展能力
 - `navigation`：路由返回栈、桌面/移动分支导航恢复
-
-### 聚合与模型建议
-
-- `NoteAggregate`
-  - 维护标题、内容、父子关系、删除状态、锁定状态、版本与更新时间
-- `PublicNoteProjection`
-  - 面向只读展示，不承载编辑能力
-- `SyncCheckpoint`
-  - 维护最后同步时间、水位、失败恢复策略
-- `UserIdentity`
-  - 维护登录身份、用户范围与权限边界
 
 ### 代码组织建议
 
@@ -173,34 +162,18 @@
 - `api` 负责将 Dexie、PocketBase 等实现适配到仓储端口。
 - `ui` 只能消费公开 API，不直接 import `api` 的内部实现。
 
-## 现状到目标架构映射
+## 历史目录到当前归宿
 
-### 启动与路由
-
-- `src/main.ts` -> `src/app/providers`、`src/app/bootstrap`
-- `src/router/index.ts` -> `src/app/router`
-- `src/router/routeManager.ts` -> `src/app/router/lib` 或 `src/processes/navigation`
-
-### 页面与组件
-
+- `src/components/*` -> `src/widgets/*` 或 `src/shared/ui/*`
+- `src/core/*` -> `src/processes/session/*`、`src/shared/lib/auth/*`、`src/shared/lib/realtime/*`
+- `src/utils/*` -> `src/shared/lib/*`
+- `src/types/*` -> `src/shared/types/*`
+- `src/database/*` -> `src/shared/lib/storage/*`
+- `src/pocketbase/*` -> `src/shared/api/pocketbase/*`
+- `src/adapters/pocketbase/*` -> `src/shared/api/pocketbase/*` 与 `src/processes/session/*`
 - `src/views/*` -> `src/pages/*`
-- `src/components` 中纯通用组件 -> `src/shared/ui`
-- `src/components` 中承载业务组合的组件 -> `src/widgets/*`
-
-### 领域与用例
-
-- `src/stores/notes.ts` -> `src/entities/note/model/*` + `src/features/note-*`
-- `src/stores/publicNotes.ts` -> `src/entities/public-note/model/*`
-- `src/hooks/useEditor.ts` -> `src/features/note-editor/model`
-- `src/hooks/useNoteLock.ts` -> `src/features/note-lock/model`
-- `src/hooks/useAuth.ts` -> `src/features/auth/model`
-
-### 流程与基础设施
-
-- `src/hooks/useSync.ts` -> `src/processes/sync-notes`
-- `src/hooks/useUserPublicNotesSync.ts` -> `src/processes/public-notes-sync`
-- `src/database/*` -> `src/shared/lib/storage` 或各实体 `api` 中的本地仓储实现
-- `src/pocketbase/*` -> `src/shared/api/pocketbase` 或各实体 `api` 中的远端仓储实现
+- `src/hooks/*` -> `src/processes/*`、`src/features/*`、`src/shared/lib/*`
+- `src/stores/*` -> `src/entities/*/model/state/*`
 
 ## 启动序列约束
 
@@ -211,30 +184,29 @@
 3. 并行执行路由就绪、本地数据库初始化、笔记状态初始化。
 4. 初始化失败时仍能兜底挂载，避免白屏。
 
-迁移到 FSD 后，这些动作可以重组到 `app` 与 `processes`，但不能改变上述时序契约。
+迁移到 FSD 后，上述动作由 `app` 与 `processes` 组合完成，但不能改变这些时序契约。
 
 ## 主要数据流
 
 ### 本地编辑流
 
 1. `pages` 或 `widgets` 接收用户输入。
-2. 调用 `features/note-editor` 或 `features/note-save` 的用例接口。
-3. feature 通过 `entities/note` 的聚合规则与仓储端口完成状态更新。
-4. 仓储实现把变化写入 Dexie，并驱动实体状态或投影视图更新。
+2. 调用 `features/note-editor`、`features/note-save` 等用例接口。
+3. feature 通过 `entities/note` 的聚合规则与仓储状态完成更新。
+4. `shared/lib/storage` 与 `shared/api/pocketbase` 负责本地持久化与远端同步接口。
 
 ### 云端同步流
 
 1. `processes/sync-notes` 读取身份与同步状态。
-2. 通过 `entities/note` 仓储端口读取本地增量。
-3. 经远端适配器写入 PocketBase。
-4. 拉取远端变化，经过 mapper 回写本地仓储与实体状态。
-5. 更新 `SyncCheckpoint`。
+2. 通过 `entities/note` 仓储状态读取本地增量。
+3. 经 `shared/api/pocketbase` 写入远端。
+4. 拉取远端变化，经过 mapper 回写本地状态。
 
 ### 公开笔记流
 
 1. `app/router` 识别 `/:username...` 路由。
-2. `processes/public-notes-sync` 初始化用户范围数据集。
-3. 通过 `entities/public-note` 仓储端口读取远端公开数据并写入本地投影。
+2. `processes/public-notes` 初始化用户范围数据集。
+3. 通过 `entities/public-note` 读取远端公开数据并写入本地投影。
 4. `pages` 与 `widgets` 只消费只读投影与公开 API。
 
 ## 依赖方向
@@ -255,13 +227,16 @@
 
 ## 高频变更热点
 
-重构与设计时优先关注这些现状文件，它们通常是迁移切入口：
+重构与设计时优先关注这些现状文件，它们通常是下一步拆分切入口：
 
-- `src/stores/notes.ts`
-- `src/hooks/useSync.ts`
-- `src/database/dexie.ts`
-- `src/router/index.ts`
-- `src/views/NoteDetail.vue`
-- `src/types/index.ts`
+- `src/processes/session/model/use-session-bootstrap.ts`
+- `src/processes/sync-notes/model/use-sync-notes.ts`
+- `src/processes/navigation/model/use-route-state-restore.ts`
+- `src/entities/note/model/state/note-store.ts`
+- `src/entities/public-note/model/state/public-note-store.ts`
+- `src/shared/lib/storage/dexie.ts`
+- `src/shared/types/index.ts`
+- `src/pages/note-detail/ui/note-detail-page.vue`
+- `src/widgets/editor/ui/yy-editor.vue`
 
-这些文件不是长期归宿，而是向目标架构迁移时的核心拆分源头。
+这些文件不是所有逻辑的最终归宿，但它们是当前主链路的真实承载点。
