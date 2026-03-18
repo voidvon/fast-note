@@ -1,7 +1,3 @@
-/**
- * 统一错误处理工具
- */
-
 export enum ErrorType {
   NETWORK = 'NETWORK',
   DATABASE = 'DATABASE',
@@ -16,34 +12,27 @@ export interface AppError {
   type: ErrorType
   message: string
   code?: string
-  details?: any
+  details?: unknown
   timestamp: number
 }
 
 class ErrorHandler {
   private errorLog: AppError[] = []
 
-  /**
-   * 记录错误
-   */
   logError(error: AppError): void {
     this.errorLog.push(error)
     console.error('[错误记录]', error)
 
-    // 在开发环境下显示详细错误信息
     if (import.meta.env.DEV) {
       console.trace('错误堆栈:', error)
     }
   }
 
-  /**
-   * 创建错误对象
-   */
   createError(
     type: ErrorType,
     message: string,
     code?: string,
-    details?: any,
+    details?: unknown,
   ): AppError {
     return {
       type,
@@ -54,52 +43,40 @@ class ErrorHandler {
     }
   }
 
-  /**
-   * 处理数据库错误
-   */
-  handleDatabaseError(error: any): AppError {
+  handleDatabaseError(error: { code?: string } | unknown): AppError {
     const appError = this.createError(
       ErrorType.DATABASE,
       '数据库操作失败',
-      error.code,
+      getErrorCode(error),
       error,
     )
     this.logError(appError)
     return appError
   }
 
-  /**
-   * 处理网络错误
-   */
-  handleNetworkError(error: any): AppError {
+  handleNetworkError(error: { code?: string } | unknown): AppError {
     const appError = this.createError(
       ErrorType.NETWORK,
       '网络请求失败',
-      error.code,
+      getErrorCode(error),
       error,
     )
     this.logError(appError)
     return appError
   }
 
-  /**
-   * 处理文件操作错误
-   */
-  handleFileError(error: any): AppError {
+  handleFileError(error: { code?: string } | unknown): AppError {
     const appError = this.createError(
       ErrorType.FILE_OPERATION,
       '文件操作失败',
-      error.code,
+      getErrorCode(error),
       error,
     )
     this.logError(appError)
     return appError
   }
 
-  /**
-   * 处理验证错误
-   */
-  handleValidationError(message: string, details?: any): AppError {
+  handleValidationError(message: string, details?: unknown): AppError {
     const appError = this.createError(
       ErrorType.VALIDATION,
       message,
@@ -110,23 +87,14 @@ class ErrorHandler {
     return appError
   }
 
-  /**
-   * 获取错误日志
-   */
   getErrorLog(): AppError[] {
     return [...this.errorLog]
   }
 
-  /**
-   * 清空错误日志
-   */
   clearErrorLog(): void {
     this.errorLog = []
   }
 
-  /**
-   * 获取用户友好的错误消息
-   */
   getUserFriendlyMessage(error: AppError): string {
     const messageMap: Record<ErrorType, string> = {
       [ErrorType.NETWORK]: '网络连接异常，请检查网络设置',
@@ -142,12 +110,16 @@ class ErrorHandler {
   }
 }
 
-// 导出单例实例
+function getErrorCode(error: { code?: string } | unknown): string | undefined {
+  if (!error || typeof error !== 'object' || !('code' in error)) {
+    return undefined
+  }
+
+  return typeof error.code === 'string' ? error.code : undefined
+}
+
 export const errorHandler = new ErrorHandler()
 
-/**
- * 异步操作包装器，自动处理错误
- */
 export async function withErrorHandling<T>(
   operation: () => Promise<T>,
   errorType: ErrorType = ErrorType.UNKNOWN,
@@ -156,11 +128,11 @@ export async function withErrorHandling<T>(
     const data = await operation()
     return { data }
   }
-  catch (err: any) {
+  catch (err) {
     const error = errorHandler.createError(
       errorType,
-      err.message || '操作失败',
-      err.code,
+      err instanceof Error ? err.message : '操作失败',
+      getErrorCode(err),
       err,
     )
     errorHandler.logError(error)
