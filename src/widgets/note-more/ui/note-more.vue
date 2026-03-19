@@ -5,7 +5,7 @@ import { IonCol, IonGrid, IonModal, IonRow, toastController, useIonRouter } from
 import { lockClosed, lockOpen, shareOutline, trashOutline } from 'ionicons/icons'
 import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { useNoteRepository } from '@/entities/note'
+import { useNote } from '@/entities/note'
 import { useNoteDelete } from '@/features/note-delete'
 import { NoteLockManageModal, NoteLockSetupModal, useNoteLockModalFlow } from '@/features/note-lock'
 import { usePublicNoteShare } from '@/features/public-note-share'
@@ -20,7 +20,7 @@ const emit = defineEmits(['noteLockUpdated', 'update:isOpen'])
 
 const route = useRoute()
 const router = useIonRouter()
-const { updateNote, getNote, updateParentFolderSubcount } = useNoteRepository()
+const { updateNote, getNote, updateParentFolderSubcount } = useNote()
 const { deleteNote } = useNoteDelete({
   updateNote,
   updateParentFolderSubcount,

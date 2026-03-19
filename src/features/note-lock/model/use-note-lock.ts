@@ -3,7 +3,7 @@ import type { UseWebAuthnCapability } from '@/shared/lib/security'
 import type { NoteDatabase } from '@/shared/lib/storage'
 import type { DeviceSecurityState, Note, NoteUnlockSession, SecuritySettings } from '@/shared/types'
 import { authService, authUsersService } from '@/entities/auth'
-import { useNoteRepository } from '@/entities/note'
+import { useNote } from '@/entities/note'
 import { getTime } from '@/shared/lib/date'
 import { logger } from '@/shared/lib/logger'
 import { useWebAuthn } from '@/shared/lib/security'
@@ -265,7 +265,7 @@ function stripLegacyLockFields(note: Note, locked: 0 | 1) {
 }
 
 export function useNoteLock(options: UseNoteLockOptions = {}) {
-  const noteStore = options.getNote || options.updateNote ? null : useNoteRepository()
+  const noteStore = options.getNote || options.updateNote ? null : useNote()
   const dexieApi = options.db ? null : useDexie()
   const webAuthn = options.webAuthn ?? useWebAuthn()
   const now = options.now ?? (() => Date.now())

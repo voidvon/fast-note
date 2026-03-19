@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from '@ionic/vue-router'
-import { registerRouterDependencies } from '@/processes/navigation/model/register-router-dependencies'
-import { ensurePublicNotesRouteReady, shouldRedirectDesktopNoteRoute } from '@/processes/public-notes/model/ensure-public-notes-route-ready'
+import { registerRouterDependencies } from '@/processes/navigation'
+import { ensurePublicNotesRouteReady, shouldRedirectDesktopNoteRoute } from '@/processes/public-notes'
 import { appRoutes } from './routes'
 
 const router = createRouter({

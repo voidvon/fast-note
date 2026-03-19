@@ -1,9 +1,9 @@
-import { useNoteRepository } from '@/entities/note'
+import { useNote } from '@/entities/note'
 
 const DELETE_NOW_UPDATED_AT = new Date(0).toISOString().replace('T', ' ')
 
 export function useNoteActionsMenu() {
-  const { getNote, setNoteDeletedState, updateNote } = useNoteRepository()
+  const { getNote, setNoteDeletedState, updateNote } = useNote()
 
   function getNoteById(id: string) {
     return getNote(id)

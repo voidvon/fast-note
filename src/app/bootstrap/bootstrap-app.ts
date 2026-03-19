@@ -1,6 +1,6 @@
 import type { App as VueApp } from 'vue'
 import type { Router } from 'vue-router'
-import { prepareSessionContext } from '@/processes/session/model/prepare-session-context'
+import { prepareSessionContext } from '@/processes/session'
 
 interface BootstrapAppOptions {
   app: VueApp

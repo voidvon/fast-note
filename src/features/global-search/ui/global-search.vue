@@ -4,7 +4,7 @@ import type { Note } from '@/entities/note'
 import { IonContent, IonSearchbar } from '@ionic/vue'
 import { useDebounceFn } from '@vueuse/core'
 import { computed, onUnmounted, reactive, ref } from 'vue'
-import { useNoteRepository } from '@/entities/note'
+import { useNote } from '@/entities/note'
 import NoteList from '@/widgets/note-list'
 import { toSearchResultNodes } from '../lib/search-results'
 import { useGlobalSearch } from '../model/use-global-search'
@@ -16,7 +16,7 @@ const props = withDefaults(defineProps<{
 })
 
 const { showGlobalSearch, showGlobalSearchState } = useGlobalSearch()
-const { searchNotesByParentId } = useNoteRepository()
+const { searchNotesByParentId } = useNote()
 
 const fullScreenRef = ref<HTMLDivElement>()
 const isComposing = ref(false)

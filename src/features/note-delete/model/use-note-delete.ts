@@ -1,7 +1,8 @@
-import type { NoteRepository } from '@/entities/note'
 import type { Note } from '@/shared/types'
-import { useNoteRepository } from '@/entities/note'
+import { useNote } from '@/entities/note'
 import { getTime } from '@/shared/lib/date'
+
+type NoteStoreApi = ReturnType<typeof useNote>
 
 export interface NoteDeleteResult {
   note: Note
@@ -9,13 +10,13 @@ export interface NoteDeleteResult {
 }
 
 export interface UseNoteDeleteOptions {
-  updateNote?: NoteRepository['updateNote']
-  updateParentFolderSubcount?: NoteRepository['updateParentFolderSubcount']
-  setNoteDeletedState?: NoteRepository['setNoteDeletedState']
+  updateNote?: NoteStoreApi['updateNote']
+  updateParentFolderSubcount?: NoteStoreApi['updateParentFolderSubcount']
+  setNoteDeletedState?: NoteStoreApi['setNoteDeletedState']
 }
 
 export function useNoteDelete(options: UseNoteDeleteOptions = {}) {
-  const noteStore = useNoteRepository()
+  const noteStore = useNote()
   const updateNote = options.updateNote || noteStore.updateNote
   const updateParentFolderSubcount = options.updateParentFolderSubcount || noteStore.updateParentFolderSubcount
   const setNoteDeletedState = options.setNoteDeletedState || noteStore.setNoteDeletedState

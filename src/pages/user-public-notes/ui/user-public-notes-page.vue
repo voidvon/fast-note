@@ -19,12 +19,12 @@ import { alertCircleOutline, folderOutline } from 'ionicons/icons'
 import { computed, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useUserPublicNotes } from '@/entities/public-note'
-import FolderPage from '@/pages/folder/ui/folder-page.vue'
-import NoteDetail from '@/pages/note-detail/ui/note-detail-page.vue'
 import { useSimpleBackButton } from '@/processes/navigation'
 import { ensurePublicNotesReady } from '@/processes/public-notes'
 import { useDeviceType } from '@/shared/lib/device'
+import FolderBrowser from '@/widgets/folder-browser'
 import NoteList from '@/widgets/note-list'
+import NoteDetailPane from '@/widgets/note-detail-pane'
 
 const route = useRoute()
 const { isDesktop } = useDeviceType()
@@ -155,14 +155,14 @@ onIonViewWillEnter(() => {
 
     <!-- 桌面端布局 -->
     <div v-if="isDesktop" class="home-list">
-      <FolderPage
+      <FolderBrowser
         :current-folder="state.folderUuid"
         :selected-note-id="state.noteUuid"
         @selected="(id: string) => state.noteUuid = id"
       />
     </div>
     <div v-if="isDesktop" class="home-detail">
-      <NoteDetail :note-id="state.noteUuid" />
+      <NoteDetailPane :note-id="state.noteUuid" />
     </div>
   </IonPage>
 </template>

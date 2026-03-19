@@ -1,6 +1,6 @@
 import type { NoteSyncOperation } from './note-sync-plan-service'
 import { useNoteSyncService } from './note-sync-service'
-import { useNoteRepository } from './use-note-repository'
+import { useNote } from './state/note-store'
 
 export interface NoteSyncExecutionResult {
   uploaded: number
@@ -17,7 +17,7 @@ export interface ExecuteNoteSyncOperationsParams {
 }
 
 export function useNoteSyncExecutorService() {
-  const { getNote, addNote, deleteNote, updateNote } = useNoteRepository()
+  const { getNote, addNote, deleteNote, updateNote } = useNote()
   const { syncDeletedNoteToRemote, syncNoteToRemote } = useNoteSyncService()
 
   async function executeNoteSyncOperations({

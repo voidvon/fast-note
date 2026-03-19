@@ -1,7 +1,8 @@
-import type { NoteRepository } from '@/entities/note'
 import type { Note } from '@/shared/types'
-import { useNoteRepository } from '@/entities/note'
+import { useNote } from '@/entities/note'
 import { getTime } from '@/shared/lib/date'
+
+type NoteStoreApi = ReturnType<typeof useNote>
 
 export interface PublicNoteShareResult {
   color: 'success' | 'danger'
@@ -11,13 +12,13 @@ export interface PublicNoteShareResult {
 }
 
 export interface UsePublicNoteShareOptions {
-  getNote?: NoteRepository['getNote']
-  getNotesByParentId?: NoteRepository['getNotesByParentId']
-  updateNote?: NoteRepository['updateNote']
+  getNote?: NoteStoreApi['getNote']
+  getNotesByParentId?: NoteStoreApi['getNotesByParentId']
+  updateNote?: NoteStoreApi['updateNote']
 }
 
 export function usePublicNoteShare(options: UsePublicNoteShareOptions = {}) {
-  const noteStore = useNoteRepository()
+  const noteStore = useNote()
   const getNote = options.getNote || noteStore.getNote
   const getNotesByParentId = options.getNotesByParentId || noteStore.getNotesByParentId
   const updateNote = options.updateNote || noteStore.updateNote

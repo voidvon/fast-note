@@ -3,7 +3,7 @@ import { getTime } from '@/shared/lib/date'
 import { hasRemoteUserId } from './domain/note-rules'
 import { noteRemoteService } from './note-remote-service'
 import { useNoteFiles } from './use-note-files'
-import { useNoteRepository } from './use-note-repository'
+import { useNote } from './state/note-store'
 
 export interface NoteRemoteSyncResult {
   syncedUpdatedAt: string
@@ -32,7 +32,7 @@ function generateTempFileId(index: number): string {
 
 export function useNoteSyncService() {
   const { getNoteFileByHash } = useNoteFiles()
-  const { updateNote } = useNoteRepository()
+  const { updateNote } = useNote()
 
   async function backfillRemoteNoteMetadata(noteId: string, record: Partial<Note> | null | undefined) {
     if (!record) {

@@ -27,9 +27,6 @@ import { useNote } from '@/entities/note'
 import { useExtensions } from '@/features/extension-manager'
 import GlobalSearch, { useGlobalSearch } from '@/features/global-search'
 import DarkModeToggle from '@/features/theme-switch'
-import DeletedPage from '@/pages/deleted/ui/deleted-page.vue'
-import FolderPage from '@/pages/folder/ui/folder-page.vue'
-import NoteDetail from '@/pages/note-detail/ui/note-detail-page.vue'
 import {
   getDesktopNotesForFolder,
   isDesktopFolderAvailable,
@@ -40,7 +37,10 @@ import { useAuth } from '@/processes/session'
 import { useDeviceType } from '@/shared/lib/device'
 import { NOTE_TYPE } from '@/shared/types'
 import { getTime } from '@/shared/lib/date'
+import DeletedNoteList from '@/widgets/deleted-note-list'
 import ExtensionRenderer from '@/widgets/extension-renderer'
+import FolderBrowser from '@/widgets/folder-browser'
+import NoteDetailPane from '@/widgets/note-detail-pane'
 import NoteList from '@/widgets/note-list'
 import UserProfile from '@/widgets/user-profile'
 
@@ -454,12 +454,12 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
       :presenting-element="presentingElement"
     /> -->
     <div v-if="isDesktop" class="home-list">
-      <DeletedPage
+      <DeletedNoteList
         v-if="isDeletedFolder"
         :selected-note-id="state.noteId"
         @selected="handleNoteSelected"
       />
-      <FolderPage
+      <FolderBrowser
         v-else
         ref="folderPageRef"
         :current-folder="state.folerId"
@@ -469,7 +469,7 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
       />
     </div>
     <div v-if="isDesktop" class="home-detail">
-      <NoteDetail
+      <NoteDetailPane
         :note-id="state.noteId"
         :parent-id="state.parentId"
         @note-saved="handleNoteSaved"

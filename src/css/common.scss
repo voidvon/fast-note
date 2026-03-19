@@ -7,6 +7,58 @@ ion-content::part(scroll),
   overscroll-behavior: none;
 }
 
+@media (hover: hover) and (pointer: fine) {
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  }
+
+  ion-content::part(scroll),
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  }
+
+  ion-content::part(scroll)::-webkit-scrollbar,
+  *::-webkit-scrollbar {
+    width: var(--scrollbar-size);
+    height: var(--scrollbar-size);
+  }
+
+  ion-content::part(scroll)::-webkit-scrollbar-track,
+  *::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+    border-radius: var(--scrollbar-radius);
+  }
+
+  ion-content::part(scroll)::-webkit-scrollbar-thumb,
+  *::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-top: 2px solid transparent;
+    border-right: var(--scrollbar-offset-right) solid transparent;
+    border-bottom: 2px solid transparent;
+    border-left: 2px solid transparent;
+    border-radius: var(--scrollbar-radius);
+    background-clip: padding-box;
+    min-height: 32px;
+  }
+
+  ion-content::part(scroll)::-webkit-scrollbar-thumb:hover,
+  *::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+  }
+
+  ion-content::part(scroll)::-webkit-scrollbar-thumb:active,
+  *::-webkit-scrollbar-thumb:active {
+    background: var(--scrollbar-thumb-active);
+  }
+
+  ion-content::part(scroll)::-webkit-scrollbar-corner,
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
+
 .icon {
   width: 1em;
   height: 1em;

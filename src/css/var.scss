@@ -1,6 +1,13 @@
 :root {
   --danger: theme('colors.red.500');
   --primary: theme('colors.yellow.500');
+  --scrollbar-size: 10px;
+  --scrollbar-radius: 999px;
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: theme('colors.purple-gray.550');
+  --scrollbar-thumb-hover: theme('colors.purple-gray.400');
+  --scrollbar-thumb-active: theme('colors.purple-gray.350');
+  --scrollbar-offset-right: 2px;
 
   /* 黄色系 */
   --c-yellow-300: theme('colors.yellow.300');
@@ -53,6 +60,10 @@
 .ion-palette-dark {
   --danger: theme('colors.dark-red.500');
   --primary: theme('colors.dark-yellow.500');
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: theme('colors.dark-purple-gray.550');
+  --scrollbar-thumb-hover: theme('colors.dark-purple-gray.400');
+  --scrollbar-thumb-active: theme('colors.dark-purple-gray.350');
 
   /* 黄色系 */
   --c-yellow-300: theme('colors.dark-yellow.300');

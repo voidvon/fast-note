@@ -1,5 +1,5 @@
 import type { FolderTreeNode } from '@/entities/note'
-import { NOTE_TYPE, useNoteRepository } from '@/entities/note'
+import { NOTE_TYPE, useNote } from '@/entities/note'
 import { getTime } from '@/shared/lib/date'
 
 function createRootFolderNode(): FolderTreeNode {
@@ -25,7 +25,7 @@ function createRootFolderNode(): FolderTreeNode {
 }
 
 export function useNoteMove() {
-  const { getFolderTreeByParentId, getNote, getNoteCountByParentId, updateNote } = useNoteRepository()
+  const { getFolderTreeByParentId, getNote, getNoteCountByParentId, updateNote } = useNote()
 
   function findFoldersWithChildren(notes: FolderTreeNode[]): string[] {
     const ids: string[] = []
