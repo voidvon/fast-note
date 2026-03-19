@@ -1,6 +1,38 @@
 {
   "rewrites": [
     {
+      "source": "/home",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/login",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/register",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/deleted",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/n/*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/f/**",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/*/n/*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/*/f/**",
+      "destination": "/index.html"
+    },
+    {
       "source": "/*",
       "destination": "/index.html"
     }
