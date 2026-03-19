@@ -293,7 +293,16 @@ defineExpose({
   .table-wrapper {
     overflow-x: auto;
     margin: 10px 0;
+    touch-action: pan-x pinch-zoom;
+    overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
+
+    &.is-touch-scrolling,
+    &.is-touch-scrolling * {
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
 
     &::-webkit-scrollbar {
       height: 8px;

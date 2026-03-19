@@ -173,6 +173,14 @@ export const Table = Node.create<TableOptions>({
     return renderTableToMarkdown(node, h)
   },
 
+  addNodeView() {
+    const viewClass = this.options.View ?? createTableView(this.options.wrapperClass)
+
+    return ({ node }) => {
+      return new viewClass(node, this.options.cellMinWidth, this.editor.view)
+    }
+  },
+
   addCommands() {
     return {
       insertTable:

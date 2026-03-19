@@ -77,7 +77,16 @@ export function applyDefaultHeadingIfEmptyToEditor(editorInstance?: Pick<Editor,
 
 export function useNoteEditor() {
   const editor = ref<Editor | null>(null)
+  const inputMode = ref<'text' | 'none'>('text')
   const { addNoteFile, getNoteFileByHash } = useNoteFiles()
+
+  function buildEditorProps() {
+    return {
+      attributes: {
+        inputmode: inputMode.value,
+      },
+    }
+  }
 
   function isHashValue(str: string): boolean {
     return /^[a-f0-9]{64}$/i.test(str)
@@ -167,6 +176,7 @@ export function useNoteEditor() {
         }),
       ],
       content: '',
+      editorProps: buildEditorProps(),
       onBlur: options.onBlur,
       onFocus: options.onFocus,
     })
@@ -283,13 +293,10 @@ export function useNoteEditor() {
     editor.value?.setEditable(editable)
   }
 
-  function setInputMode(inputMode: 'text' | 'none') {
+  function setInputMode(mode: 'text' | 'none') {
+    inputMode.value = mode
     editor.value?.setOptions({
-      editorProps: {
-        attributes: {
-          inputmode: inputMode,
-        },
-      },
+      editorProps: buildEditorProps(),
     })
   }
 
