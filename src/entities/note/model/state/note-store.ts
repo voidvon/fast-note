@@ -290,6 +290,93 @@ export function useNote() {
     }
   }
 
+  function getNoteDescendants(noteId: string) {
+    const descendants: Note[] = []
+    const queue = [noteId]
+
+    while (queue.length > 0) {
+      const parentId = queue.shift()!
+      const childNotes = parentIdMap.value.get(normalizeParentIdKey(parentId)) || []
+
+      for (const childNote of childNotes) {
+        descendants.push(childNote)
+        if (childNote.item_type === NOTE_TYPE.FOLDER && childNote.id) {
+          queue.push(childNote.id)
+        }
+      }
+    }
+
+    return descendants
+  }
+
+  function getDeletedAncestorChain(note: Note) {
+    const ancestors: Note[] = []
+    let currentParentId = note.parent_id
+
+    while (currentParentId) {
+      const parentNote = notesMap.value.get(currentParentId)
+      if (!parentNote) {
+        break
+      }
+
+      if (parentNote.is_deleted === 1) {
+        ancestors.push(parentNote)
+      }
+      currentParentId = parentNote.parent_id
+    }
+
+    return ancestors
+  }
+
+  /**
+   * 统一处理 note / folder 的软删除与恢复。
+   * 删除时会递归标记当前节点及所有未删除后代；
+   * 恢复时会补回祖先路径，但只恢复同一批次软删的后代，避免误恢复更早独立删除的数据。
+   */
+  async function setNoteDeletedState(note: Note, isDeleted: 0 | 1) {
+    if (!note?.id) {
+      return note
+    }
+
+    const currentNote = notesMap.value.get(note.id) || note
+    const targetNotes = new Map<string, Note>()
+
+    if (isDeleted === 0) {
+      const deletedAncestors = getDeletedAncestorChain(currentNote)
+      deletedAncestors.reverse().forEach((ancestor) => {
+        targetNotes.set(ancestor.id, ancestor)
+      })
+    }
+
+    targetNotes.set(currentNote.id, currentNote)
+
+    const descendants = getNoteDescendants(currentNote.id)
+    for (const descendant of descendants) {
+      if (isDeleted === 1) {
+        if (descendant.is_deleted !== 1) {
+          targetNotes.set(descendant.id, descendant)
+        }
+        continue
+      }
+
+      if (descendant.is_deleted === 1 && descendant.updated === currentNote.updated) {
+        targetNotes.set(descendant.id, descendant)
+      }
+    }
+
+    const nextUpdated = getTime()
+    for (const targetNote of targetNotes.values()) {
+      updateNote(targetNote.id, {
+        is_deleted: isDeleted,
+        updated: nextUpdated,
+      })
+    }
+
+    await updateParentFolderSubcount(currentNote)
+
+    return notesMap.value.get(currentNote.id) || currentNote
+  }
+
   async function getDeletedNotes() {
     return notes.value.filter(note => isDeletedNoteRetained(note))
   }
@@ -403,6 +490,7 @@ export function useNote() {
     updateNote,
     getNotesByParentId,
     getDeletedNotes,
+    setNoteDeletedState,
     getNoteCountByParentId,
     getNotesByUpdated,
     onUpdateNote,

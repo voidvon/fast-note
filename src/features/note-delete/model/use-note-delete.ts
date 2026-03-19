@@ -11,14 +11,25 @@ export interface NoteDeleteResult {
 export interface UseNoteDeleteOptions {
   updateNote?: NoteRepository['updateNote']
   updateParentFolderSubcount?: NoteRepository['updateParentFolderSubcount']
+  setNoteDeletedState?: NoteRepository['setNoteDeletedState']
 }
 
 export function useNoteDelete(options: UseNoteDeleteOptions = {}) {
   const noteStore = useNoteRepository()
   const updateNote = options.updateNote || noteStore.updateNote
   const updateParentFolderSubcount = options.updateParentFolderSubcount || noteStore.updateParentFolderSubcount
+  const setNoteDeletedState = options.setNoteDeletedState || noteStore.setNoteDeletedState
 
   async function deleteNote(note: Note): Promise<NoteDeleteResult> {
+    if (setNoteDeletedState) {
+      const deletedNote = await setNoteDeletedState(note, 1)
+
+      return {
+        note: deletedNote,
+        ok: true,
+      }
+    }
+
     const now = getTime()
     const deletedNote = {
       ...note,

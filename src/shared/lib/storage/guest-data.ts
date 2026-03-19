@@ -9,6 +9,8 @@ export type GuestDataDecision = 'merge' | 'coexist'
 export interface GuestDataStats {
   notes: number
   noteFiles: number
+  metadata: number
+  userInfo: number
 }
 
 interface GuestDataset {
@@ -73,12 +75,14 @@ export async function getGuestDataStats(): Promise<GuestDataStats> {
   const guestDb = await openIsolatedDatabase(GUEST_SCOPE_ID)
 
   try {
-    const [notes, noteFiles] = await Promise.all([
+    const [notes, noteFiles, metadata, userInfo] = await Promise.all([
       guestDb.notes.count(),
       guestDb.note_files.count(),
+      guestDb.metadata.count(),
+      guestDb.user_info.count(),
     ])
 
-    return { notes, noteFiles }
+    return { notes, noteFiles, metadata, userInfo }
   }
   finally {
     guestDb.close()
@@ -87,7 +91,7 @@ export async function getGuestDataStats(): Promise<GuestDataStats> {
 
 export async function hasGuestData(): Promise<boolean> {
   const stats = await getGuestDataStats()
-  return stats.notes > 0 || stats.noteFiles > 0
+  return stats.notes > 0 || stats.noteFiles > 0 || stats.metadata > 0 || stats.userInfo > 0
 }
 
 export async function mergeGuestDataIntoCurrent() {
@@ -98,20 +102,36 @@ export async function mergeGuestDataIntoCurrent() {
 
   const guestData = await readGuestDataset()
 
-  if (guestData.notes.length === 0 && guestData.noteFiles.length === 0) {
-    return { notesUpserted: 0, noteFilesUpserted: 0 }
+  if (
+    guestData.notes.length === 0
+    && guestData.noteFiles.length === 0
+    && guestData.metadata.length === 0
+    && guestData.userInfo.length === 0
+  ) {
+    return {
+      notesUpserted: 0,
+      noteFilesUpserted: 0,
+      metadataUpserted: 0,
+      userInfoUpserted: 0,
+    }
   }
 
-  const [currentNotes, currentNoteFiles] = await Promise.all([
+  const [currentNotes, currentNoteFiles, currentMetadata, currentUserInfo] = await Promise.all([
     db.value.notes.toArray(),
     db.value.note_files.toArray(),
+    db.value.metadata.toArray(),
+    db.value.user_info.toArray(),
   ])
 
   const currentNoteMap = new Map(currentNotes.map(note => [note.id, note]))
   const currentNoteFileMap = new Map(currentNoteFiles.map(file => [file.hash, file]))
+  const currentMetadataMap = new Map(currentMetadata.map(item => [item.key, item]))
+  const currentUserInfoMap = new Map(currentUserInfo.map(item => [item.id, item]))
 
   const notesToUpsert: Note[] = []
   const noteFilesToUpsert: NoteFile[] = []
+  const metadataToUpsert: Metadata[] = []
+  const userInfoToUpsert: UserInfo[] = []
 
   for (const guestNote of guestData.notes) {
     const existing = currentNoteMap.get(guestNote.id)
@@ -137,12 +157,30 @@ export async function mergeGuestDataIntoCurrent() {
     }
   }
 
-  await db.value.transaction('rw', db.value.notes, db.value.note_files, async () => {
+  for (const guestMetadata of guestData.metadata) {
+    if (!currentMetadataMap.has(guestMetadata.key)) {
+      metadataToUpsert.push(guestMetadata)
+    }
+  }
+
+  for (const guestUser of guestData.userInfo) {
+    if (!currentUserInfoMap.has(guestUser.id)) {
+      userInfoToUpsert.push(guestUser)
+    }
+  }
+
+  await db.value.transaction('rw', db.value.notes, db.value.note_files, db.value.metadata, db.value.user_info, async () => {
     if (notesToUpsert.length > 0) {
       await db.value.notes.bulkPut(notesToUpsert)
     }
     if (noteFilesToUpsert.length > 0) {
       await db.value.note_files.bulkPut(noteFilesToUpsert)
+    }
+    if (metadataToUpsert.length > 0) {
+      await db.value.metadata.bulkPut(metadataToUpsert)
+    }
+    if (userInfoToUpsert.length > 0) {
+      await db.value.user_info.bulkPut(userInfoToUpsert)
     }
   })
 
@@ -151,10 +189,14 @@ export async function mergeGuestDataIntoCurrent() {
   logger.info('游客态数据合并完成', {
     notesUpserted: notesToUpsert.length,
     noteFilesUpserted: noteFilesToUpsert.length,
+    metadataUpserted: metadataToUpsert.length,
+    userInfoUpserted: userInfoToUpsert.length,
   })
 
   return {
     notesUpserted: notesToUpsert.length,
     noteFilesUpserted: noteFilesToUpsert.length,
+    metadataUpserted: metadataToUpsert.length,
+    userInfoUpserted: userInfoToUpsert.length,
   }
 }

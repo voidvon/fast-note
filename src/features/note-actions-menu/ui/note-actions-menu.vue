@@ -21,7 +21,7 @@ const props = withDefaults(defineProps <{
 
 const emit = defineEmits(['refresh', 'move'])
 
-const { getNote, updateNote, getNotesByParentId, updateParentFolderSubcount } = useNoteRepository()
+const { getNote, updateNote, setNoteDeletedState } = useNoteRepository()
 
 const modal = ref()
 const note = ref<Note | null>(null)
@@ -64,14 +64,7 @@ const config = ref<IConfig>({
           {
             text: '确认',
             handler: async () => {
-              note.value!.is_deleted = 1
-              await updateNote(note.value!.id, toRaw(note.value!))
-              const notes = await getNotesByParentId(note.value!.id)
-              for (const note of notes) {
-                note.is_deleted = 1
-                await updateNote(note.id, note)
-              }
-              updateParentFolderSubcount(note.value!)
+              note.value = await setNoteDeletedState(note.value!, 1)
               emit('refresh')
               dismiss()
             },
@@ -85,9 +78,7 @@ const config = ref<IConfig>({
   restore: {
     label: '恢复',
     handler: async () => {
-      note.value!.is_deleted = 0
-      await updateNote(note.value!.id, toRaw(note.value!))
-      updateParentFolderSubcount(note.value!)
+      note.value = await setNoteDeletedState(note.value!, 0)
       emit('refresh')
       dismiss()
     },

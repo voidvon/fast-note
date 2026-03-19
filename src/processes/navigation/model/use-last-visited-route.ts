@@ -6,12 +6,19 @@ export type RouteRestoreMode = 'all' | 'deferred' | 'immediate'
 
 export const LAST_ROUTE_STORAGE_PREFIX = 'flashnote_last_visited_route'
 
+const PRIVATE_NOTE_ROUTE_PATTERN = /^\/n\/([^/?#]+)(?:[?#].*)?$/
+
 export function getLastVisitedRouteStorageKey(userId?: string | null) {
   return createScopedStorageKey(LAST_ROUTE_STORAGE_PREFIX, userId)
 }
 
-export function isDeferredPrivateRoute(_path: string) {
-  return false
+export function isDeferredPrivateRoute(path: string) {
+  const match = path.match(PRIVATE_NOTE_ROUTE_PATTERN)
+  if (!match) {
+    return false
+  }
+
+  return match[1] !== '0'
 }
 
 export function getRouteRestoreMode(path: string): Exclude<RouteRestoreMode, 'all'> {

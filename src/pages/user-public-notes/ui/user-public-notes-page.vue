@@ -163,11 +163,12 @@ onMounted(() => {
     <div v-if="isDesktop" class="home-list">
       <FolderPage
         :current-folder="state.folderUuid"
+        :selected-note-id="state.noteUuid"
         @selected="(id: string) => state.noteUuid = id"
       />
     </div>
     <div v-if="isDesktop" class="home-detail">
-      <NoteDetail :note-uuid="state.noteUuid" />
+      <NoteDetail :note-id="state.noteUuid" />
     </div>
   </IonPage>
 </template>
