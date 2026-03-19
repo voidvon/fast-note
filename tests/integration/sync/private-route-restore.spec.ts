@@ -64,12 +64,15 @@ async function mountAppForRouteRestore(options: {
     }),
   }))
 
-  vi.doMock('@/shared/api/pocketbase', () => ({
-    pocketbaseAuthService: {
+  vi.doMock('@/entities/auth', () => ({
+    authService: {
       isAuthenticated: () => options.isAuthenticated ?? true,
       getCurrentAuthUser: () => ((options.isAuthenticated ?? true) ? { id: 'user-a' } : null),
       onAuthChange: authChangeMock,
     },
+  }))
+
+  vi.doMock('@/shared/api/pocketbase', () => ({
     PocketBaseRealtimeService: class {},
   }))
 

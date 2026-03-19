@@ -2,16 +2,16 @@ import type { Ref } from 'vue'
 import type { UseWebAuthnCapability } from '@/shared/lib/security'
 import type { NoteDatabase } from '@/shared/lib/storage'
 import type { DeviceSecurityState, Note, NoteUnlockSession, SecuritySettings } from '@/shared/types'
-import { authService, usersService } from '@/entities/auth'
+import { authService, authUsersService } from '@/entities/auth'
 import { useNoteRepository } from '@/entities/note'
+import { getTime } from '@/shared/lib/date'
+import { logger } from '@/shared/lib/logger'
 import { useWebAuthn } from '@/shared/lib/security'
 import { getCurrentDatabaseName, useDexie } from '@/shared/lib/storage'
 import {
   getDefaultNoteLockFields,
   normalizeNoteLockFields,
 } from '@/shared/types'
-import { getTime } from '@/shared/lib/date'
-import { logger } from '@/shared/lib/logger'
 
 type MaybePromise<T> = T | Promise<T>
 
@@ -373,7 +373,7 @@ export function useNoteLock(options: UseNoteLockOptions = {}) {
       return
     }
 
-    await usersService.updateCurrentUserPinSettings({
+    await authUsersService.updateCurrentUserPinSettings({
       note_lock_pin_salt: settings.pin_secret_salt,
       note_lock_pin_hash: settings.pin_secret_hash,
       note_lock_pin_version: settings.pin_version,
@@ -396,7 +396,7 @@ export function useNoteLock(options: UseNoteLockOptions = {}) {
       return cloudSettings
     }
 
-    const cloudSettings = await usersService.getCurrentUserPinSettings({ force: shouldForce })
+    const cloudSettings = await authUsersService.getCurrentUserPinSettings({ force: shouldForce })
     if (shouldForce) {
       lastCloudSyncAt = now()
     }

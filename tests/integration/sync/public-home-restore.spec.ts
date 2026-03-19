@@ -68,8 +68,8 @@ async function mountAppForImmediateRestore(options: {
     }),
   }))
 
-  vi.doMock('@/shared/api/pocketbase', () => ({
-    pocketbaseAuthService: {
+  vi.doMock('@/entities/auth', () => ({
+    authService: {
       isAuthenticated: () => !!sessionUser.value,
       getCurrentAuthUser: () => sessionUser.value,
       onAuthChange: vi.fn((callback: typeof authChangeHandler) => {
@@ -77,6 +77,9 @@ async function mountAppForImmediateRestore(options: {
         return vi.fn()
       }),
     },
+  }))
+
+  vi.doMock('@/shared/api/pocketbase', () => ({
     PocketBaseRealtimeService: class {},
   }))
 

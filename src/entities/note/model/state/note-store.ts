@@ -1,51 +1,30 @@
+import type { NoteSyncController } from '@/shared/lib/storage'
 import type { FolderTreeNode, Note } from '@/shared/types'
 import { onUnmounted, ref } from 'vue'
-import { getCurrentDatabaseName, useDexie, useRefDBSync } from '@/shared/lib/storage'
-import { normalizeNoteLockFields, NOTE_TYPE } from '@/shared/types'
 import { getTime } from '@/shared/lib/date'
+import {
+  createNotesSync,
+  getCurrentDatabaseName,
+  readStoredNotes,
+  searchStoredNotesInDatabase,
+  useDexie,
+} from '@/shared/lib/storage'
+import { normalizeNoteLockFields, NOTE_TYPE } from '@/shared/types'
 import { buildFolderTree, countNotesWithinChildren, countUnfiledNotes } from '../domain/folder-tree'
-import { isDeletedNoteRetained, matchesNoteKeyword, normalizeParentIdKey, shouldRefreshNoteUpdated } from '../domain/note-rules'
+import { isDeletedNoteRetained, matchesNoteKeyword, shouldRefreshNoteUpdated } from '../domain/note-rules'
+import { useNoteIndexState } from './note-index-state'
 
 type UpdateFn = (item: Note) => void
 
 const notes = ref<Note[]>([])
-// 添加索引 Map 提升查询性能
-const notesMap = ref<Map<string, Note>>(new Map())
-const parentIdMap = ref<Map<string, Note[]>>(new Map())
+const { getIndexedNote, getIndexedNotesByParentId, rebuildNoteIndexes, updateNoteIndexes } = useNoteIndexState()
 let initializing = false
 let isInitialized = false
 const onNoteUpdateArr: UpdateFn[] = []
 
 // 全局同步实例
-let notesSync: ReturnType<typeof useRefDBSync<Note>> | null = null
+let notesSync: NoteSyncController | null = null
 let initializedDatabaseName = ''
-
-/**
- * 重建索引 Map
- */
-function rebuildIndexMaps() {
-  // 清空现有索引
-  notesMap.value.clear()
-  parentIdMap.value.clear()
-
-  // 重建 ID 索引 Map
-  for (const note of notes.value) {
-    if (note.id) {
-      notesMap.value.set(note.id, note)
-    }
-  }
-
-  // 重建父级 ID 索引 Map
-  const parentGroups = new Map<string, Note[]>()
-  for (const note of notes.value) {
-    const parentId = normalizeParentIdKey(note.parent_id)
-    if (!parentGroups.has(parentId)) {
-      parentGroups.set(parentId, [])
-    }
-    parentGroups.get(parentId)!.push(note)
-  }
-  parentIdMap.value = parentGroups
-}
 
 /**
  * 全文搜索优化：使用数据库层面搜索
@@ -53,78 +32,9 @@ function rebuildIndexMaps() {
  */
 async function searchNotesInDatabase(keyword: string) {
   const { db } = useDexie()
-  // 使用数据库层面的模糊搜索，比内存遍历更高效
-  const result = await db.value.notes
-    .filter(note =>
-      note.item_type === NOTE_TYPE.NOTE
-      && note.is_deleted !== 1
-      && (note.content.includes(keyword) || note.title.includes(keyword)),
-    )
-    .toArray()
+  const result = await searchStoredNotesInDatabase(db.value, keyword)
 
   return result.map(note => normalizeNoteLockFields(note))
-}
-
-/**
- * 同步更新索引
- */
-function updateIndexes(note: Note, operation: 'add' | 'update' | 'delete') {
-  if (!note.id)
-    return
-
-  switch (operation) {
-    case 'add':
-    case 'update': {
-      // 更新 ID 索引
-      notesMap.value.set(note.id, note)
-
-      // 更新父级索引
-      const parentId = normalizeParentIdKey(note.parent_id)
-      if (!parentIdMap.value.has(parentId)) {
-        parentIdMap.value.set(parentId, [])
-      }
-
-      // 移除旧的父级关系（如果存在）
-      for (const [pid, noteList] of parentIdMap.value.entries()) {
-        const index = noteList.findIndex(n => n.id === note.id)
-        if (index > -1 && pid !== parentId) {
-          noteList.splice(index, 1)
-          if (noteList.length === 0) {
-            parentIdMap.value.delete(pid)
-          }
-        }
-      }
-
-      // 添加新的父级关系
-      const parentNotes = parentIdMap.value.get(parentId)!
-      const existingIndex = parentNotes.findIndex(n => n.id === note.id)
-      if (existingIndex > -1) {
-        parentNotes[existingIndex] = note
-      }
-      else {
-        parentNotes.push(note)
-      }
-      break
-    }
-
-    case 'delete': {
-      // 从 ID 索引移除
-      notesMap.value.delete(note.id)
-
-      // 从父级索引移除
-      for (const [pid, noteList] of parentIdMap.value.entries()) {
-        const index = noteList.findIndex(n => n.id === note.id)
-        if (index > -1) {
-          noteList.splice(index, 1)
-          if (noteList.length === 0) {
-            parentIdMap.value.delete(pid)
-          }
-          break
-        }
-      }
-      break
-    }
-  }
 }
 
 function resetNotesState() {
@@ -134,7 +44,7 @@ function resetNotesState() {
   }
 
   notes.value = []
-  rebuildIndexMaps()
+  rebuildNoteIndexes(notes.value)
   isInitialized = false
 }
 
@@ -159,18 +69,11 @@ export async function initializeNotes() {
       throw new Error('数据库未初始化')
     }
 
-    const data = await db.value.notes
-      .orderBy('created')
-      .toArray()
+    const data = await readStoredNotes(db.value)
     notes.value = data.map(note => normalizeNoteLockFields(note))
-    rebuildIndexMaps()
+    rebuildNoteIndexes(notes.value)
 
-    notesSync = useRefDBSync({
-      data: notes,
-      table: db.value.notes,
-      idField: 'id',
-      debounceMs: 300,
-    })
+    notesSync = createNotesSync(notes, db.value)
 
     initializedDatabaseName = nextDatabaseName
     isInitialized = true
@@ -198,13 +101,10 @@ export function useNote() {
   }
 
   function fetchNotes() {
-    return db.value.notes
-      .orderBy('created') // 按 created 排序
-      .toArray() // 将结果转换为数组
+    return readStoredNotes(db.value)
       .then((data: Note[]) => {
         notes.value = data.map(note => normalizeNoteLockFields(note))
-        // 重建索引
-        rebuildIndexMaps()
+        rebuildNoteIndexes(notes.value)
       })
       .catch((error: any) => {
         console.error('Error fetching data:', error)
@@ -223,19 +123,19 @@ export function useNote() {
     notes.value.sort((a, b) => (a.created || '').localeCompare(b.created || ''))
 
     // 更新索引
-    updateIndexes(noteWithTime, 'add')
+    updateNoteIndexes(noteWithTime, 'add')
 
     return noteWithTime
   }
 
   function getNote(id: string) {
     // 使用 Map 索引快速查找，时间复杂度从 O(n) 优化到 O(1)
-    return notesMap.value.get(id) || null
+    return getIndexedNote(id)
   }
 
   function deleteNote(id: string) {
     // 先获取要删除的笔记用于更新索引
-    const noteToDelete = notesMap.value.get(id)
+    const noteToDelete = getIndexedNote(id)
     if (!noteToDelete)
       return
 
@@ -244,13 +144,13 @@ export function useNote() {
     if (index > -1) {
       notes.value.splice(index, 1)
       // 更新索引
-      updateIndexes(noteToDelete, 'delete')
+      updateNoteIndexes(noteToDelete, 'delete')
     }
   }
 
   function updateNote(id: string, updates: Partial<Note>) {
     // 使用 Map 索引快速查找
-    const existingNote = notesMap.value.get(id)
+    const existingNote = getIndexedNote(id)
     if (existingNote) {
       const nextUpdated = shouldRefreshNoteUpdated(existingNote, updates)
         ? getTime()
@@ -264,7 +164,7 @@ export function useNote() {
       if (noteIndex > -1) {
         notes.value.splice(noteIndex, 1, updatedNote)
         // 更新索引
-        updateIndexes(updatedNote, 'update')
+        updateNoteIndexes(updatedNote, 'update')
       }
     }
   }
@@ -280,12 +180,11 @@ export function useNote() {
     }
     else if (parent_id === 'unfilednotes') {
       // 使用 Map 索引快速查找根级别的笔记
-      const rootNotes = parentIdMap.value.get('root') || []
+      const rootNotes = getIndexedNotesByParentId('')
       return rootNotes.filter(note => note.item_type === NOTE_TYPE.NOTE && note.is_deleted !== 1)
     }
     else {
-      // 使用 Map 索引快速查找，时间复杂度从 O(n) 优化到 O(1)
-      const childNotes = parentIdMap.value.get(normalizeParentIdKey(parent_id)) || []
+      const childNotes = getIndexedNotesByParentId(parent_id)
       return childNotes.filter(note => note.is_deleted !== 1)
     }
   }
@@ -296,7 +195,7 @@ export function useNote() {
 
     while (queue.length > 0) {
       const parentId = queue.shift()!
-      const childNotes = parentIdMap.value.get(normalizeParentIdKey(parentId)) || []
+      const childNotes = getIndexedNotesByParentId(parentId)
 
       for (const childNote of childNotes) {
         descendants.push(childNote)
@@ -314,7 +213,7 @@ export function useNote() {
     let currentParentId = note.parent_id
 
     while (currentParentId) {
-      const parentNote = notesMap.value.get(currentParentId)
+      const parentNote = getIndexedNote(currentParentId)
       if (!parentNote) {
         break
       }
@@ -338,7 +237,7 @@ export function useNote() {
       return note
     }
 
-    const currentNote = notesMap.value.get(note.id) || note
+    const currentNote = getIndexedNote(note.id) || note
     const targetNotes = new Map<string, Note>()
 
     if (isDeleted === 0) {
@@ -374,7 +273,7 @@ export function useNote() {
 
     await updateParentFolderSubcount(currentNote)
 
-    return notesMap.value.get(currentNote.id) || currentNote
+    return getIndexedNote(currentNote.id) || currentNote
   }
 
   async function getDeletedNotes() {
@@ -383,7 +282,7 @@ export function useNote() {
 
   async function getNoteCountByParentId(parent_id: string) {
     // 使用 Map 索引快速获取子项目
-    const categories = parentIdMap.value.get(normalizeParentIdKey(parent_id)) || []
+    const categories = getIndexedNotesByParentId(parent_id)
     return countNotesWithinChildren(categories)
   }
 
@@ -406,7 +305,7 @@ export function useNote() {
 
   async function searchNotesByParentId(parent_id: string, title: string, keyword: string) {
     // 使用 Map 索引快速获取子项目
-    const childItems = parentIdMap.value.get(normalizeParentIdKey(parent_id)) || []
+    const childItems = getIndexedNotesByParentId(parent_id)
 
     // 搜索当前 parent_id 下符合条件的笔记
     const directNotes = childItems
@@ -452,7 +351,7 @@ export function useNote() {
     // 递归更新所有父级文件夹的 noteCount
     while (currentParentId) {
       // 使用 Map 索引快速获取当前父级文件夹
-      const parentFolder: Note | undefined = notesMap.value.get(currentParentId!)
+      const parentFolder = getIndexedNote(currentParentId!)
       if (!parentFolder || parentFolder.item_type !== NOTE_TYPE.FOLDER) {
         break
       }
@@ -461,7 +360,7 @@ export function useNote() {
       const noteCount = await getNoteCountByParentId(currentParentId)
 
       // 先获取当前文件夹信息，再更新父级文件夹的 note_count 和 updated
-      const currentFolder = notesMap.value.get(currentParentId)
+      const currentFolder = getIndexedNote(currentParentId)
       if (currentFolder) {
         updateNote(currentParentId, {
           note_count: noteCount,

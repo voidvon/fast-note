@@ -1,15 +1,6 @@
-import type { UserInfo } from '@/shared/types'
 import { computed } from 'vue'
-import { pb } from '@/shared/api/pocketbase'
+import { getUserAvatarUrl } from '@/entities/auth'
 import { authManager } from './auth-manager'
-
-export function getUserAvatarUrl(user?: Pick<UserInfo, 'id' | 'avatar'> | null) {
-  if (!user?.id || !user.avatar) {
-    return ''
-  }
-
-  return `${pb.baseUrl}/api/files/users/${user.id}/${user.avatar}`
-}
 
 export function useAuth() {
   const currentUser = authManager.userInfo
@@ -21,7 +12,7 @@ export function useAuth() {
       return { success: false, error: '认证服务未初始化' }
     }
 
-    return await authManager.login.call(authManager, email, password)
+    return await authManager.login(email, password)
   }
 
   async function register(email: string, password: string, passwordConfirm: string, username?: string) {
@@ -29,7 +20,7 @@ export function useAuth() {
       return { success: false, error: '认证服务未初始化' }
     }
 
-    return await authManager.register.call(authManager, email, password, passwordConfirm, username)
+    return await authManager.register(email, password, passwordConfirm, username)
   }
 
   async function logout() {
@@ -37,7 +28,7 @@ export function useAuth() {
       return { success: false, error: '认证服务未初始化' }
     }
 
-    return await authManager.logout.call(authManager)
+    return await authManager.logout()
   }
 
   async function initializeAuth() {
@@ -45,7 +36,7 @@ export function useAuth() {
       return
     }
 
-    await authManager.initialize.call(authManager)
+    await authManager.initialize()
   }
 
   async function refreshUser() {
@@ -53,7 +44,7 @@ export function useAuth() {
       return { success: false, error: '认证服务未初始化' }
     }
 
-    return await authManager.refreshUser.call(authManager)
+    return await authManager.refreshUser()
   }
 
   return {

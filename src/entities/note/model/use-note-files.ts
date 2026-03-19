@@ -1,6 +1,15 @@
 import type { NoteFile } from '@/shared/lib/storage'
-import { useDexie } from '@/shared/lib/storage'
 import { getTime } from '@/shared/lib/date'
+import {
+  deleteStoredNoteFile,
+  deleteStoredNoteFiles,
+  getStoredNoteFile,
+  getStoredNoteFiles,
+  hasStoredNoteFile,
+  listStoredNoteFiles,
+  putStoredNoteFile,
+  useDexie,
+} from '@/shared/lib/storage'
 
 export function useNoteFiles() {
   const { db } = useDexie()
@@ -16,11 +25,19 @@ export function useNoteFiles() {
       updated: getTime(),
     }
 
-    await db.value?.note_files.put(noteFile)
+    if (!db.value) {
+      return
+    }
+
+    await putStoredNoteFile(db.value, noteFile)
   }
 
   async function getNoteFileByHash(hash: string): Promise<NoteFile | undefined> {
-    return await db.value?.note_files.get(hash)
+    if (!db.value) {
+      return undefined
+    }
+
+    return await getStoredNoteFile(db.value, hash)
   }
 
   async function getNoteFilesByHashes(hashes: string[]): Promise<NoteFile[]> {
@@ -28,20 +45,23 @@ export function useNoteFiles() {
       return []
     }
 
-    const files = await Promise.all(
-      hashes.map(hash => db.value!.note_files.get(hash)),
-    )
-
-    return files.filter(Boolean) as NoteFile[]
+    return await getStoredNoteFiles(db.value, hashes)
   }
 
   async function noteFileExists(hash: string): Promise<boolean> {
-    const file = await db.value?.note_files.get(hash)
-    return !!file
+    if (!db.value) {
+      return false
+    }
+
+    return await hasStoredNoteFile(db.value, hash)
   }
 
   async function deleteNoteFile(hash: string): Promise<void> {
-    await db.value?.note_files.delete(hash)
+    if (!db.value) {
+      return
+    }
+
+    await deleteStoredNoteFile(db.value, hash)
   }
 
   async function deleteNoteFiles(hashes: string[]): Promise<void> {
@@ -49,33 +69,37 @@ export function useNoteFiles() {
       return
     }
 
-    await Promise.all(
-      hashes.map(hash => db.value!.note_files.delete(hash)),
-    )
+    await deleteStoredNoteFiles(db.value, hashes)
   }
 
   async function getAllNoteFiles(): Promise<NoteFile[]> {
-    return await db.value?.note_files.toArray() || []
+    if (!db.value) {
+      return []
+    }
+
+    return await listStoredNoteFiles(db.value)
   }
 
   async function cleanupUnreferencedFiles(referencedHashes: string[]): Promise<void> {
     if (!db.value)
       return
 
-    const allFiles = await db.value.note_files.toArray()
+    const allFiles = await listStoredNoteFiles(db.value)
     const referencedHashSet = new Set(referencedHashes)
 
     const unreferencedFiles = allFiles.filter(file => !referencedHashSet.has(file.hash))
 
     if (unreferencedFiles.length > 0) {
-      await Promise.all(
-        unreferencedFiles.map(file => db.value!.note_files.delete(file.hash)),
-      )
+      await deleteStoredNoteFiles(db.value, unreferencedFiles.map(file => file.hash))
     }
   }
 
   async function updateNoteFile(hash: string, updates: Partial<Omit<NoteFile, 'hash'>>): Promise<void> {
-    const existingFile = await db.value?.note_files.get(hash)
+    if (!db.value) {
+      throw new Error('数据库未初始化')
+    }
+
+    const existingFile = await getStoredNoteFile(db.value, hash)
     if (!existingFile) {
       throw new Error(`文件 ${hash} 不存在`)
     }
@@ -86,7 +110,7 @@ export function useNoteFiles() {
       updated: getTime(),
     }
 
-    await db.value?.note_files.put(updatedFile)
+    await putStoredNoteFile(db.value, updatedFile)
   }
 
   return {

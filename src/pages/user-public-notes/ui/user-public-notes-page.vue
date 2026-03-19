@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { FolderTreeNode } from '@/shared/types'
 import type { PublicUserInfo } from '@/shared/types/pocketbase'
 import {
   IonBackButton,
@@ -17,13 +16,13 @@ import {
   onIonViewWillEnter,
 } from '@ionic/vue'
 import { alertCircleOutline, folderOutline } from 'ionicons/icons'
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useUserPublicNotes } from '@/entities/public-note'
 import FolderPage from '@/pages/folder/ui/folder-page.vue'
 import NoteDetail from '@/pages/note-detail/ui/note-detail-page.vue'
 import { useSimpleBackButton } from '@/processes/navigation'
-import { ensurePublicNotesReady, usePublicUserCache } from '@/processes/public-notes'
+import { ensurePublicNotesReady } from '@/processes/public-notes'
 import { useDeviceType } from '@/shared/lib/device'
 import NoteList from '@/widgets/note-list'
 
@@ -36,16 +35,17 @@ const username = computed(() => route.params.username as string)
 // 简单的返回按钮
 const { backButtonProps } = useSimpleBackButton('/', '返回')
 
-const { getPublicUserInfo } = usePublicUserCache()
-// 初始化用户公开笔记存储
-const {
-  getPublicFolderTreeByPUuid,
-} = useUserPublicNotes(username.value)
+const publicFolders = computed(() => {
+  if (!username.value) {
+    return []
+  }
+
+  return useUserPublicNotes(username.value).getPublicFolderTreeByPUuid()
+})
 
 // 页面状态
 const loading = ref(true)
 const error = ref('')
-const publicFolders = ref<FolderTreeNode[]>([])
 const userInfo = ref<PublicUserInfo | null>(null)
 const presentingElement = ref()
 const page = ref()
@@ -59,7 +59,7 @@ const state = reactive({
 const expandedStateKey = computed(() => `home:public:${username.value}`)
 
 // 初始化数据
-async function init() {
+async function init(force = false) {
   if (!username.value) {
     error.value = '无效的用户名'
     loading.value = false
@@ -70,10 +70,8 @@ async function init() {
     loading.value = true
     error.value = ''
 
-    // 从远程获取数据
-    userInfo.value = await getPublicUserInfo(username.value)
-    await ensurePublicNotesReady(username.value)
-    publicFolders.value = getPublicFolderTreeByPUuid()
+    const result = await ensurePublicNotesReady(username.value, { force })
+    userInfo.value = result.userInfo
   }
   catch (err) {
     error.value = err instanceof Error ? err.message : '加载用户数据失败'
@@ -86,17 +84,13 @@ async function init() {
 
 // 刷新数据
 async function refresh(ev: CustomEvent) {
-  await init() // 强制刷新，从远程获取数据
+  await init(true)
   ev.detail.complete()
 }
 
 onIonViewWillEnter(() => {
-  init()
-})
-
-onMounted(() => {
   presentingElement.value = page.value.$el
-  init()
+  void init()
 })
 </script>
 

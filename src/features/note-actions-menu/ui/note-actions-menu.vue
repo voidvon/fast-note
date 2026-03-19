@@ -2,9 +2,9 @@
 import type { NoteActionMenuItem } from '../model/types'
 import type { Note } from '@/entities/note'
 import { alertController, IonItem, IonLabel, IonList, IonModal } from '@ionic/vue'
-import { ref, toRaw, watch } from 'vue'
-import { NOTE_TYPE, useNoteRepository } from '@/entities/note'
-import { getTime } from '@/shared/lib/date'
+import { ref, watch } from 'vue'
+import { NOTE_TYPE } from '@/entities/note'
+import { useNoteActionsMenu } from '../model/use-note-actions-menu'
 
 interface IConfig {
   [key: string]: {
@@ -21,7 +21,7 @@ const props = withDefaults(defineProps <{
 
 const emit = defineEmits(['refresh', 'move'])
 
-const { getNote, updateNote, setNoteDeletedState } = useNoteRepository()
+const { deleteNote, deleteNow, getNoteById, renameNote, restoreNote } = useNoteActionsMenu()
 
 const modal = ref()
 const note = ref<Note | null>(null)
@@ -39,9 +39,11 @@ const config = ref<IConfig>({
           {
             text: '确认',
             handler: async (d) => {
-              note.value!.title = d.newFolderName
-              note.value!.updated = getTime()
-              await updateNote(note.value!.id, toRaw(note.value!))
+              if (!note.value) {
+                return
+              }
+
+              note.value = await renameNote(note.value.id, d.newFolderName)
               dismiss()
               emit('refresh')
             },
@@ -64,7 +66,11 @@ const config = ref<IConfig>({
           {
             text: '确认',
             handler: async () => {
-              note.value = await setNoteDeletedState(note.value!, 1)
+              if (!note.value) {
+                return
+              }
+
+              note.value = await deleteNote(note.value.id)
               emit('refresh')
               dismiss()
             },
@@ -78,7 +84,11 @@ const config = ref<IConfig>({
   restore: {
     label: '恢复',
     handler: async () => {
-      note.value = await setNoteDeletedState(note.value!, 0)
+      if (!note.value) {
+        return
+      }
+
+      note.value = await restoreNote(note.value.id)
       emit('refresh')
       dismiss()
     },
@@ -86,8 +96,11 @@ const config = ref<IConfig>({
   deleteNow: {
     label: '永久删除',
     handler: async () => {
-      note.value!.updated = new Date(0).toISOString().replace('T', ' ')
-      await updateNote(note.value!.id, toRaw(note.value!))
+      if (!note.value) {
+        return
+      }
+
+      note.value = await deleteNow(note.value.id)
       emit('refresh')
       dismiss()
     },
@@ -104,7 +117,7 @@ const config = ref<IConfig>({
 
 watch(() => props.id, () => {
   if (props.id) {
-    note.value = getNote(props.id)
+    note.value = getNoteById(props.id)
   }
 })
 </script>

@@ -6,6 +6,10 @@ export function normalizeParentIdKey(parentId?: string | null) {
   return parentId || 'root'
 }
 
+export function hasRemoteUserId(note: Pick<Note, 'user_id'>) {
+  return typeof note.user_id === 'string' && note.user_id.trim().length > 0
+}
+
 export function shouldRefreshNoteUpdated(existingNote: Note, updates: Partial<Note>) {
   if (!updates.updated)
     return true

@@ -10,6 +10,29 @@ export {
 } from './dexie'
 
 export {
+  deleteStoredNoteFile,
+  deleteStoredNoteFiles,
+  getStoredNoteFile,
+  getStoredNoteFiles,
+  hasStoredNoteFile,
+  listStoredNoteFiles,
+  putStoredNoteFile,
+} from './note-files'
+
+export {
+  createNotesSync,
+  type NoteSyncController,
+  readStoredNotes,
+  searchStoredNotesInDatabase,
+} from './notes'
+
+export {
+  createUserPublicNotesDatabase,
+  readUserPublicNotes,
+  type UserPublicNotesDatabase,
+} from './public-notes'
+
+export {
   useRefDBSync,
 } from './sync'
 

@@ -1,5 +1,5 @@
 import type { PublicUserInfo } from '@/shared/types/pocketbase'
-import { userApi } from '@/shared/api/pocketbase'
+import { authUsersService } from '@/entities/auth'
 
 const userCache = new Map<string, PublicUserInfo>()
 
@@ -11,7 +11,7 @@ export function usePublicUserCache() {
     }
 
     try {
-      const user = await userApi.getUserByUsername(username)
+      const user = await authUsersService.getPublicUserInfo(username)
       if (user) {
         userCache.set(username, user)
         return user

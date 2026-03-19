@@ -7,8 +7,7 @@ import StarterKit from '@tiptap/starter-kit'
 import { Editor } from '@tiptap/vue-3'
 import GlobalDragHandle from 'tiptap-extension-global-drag-handle'
 import { computed, onBeforeUnmount, ref } from 'vue'
-import { useNoteFiles } from '@/entities/note'
-import { filesApi } from '@/shared/api/pocketbase'
+import { noteRemoteService, useNoteFiles } from '@/entities/note'
 import { FileUpload } from '@/shared/lib/editor/extensions/FileUpload/FileUpload'
 import { TableWithWrapper } from '@/shared/lib/editor/extensions/TableWithWrapper'
 import { TaskItem } from '@/shared/lib/editor/extensions/TaskItem'
@@ -113,7 +112,7 @@ export function useNoteEditor() {
         }
 
         if (noteId) {
-          const result = await filesApi.getFileByFilename(noteId, hashOrFilename)
+          const result = await noteRemoteService.getFileByFilename(noteId, hashOrFilename)
           if (result) {
             return {
               url: result.url,

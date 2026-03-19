@@ -1,4 +1,5 @@
 export { prepareSessionContext } from './model/prepare-session-context'
-export { getUserAvatarUrl, useAuth } from './model/use-auth'
+export { getUserAvatarUrl } from '@/entities/auth'
+export { useAuth } from './model/use-auth'
 export { useAutoRealtime, useRealtime } from './model/use-realtime'
 export { useSessionBootstrap } from './model/use-session-bootstrap'

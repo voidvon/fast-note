@@ -1,28 +1,18 @@
-import type { Table } from 'dexie'
+import type { UserPublicNotesDatabase } from '@/shared/lib/storage'
 import type { FolderTreeNode, Note } from '@/shared/types'
-import Dexie from 'dexie'
 import { ref } from 'vue'
 import { buildFolderTree, countNotesWithinChildren, countUnfiledNotes, isDeletedNoteRetained, matchesNoteKeyword } from '@/entities/note'
-import { useRefDBSync } from '@/shared/lib/storage'
-import { NOTE_TYPE } from '@/shared/types'
 import { getTime } from '@/shared/lib/date'
-
-// 用户数据库类
-class UserPublicNotesDB extends Dexie {
-  notes!: Table<Note>
-
-  constructor(username: string) {
-    super(`UserPublicNotes_${username}`)
-
-    this.version(1).stores({
-      notes: '&id, [item_type+parent_id+is_deleted], title, created, item_type, parent_id, content, updated, version, is_deleted, note_count',
-    })
-  }
-}
+import {
+  createUserPublicNotesDatabase,
+  readUserPublicNotes,
+  useRefDBSync,
+} from '@/shared/lib/storage'
+import { NOTE_TYPE } from '@/shared/types'
 
 // 全局状态管理 - 每个用户一个独立的状态
 const userPublicNotesMap = new Map<string, {
-  db: UserPublicNotesDB
+  db: UserPublicNotesDatabase
   publicNotes: ReturnType<typeof ref<Note[]>>
   initializing: boolean
   isInitialized: boolean
@@ -33,7 +23,7 @@ const userPublicNotesMap = new Map<string, {
 function getUserState(username: string) {
   if (!userPublicNotesMap.has(username)) {
     userPublicNotesMap.set(username, {
-      db: new UserPublicNotesDB(username),
+      db: createUserPublicNotesDatabase(username),
       publicNotes: ref<Note[]>([]),
       initializing: false,
       isInitialized: false,
@@ -54,9 +44,7 @@ export async function initializeUserPublicNotes(username: string) {
       await state.db.open()
 
       // 从数据库读取数据
-      const data = await state.db.notes
-        .orderBy('created')
-        .toArray()
+      const data = await readUserPublicNotes(state.db)
       state.publicNotes.value = data
 
       // 初始化 useRefDBSync

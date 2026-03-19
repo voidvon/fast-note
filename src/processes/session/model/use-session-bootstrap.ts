@@ -2,12 +2,13 @@ import type { GuestDataDecision } from '@/shared/lib/storage/guest-data'
 import { alertController } from '@ionic/vue'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { authService } from '@/entities/auth'
 import { useNoteLock } from '@/features/note-lock'
 import { useLastVisitedRoute } from '@/processes/navigation'
 import { useSync } from '@/processes/sync-notes'
-import { PocketBaseRealtimeService, pocketbaseAuthService } from '@/shared/api/pocketbase'
-import { hasGuestData, mergeGuestDataIntoCurrent } from '@/shared/lib/storage/guest-data'
+import { PocketBaseRealtimeService } from '@/shared/api/pocketbase'
 import { logger } from '@/shared/lib/logger'
+import { hasGuestData, mergeGuestDataIntoCurrent } from '@/shared/lib/storage/guest-data'
 import { authManager } from './auth-manager'
 import { prepareSessionContext } from './prepare-session-context'
 import { realtimeManager } from './realtime-manager'
@@ -23,23 +24,23 @@ export function useSessionBootstrap() {
   const noteLock = useNoteLock()
   const { sync } = useSync()
 
-  const isPrivateRouteRestoreReady = ref(!pocketbaseAuthService.isAuthenticated())
+  const isPrivateRouteRestoreReady = ref(!authService.isAuthenticated())
 
   const shouldBlockPrivateRoute = computed(() => {
-    return pocketbaseAuthService.isAuthenticated()
+    return authService.isAuthenticated()
       && isDeferredPrivateRoute(router.currentRoute.value.fullPath)
       && !isPrivateRouteRestoreReady.value
   })
 
   setupAutoSave(router)
-  void restoreImmediateLastVisitedRoute(router, pocketbaseAuthService.getCurrentAuthUser()?.id)
+  void restoreImmediateLastVisitedRoute(router, authService.getCurrentAuthUser()?.id)
 
   let hasRealtimeService = false
   let sessionBootstrapPromise: Promise<void> | null = null
   let authChangeUnsubscribe: (() => void) | null = null
   let guestDecisionPromise: Promise<void> | null = null
   let guestDecisionHandled = false
-  let lastKnownAuthenticated = pocketbaseAuthService.isAuthenticated()
+  let lastKnownAuthenticated = authService.isAuthenticated()
 
   async function promptGuestDataDecision(): Promise<GuestDataDecision> {
     return await new Promise((resolve, reject) => {
@@ -156,9 +157,9 @@ export function useSessionBootstrap() {
 
   async function initializeSession() {
     logger.info('初始化认证服务')
-    authManager.setAuthService(pocketbaseAuthService)
+    authManager.setAuthService(authService)
 
-    authChangeUnsubscribe = pocketbaseAuthService.onAuthChange(async (token, user) => {
+    authChangeUnsubscribe = authService.onAuthChange(async (token, user) => {
       const isAuthenticated = !!token && !!user
       const shouldPromptGuestData = !lastKnownAuthenticated && isAuthenticated
       lastKnownAuthenticated = isAuthenticated
