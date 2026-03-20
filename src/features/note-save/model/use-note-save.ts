@@ -1,7 +1,7 @@
 import type { Note } from '@/shared/types'
 import { ref } from 'vue'
+import { useNoteWrite } from '@/features/note-write'
 import { NOTE_TYPE } from '@/shared/types'
-import { getTime } from '@/shared/lib/date'
 
 type MaybePromise<T> = T | Promise<T>
 
@@ -73,6 +73,13 @@ function resolveParentId(isDesktop: boolean, parentId?: string, routeParentId?: 
 export function useNoteSave(options: UseNoteSaveOptions) {
   const isSaving = ref(false)
   const lastSavedContent = ref('')
+  const noteWrite = useNoteWrite({
+    addNote: options.addNote,
+    getNote: options.getNote,
+    updateNote: (id, updates) => options.updateNote(id, updates as Note),
+    updateParentFolderSubcount: options.updateParentFolderSubcount,
+    getNow: options.getNow,
+  })
 
   async function flushNotesToLocalIfNeeded(reason?: LeaveFlushReason | null) {
     if (!reason) {
@@ -127,24 +134,22 @@ export function useNoteSave(options: UseNoteSaveOptions) {
 
     options.restoreHeight()
 
-    const now = options.getNow?.() ?? getTime()
     const fileHashes: string[] = []
 
     try {
       if (noteExists) {
-        const baseNote = options.getCurrentNote?.() || noteExists
-        const updatedNote: Note = {
-          ...baseNote,
+        const updateResult = await noteWrite.updateNote({
+          noteId,
           title,
           summary,
           content,
-          updated: now,
-          version: (baseNote?.version || 1) + 1,
           files: fileHashes,
+        })
+        if (!updateResult.ok || !updateResult.note) {
+          throw new Error(updateResult.message || '更新备忘录失败')
         }
 
-        await options.updateNote(noteId, updatedNote)
-        options.setCurrentNote?.(updatedNote)
+        options.setCurrentNote?.(updateResult.note)
 
         if (!params.silent) {
           options.emitNoteSaved?.({
@@ -165,25 +170,20 @@ export function useNoteSave(options: UseNoteSaveOptions) {
           return
         }
 
-        const createdAt = options.getNow?.() ?? getTime()
-        const newNote: Note = {
+        const createResult = await noteWrite.createNote({
+          noteId,
           title,
           summary,
           content,
-          created: createdAt,
-          updated: now,
-          item_type: NOTE_TYPE.NOTE,
-          parent_id: resolveParentId(params.isDesktop, params.parentId, params.routeParentId),
-          id: noteId,
-          is_deleted: 0,
-          is_locked: 0,
-          note_count: 0,
+          parentId: resolveParentId(params.isDesktop, params.parentId, params.routeParentId),
+          itemType: NOTE_TYPE.NOTE,
           files: fileHashes,
+        })
+        if (!createResult.ok || !createResult.note) {
+          throw new Error(createResult.message || '创建备忘录失败')
         }
 
-        await options.addNote(newNote)
-        await options.updateParentFolderSubcount(newNote)
-        options.setCurrentNote?.(newNote)
+        options.setCurrentNote?.(createResult.note)
         options.onRouteDraftCreated?.(noteId)
         options.emitNoteSaved?.({
           noteId,

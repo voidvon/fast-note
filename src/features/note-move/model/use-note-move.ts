@@ -1,5 +1,5 @@
 import type { FolderTreeNode } from '@/entities/note'
-import { NOTE_TYPE, useNote } from '@/entities/note'
+import { createsCircularFolderMove, NOTE_TYPE, useNote } from '@/entities/note'
 import { getTime } from '@/shared/lib/date'
 
 function createRootFolderNode(): FolderTreeNode {
@@ -25,7 +25,7 @@ function createRootFolderNode(): FolderTreeNode {
 }
 
 export function useNoteMove() {
-  const { getFolderTreeByParentId, getNote, getNoteCountByParentId, updateNote } = useNote()
+  const { getFolderTreeByParentId, getNote, getNoteCountByParentId, notes, updateNote } = useNote()
 
   function findFoldersWithChildren(notes: FolderTreeNode[]): string[] {
     const ids: string[] = []
@@ -72,6 +72,8 @@ export function useNoteMove() {
     const currentNote = getNote(noteId)
     if (!currentNote) {
       return {
+        code: 'note_not_found',
+        message: '当前备忘录不存在',
         moved: false,
         note: null,
       }
@@ -79,9 +81,30 @@ export function useNoteMove() {
 
     const oldParentId = currentNote.parent_id || ''
     const newParentId = targetFolderId === 'root' ? '' : targetFolderId
+    const targetFolder = newParentId ? getNote(newParentId) : null
+
+    if (newParentId && (!targetFolder || targetFolder.item_type !== NOTE_TYPE.FOLDER)) {
+      return {
+        code: 'target_folder_not_found',
+        message: '目标文件夹不存在',
+        moved: false,
+        note: currentNote,
+      }
+    }
+
+    if (createsCircularFolderMove(notes.value, noteId, newParentId)) {
+      return {
+        code: 'circular_move_forbidden',
+        message: '不能移动到当前文件夹或其子文件夹中',
+        moved: false,
+        note: currentNote,
+      }
+    }
 
     if (oldParentId === newParentId) {
       return {
+        code: 'noop',
+        message: '备忘录已经在目标目录下',
         moved: false,
         note: currentNote,
       }
@@ -102,6 +125,8 @@ export function useNoteMove() {
     }
 
     return {
+      code: 'ok',
+      message: null,
       moved: true,
       note: getNote(noteId),
     }

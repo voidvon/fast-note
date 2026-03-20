@@ -51,3 +51,22 @@ export function countNotesWithinChildren(notes: Note[]) {
 export function countUnfiledNotes(notes: Note[]) {
   return notes.filter(note => isActiveNote(note) && !note.parent_id).length
 }
+
+export function createsCircularFolderMove(notes: Note[], noteId: string, targetFolderId: string) {
+  if (!noteId || !targetFolderId || targetFolderId === 'root') {
+    return false
+  }
+
+  let currentParentId: string | undefined = targetFolderId
+
+  while (currentParentId) {
+    if (currentParentId === noteId) {
+      return true
+    }
+
+    const currentFolder = notes.find(note => note.id === currentParentId)
+    currentParentId = currentFolder?.parent_id
+  }
+
+  return false
+}

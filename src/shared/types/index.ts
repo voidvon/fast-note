@@ -113,3 +113,22 @@ export interface FolderTreeNode {
   originNote: Note
   folderName?: string
 }
+
+export type {
+  AiCreateNotePayload,
+  AiDeleteNotePayload,
+  AiFolderListItem,
+  AiGetNoteDetailPayload,
+  AiListFoldersPayload,
+  AiMoveNotePayload,
+  AiNoteDetailItem,
+  AiNoteSearchItem,
+  AiNoteToolCall,
+  AiNoteToolName,
+  AiSearchNotesPayload,
+  AiSetNoteLockPayload,
+  AiToolEnvelope,
+  AiToolPreview,
+  AiToolResult,
+  AiUpdateNotePayload,
+} from './ai-note-tools'
