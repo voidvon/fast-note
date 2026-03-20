@@ -71,6 +71,7 @@ describe('note lock setup modal integration (t-fn-037 / tc-fn-028)', () => {
     })
 
     await wrapper.get('[data-testid="note-lock-setup-pin"]').setValue('123456')
+    expect(wrapper.get('[data-testid="note-lock-setup-pin"]').attributes('type')).toBe('text')
 
     const biometricInput = wrapper.get('[data-testid="note-lock-setup-biometric"]')
     expect((biometricInput.element as HTMLInputElement).disabled).toBe(true)

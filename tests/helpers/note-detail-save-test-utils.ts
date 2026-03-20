@@ -86,7 +86,7 @@ const NoteUnlockPanelStub = defineComponent({
       h('input', {
         'data-testid': 'note-unlock-panel-pin',
         'placeholder': '输入密码',
-        'type': 'text',
+        'type': 'password',
         'value': pin.value,
         'onInput': (event: Event) => {
           pin.value = (event.target as HTMLInputElement).value

@@ -126,7 +126,7 @@ function submit() {
           inputmode="numeric"
           maxlength="6"
           placeholder="输入密码"
-          type="text"
+          type="password"
           @input="normalizePinValue(($event.target as HTMLInputElement).value)"
           @keyup.enter="submit"
         >
