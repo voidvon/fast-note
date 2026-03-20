@@ -5,8 +5,6 @@ import type {
 import type { FolderTreeNode, Note } from '@/shared/types'
 import {
   IonAlert,
-  IonButton,
-  IonButtons,
   IonContent,
   IonFooter,
   IonHeader,
@@ -21,6 +19,7 @@ import {
 import { addOutline, createOutline } from 'ionicons/icons'
 import { nanoid } from 'nanoid'
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 // import ExtensionButton from '@/shared/ui/extension-button'
 // import ExtensionManager from '@/features/extension-manager'
 import { useNote } from '@/entities/note'
@@ -50,6 +49,7 @@ const { currentUser } = useAuth()
 const { showGlobalSearch } = useGlobalSearch()
 const { isExtensionEnabled, getExtensionModule } = useExtensions()
 const { getSnapshot, saveSnapshot, clearSnapshot } = useDesktopActiveNote()
+const router = useRouter()
 const currentUserId = computed(() => currentUser.value?.id || null)
 
 // 扩展管理器状态
@@ -337,6 +337,10 @@ function handleCreateNote(parentId = '') {
   clearSnapshot(currentUserId.value)
 }
 
+function handleMobileCreateNavigation() {
+  void router.push('/n/0')
+}
+
 onIonViewWillEnter(() => {
   init({ preferPersistedSelection: true })
 })
@@ -359,24 +363,20 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
 
 <template>
   <IonPage ref="page" :class="{ 'note-desktop': isDesktop }">
-    <Transition name="header-slide">
-      <IonHeader v-if="!showGlobalSearch" :translucent="true">
-        <IonToolbar />
-      </IonHeader>
-    </Transition>
+    <IonHeader :translucent="true">
+      <IonToolbar />
+    </IonHeader>
 
     <IonContent :fullscreen="true">
-      <IonRefresher v-if="!showGlobalSearch" slot="fixed" @ion-refresh="refresh($event)">
+      <IonRefresher :disabled="showGlobalSearch" slot="fixed" @ion-refresh="refresh($event)">
         <IonRefresherContent />
       </IonRefresher>
 
       <IonHeader collapse="condense">
         <IonToolbar>
-          <Transition name="header-slide">
-            <IonTitle v-if="!showGlobalSearch" size="large">
-              备忘录
-            </IonTitle>
-          </Transition>
+          <IonTitle size="large">
+            备忘录
+          </IonTitle>
         </IonToolbar>
         <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 16px;">
           <div class="flex items-center">
@@ -396,8 +396,6 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
         </div>
       </IonHeader>
 
-      <GlobalSearch />
-
       <NoteList
         :note-uuid="state.folerId"
         :data-list="sortDataList"
@@ -414,30 +412,34 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
         @selected="handleFolderSelected"
       />
     </IonContent>
-    <IonFooter>
-      <IonToolbar>
-        <IonButtons slot="start">
-          <IonButton id="add-folder">
-            <IonIcon :icon="addOutline" />
-          </IonButton>
-        </IonButtons>
-        <IonTitle />
-        <IonButtons slot="end">
-          <IonButton
-            v-if="isDesktop"
-            @click="handleCreateNote()"
-          >
-            <IonIcon :icon="createOutline" />
-          </IonButton>
-          <IonButton
-            v-else
-            router-link="/n/0"
-            router-direction="forward"
-          >
-            <IonIcon :icon="createOutline" />
-          </IonButton>
-        </IonButtons>
-      </IonToolbar>
+    <IonFooter class="home-footer ion-no-border">
+      <div class="home-footer__content">
+        <button
+          v-if="!showGlobalSearch"
+          type="button"
+          id="add-folder"
+          class="home-footer__action-button"
+        >
+          <IonIcon :icon="addOutline" />
+        </button>
+        <GlobalSearch />
+        <button
+          v-if="isDesktop && !showGlobalSearch"
+          type="button"
+          class="home-footer__action-button"
+          @click="handleCreateNote()"
+        >
+          <IonIcon :icon="createOutline" />
+        </button>
+        <button
+          v-else-if="!showGlobalSearch"
+          type="button"
+          class="home-footer__action-button"
+          @click="handleMobileCreateNavigation"
+        >
+          <IonIcon :icon="createOutline" />
+        </button>
+      </div>
     </IonFooter>
     <IonAlert
       trigger="add-folder"
@@ -515,34 +517,6 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
     height: 100%;
   }
 }
-/* 进入和离开动画的激活状态 */
-.header-slide-enter-active,
-.header-slide-leave-active {
-  transition:
-    max-height 0.3s ease-in-out,
-    opacity 0.3s ease-in-out;
-  overflow: hidden; /* 非常重要！确保内容在折叠时被裁剪 */
-}
-
-/* 进入动画的起始状态 和 离开动画的结束状态 */
-.header-slide-enter-from,
-.header-slide-leave-to {
-  max-height: 0;
-  opacity: 0;
-}
-
-/* 进入动画的结束状态 和 离开动画的起始状态 */
-.header-slide-enter-to,
-.header-slide-leave-from {
-  /*
-    设置一个足够大的 max-height 值，使其能容纳 header 的所有内容。
-    一个标准的 ion-toolbar 大约是 56px。
-    如果你的 header 内容更多（例如，多个 toolbar，大标题模式），请增大此值。
-    例如: 100px, 150px, 或根据你的 header 实际最大高度调整。
-  */
-  max-height: 150px; /* 示例值，请根据你的 header 内容调整 */
-  opacity: 1;
-}
 .home-detail-empty {
   position: absolute;
   inset: 0;
@@ -576,5 +550,54 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
 
 .home-detail-empty__desc {
   font-size: 13px;
+}
+
+.home-footer {
+  --background: transparent;
+  background: transparent;
+  box-shadow: none;
+
+  &::before {
+    display: none;
+  }
+}
+
+.home-footer__content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 36px;
+  padding: 0 12px 12px;
+  pointer-events: auto;
+}
+
+.home-footer__content :deep(.global-search) {
+  flex: 1;
+  min-width: 0;
+}
+
+.home-footer__action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(28, 28, 30, 0.88);
+  color: #f5f5f7;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
+  backdrop-filter: blur(18px);
+  flex: 0 0 36px;
+  line-height: 1;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.home-footer__action-button ion-icon {
+  font-size: 20px;
 }
 </style>
