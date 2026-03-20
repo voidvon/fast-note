@@ -16,12 +16,16 @@ describe('useNoteDelete', () => {
       is_deleted: 0,
     })
 
-    vi.doMock('@/entities/note', () => ({
-      useNoteRepository: () => ({
-        updateNote,
-        updateParentFolderSubcount,
-      }),
-    }))
+    vi.doMock('@/entities/note', async () => {
+      const actual = await vi.importActual<typeof import('@/entities/note')>('@/entities/note')
+      return {
+        ...actual,
+        useNote: () => ({
+          updateNote,
+          updateParentFolderSubcount,
+        }),
+      }
+    })
     vi.doMock('@/shared/lib/date', () => ({
       getTime: () => '2026-03-17 11:20:00',
     }))

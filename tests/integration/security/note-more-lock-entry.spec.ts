@@ -118,13 +118,17 @@ describe('note more lock entry integration', () => {
         },
       }),
     }))
-    vi.doMock('@/entities/note', () => ({
-      useNoteRepository: () => ({
-        getNote: getNoteMock,
-        updateNote: vi.fn(),
-        updateParentFolderSubcount: vi.fn(),
-      }),
-    }))
+    vi.doMock('@/entities/note', async () => {
+      const actual = await vi.importActual<typeof import('@/entities/note')>('@/entities/note')
+      return {
+        ...actual,
+        useNote: () => ({
+          getNote: getNoteMock,
+          updateNote: vi.fn(),
+          updateParentFolderSubcount: vi.fn(),
+        }),
+      }
+    })
     vi.doMock('@/shared/lib/storage', () => ({
       useDexie: () => ({
         db: ref({}),
@@ -203,17 +207,21 @@ describe('note more lock entry integration', () => {
         },
       }),
     }))
-    vi.doMock('@/entities/note', () => ({
-      useNoteRepository: () => ({
-        getNote: vi.fn(async () => ({
-          id: 'note-2',
-          is_locked: 1,
-          is_public: 0,
-        })),
-        updateNote: vi.fn(),
-        updateParentFolderSubcount: vi.fn(),
-      }),
-    }))
+    vi.doMock('@/entities/note', async () => {
+      const actual = await vi.importActual<typeof import('@/entities/note')>('@/entities/note')
+      return {
+        ...actual,
+        useNote: () => ({
+          getNote: vi.fn(async () => ({
+            id: 'note-2',
+            is_locked: 1,
+            is_public: 0,
+          })),
+          updateNote: vi.fn(),
+          updateParentFolderSubcount: vi.fn(),
+        }),
+      }
+    })
     vi.doMock('@/shared/lib/storage', () => ({
       useDexie: () => ({
         db: ref({}),
@@ -298,13 +306,17 @@ describe('note more lock entry integration', () => {
         },
       }),
     }))
-    vi.doMock('@/entities/note', () => ({
-      useNoteRepository: () => ({
-        getNote: getNoteMock,
-        updateNote: vi.fn(),
-        updateParentFolderSubcount: vi.fn(),
-      }),
-    }))
+    vi.doMock('@/entities/note', async () => {
+      const actual = await vi.importActual<typeof import('@/entities/note')>('@/entities/note')
+      return {
+        ...actual,
+        useNote: () => ({
+          getNote: getNoteMock,
+          updateNote: vi.fn(),
+          updateParentFolderSubcount: vi.fn(),
+        }),
+      }
+    })
     vi.doMock('@/features/note-lock', () => ({
       NoteLockSetupModal: createLockModalStub('NoteLockSetupModal', 'note-lock-setup-modal'),
       NoteLockManageModal: createLockModalStub('NoteLockManageModal', 'note-lock-manage-modal'),

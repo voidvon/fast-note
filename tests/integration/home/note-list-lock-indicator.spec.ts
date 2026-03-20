@@ -52,6 +52,9 @@ async function mountNoteList(options: {
   vi.doMock('@/features/note-move', () => ({
     default: createPlainStub('NoteMove'),
   }))
+  vi.doMock('@/features/note-move/ui/note-move-modal.vue', () => ({
+    default: createPlainStub('NoteMoveModal'),
+  }))
   vi.doMock('@/features/note-lock', () => ({
     useNoteLockIndicatorState: () => ({
       indicatorStateMap: ref({
@@ -69,6 +72,7 @@ async function mountNoteList(options: {
     IonItem: createIonicStub('IonItem'),
     IonLabel: createIonicStub('IonLabel'),
     IonList: createIonicStub('IonList'),
+    IonModal: createIonicStub('IonModal'),
     IonNote: createIonicStub('IonNote', 'span'),
     useIonRouter: () => ({
       push: vi.fn(),

@@ -264,6 +264,12 @@ async function mountHomePageForEmptyDetailCreate(options: {
   vi.doMock('@/pages/note-detail/ui/note-detail-page.vue', () => ({
     default: NoteDetailStub,
   }))
+  vi.doMock('@/widgets/folder-browser', () => ({
+    default: folderPageStub,
+  }))
+  vi.doMock('@/widgets/note-detail-pane', () => ({
+    default: NoteDetailStub,
+  }))
 
   vi.doMock('@ionic/vue', async () => {
     const { onMounted, onUnmounted } = await import('vue')

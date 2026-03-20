@@ -25,15 +25,19 @@ describe('usePublicNoteShare', () => {
       Object.assign(target!, updates)
     })
 
-    vi.doMock('@/entities/note', () => ({
-      useNoteRepository: () => ({
-        getNote: vi.fn((id: string) => notes.find(note => note.id === id) || null),
-        getNotesByParentId: vi.fn(async (parentId: string) => {
-          return notes.filter(note => note.parent_id === parentId && note.is_deleted !== 1)
+    vi.doMock('@/entities/note', async () => {
+      const actual = await vi.importActual<typeof import('@/entities/note')>('@/entities/note')
+      return {
+        ...actual,
+        useNote: () => ({
+          getNote: vi.fn((id: string) => notes.find(note => note.id === id) || null),
+          getNotesByParentId: vi.fn(async (parentId: string) => {
+            return notes.filter(note => note.parent_id === parentId && note.is_deleted !== 1)
+          }),
+          updateNote,
         }),
-        updateNote,
-      }),
-    }))
+      }
+    })
     vi.doMock('@/shared/lib/date', () => ({
       getTime: () => '2026-03-17 11:10:00',
     }))
@@ -80,15 +84,19 @@ describe('usePublicNoteShare', () => {
       Object.assign(target!, updates)
     })
 
-    vi.doMock('@/entities/note', () => ({
-      useNoteRepository: () => ({
-        getNote: vi.fn((id: string) => notes.find(note => note.id === id) || null),
-        getNotesByParentId: vi.fn(async (parentId: string) => {
-          return notes.filter(note => note.parent_id === parentId && note.is_deleted !== 1)
+    vi.doMock('@/entities/note', async () => {
+      const actual = await vi.importActual<typeof import('@/entities/note')>('@/entities/note')
+      return {
+        ...actual,
+        useNote: () => ({
+          getNote: vi.fn((id: string) => notes.find(note => note.id === id) || null),
+          getNotesByParentId: vi.fn(async (parentId: string) => {
+            return notes.filter(note => note.parent_id === parentId && note.is_deleted !== 1)
+          }),
+          updateNote,
         }),
-        updateNote,
-      }),
-    }))
+      }
+    })
     vi.doMock('@/shared/lib/date', () => ({
       getTime: () => '2026-03-17 11:11:00',
     }))

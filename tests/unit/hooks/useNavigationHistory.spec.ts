@@ -53,10 +53,10 @@ describe('useNavigationHistory', () => {
     navigationHistory.setRouter(router)
 
     emitTransition('/n/note-1', '/home')
-    expect(navigationHistory.getHistory.value.map(item => item.path)).toEqual(['/n/note-1'])
+    expect(navigationHistory.history.value.map(item => item.path)).toEqual(['/n/note-1'])
 
     emitTransition('/f/folder-a', '/n/note-1')
-    expect(navigationHistory.getHistory.value.map(item => item.path)).toEqual(['/f/folder-a'])
+    expect(navigationHistory.history.value.map(item => item.path)).toEqual(['/f/folder-a'])
   })
 
   it('keeps normal folder to detail back navigation intact', () => {
@@ -68,6 +68,6 @@ describe('useNavigationHistory', () => {
     emitTransition('/n/note-1', '/f/folder-a')
     emitTransition('/f/folder-a', '/n/note-1')
 
-    expect(navigationHistory.getHistory.value.map(item => item.path)).toEqual(['/f/folder-a'])
+    expect(navigationHistory.history.value.map(item => item.path)).toEqual(['/f/folder-a'])
   })
 })

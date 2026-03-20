@@ -128,6 +128,23 @@ export async function mountHomePageForDesktopRestore(options: {
     }),
   }))
 
+  vi.doMock('vue-router', async () => {
+    const actual = await vi.importActual<typeof import('vue-router')>('vue-router')
+    return {
+      ...actual,
+      useRoute: () => ({
+        path: '/home',
+        fullPath: '/home',
+        params: {},
+        query: {},
+      }),
+      useRouter: () => ({
+        replace: vi.fn(),
+        push: vi.fn(),
+      }),
+    }
+  })
+
   vi.doMock('@/features/theme-switch', () => ({
     default: createPlainStub('DarkModeToggle'),
   }))
@@ -147,6 +164,12 @@ export async function mountHomePageForDesktopRestore(options: {
     default: folderPageStub,
   }))
   vi.doMock('@/pages/note-detail/ui/note-detail-page.vue', () => ({
+    default: noteDetailStub,
+  }))
+  vi.doMock('@/widgets/folder-browser', () => ({
+    default: folderPageStub,
+  }))
+  vi.doMock('@/widgets/note-detail-pane', () => ({
     default: noteDetailStub,
   }))
 

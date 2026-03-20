@@ -79,8 +79,11 @@ describe('UserPublicNotesPage', () => {
     ]
 
     const getPublicFolderTreeByPUuid = vi.fn(() => publicFolders)
-    const getPublicUserInfo = vi.fn(async () => ({ username: 'alice' }))
-    const ensurePublicNotesReady = vi.fn(async () => {})
+    const ensurePublicNotesReady = vi.fn(async () => ({
+      userInfo: {
+        username: 'alice',
+      },
+    }))
 
     vi.doMock('vue-router', async () => {
       const actual = await vi.importActual<typeof import('vue-router')>('vue-router')
@@ -114,9 +117,6 @@ describe('UserPublicNotesPage', () => {
 
     vi.doMock('@/processes/public-notes', () => ({
       ensurePublicNotesReady,
-      usePublicUserCache: () => ({
-        getPublicUserInfo,
-      }),
     }))
 
     vi.doMock('@/pages/folder/ui/folder-page.vue', () => ({
@@ -124,6 +124,12 @@ describe('UserPublicNotesPage', () => {
     }))
 
     vi.doMock('@/pages/note-detail/ui/note-detail-page.vue', () => ({
+      default: noteDetailStub,
+    }))
+    vi.doMock('@/widgets/folder-browser', () => ({
+      default: folderPageStub,
+    }))
+    vi.doMock('@/widgets/note-detail-pane', () => ({
       default: noteDetailStub,
     }))
 
@@ -168,8 +174,7 @@ describe('UserPublicNotesPage', () => {
     const folderPage = () => wrapper.findComponent(folderPageStub)
     const noteDetail = () => wrapper.findComponent(noteDetailStub)
 
-    expect(getPublicUserInfo).toHaveBeenCalledWith('alice')
-    expect(ensurePublicNotesReady).toHaveBeenCalledWith('alice')
+    expect(ensurePublicNotesReady).toHaveBeenCalledWith('alice', { force: false })
     expect(noteList.props('noteUuid')).toBe('')
     expect(folderPage().props('currentFolder')).toBe('')
     expect(folderPage().props('selectedNoteId')).toBe('')

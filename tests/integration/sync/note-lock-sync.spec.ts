@@ -22,7 +22,7 @@ async function mountAppForNoteLockSync(options: {
     name: 'Home',
   })
   const currentUser = ref(options.isAuthenticated === false ? null : { id: 'user-a' })
-  let authChangeCallback: ((token: string, user: { id: string } | null) => void | Promise<void>) | null = null
+  const authChangeCallbacks: Array<(token: string, user: { id: string } | null) => void | Promise<void>> = []
 
   const initializeDatabaseMock = vi.fn(async () => undefined)
   const initializeNotesMock = vi.fn(async () => undefined)
@@ -79,13 +79,42 @@ async function mountAppForNoteLockSync(options: {
     }),
   }))
 
+  vi.doMock('@/entities/auth', () => ({
+    authService: {
+      isAuthenticated: () => !!currentUser.value,
+      getCurrentAuthUser: () => currentUser.value,
+      getCurrentUser: vi.fn(async () => ({
+        success: !!currentUser.value,
+        user: currentUser.value,
+      })),
+      getToken: () => (currentUser.value ? 'token-1' : null),
+      onAuthChange: (callback: (token: string, user: { id: string } | null) => void | Promise<void>) => {
+        authChangeCallbacks.push(callback)
+        return vi.fn(() => {
+          const index = authChangeCallbacks.indexOf(callback)
+          if (index >= 0) {
+            authChangeCallbacks.splice(index, 1)
+          }
+        })
+      },
+      signIn: vi.fn(),
+      signOut: vi.fn(),
+      signUp: vi.fn(),
+    },
+  }))
+
   vi.doMock('@/shared/api/pocketbase', () => ({
     pocketbaseAuthService: {
       isAuthenticated: () => options.isAuthenticated !== false,
       getCurrentAuthUser: () => currentUser.value,
-      onAuthChange: (callback: typeof authChangeCallback) => {
-        authChangeCallback = callback
-        return vi.fn()
+      onAuthChange: (callback: (token: string, user: { id: string } | null) => void | Promise<void>) => {
+        authChangeCallbacks.push(callback)
+        return vi.fn(() => {
+          const index = authChangeCallbacks.indexOf(callback)
+          if (index >= 0) {
+            authChangeCallbacks.splice(index, 1)
+          }
+        })
       },
     },
     PocketBaseRealtimeService: class {},
@@ -93,7 +122,12 @@ async function mountAppForNoteLockSync(options: {
 
   vi.doMock('@/processes/session/model/auth-manager', () => ({
     authManager: {
-      setAuthService: vi.fn(),
+      setAuthService: vi.fn((service: { getCurrentAuthUser: () => { id: string } | null, onAuthChange: (callback: (token: string, user: { id: string } | null) => void) => void }) => {
+        currentUser.value = service.getCurrentAuthUser()
+        service.onAuthChange((token, user) => {
+          currentUser.value = token && user ? user : null
+        })
+      }),
       initialize: vi.fn(async () => undefined),
       isAuthenticated: () => !!currentUser.value,
       userInfo: currentUser,
@@ -149,7 +183,9 @@ async function mountAppForNoteLockSync(options: {
     currentUser,
     triggerAuthChange: async (token: string, user: { id: string } | null) => {
       currentUser.value = user
-      await authChangeCallback?.(token, user)
+      for (const callback of authChangeCallbacks) {
+        await callback(token, user)
+      }
       await flushPromises()
       await nextTick()
     },
