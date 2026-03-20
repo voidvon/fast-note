@@ -25,14 +25,13 @@ const inputRef = ref<HTMLInputElement>()
 const isComposing = ref(false)
 const state = reactive({
   notes: [] as Note[],
-  left: 0,
-  width: 0,
-  bottom: 0,
-  maxHeight: 320,
+  panelLeft: 0,
+  panelTop: 0,
+  panelWidth: 0,
+  panelHeight: 0,
 })
 
 let nativeInput: HTMLInputElement | null = null
-let resizeObserver: ResizeObserver | null = null
 let searchRequestId = 0
 let hideTimer: ReturnType<typeof setTimeout> | null = null
 let enterFrameId: number | null = null
@@ -41,11 +40,11 @@ const searchResults = computed(() => toSearchResultNodes(state.notes))
 const hasKeyword = computed(() => searchKeyword.value.trim().length > 0)
 const shouldRenderPanel = computed(() => showGlobalSearchState.value !== 'hide')
 const panelStyle = computed(() => ({
-  left: `${state.left}px`,
-  width: `${state.width}px`,
-  bottom: `${state.bottom}px`,
-  height: `${state.maxHeight}px`,
-  maxHeight: `${state.maxHeight}px`,
+  left: `${state.panelLeft}px`,
+  top: `${state.panelTop}px`,
+  width: `${state.panelWidth}px`,
+  height: `${state.panelHeight}px`,
+  minHeight: `${state.panelHeight}px`,
 }))
 
 function activateSearch() {
@@ -80,21 +79,32 @@ function activateSearch() {
   })
 }
 
-function resolveFooterElement() {
-  return dockRef.value?.closest('ion-footer') as HTMLElement | null
+function resolvePanelContainer() {
+  const desktopSidebar = dockRef.value?.closest('.note-desktop') as HTMLElement | null
+  if (desktopSidebar) {
+    return desktopSidebar
+  }
+
+  return dockRef.value?.closest('.ion-page, ion-page') as HTMLElement | null
 }
 
 function updateLayout() {
-  const footerRect = resolveFooterElement()?.getBoundingClientRect()
-  if (!footerRect) {
+  const containerRect = resolvePanelContainer()?.getBoundingClientRect()
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
+
+  if (!containerRect) {
+    state.panelLeft = 0
+    state.panelTop = 0
+    state.panelWidth = viewportWidth
+    state.panelHeight = viewportHeight
     return
   }
 
-  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
-  state.left = footerRect.left
-  state.width = footerRect.width
-  state.bottom = Math.max(0, viewportHeight - footerRect.top)
-  state.maxHeight = Math.max(0, footerRect.top - 12)
+  state.panelLeft = containerRect.left
+  state.panelTop = containerRect.top
+  state.panelWidth = containerRect.width
+  state.panelHeight = containerRect.height
 }
 
 async function runSearch(searchText: string) {
@@ -197,18 +207,6 @@ function handleViewportChange() {
 
 onMounted(() => {
   updateLayout()
-
-  if (typeof ResizeObserver !== 'undefined') {
-    resizeObserver = new ResizeObserver(() => {
-      handleViewportChange()
-    })
-
-    const footerElement = resolveFooterElement()
-    if (footerElement) {
-      resizeObserver.observe(footerElement)
-    }
-  }
-
   window.addEventListener('resize', handleViewportChange)
 })
 
@@ -225,7 +223,6 @@ onUnmounted(() => {
 
   cleanupCompositionListeners()
   resetGlobalSearch()
-  resizeObserver?.disconnect()
   window.removeEventListener('resize', handleViewportChange)
 })
 </script>
@@ -327,16 +324,19 @@ onUnmounted(() => {
 .global-search {
   display: flex;
   align-items: center;
-  min-height: 36px;
+  min-height: 44px;
   padding: 0;
   position: relative;
+  z-index: 1002;
 
   &__dock {
     display: flex;
     align-items: center;
     gap: 12px;
     width: 100%;
-    min-height: 36px;
+    min-height: 44px;
+    position: relative;
+    z-index: 2;
   }
 
   &__field {
@@ -348,10 +348,10 @@ onUnmounted(() => {
   }
 
   &__side-spacer {
-    width: 36px;
-    min-width: 36px;
-    height: 36px;
-    flex: 0 0 36px;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
     visibility: hidden;
     pointer-events: none;
   }
@@ -360,13 +360,20 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     gap: 8px;
-    height: 36px;
-    min-height: 36px;
+    height: 44px;
+    min-height: 44px;
     padding: 0 12px;
     border-radius: 9999px;
-    background: rgba(28, 28, 30, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.08)),
+      rgba(20, 20, 24, 0.12);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.22),
+      0 12px 30px rgba(0, 0, 0, 0.14);
     overflow: hidden;
-    backdrop-filter: blur(28px);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
   }
 
   &__search-icon {
@@ -378,7 +385,7 @@ onUnmounted(() => {
   &__input {
     flex: 1;
     min-width: 0;
-    height: 36px;
+    height: 44px;
     border: 0;
     padding: 0;
     background: transparent;
@@ -418,19 +425,25 @@ onUnmounted(() => {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    min-width: 36px;
-    height: 36px;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
     border: 0;
     padding: 0;
     border-radius: 50%;
-    background: rgba(28, 28, 30, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.08)),
+      rgba(20, 20, 24, 0.12);
     color: #f5f5f7;
-    box-shadow: none;
-    backdrop-filter: blur(28px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.22),
+      0 12px 30px rgba(0, 0, 0, 0.14);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
     appearance: none;
     -webkit-appearance: none;
-    flex: 0 0 36px;
+    flex: 0 0 44px;
   }
 
   &__close-button ion-icon {
@@ -439,8 +452,9 @@ onUnmounted(() => {
 
   &__panel {
     position: fixed;
-    z-index: 999;
-    padding: max(16px, env(safe-area-inset-top)) 0 8px;
+    z-index: 1;
+    padding: 0;
+    overflow: hidden;
   }
 
   &__panel-surface {
@@ -451,11 +465,11 @@ onUnmounted(() => {
     overflow: hidden;
     border-radius: 0;
     background: rgba(10, 10, 12, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.015);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.01);
+    border: 0;
+    box-shadow: none;
     backdrop-filter: blur(0) saturate(100%);
     -webkit-backdrop-filter: blur(0) saturate(100%);
-    max-height: inherit;
+    max-height: none;
     transition:
       background-color 320ms ease,
       border-color 320ms ease,
@@ -466,8 +480,8 @@ onUnmounted(() => {
 
   &__panel-surface--active {
     background: rgba(10, 10, 12, 0.38);
-    border-color: rgba(255, 255, 255, 0.04);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    border-color: transparent;
+    box-shadow: none;
     backdrop-filter: blur(26px) saturate(150%);
     -webkit-backdrop-filter: blur(26px) saturate(150%);
   }
@@ -477,7 +491,7 @@ onUnmounted(() => {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
-    padding: 10px 16px 12px;
+    padding: max(20px, env(safe-area-inset-top)) 16px 12px;
   }
 
   &__panel-caption {
@@ -510,6 +524,7 @@ onUnmounted(() => {
     flex: 1;
     min-height: 0;
     --background: transparent;
+    --padding-bottom: calc(88px + env(safe-area-inset-bottom));
   }
 
   &__empty {

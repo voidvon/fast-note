@@ -566,7 +566,7 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 12px 12px;
   pointer-events: auto;
 }
@@ -580,18 +580,24 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  min-width: 36px;
-  height: 36px;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
   padding: 0;
   margin: 0;
   border: 0;
   border-radius: 50%;
-  background: rgba(28, 28, 30, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.08)),
+    rgba(20, 20, 24, 0.12);
   color: #f5f5f7;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
-  backdrop-filter: blur(18px);
-  flex: 0 0 36px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 12px 30px rgba(0, 0, 0, 0.14);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  flex: 0 0 44px;
   line-height: 1;
   appearance: none;
   -webkit-appearance: none;
