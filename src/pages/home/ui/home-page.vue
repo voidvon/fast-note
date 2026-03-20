@@ -33,9 +33,9 @@ import {
   useDesktopActiveNote,
 } from '@/processes/navigation'
 import { useAuth } from '@/processes/session'
+import { getTime } from '@/shared/lib/date'
 import { useDeviceType } from '@/shared/lib/device'
 import { NOTE_TYPE } from '@/shared/types'
-import { getTime } from '@/shared/lib/date'
 import DeletedNoteList from '@/widgets/deleted-note-list'
 import ExtensionRenderer from '@/widgets/extension-renderer'
 import FolderBrowser from '@/widgets/folder-browser'
@@ -368,7 +368,7 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
     </IonHeader>
 
     <IonContent :fullscreen="true">
-      <IonRefresher :disabled="showGlobalSearch" slot="fixed" @ion-refresh="refresh($event)">
+      <IonRefresher slot="fixed" :disabled="showGlobalSearch" @ion-refresh="refresh($event)">
         <IonRefresherContent />
       </IonRefresher>
 
@@ -416,8 +416,8 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
       <div class="home-footer__content">
         <button
           v-if="!showGlobalSearch"
-          type="button"
           id="add-folder"
+          type="button"
           class="home-footer__action-button"
         >
           <IonIcon :icon="addOutline" />
@@ -571,8 +571,9 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
   pointer-events: auto;
 }
 
-.home-footer__content :deep(.global-search) {
+.home-footer__content > .global-search {
   flex: 1;
+  width: 100%;
   min-width: 0;
 }
 
@@ -588,9 +589,7 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
   border: 0;
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.18);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.08)),
-    rgba(20, 20, 24, 0.12);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.08)), rgba(20, 20, 24, 0.12);
   color: #f5f5f7;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.22),

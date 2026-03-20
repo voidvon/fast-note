@@ -39,6 +39,7 @@ let enterFrameId: number | null = null
 const searchResults = computed(() => toSearchResultNodes(state.notes))
 const hasKeyword = computed(() => searchKeyword.value.trim().length > 0)
 const shouldRenderPanel = computed(() => showGlobalSearchState.value !== 'hide')
+const shouldHideSearchIcon = computed(() => shouldRenderPanel.value)
 const panelStyle = computed(() => ({
   left: `${state.panelLeft}px`,
   top: `${state.panelTop}px`,
@@ -230,15 +231,24 @@ onUnmounted(() => {
 <template>
   <div ref="dockRef" :class="{ 'global-search--active': showGlobalSearch }" class="global-search">
     <div class="global-search__dock">
-      <div
+      <button
         v-if="showGlobalSearch"
-        class="global-search__side-spacer"
-        aria-hidden="true"
-      />
+        type="button"
+        class="global-search__leading-button"
+        aria-label="搜索"
+      >
+        <IonIcon :icon="searchOutline" />
+      </button>
 
       <div class="global-search__field">
-        <div class="global-search__field-shell">
-          <IonIcon :icon="searchOutline" class="global-search__search-icon" />
+        <div
+          :class="{ 'global-search__field-shell--panel-visible': shouldHideSearchIcon }"
+          class="global-search__field-shell"
+        >
+          <IonIcon
+            :icon="searchOutline"
+            class="global-search__search-icon"
+          />
           <input
             ref="inputRef"
             :value="searchKeyword"
@@ -347,39 +357,57 @@ onUnmounted(() => {
     align-items: center;
   }
 
-  &__side-spacer {
-    width: 44px;
-    min-width: 44px;
-    height: 44px;
-    flex: 0 0 44px;
-    visibility: hidden;
-    pointer-events: none;
-  }
-
   &__field-shell {
     display: flex;
     align-items: center;
+    width: 100%;
+    min-width: 0;
     gap: 8px;
     height: 44px;
     min-height: 44px;
     padding: 0 12px;
     border-radius: 9999px;
     border: 1px solid rgba(255, 255, 255, 0.18);
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.08)),
-      rgba(20, 20, 24, 0.12);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.08)), rgba(20, 20, 24, 0.12);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.22),
       0 12px 30px rgba(0, 0, 0, 0.14);
     overflow: hidden;
+    transition: gap 180ms ease;
     backdrop-filter: blur(28px) saturate(180%);
     -webkit-backdrop-filter: blur(28px) saturate(180%);
   }
 
+  &__field-shell--panel-visible {
+    gap: 0;
+  }
+
   &__search-icon {
-    flex: 0 0 auto;
+    width: 16px;
+    min-width: 16px;
+    flex: 0 0 16px;
     font-size: 16px;
     color: #d1d1d6;
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    transform-origin: left center;
+    transition:
+      opacity 160ms ease,
+      transform 180ms ease,
+      width 160ms ease,
+      min-width 160ms ease,
+      margin 160ms ease,
+      flex-basis 160ms ease;
+  }
+
+  &__field-shell--panel-visible &__search-icon {
+    width: 0;
+    min-width: 0;
+    margin: 0;
+    opacity: 0;
+    overflow: hidden;
+    flex-basis: 0;
+    transform: translateX(-6px) scale(0.84);
   }
 
   &__input {
@@ -421,6 +449,7 @@ onUnmounted(() => {
     font-size: 18px;
   }
 
+  &__leading-button,
   &__close-button {
     display: inline-flex;
     align-items: center;
@@ -432,9 +461,7 @@ onUnmounted(() => {
     padding: 0;
     border-radius: 50%;
     border: 1px solid rgba(255, 255, 255, 0.18);
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.08)),
-      rgba(20, 20, 24, 0.12);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.08)), rgba(20, 20, 24, 0.12);
     color: #f5f5f7;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.22),
@@ -446,6 +473,7 @@ onUnmounted(() => {
     flex: 0 0 44px;
   }
 
+  &__leading-button ion-icon,
   &__close-button ion-icon {
     font-size: 20px;
   }
