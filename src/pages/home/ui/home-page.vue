@@ -341,6 +341,15 @@ function handleMobileCreateNavigation() {
   void router.push('/n/0')
 }
 
+function handleFooterCreateAction() {
+  if (isDesktop.value) {
+    handleCreateNote()
+    return
+  }
+
+  handleMobileCreateNavigation()
+}
+
 onIonViewWillEnter(() => {
   init({ preferPersistedSelection: true })
 })
@@ -418,24 +427,16 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
           v-if="!showGlobalSearch"
           id="add-folder"
           type="button"
-          class="home-footer__action-button"
+          class="app-glass-circle-button"
         >
           <IonIcon :icon="addOutline" />
         </button>
         <GlobalSearch />
         <button
-          v-if="isDesktop && !showGlobalSearch"
+          v-if="!showGlobalSearch"
           type="button"
-          class="home-footer__action-button"
-          @click="handleCreateNote()"
-        >
-          <IonIcon :icon="createOutline" />
-        </button>
-        <button
-          v-else-if="!showGlobalSearch"
-          type="button"
-          class="home-footer__action-button"
-          @click="handleMobileCreateNavigation"
+          class="app-glass-circle-button"
+          @click="handleFooterCreateAction"
         >
           <IonIcon :icon="createOutline" />
         </button>
@@ -575,34 +576,5 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
   flex: 1;
   width: 100%;
   min-width: 0;
-}
-
-.home-footer__action-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  min-width: 44px;
-  height: 44px;
-  padding: 0;
-  margin: 0;
-  border: 0;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.08)), rgba(20, 20, 24, 0.12);
-  color: #f5f5f7;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    0 12px 30px rgba(0, 0, 0, 0.14);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
-  flex: 0 0 44px;
-  line-height: 1;
-  appearance: none;
-  -webkit-appearance: none;
-}
-
-.home-footer__action-button ion-icon {
-  font-size: 20px;
 }
 </style>

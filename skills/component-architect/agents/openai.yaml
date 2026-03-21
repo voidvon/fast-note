@@ -1,0 +1,4 @@
+interface:
+  display_name: "Component Architect"
+  short_description: "Audit and consolidate reusable UI components"
+  default_prompt: "Use $component-architect to audit this Vue3 + Pencil project for duplicate UI structures and consolidate them into shared components."

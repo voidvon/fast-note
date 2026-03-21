@@ -31,7 +31,6 @@ const state = reactive({
   panelHeight: 0,
 })
 
-let nativeInput: HTMLInputElement | null = null
 let searchRequestId = 0
 let hideTimer: ReturnType<typeof setTimeout> | null = null
 let enterFrameId: number | null = null
@@ -39,7 +38,6 @@ let enterFrameId: number | null = null
 const searchResults = computed(() => toSearchResultNodes(state.notes))
 const hasKeyword = computed(() => searchKeyword.value.trim().length > 0)
 const shouldRenderPanel = computed(() => showGlobalSearchState.value !== 'hide')
-const shouldHideSearchIcon = computed(() => shouldRenderPanel.value)
 const panelStyle = computed(() => ({
   left: `${state.panelLeft}px`,
   top: `${state.panelTop}px`,
@@ -49,6 +47,11 @@ const panelStyle = computed(() => ({
 }))
 
 function activateSearch() {
+  if (showGlobalSearch.value && showGlobalSearchState.value !== 'hide') {
+    updateLayout()
+    return
+  }
+
   if (hideTimer) {
     clearTimeout(hideTimer)
     hideTimer = null
@@ -132,25 +135,30 @@ function handleCompositionStart() {
   isComposing.value = true
 }
 
+function applyKeyword(value: string) {
+  searchKeyword.value = value
+
+  if (!value.trim()) {
+    state.notes = []
+    return
+  }
+
+  activateSearch()
+}
+
 function handleCompositionEnd(event: CompositionEvent) {
   isComposing.value = false
   const value = (event.target as HTMLInputElement | null)?.value || ''
-  searchKeyword.value = value
-  syncVisibilityByKeyword(value)
+  applyKeyword(value)
   void runSearch(value)
 }
 
-function cleanupCompositionListeners() {
-  nativeInput = null
-}
-
 function onFocus() {
-  nativeInput = inputRef.value || null
   activateSearch()
 }
 
 function onCancel() {
-  nativeInput?.blur()
+  inputRef.value?.blur()
   searchRequestId++
   showGlobalSearchState.value = 'leaveStart'
 
@@ -159,17 +167,6 @@ function onCancel() {
     state.notes = []
     resetGlobalSearch()
   }, Math.max(SURFACE_TRANSITION_MS, CONTENT_TRANSITION_MS))
-}
-
-function syncVisibilityByKeyword(value: string) {
-  const keyword = value.trim()
-
-  if (!keyword) {
-    state.notes = []
-    return
-  }
-
-  activateSearch()
 }
 
 function onInput(event: Event) {
@@ -183,8 +180,7 @@ function onInput(event: Event) {
     return
   }
 
-  searchKeyword.value = value
-  syncVisibilityByKeyword(value)
+  applyKeyword(value)
   void debouncedSearch(value)
 }
 
@@ -222,19 +218,18 @@ onUnmounted(() => {
     enterFrameId = null
   }
 
-  cleanupCompositionListeners()
   resetGlobalSearch()
   window.removeEventListener('resize', handleViewportChange)
 })
 </script>
 
 <template>
-  <div ref="dockRef" :class="{ 'global-search--active': showGlobalSearch }" class="global-search">
+  <div ref="dockRef" class="global-search">
     <div class="global-search__dock">
       <button
         v-if="showGlobalSearch"
         type="button"
-        class="global-search__leading-button"
+        class="app-glass-circle-button"
         aria-label="搜索"
       >
         <IonIcon :icon="searchOutline" />
@@ -242,7 +237,7 @@ onUnmounted(() => {
 
       <div class="global-search__field">
         <div
-          :class="{ 'global-search__field-shell--panel-visible': shouldHideSearchIcon }"
+          :class="{ 'global-search__field-shell--panel-visible': shouldRenderPanel }"
           class="global-search__field-shell"
         >
           <IonIcon
@@ -278,7 +273,7 @@ onUnmounted(() => {
       <button
         v-if="showGlobalSearch"
         type="button"
-        class="global-search__close-button"
+        class="app-glass-circle-button"
         aria-label="关闭搜索"
         @click="onCancel"
       >
@@ -447,35 +442,6 @@ onUnmounted(() => {
 
   &__clear-button ion-icon {
     font-size: 18px;
-  }
-
-  &__leading-button,
-  &__close-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 44px;
-    min-width: 44px;
-    height: 44px;
-    border: 0;
-    padding: 0;
-    border-radius: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.08)), rgba(20, 20, 24, 0.12);
-    color: #f5f5f7;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.22),
-      0 12px 30px rgba(0, 0, 0, 0.14);
-    backdrop-filter: blur(28px) saturate(180%);
-    -webkit-backdrop-filter: blur(28px) saturate(180%);
-    appearance: none;
-    -webkit-appearance: none;
-    flex: 0 0 44px;
-  }
-
-  &__leading-button ion-icon,
-  &__close-button ion-icon {
-    font-size: 20px;
   }
 
   &__panel {
