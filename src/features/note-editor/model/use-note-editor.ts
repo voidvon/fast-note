@@ -75,7 +75,28 @@ export function applyDefaultHeadingIfEmptyToEditor(editorInstance?: Pick<Editor,
   return true
 }
 
-export function useNoteEditor() {
+export function resolveFileOwnerNoteId(explicitNoteId?: string | null): string {
+  if (explicitNoteId && explicitNoteId !== '0') {
+    return explicitNoteId
+  }
+
+  if (typeof window === 'undefined') {
+    return ''
+  }
+
+  const currentPath = window.location.pathname
+
+  if (/^\/[^/]+\/n\/[^/]+$/.test(currentPath) || /^\/n\/[^/]+$/.test(currentPath)) {
+    const pathParts = currentPath.split('/')
+    return pathParts[pathParts.length - 1] || ''
+  }
+
+  return ''
+}
+
+export function useNoteEditor(options: {
+  getCurrentNoteId?: () => string
+} = {}) {
   const editor = ref<Editor | null>(null)
   const inputMode = ref<'text' | 'none'>('text')
   const { addNoteFile, getNoteFileByHash } = useNoteFiles()
@@ -108,17 +129,7 @@ export function useNoteEditor() {
         return { url: hashOrFilename, type: '' }
       }
       else {
-        const currentPath = window.location.pathname
-        let noteId = ''
-
-        if (/^\/[^/]+\/n\/[^/]+$/.test(currentPath)) {
-          const pathParts = currentPath.split('/')
-          noteId = pathParts[pathParts.length - 1]
-        }
-        else if (/^\/n\/[^/]+$/.test(currentPath)) {
-          const pathParts = currentPath.split('/')
-          noteId = pathParts[pathParts.length - 1]
-        }
+        const noteId = resolveFileOwnerNoteId(options.getCurrentNoteId?.())
 
         if (noteId) {
           const result = await noteRemoteService.getFileByFilename(noteId, hashOrFilename)

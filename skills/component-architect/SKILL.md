@@ -1,6 +1,6 @@
 ---
 name: component-architect
-description: [TODO: Complete and informative explanation of what the skill does and when to use it. Include WHEN to use this skill - specific scenarios, file types, or tasks that trigger it.]
+description: Helps design and review component architecture, including component boundaries, composition patterns, contracts, and refactoring plans for frontend or shared UI modules.
 ---
 
 # Component Architect

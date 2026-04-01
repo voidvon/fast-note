@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import { applyDefaultHeadingIfEmptyToEditor, DEFAULT_NEW_NOTE_HEADING_CONTENT, hasMeaningfulEditorContent } from '@/features/note-editor'
+import {
+  applyDefaultHeadingIfEmptyToEditor,
+  DEFAULT_NEW_NOTE_HEADING_CONTENT,
+  hasMeaningfulEditorContent,
+  resolveFileOwnerNoteId,
+} from '@/features/note-editor'
 
 describe('useEditor meaningful content helpers (t-fn-045 / t-fn-047, tc-fn-038, tc-fn-040)', () => {
   it('applies the default heading only once for an empty editor document', () => {
@@ -103,5 +108,18 @@ describe('useEditor meaningful content helpers (t-fn-045 / t-fn-047, tc-fn-038, 
         },
       ],
     })).toBe(true)
+  })
+
+  it('resolves the file owner note id from explicit context before falling back to the route', () => {
+    const originalUrl = window.location.href
+
+    window.history.replaceState({}, '', '/home')
+    expect(resolveFileOwnerNoteId('desktop-note-id')).toBe('desktop-note-id')
+    expect(resolveFileOwnerNoteId()).toBe('')
+
+    window.history.replaceState({}, '', '/n/mobile-note-id')
+    expect(resolveFileOwnerNoteId()).toBe('mobile-note-id')
+
+    window.history.replaceState({}, '', originalUrl)
   })
 })

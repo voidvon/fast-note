@@ -10,6 +10,15 @@ defineOptions({
   name: 'YYEditor',
 })
 
+const props = withDefaults(
+  defineProps<{
+    noteId?: string
+  }>(),
+  {
+    noteId: '',
+  },
+)
+
 const emit = defineEmits(['focus', 'blur'])
 
 const {
@@ -24,7 +33,9 @@ const {
   getContent,
   setEditable,
   setInputMode,
-} = useNoteEditor()
+} = useNoteEditor({
+  getCurrentNoteId: () => props.noteId,
+})
 
 const lightbox = ref<any>(null)
 
