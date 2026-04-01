@@ -1,7 +1,7 @@
 import { flushPromises } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
-import { mountNoteDetailForSaveTest } from '../../helpers/note-detail-save-test-utils'
+import { deferred, mountNoteDetailForSaveTest } from '../../helpers/note-detail-save-test-utils'
 
 describe('note detail local flush on leave (t-fn-035 / tc-fn-026)', () => {
   beforeEach(() => {
@@ -52,5 +52,62 @@ describe('note detail local flush on leave (t-fn-035 / tc-fn-026)', () => {
     expect(mocks.updateNoteMock).not.toHaveBeenCalled()
     expect(mocks.manualSyncMock).toHaveBeenCalledTimes(1)
     expect(mocks.syncMock).not.toHaveBeenCalled()
+  })
+
+  it('starts route-leave save asynchronously without waiting for save success', async () => {
+    const pendingUpdate = deferred<void>()
+    const {
+      editorApi,
+      mocks,
+      triggerBeforeRouteLeave,
+      triggerIonViewWillLeave,
+    } = await mountNoteDetailForSaveTest({
+      updateNoteImpl: async () => pendingUpdate.promise,
+    })
+
+    editorApi.getContent.mockReturnValue('<p>返回时最新内容</p>')
+
+    await triggerBeforeRouteLeave()
+
+    expect(mocks.updateNoteMock).toHaveBeenCalledTimes(1)
+    expect(mocks.updateNoteMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+      content: '<p>返回时最新内容</p>',
+    }))
+    expect(mocks.syncMock).not.toHaveBeenCalled()
+
+    await triggerIonViewWillLeave()
+
+    expect(mocks.updateNoteMock).toHaveBeenCalledTimes(1)
+    expect(mocks.manualSyncMock).not.toHaveBeenCalled()
+
+    pendingUpdate.resolve()
+    await flushPromises()
+    await nextTick()
+
+    expect(mocks.syncMock).toHaveBeenCalledWith(true)
+  })
+
+  it('clicking the top-left back button navigates immediately while save continues in background', async () => {
+    const pendingUpdate = deferred<void>()
+    const { wrapper, editorApi, mocks } = await mountNoteDetailForSaveTest({
+      updateNoteImpl: async () => pendingUpdate.promise,
+    })
+
+    editorApi.getContent.mockReturnValue('<p>左上角返回时的最新内容</p>')
+
+    await wrapper.get('[data-testid=\"note-detail-back-button\"]').trigger('click')
+
+    expect(mocks.updateNoteMock).toHaveBeenCalledTimes(1)
+    expect(mocks.updateNoteMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+      content: '<p>左上角返回时的最新内容</p>',
+    }))
+    expect(mocks.routerBackMock).toHaveBeenCalledTimes(1)
+    expect(mocks.syncMock).not.toHaveBeenCalled()
+
+    pendingUpdate.resolve()
+    await flushPromises()
+    await nextTick()
+
+    expect(mocks.syncMock).toHaveBeenCalledWith(true)
   })
 })

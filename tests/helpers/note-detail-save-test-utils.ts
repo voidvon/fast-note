@@ -198,6 +198,7 @@ export async function mountNoteDetailForSaveTest(options: {
   const syncMock = vi.fn(options.syncImpl ?? (async () => null))
   const manualSyncMock = vi.fn(options.manualSyncImpl ?? (async () => null))
   const restoreHeightMock = vi.fn()
+  const routerBackMock = vi.fn()
   const routerReplaceMock = vi.fn()
   const getLockViewStateMock = vi.fn(options.getLockViewStateImpl ?? (async () => ({
     viewState: options.lockViewState ?? 'unlocked',
@@ -224,10 +225,16 @@ export async function mountNoteDetailForSaveTest(options: {
   })))
   let ionViewWillLeaveCallback: (() => void | Promise<void>) | null = null
   let ionViewDidLeaveCallback: (() => void | Promise<void>) | null = null
+  let beforeRouteLeaveCallback: ((to: any, from: any) => void | Promise<void>) | null = null
   const toastPresentMock = vi.fn(async () => undefined)
   const toastCreateMock = vi.fn(async () => ({
     present: toastPresentMock,
   }))
+  const currentRoutePath = ref(
+    typeof route.params.id === 'string'
+      ? `/n/${route.params.id}`
+      : (typeof route.params.noteId === 'string' ? `/${route.params.username}/n/${route.params.noteId}` : `/n/${noteId}`),
+  )
 
   const editorApi = {
     applyDefaultNewNoteHeading: vi.fn(() => true),
@@ -260,6 +267,33 @@ export async function mountNoteDetailForSaveTest(options: {
         class: 'yy-editor-stub',
         tabindex: '-1',
       })
+    },
+  })
+
+  const IonBackButtonStub = defineComponent({
+    name: 'IonBackButton',
+    inheritAttrs: false,
+    setup(_, { attrs, slots }) {
+      return () => h('button', {
+        ...attrs,
+        'data-testid': 'note-detail-back-button',
+        type: 'button',
+        onClick: async () => {
+          const nextPath = typeof attrs.defaultHref === 'string' ? attrs.defaultHref : '/home'
+          const from = {
+            fullPath: currentRoutePath.value,
+            path: currentRoutePath.value,
+          }
+          const to = {
+            fullPath: nextPath,
+            path: nextPath,
+          }
+
+          await beforeRouteLeaveCallback?.(to, from)
+          routerBackMock()
+          currentRoutePath.value = nextPath
+        },
+      }, slots.default ? slots.default() : [])
     },
   })
 
@@ -353,8 +387,12 @@ export async function mountNoteDetailForSaveTest(options: {
   })
 
   vi.doMock('vue-router', () => ({
+    onBeforeRouteLeave: (callback: (to: any, from: any) => void | Promise<void>) => {
+      beforeRouteLeaveCallback = callback
+    },
     useRoute: () => route,
     useRouter: () => ({
+      back: routerBackMock,
       replace: routerReplaceMock,
     }),
   }))
@@ -379,7 +417,7 @@ export async function mountNoteDetailForSaveTest(options: {
   }))
 
   vi.doMock('@ionic/vue', async () => ({
-    IonBackButton: createIonicStub('IonBackButton'),
+    IonBackButton: IonBackButtonStub,
     IonButton: createButtonStub('IonButton'),
     IonButtons: createIonicStub('IonButtons'),
     IonContent: createIonicStub('IonContent'),
@@ -427,6 +465,7 @@ export async function mountNoteDetailForSaveTest(options: {
       deleteNoteMock,
       getNoteMock,
       routerReplaceMock,
+      routerBackMock,
       restoreHeightMock,
       manualSyncMock,
       syncMock,
@@ -447,6 +486,14 @@ export async function mountNoteDetailForSaveTest(options: {
     },
     triggerIonViewDidLeave: async () => {
       await ionViewDidLeaveCallback?.()
+      await flushPromises()
+      await nextTick()
+    },
+    triggerBeforeRouteLeave: async (
+      to = { fullPath: '/home', path: '/home' },
+      from = { fullPath: `/n/${noteId}`, path: `/n/${noteId}` },
+    ) => {
+      await beforeRouteLeaveCallback?.(to, from)
       await flushPromises()
       await nextTick()
     },

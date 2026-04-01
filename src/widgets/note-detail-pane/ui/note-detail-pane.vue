@@ -5,7 +5,7 @@ import { IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, I
 import { ellipsisHorizontalCircleOutline } from 'ionicons/icons'
 import { nanoid } from 'nanoid'
 import { computed, nextTick, reactive, ref, toRaw, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { onBeforeRouteLeave, useRoute } from 'vue-router'
 import { useNote } from '@/entities/note'
 import { useUserPublicNotes } from '@/entities/public-note'
 import { useNoteDetailEditorState } from '@/features/note-detail-editor'
@@ -51,6 +51,7 @@ const editorToolbarRef = ref<{ closePanels: () => void } | null>(null)
 const data = ref()
 const newNoteId = ref<string | null>(null)
 const hasCreatedRouteDraft = ref(false)
+const isAsyncRouteLeaveSavePending = ref(false)
 const retainedEffectiveUuid = ref<string | null>(null)
 
 const state = reactive({
@@ -257,7 +258,35 @@ useNoteDetailLeaveLifecycle({
   onDetailDidLeave() {
     retainedEffectiveUuid.value = null
   },
-  triggerLeavePageLocalFlush: noteDetailLeave.triggerLeavePageLocalFlush,
+  triggerLeavePageLocalFlush(reason) {
+    if (reason === 'view-leave' && isAsyncRouteLeaveSavePending.value) {
+      return
+    }
+
+    noteDetailLeave.triggerLeavePageLocalFlush(reason)
+  },
+})
+
+function triggerAsyncRouteLeaveSave() {
+  if (isAsyncRouteLeaveSavePending.value) {
+    return
+  }
+
+  isAsyncRouteLeaveSavePending.value = true
+  noteDetailLeave.clearPendingSaveTimer()
+
+  void handleNoteSaving(false, 'view-leave')
+    .finally(() => {
+      isAsyncRouteLeaveSavePending.value = false
+    })
+}
+
+onBeforeRouteLeave(() => {
+  if (isDesktop.value || isUserContext.value) {
+    return
+  }
+
+  triggerAsyncRouteLeaveSave()
 })
 
 async function presentTopError(message: string) {
@@ -390,6 +419,7 @@ async function handleNoteLockUpdated(updatedNote: Note) {
           v-if="effectiveUuid"
           v-show="!isMissingPrivateNote"
           ref="editorRef"
+          :note-id="effectiveUuid || ''"
           @blur="debouncedSave"
         />
       </div>
