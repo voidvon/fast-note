@@ -4,9 +4,9 @@
 
 - 版本/迭代：
 - 输出日期：
-- 输出文件：`doc/功能拆分与技术方案/Fast-Note-功能拆分与技术方案-总览-YYYY-MM-DD.md`
+- 输出文件：`docs/功能拆分与技术方案/Fast-Note-功能拆分与技术方案-总览-YYYY-MM-DD.md`
 - 输入来源：
-  - `doc/需求文档/Fast-Note-PRD-代码反推-2026-03-04.md`
+  - `docs/需求文档/Fast-Note-PRD-代码反推-2026-03-04.md`
   - 当前仓库代码（分支/commit）：
 - 输出范围：
 - 不在范围：

@@ -1,19 +1,19 @@
 ---
 name: fast-note-prd-to-feature-tech-zh
-description: 基于 Fast-Note 的代码反推 PRD 与当前仓库代码，产出中文“功能拆分 + 技术方案”文档并落盘到 `doc/功能拆分与技术方案/`，默认按“总览 + 分模块”多文件交付。用于版本规划、迭代评审、重构前设计、开发任务拆解，或当用户提出“功能拆分/技术方案/实施方案/从 PRD 到研发落地”类需求时使用。
+description: 基于 Fast-Note 的代码反推 PRD 与当前仓库代码，产出中文“功能拆分 + 技术方案”文档并落盘到 `docs/功能拆分与技术方案/`，默认按“总览 + 分模块”多文件交付。用于版本规划、迭代评审、重构前设计、开发任务拆解，或当用户提出“功能拆分/技术方案/实施方案/从 PRD 到研发落地”类需求时使用。
 ---
 
 # Fast-Note 功能拆分与技术方案（中文）
 
 ## 快速开始
 
-1. 读取 `doc/需求文档/Fast-Note-PRD-代码反推-2026-03-04.md`，提取功能域与业务目标。
+1. 读取 `docs/需求文档/Fast-Note-PRD-代码反推-2026-03-04.md`，提取功能域与业务目标。
 2. 扫描当前仓库代码，建立“PRD 条目 -> 代码证据”的映射。
 3. 按能力域输出“功能拆分 + 技术方案 + 实施任务 + 验收标准”。
 4. 使用 `references/feature-tech-plan-template-zh.md` 生成总览文档。
 5. 使用 `references/feature-tech-plan-module-template-zh.md` 生成模块文档。
 6. 选择输出模式（默认多文件；仅在用户明确要求单文件时合并输出）。
-7. 将文档写入 `doc/功能拆分与技术方案/`。
+7. 将文档写入 `docs/功能拆分与技术方案/`。
 8. 使用 `references/quality-checklist-zh.md` 做交付前自检。
 
 ## 工作流
@@ -90,7 +90,7 @@ rg "Dexie|db\\.value|schema|notes" src/database src/stores
 ## 输出规则
 
 - 默认输出中文 Markdown。
-- 强制输出目录：`doc/功能拆分与技术方案/`（若不存在先创建）。
+- 强制输出目录：`docs/功能拆分与技术方案/`（若不存在先创建）。
 - 默认产物形态：`多文件`。
   - 总览：`Fast-Note-功能拆分与技术方案-总览-YYYY-MM-DD.md`
   - 分模块：`Fast-Note-功能拆分与技术方案-<模块名>-YYYY-MM-DD.md`
