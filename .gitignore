@@ -30,6 +30,10 @@ npm-debug.log*
 /platforms
 /plugins
 /www
+/.tmp
+/build
+
+/apps/web/dist
 
 .DS_Store
 node_modules
@@ -57,4 +61,3 @@ pnpm-debug.log*
 *.njsproj
 *.sln
 *.sw?
-

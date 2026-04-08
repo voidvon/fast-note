@@ -1,0 +1,26 @@
+{
+  "baseUrl": "https://github.com/pocketbase/pocketbase/releases/download",
+  "version": "0.26.3",
+  "assets": {
+    "darwin-x64": {
+      "filename": "pocketbase_0.26.3_darwin_amd64.zip",
+      "sha256": "b1961d554a120a3cc389a434730567dc75930038d2782c4c6efb2dbb53f4fcf9"
+    },
+    "darwin-arm64": {
+      "filename": "pocketbase_0.26.3_darwin_arm64.zip",
+      "sha256": "bc4f0fc7618faf646ad1823b3bd0cc8a5b56bfc3115483aa982f157433aeeeee"
+    },
+    "linux-x64": {
+      "filename": "pocketbase_0.26.3_linux_amd64.zip",
+      "sha256": "056ae735085f701fb025ea260bae5977ac0e1b18a3c25fdcc2795b798447be6e"
+    },
+    "linux-arm64": {
+      "filename": "pocketbase_0.26.3_linux_arm64.zip",
+      "sha256": "8bddbdca540c744305c598624770ef489aa94e9ab4ece61820de7cd8e2d79888"
+    },
+    "win32-x64": {
+      "filename": "pocketbase_0.26.3_windows_amd64.zip",
+      "sha256": "738db22a47e7a350ccfa75566f06975ec3ae9ca6fcfe2cdd0d13819ca8b0f1ae"
+    }
+  }
+}
