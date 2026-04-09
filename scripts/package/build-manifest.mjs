@@ -21,6 +21,8 @@ const artifactFileName = `FastNote-${version.appVersion}-${targetKey}.${extensio
 const artifactPath = path.join(updatesRoot, artifactFileName)
 const manifestPath = path.join(updatesRoot, 'latest.json')
 const versionedManifestPath = path.join(updatesRoot, `manifest-${version.appVersion}-${targetKey}.json`)
+const releaseAssetBaseUrl = process.env.FASTNOTE_RELEASE_ASSET_BASE_URL || ''
+const releaseNotesUrl = process.env.FASTNOTE_RELEASE_NOTES_URL || ''
 
 await fs.rm(updatesRoot, { recursive: true, force: true })
 await fs.mkdir(updatesRoot, { recursive: true })
@@ -32,7 +34,9 @@ else
 
 const checksum = await sha256(artifactPath)
 const stats = await fs.stat(artifactPath)
-const artifactURL = pathToFileURL(artifactPath).href
+const artifactURL = releaseAssetBaseUrl
+  ? `${releaseAssetBaseUrl.replace(/\/$/, '')}/${artifactFileName}`
+  : pathToFileURL(artifactPath).href
 
 const manifest = {
   schemaVersion: 1,
@@ -41,7 +45,7 @@ const manifest = {
   latest: {
     version: version.appVersion,
     publishedAt: version.builtAt || new Date().toISOString(),
-    notes: '',
+    notes: releaseNotesUrl,
     minSupportedVersion: version.appVersion,
   },
   artifacts: {

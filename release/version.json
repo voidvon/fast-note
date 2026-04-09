@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "appVersion": "0.1.0",
-  "channel": "stable",
-  "manifestUrl": "",
+  "appVersion": "0.1.1-alpha.1",
+  "channel": "alpha",
+  "manifestUrl": "https://github.com/voidvon/fast-note/releases/download/v0.1.1-alpha.1/latest.json",
   "pocketBaseVersion": "0.26.3"
 }
