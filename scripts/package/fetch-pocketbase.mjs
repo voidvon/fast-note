@@ -1,16 +1,17 @@
 import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 import { createReadStream } from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { getTargetConfig } from './target.mjs'
 
 const rootDir = path.resolve(fileURLToPath(new URL('../..', import.meta.url)))
 const configPath = path.join(rootDir, 'pocketbase', 'version.json')
 const cacheDir = path.join(rootDir, '.tmp', 'pocketbase')
 const config = JSON.parse(await fs.readFile(configPath, 'utf8'))
-const targetKey = `${os.platform()}-${os.arch()}`
+const target = getTargetConfig()
+const targetKey = target.targetKey
 const asset = config.assets[targetKey]
 
 if (!asset)
@@ -35,7 +36,7 @@ if (sha256 !== asset.sha256)
 await fs.rm(extractDir, { recursive: true, force: true })
 await fs.mkdir(extractDir, { recursive: true })
 
-if (os.platform() === 'win32')
+if (target.platform === 'win32')
   await run('powershell', ['-NoProfile', '-Command', `Expand-Archive -Path "${archivePath}" -DestinationPath "${extractDir}" -Force`], rootDir)
 else
   await run('unzip', ['-oq', archivePath, '-d', extractDir], rootDir)

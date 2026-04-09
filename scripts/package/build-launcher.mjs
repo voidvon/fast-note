@@ -1,14 +1,14 @@
 import { spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { getTargetConfig } from './target.mjs'
 
 const rootDir = path.resolve(fileURLToPath(new URL('../..', import.meta.url)))
 const launcherDir = path.join(rootDir, 'apps', 'launcher')
-const outDir = path.join(rootDir, '.tmp', 'launcher')
+const target = getTargetConfig()
+const outDir = path.join(rootDir, '.tmp', 'launcher', target.targetKey)
 const goCacheDir = path.join(rootDir, '.tmp', 'go-build-cache')
-const binaryName = os.platform() === 'win32' ? 'fastnote.exe' : 'fastnote'
 const releaseVersion = JSON.parse(await fs.readFile(path.join(rootDir, 'release', 'version.json'), 'utf8'))
 const pocketbaseVersion = JSON.parse(await fs.readFile(path.join(rootDir, 'pocketbase', 'version.json'), 'utf8'))
 const buildTime = new Date().toISOString()
@@ -31,12 +31,15 @@ await run(
       `-X github.com/coder-virjay/fast-note/apps/launcher/internal/version.BuildCommit=${commit}`,
     ].join(' '),
     '-o',
-    path.join(outDir, binaryName),
+    path.join(outDir, target.binaryName),
     './cmd/fastnote',
   ],
   launcherDir,
   {
     GOCACHE: goCacheDir,
+    GOOS: target.goos,
+    GOARCH: target.goarch,
+    CGO_ENABLED: '0',
   },
 )
 

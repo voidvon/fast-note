@@ -1,19 +1,18 @@
 import fs from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { getTargetConfig, PACKAGE_NAME } from './target.mjs'
 
 const rootDir = path.resolve(fileURLToPath(new URL('../..', import.meta.url)))
-const releaseRoot = path.join(rootDir, 'build', 'FastNote')
+const target = getTargetConfig()
+const releaseRoot = path.join(rootDir, 'build', 'release', target.targetKey, PACKAGE_NAME)
 const tempDir = path.join(rootDir, '.tmp')
 const webDist = path.join(rootDir, 'apps', 'web', 'dist')
-const launcherBinary = path.join(tempDir, 'launcher', os.platform() === 'win32' ? 'fastnote.exe' : 'fastnote')
+const launcherBinary = path.join(tempDir, 'launcher', target.targetKey, target.binaryName)
 const versionConfig = JSON.parse(await fs.readFile(path.join(rootDir, 'pocketbase', 'version.json'), 'utf8'))
 const appVersionConfig = JSON.parse(await fs.readFile(path.join(rootDir, 'release', 'version.json'), 'utf8'))
-const targetKey = `${os.platform()}-${os.arch()}`
-const pocketbaseExtractDir = path.join(tempDir, 'pocketbase', `${versionConfig.version}-${targetKey}`)
-const pocketbaseBinaryName = os.platform() === 'win32' ? 'pocketbase.exe' : 'pocketbase'
-const pocketbaseBinaryPath = path.join(pocketbaseExtractDir, pocketbaseBinaryName)
+const pocketbaseExtractDir = path.join(tempDir, 'pocketbase', `${versionConfig.version}-${target.targetKey}`)
+const pocketbaseBinaryPath = path.join(pocketbaseExtractDir, target.pocketbaseBinaryName)
 
 await fs.rm(releaseRoot, { recursive: true, force: true })
 await fs.mkdir(path.join(releaseRoot, 'backend'), { recursive: true })
@@ -25,7 +24,7 @@ await ensureExists(launcherBinary, 'launcher binary')
 await ensureExists(pocketbaseBinaryPath, 'PocketBase binary')
 
 await fs.copyFile(launcherBinary, path.join(releaseRoot, path.basename(launcherBinary)))
-await fs.copyFile(pocketbaseBinaryPath, path.join(releaseRoot, 'backend', pocketbaseBinaryName))
+await fs.copyFile(pocketbaseBinaryPath, path.join(releaseRoot, 'backend', target.pocketbaseBinaryName))
 await fs.writeFile(
   path.join(releaseRoot, 'version.json'),
   JSON.stringify(
@@ -33,7 +32,7 @@ await fs.writeFile(
       ...appVersionConfig,
       pocketBaseVersion: versionConfig.version,
       builtAt: new Date().toISOString(),
-      platform: targetKey,
+      platform: target.targetKey,
     },
     null,
     2,
@@ -41,7 +40,7 @@ await fs.writeFile(
   'utf8',
 )
 await fs.chmod(path.join(releaseRoot, path.basename(launcherBinary)), 0o755).catch(() => {})
-await fs.chmod(path.join(releaseRoot, 'backend', pocketbaseBinaryName), 0o755).catch(() => {})
+await fs.chmod(path.join(releaseRoot, 'backend', target.pocketbaseBinaryName), 0o755).catch(() => {})
 
 await copyDir(path.join(rootDir, 'pocketbase', 'pb_hooks'), path.join(releaseRoot, 'backend', 'pb_hooks'))
 await copyDir(path.join(rootDir, 'pocketbase', 'pb_migrations'), path.join(releaseRoot, 'backend', 'pb_migrations'))

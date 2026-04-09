@@ -1,13 +1,14 @@
 import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 import { createReadStream } from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { getTargetConfig, PACKAGE_NAME } from './target.mjs'
 
 const rootDir = path.resolve(fileURLToPath(new URL('../..', import.meta.url)))
-const releaseRoot = path.join(rootDir, 'build', 'FastNote')
+const target = getTargetConfig()
+const releaseRoot = path.join(rootDir, 'build', 'release', target.targetKey, PACKAGE_NAME)
 const updatesRoot = path.join(rootDir, 'build', 'updates')
 const versionFile = path.join(releaseRoot, 'version.json')
 
@@ -15,19 +16,17 @@ await ensureExists(releaseRoot, 'release directory')
 await ensureExists(versionFile, 'release version metadata')
 
 const version = JSON.parse(await fs.readFile(versionFile, 'utf8'))
-const targetKey = version.platform || `${os.platform()}-${os.arch()}`
-const extension = os.platform() === 'win32' ? 'zip' : 'tar.gz'
-const artifactFileName = `FastNote-${version.appVersion}-${targetKey}.${extension}`
+const targetKey = version.platform || target.targetKey
+const artifactFileName = `${PACKAGE_NAME}-${version.appVersion}-${targetKey}.${target.archiveExtension}`
 const artifactPath = path.join(updatesRoot, artifactFileName)
 const manifestPath = path.join(updatesRoot, 'latest.json')
 const versionedManifestPath = path.join(updatesRoot, `manifest-${version.appVersion}-${targetKey}.json`)
 const releaseAssetBaseUrl = process.env.FASTNOTE_RELEASE_ASSET_BASE_URL || ''
 const releaseNotesUrl = process.env.FASTNOTE_RELEASE_NOTES_URL || ''
 
-await fs.rm(updatesRoot, { recursive: true, force: true })
 await fs.mkdir(updatesRoot, { recursive: true })
 
-if (os.platform() === 'win32')
+if (target.platform === 'win32')
   await packZip(releaseRoot, artifactPath)
 else
   await packTarGz(releaseRoot, artifactPath)
@@ -38,6 +37,26 @@ const artifactURL = releaseAssetBaseUrl
   ? `${releaseAssetBaseUrl.replace(/\/$/, '')}/${artifactFileName}`
   : pathToFileURL(artifactPath).href
 
+const previousManifest = await readManifest(manifestPath)
+const mergedArtifacts = previousManifest?.latest?.version === version.appVersion
+  ? {
+      ...(previousManifest.artifacts || {}),
+      [targetKey]: {
+        url: artifactURL,
+        sha256: checksum,
+        fileName: artifactFileName,
+        sizeBytes: stats.size,
+      },
+    }
+  : {
+      [targetKey]: {
+        url: artifactURL,
+        sha256: checksum,
+        fileName: artifactFileName,
+        sizeBytes: stats.size,
+      },
+    }
+
 const manifest = {
   schemaVersion: 1,
   channel: version.channel || 'stable',
@@ -45,17 +64,10 @@ const manifest = {
   latest: {
     version: version.appVersion,
     publishedAt: version.builtAt || new Date().toISOString(),
-    notes: releaseNotesUrl,
+    notes: releaseNotesUrl || previousManifest?.latest?.notes || '',
     minSupportedVersion: version.appVersion,
   },
-  artifacts: {
-    [targetKey]: {
-      url: artifactURL,
-      sha256: checksum,
-      fileName: artifactFileName,
-      sizeBytes: stats.size,
-    },
-  },
+  artifacts: mergedArtifacts,
 }
 
 await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf8')
@@ -75,6 +87,16 @@ async function ensureExists(filePath, label) {
   }
   catch {
     throw new Error(`missing ${label}: ${filePath}`)
+  }
+}
+
+async function readManifest(filePath) {
+  try {
+    const content = await fs.readFile(filePath, 'utf8')
+    return JSON.parse(content)
+  }
+  catch {
+    return null
   }
 }
 
