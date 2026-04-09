@@ -13,6 +13,10 @@ type Config struct {
 	BackendDir         string
 	DataDir            string
 	LogsDir            string
+	UpdatesDir         string
+	UpdateStateFile    string
+	RuntimeStateFile   string
+	VersionFile        string
 	PublicDir          string
 	HooksDir           string
 	MigrationsDir      string
@@ -43,6 +47,10 @@ func Load() (Config, error) {
 		BackendDir:         backendDir,
 		DataDir:            dataDir,
 		LogsDir:            logsDir,
+		UpdatesDir:         filepath.Join(dataDir, "updates"),
+		UpdateStateFile:    filepath.Join(dataDir, "update-state.json"),
+		RuntimeStateFile:   filepath.Join(dataDir, "runtime-state.json"),
+		VersionFile:        filepath.Join(rootDir, "version.json"),
 		PublicDir:          filepath.Join(backendDir, "pb_public"),
 		HooksDir:           filepath.Join(backendDir, "pb_hooks"),
 		MigrationsDir:      filepath.Join(backendDir, "pb_migrations"),

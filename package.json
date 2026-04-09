@@ -15,6 +15,7 @@
     "build:web": "node scripts/package/build-web.mjs",
     "build:launcher": "node scripts/package/build-launcher.mjs",
     "fetch:pocketbase": "node scripts/package/fetch-pocketbase.mjs",
+    "build:manifest": "node scripts/package/build-manifest.mjs",
     "release": "node scripts/package/release.mjs"
   }
 }

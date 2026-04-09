@@ -9,6 +9,7 @@ const tempDir = path.join(rootDir, '.tmp')
 const webDist = path.join(rootDir, 'apps', 'web', 'dist')
 const launcherBinary = path.join(tempDir, 'launcher', os.platform() === 'win32' ? 'fastnote.exe' : 'fastnote')
 const versionConfig = JSON.parse(await fs.readFile(path.join(rootDir, 'pocketbase', 'version.json'), 'utf8'))
+const appVersionConfig = JSON.parse(await fs.readFile(path.join(rootDir, 'release', 'version.json'), 'utf8'))
 const targetKey = `${os.platform()}-${os.arch()}`
 const pocketbaseExtractDir = path.join(tempDir, 'pocketbase', `${versionConfig.version}-${targetKey}`)
 const pocketbaseBinaryName = os.platform() === 'win32' ? 'pocketbase.exe' : 'pocketbase'
@@ -25,6 +26,20 @@ await ensureExists(pocketbaseBinaryPath, 'PocketBase binary')
 
 await fs.copyFile(launcherBinary, path.join(releaseRoot, path.basename(launcherBinary)))
 await fs.copyFile(pocketbaseBinaryPath, path.join(releaseRoot, 'backend', pocketbaseBinaryName))
+await fs.writeFile(
+  path.join(releaseRoot, 'version.json'),
+  JSON.stringify(
+    {
+      ...appVersionConfig,
+      pocketBaseVersion: versionConfig.version,
+      builtAt: new Date().toISOString(),
+      platform: targetKey,
+    },
+    null,
+    2,
+  ),
+  'utf8',
+)
 await fs.chmod(path.join(releaseRoot, path.basename(launcherBinary)), 0o755).catch(() => {})
 await fs.chmod(path.join(releaseRoot, 'backend', pocketbaseBinaryName), 0o755).catch(() => {})
 
@@ -38,6 +53,7 @@ const readme = `# FastNote
 
 - \`fastnote\`: launcher entrypoint
 - \`backend/\`: PocketBase runtime and static assets
+- \`version.json\`: app version metadata for launcher commands
 - \`data/\`: PocketBase data directory
 - \`logs/\`: launcher and PocketBase logs
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -14,11 +15,15 @@ import (
 	"github.com/coder-virjay/fast-note/apps/launcher/internal/logging"
 	"github.com/coder-virjay/fast-note/apps/launcher/internal/pocketbase"
 	"github.com/coder-virjay/fast-note/apps/launcher/internal/process"
+	"github.com/coder-virjay/fast-note/apps/launcher/internal/runstate"
 )
 
 func Run(parent context.Context) error {
 	cfg, err := config.Load()
 	if err != nil {
+		return err
+	}
+	if err := runstate.EnsureAvailable(cfg.RuntimeStateFile, os.Getpid()); err != nil {
 		return err
 	}
 
@@ -63,6 +68,19 @@ func Run(parent context.Context) error {
 	if err != nil {
 		return err
 	}
+	if err := runstate.Save(cfg.RuntimeStateFile, runstate.State{
+		LauncherPID:   os.Getpid(),
+		PocketBasePID: runner.PID(),
+		HTTPAddr:      cfg.HTTPAddr,
+	}); err != nil {
+		_ = runner.Stop()
+		return err
+	}
+	defer func() {
+		if removeErr := runstate.Remove(cfg.RuntimeStateFile); removeErr != nil {
+			log.Printf("remove runtime state failed: %v", removeErr)
+		}
+	}()
 
 	log.Printf("started PocketBase pid=%d addr=%s", runner.PID(), cfg.HTTPAddr)
 

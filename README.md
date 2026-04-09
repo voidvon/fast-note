@@ -37,12 +37,14 @@ npm run release
 2. 构建 `apps/launcher`
 3. 下载固定版本的 PocketBase 官方二进制
 4. 组装 `build/FastNote`
+5. 生成当前平台更新归档与 `build/updates/latest.json`
 
 最终发布目录：
 
 ```text
 build/FastNote/
   fastnote
+  version.json
   backend/
     pocketbase
     pb_hooks/
@@ -51,7 +53,24 @@ build/FastNote/
   data/
   logs/
   README.md
+
+build/updates/
+  latest.json
+  manifest-<version>-<platform>.json
+  FastNote-<version>-<platform>.<ext>
 ```
+
+发布包当前支持这些命令：
+
+```bash
+./fastnote version
+FASTNOTE_UPDATE_MANIFEST_URL=/path/to/latest.json ./fastnote check-update
+FASTNOTE_UPDATE_MANIFEST_URL=/path/to/latest.json ./fastnote update
+./fastnote update-status
+./fastnote cleanup-updates --keep 2
+```
+
+当前 `update` 仅支持 macOS / Linux；Windows 仍需后续补齐 helper 自替换流程。
 
 ## License
 
