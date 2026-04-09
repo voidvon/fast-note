@@ -1,13 +1,19 @@
+import fs from 'node:fs/promises'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { resolveTargetKey } from './target.mjs'
+import { getTargetConfig, resolveTargetKey } from './target.mjs'
 
 const rootDir = path.resolve(fileURLToPath(new URL('../..', import.meta.url)))
-const targetKeys = (process.env.FASTNOTE_RELEASE_TARGETS || resolveTargetKey())
+const releaseVersion = JSON.parse(await fs.readFile(path.join(rootDir, 'release', 'version.json'), 'utf8'))
+const configuredTargets = Array.isArray(releaseVersion.releaseTargets) ? releaseVersion.releaseTargets.join(',') : ''
+const targetKeys = (process.env.FASTNOTE_RELEASE_TARGETS || configuredTargets || resolveTargetKey())
   .split(',')
   .map(targetKey => targetKey.trim())
   .filter(Boolean)
+
+for (const targetKey of targetKeys)
+  getTargetConfig(targetKey)
 
 await run('node', ['scripts/package/build-web.mjs'], rootDir)
 for (const targetKey of targetKeys) {

@@ -3,5 +3,10 @@
   "appVersion": "0.1.1-alpha.2",
   "channel": "alpha",
   "manifestUrl": "https://github.com/voidvon/fast-note/releases/download/v0.1.1-alpha.2/latest.json",
-  "pocketBaseVersion": "0.26.3"
+  "pocketBaseVersion": "0.26.3",
+  "releaseTargets": [
+    "darwin-arm64",
+    "linux-x64",
+    "linux-arm64"
+  ]
 }
