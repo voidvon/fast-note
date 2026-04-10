@@ -1,8 +1,0 @@
----
-description: 
-globs:
-alwaysApply: true
----
-# 项目的后端是 supabase
-
-项目的位置是在  Organizations 名为 “我的项目” 下 projects 名为“第一个服务”的项目
