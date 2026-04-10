@@ -1,19 +1,12 @@
 import PocketBase from 'pocketbase'
 
-function resolvePocketBaseUrl() {
+export function resolvePocketBaseUrl() {
   const configuredUrl = import.meta.env.VITE_POCKETBASE_URL?.trim()
   if (configuredUrl) {
     return configuredUrl
   }
 
-  if (typeof window !== 'undefined') {
-    const { protocol, origin } = window.location
-    if (protocol === 'http:' || protocol === 'https:') {
-      return origin
-    }
-  }
-
-  return 'http://127.0.0.1:8090'
+  return '/'
 }
 
 const pocketbaseUrl = resolvePocketBaseUrl()

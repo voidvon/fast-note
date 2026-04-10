@@ -65,5 +65,12 @@ export function getUserAvatarUrl(user?: Pick<UserInfo, 'id' | 'avatar'> | null) 
     return ''
   }
 
-  return `${pb.baseUrl}/api/files/users/${user.id}/${user.avatar}`
+  return pb.files.getURL(
+    {
+      id: user.id,
+      collectionId: 'users',
+      collectionName: 'users',
+    },
+    user.avatar,
+  )
 }
