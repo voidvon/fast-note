@@ -1,0 +1,4 @@
+interface:
+  display_name: 一句话转需求
+  short_description: 根据一句话或一段业务描述，整理结构化中文需求与PRD草案
+  default_prompt: 使用 $brief-to-prd 将这段简短业务描述整理成结构化中文需求文档 / PRD 草案。

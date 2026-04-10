@@ -1,4 +1,0 @@
-interface:
-  display_name: 代码转PRD
-  short_description: 面向现有代码仓库抽取能力并生成结构化中文PRD草案
-  default_prompt: 'Use $code-to-prd-zh to analyze this repository and draft a structured Chinese PRD with scope, user stories, and acceptance criteria.'

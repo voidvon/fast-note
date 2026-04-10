@@ -1,4 +1,0 @@
-interface:
-  display_name: 开发执行器
-  short_description: 根据开发计划文档执行任务并完成代码、自动化测试和状态回写。
-  default_prompt: 'Use $fast-note-execute-dev-plan-zh to execute tasks from doc/开发计划/*.md end-to-end: implement code, add automated tests, run validation commands, and update task/coverage statuses.'

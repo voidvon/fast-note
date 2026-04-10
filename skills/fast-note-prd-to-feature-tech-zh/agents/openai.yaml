@@ -1,4 +1,0 @@
-interface:
-  display_name: 功能拆分与技术方案
-  short_description: '基于 Fast-Note 代码反推 PRD，默认按总览+分模块多文件输出技术方案。'
-  default_prompt: 'Use $fast-note-prd-to-feature-tech-zh to convert doc/需求文档/Fast-Note-PRD-代码反推-2026-03-04.md plus current repository code into Chinese feature breakdown and technical solution documents, write them to doc/功能拆分与技术方案/, and default to overview + module split files.'
