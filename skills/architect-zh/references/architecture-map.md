@@ -1,217 +1,221 @@
-# FSD + DDD 架构地图
+# 全栈架构地图
 
 ## 文档范围
 
-本文描述 Fast-Note 仓库（`/root/fast-note`）在 2026-03 的当前目标架构与主要落点。旧的 `components/core/utils/types/database/pocketbase/adapters` 兼容入口已从代码层下线，后续设计与重构应只基于当前目录结构推进。
+本文描述 Fast-Note 仓库在前后端一体化后的目标结构与主要落点。目标根目录为：
+
+- `backend`
+- `fastnote`
+- `docs`
+
+需要处理 PocketBase Go 宿主、前端 FSD、同步链路或一体化打包时，优先按本文定位改动位置。
 
 ## 运行时基线
 
-- 技术栈：Vue 3 + TypeScript + Ionic Vue + Vue Router + Vite
+- 前端：Vue 3 + TypeScript + Ionic Vue + Vue Router + Vite
 - 本地持久化：Dexie / IndexedDB
-- 云端同步：PocketBase 客户端与服务层
-- 编辑器：基于 Tiptap 的富文本编辑
-- 核心策略：offline-first，本地优先，云端最终一致
+- 后端：Go + PocketBase
+- 同步：PocketBase 客户端 + PocketBase Go 宿主
+- 编辑器：Tiptap
+- 核心策略：offline-first、本地优先、云端最终一致
 
-## 目标顶层结构
+## 目标根目录结构
 
-### `src/app`
+### `backend`
 
 职责：
 
-- 应用启动、provider 注册、路由装配、全局初始化、跨切面配置
+- PocketBase Go 应用入口
+- 自定义路由
+- 事件钩子
+- 迁移脚本
+- 一体化静态资源服务
 
-当前映射：
+推荐结构：
 
-- `src/main.ts`
-- `src/App.vue`
-- `src/app/router/*`
-- `src/app/bootstrap/*`
-- `src/app/providers/*`
+```text
+backend/
+  main.go
+  internal/
+    server/
+      bootstrap/
+      hooks/
+      routes/
+  migrations/
+  go.mod
+  go.sum
+```
 
-### `src/processes`
+### `fastnote`
+
+职责：
+
+- 前端 FSD 主体代码
+- 构建配置
+- 测试
+- Tauri 资源
+
+推荐结构：
+
+```text
+fastnote/
+  src/
+  public/
+  tests/
+  src-tauri/
+  package.json
+  vite.config.ts
+  .env
+  .env.production
+```
+
+### `docs`
+
+职责：
+
+- 架构文档
+- 开发规划
+- 产品与开发说明
+
+## 前端 FSD 地图
+
+### `fastnote/src/app`
+
+职责：
+
+- 应用启动
+- provider 注册
+- 路由装配
+- 应用级初始化
+
+### `fastnote/src/processes`
 
 职责：
 
 - 跨页面、长生命周期业务流程
-- 会话初始化、同步编排、公开笔记初始化、导航恢复
+- 会话初始化
+- 同步编排
+- 公开笔记初始化
+- 导航恢复
 
-当前映射：
-
-- `src/processes/session/*`
-- `src/processes/sync-notes/*`
-- `src/processes/public-notes/*`
-- `src/processes/navigation/*`
-- `src/processes/app-bootstrap/*`
-
-### `src/pages`
+### `fastnote/src/pages`
 
 职责：
 
-- 路由页容器，只做页面级装配和路由参数适配
+- 路由页容器
+- 页面级装配
+- 路由参数适配
 
-当前映射：
-
-- `src/pages/home/*`
-- `src/pages/folder/*`
-- `src/pages/note-detail/*`
-- `src/pages/deleted/*`
-- `src/pages/login/*`
-- `src/pages/register/*`
-- `src/pages/user-public-notes/*`
-
-### `src/widgets`
+### `fastnote/src/widgets`
 
 职责：
 
-- 多个 feature/entity 组合的业务 UI 片段
+- 多个 feature/entity 组合的业务 UI 模块
 
-当前映射：
-
-- `src/widgets/note-list/*`
-- `src/widgets/editor/*`
-- `src/widgets/note-more/*`
-- `src/widgets/user-profile/*`
-- `src/widgets/extension-renderer/*`
-- `src/widgets/note-editor-toolbar/*`
-
-### `src/features`
+### `fastnote/src/features`
 
 职责：
 
 - 面向用户动作的应用用例
-- 负责命令、查询、状态协同，不直接承载底层 SDK
+- 命令、查询、状态协同
 
-当前映射：
-
-- `src/features/note-editor/*`
-- `src/features/note-save/*`
-- `src/features/note-move/*`
-- `src/features/note-lock/*`
-- `src/features/note-delete/*`
-- `src/features/note-detail-*/*`
-- `src/features/theme-switch/*`
-- `src/features/global-search/*`
-- `src/features/public-note-share/*`
-
-### `src/entities`
+### `fastnote/src/entities`
 
 职责：
 
-- 领域实体、聚合、值对象、领域服务、仓储端口、实体级状态模型
+- 业务实体
+- 实体状态
+- 规则封装
+- 实体级查询与组合
 
-当前映射：
-
-- `src/entities/note/*`
-- `src/entities/public-note/*`
-- `src/entities/auth/index.ts`
-- `src/shared/types/*` 中的跨实体共享契约
-
-### `src/shared`
+### `fastnote/src/shared`
 
 职责：
 
-- 通用 UI、工具、配置、基础设施适配器、跨领域库
+- 通用 UI
+- 工具
+- 配置
+- PocketBase/Dexie 等基础设施适配器
+- 通用类型
 
-当前映射：
+## 后端结构地图
 
-- `src/shared/api/pocketbase/*`
-- `src/shared/lib/storage/*`
-- `src/shared/lib/auth/*`
-- `src/shared/lib/realtime/*`
-- `src/shared/lib/date/*`
-- `src/shared/lib/error-handling/*`
-- `src/shared/lib/editor/*`
-- `src/shared/lib/*`
-- `src/shared/types/*`
-- `src/shared/ui/*`
+### `backend/main.go`
 
-补充说明：
+职责：
 
-- `src/css/*`、`src/theme/*` 仍是样式资源目录，可逐步并入 `app/styles` 或 `shared`
-- `src/router/`、`src/hooks/`、`src/stores/` 当前仅剩空目录历史痕迹，不应再新增文件
+- 创建 `pocketbase.New()`
+- 注册 migrations
+- 注册 bootstrap 与 hooks
+- 启动应用
 
-## DDD 建模准则
+### `backend/internal/server/bootstrap`
 
-### 限界上下文
+职责：
 
-- `note`：笔记、文件夹、层级关系、删除状态、锁定状态
-- `public-note`：公开展示、按用户名隔离的数据集与读取模型
-- `auth`：认证身份、登录态、凭证与用户缓存
-- `sync`：同步水位、冲突策略、同步任务调度
-- `editor`：编辑器状态、自动保存触发、扩展能力
-- `navigation`：路由返回栈、桌面/移动分支导航恢复
+- 静态资源挂载
+- 配置加载
+- 启动期初始化
 
-### 代码组织建议
+### `backend/internal/server/routes`（可选）
 
-单个 slice 内优先采用下列结构：
+职责：
 
-- `model/domain`
-  - 实体、值对象、领域服务、仓储端口、不变量
-- `model/state`
-  - 实体级视图状态或 store 包装
-- `api`
-  - DTO、mapper、仓储实现入口
-- `ui`
-  - 实体或 feature 自带 UI
-- `lib`
-  - slice 内部工具
+- 自定义业务接口
+- 补充 PocketBase 标准 API 之外的后端能力
 
-规则：
+说明：
 
-- `domain` 只能依赖本 slice 的纯模型与 `shared` 中无业务语义的工具。
-- `api` 负责将 Dexie、PocketBase 等实现适配到仓储端口。
-- `ui` 只能消费公开 API，不直接 import `api` 的内部实现。
+- 当前仓库并不存在该目录
+- 只有在明确需要自定义服务端接口时才新增
 
-## 历史目录到当前归宿
+### `backend/internal/server/hooks`
 
-- `src/components/*` -> `src/widgets/*` 或 `src/shared/ui/*`
-- `src/core/*` -> `src/processes/session/*`、`src/shared/lib/auth/*`、`src/shared/lib/realtime/*`
-- `src/utils/*` -> `src/shared/lib/*`
-- `src/types/*` -> `src/shared/types/*`
-- `src/database/*` -> `src/shared/lib/storage/*`
-- `src/pocketbase/*` -> `src/shared/api/pocketbase/*`
-- `src/adapters/pocketbase/*` -> `src/shared/api/pocketbase/*` 与 `src/processes/session/*`
-- `src/views/*` -> `src/pages/*`
-- `src/hooks/*` -> `src/processes/*`、`src/features/*`、`src/shared/lib/*`
-- `src/stores/*` -> `src/entities/*/model/state/*`
+职责：
 
-## 启动序列约束
+- PocketBase 事件钩子
+- 服务端校验
+- 派生字段维护
+- 后端一致性兜底
 
-当前启动入口仍是 `src/main.ts`，必须保持以下语义不变：
+### `backend/migrations`
 
-1. 创建 Vue 应用并初始化 Ionic。
-2. 安装路由。
-3. 并行执行路由就绪、本地数据库初始化、笔记状态初始化。
-4. 初始化失败时仍能兜底挂载，避免白屏。
+职责：
 
-迁移到 FSD 后，上述动作由 `app` 与 `processes` 组合完成，但不能改变这些时序契约。
+- collection schema
+- 索引
+- 规则
+- 默认设置
+- 一次性修复
 
 ## 主要数据流
 
-### 本地编辑流
+### 前端本地编辑流
 
 1. `pages` 或 `widgets` 接收用户输入。
 2. 调用 `features/note-editor`、`features/note-save` 等用例接口。
-3. feature 通过 `entities/note` 的聚合规则与仓储状态完成更新。
-4. `shared/lib/storage` 与 `shared/api/pocketbase` 负责本地持久化与远端同步接口。
+3. `entities` 更新本地状态。
+4. `shared/lib/storage` 写入本地持久化。
+5. `shared/api/pocketbase` 负责远端同步请求。
 
 ### 云端同步流
 
-1. `processes/sync-notes` 读取身份与同步状态。
-2. 通过 `entities/note` 仓储状态读取本地增量。
-3. 经 `shared/api/pocketbase` 写入远端。
-4. 拉取远端变化，经过 mapper 回写本地状态。
+1. `fastnote/src/processes/sync-notes` 读取身份与同步状态。
+2. 读取本地增量。
+3. 经 `fastnote/src/shared/api/pocketbase` 写入或拉取远端。
+4. 若服务端存在补充逻辑，由 `backend/internal/server/hooks` 或可选 `routes` 接管。
+5. 同步结果回写本地状态。
 
-### 公开笔记流
+### 一体化部署流
 
-1. `app/router` 识别 `/:username...` 路由。
-2. `processes/public-notes` 初始化用户范围数据集。
-3. 通过 `entities/public-note` 读取远端公开数据并写入本地投影。
-4. `pages` 与 `widgets` 只消费只读投影与公开 API。
+1. `fastnote` 执行前端构建生成 `dist`。
+2. `backend` 在启动时挂载静态资源。
+3. PocketBase 提供标准 API、realtime、文件服务和管理后台。
+4. 自定义后端能力通过 `hooks` 或可选 `routes` 扩展。
 
 ## 依赖方向
 
-必须保持单向依赖：
+### 前端依赖方向
 
 - `app` -> `processes` -> `pages`/`widgets`/`features` -> `entities` -> `shared`
 
@@ -223,20 +227,36 @@
 - `entities` 只能依赖 `shared`
 - `shared` 不依赖业务层
 
-任何反向依赖都视为架构违规。
+### 前后端依赖方向
+
+- `fastnote` 通过 HTTP、realtime、文件接口依赖 `backend`
+- `backend` 不依赖 `fastnote/src` 业务代码
+- `docs` 不参与运行时依赖，只承担说明与决策沉淀
 
 ## 高频变更热点
 
-重构与设计时优先关注这些现状文件，它们通常是下一步拆分切入口：
+### 前端
 
-- `src/processes/session/model/use-session-bootstrap.ts`
-- `src/processes/sync-notes/model/use-sync-notes.ts`
-- `src/processes/navigation/model/use-route-state-restore.ts`
-- `src/entities/note/model/state/note-store.ts`
-- `src/entities/public-note/model/state/public-note-store.ts`
-- `src/shared/lib/storage/dexie.ts`
-- `src/shared/types/index.ts`
-- `src/pages/note-detail/ui/note-detail-page.vue`
-- `src/widgets/editor/ui/yy-editor.vue`
+- `fastnote/src/processes/session/*`
+- `fastnote/src/processes/sync-notes/*`
+- `fastnote/src/processes/public-notes/*`
+- `fastnote/src/entities/note/model/state/*`
+- `fastnote/src/shared/lib/storage/*`
+- `fastnote/src/shared/api/pocketbase/*`
+- `fastnote/src/pages/note-detail/ui/*`
+- `fastnote/src/widgets/editor/ui/*`
 
-这些文件不是所有逻辑的最终归宿，但它们是当前主链路的真实承载点。
+### 后端
+
+- `backend/main.go`
+- `backend/internal/server/bootstrap/*`
+- `backend/internal/server/routes/*`（仅在需要自定义接口时）
+- `backend/internal/server/hooks/*`
+- `backend/migrations/*`
+
+## 使用原则
+
+- 前端新增逻辑优先按 FSD 归位，不为“领域抽象”额外制造层级。
+- 后端正式 schema 与服务端规则优先进入 `migrations` 与 `hooks`，不依赖后台手工配置。
+- 涉及前后端一体化时，同时检查 `fastnote` 构建配置与 `backend` 启动方式。
+- 若仓库实际目录尚未完全迁移到目标结构，先核对现状，再按目标结构报告差距，不要混淆当前路径和目标路径。

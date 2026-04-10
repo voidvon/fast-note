@@ -59,9 +59,9 @@
 
 | 场景     | 命令                       | 通过标准         |
 | -------- | -------------------------- | ---------------- |
-| 单元测试 | `npm test`                 | 全部通过，0 fail |
-| 集成测试 | `npm run test:integration` | 关键路径通过     |
-| E2E      | `npm run test:e2e`         | 冒烟用例全部通过 |
+| 单元测试 | `cd fastnote && npm run test:unit -- --run` | 全部通过，0 fail |
+| 集成测试 | `cd fastnote && npm run test:unit -- --run tests/integration` | 关键路径通过 |
+| E2E      | `cd fastnote && npm run test:e2e` | 冒烟用例全部通过 |
 
 ## 7. 发布计划
 

@@ -1,142 +1,110 @@
 # 项目结构
 
-## 架构设计
+## 当前目标结构
 
-项目采用**三层架构**，将核心逻辑、具体实现和 UI 层分离：
+仓库按前后端一体方式组织：
 
-```
-核心层（Core）→ 适配器层（Adapters）→ 扩展层/UI 层
-```
+```text
+backend/
+  main.go
+  internal/
+    server/
+      bootstrap/
+      hooks/
+  migrations/
 
-### 核心层（src/core/）
+fastnote/
+  src/
+  public/
+  tests/
+  src-tauri/
+  package.json
+  vite.config.ts
 
-定义抽象接口和管理器，不依赖具体实现：
-
-- `auth-types.ts` / `auth-manager.ts` - 认证服务接口和管理器（单例）
-- `realtime-types.ts` / `realtime-manager.ts` - 实时连接服务接口和管理器（单例）
-- `sync-*.ts` - 数据同步逻辑（队列、策略、冲突解决）
-- `network-monitor.ts` - 网络状态监控
-- `websocket-manager.ts` - WebSocket 连接管理
-
-### 适配器层（src/adapters/）
-
-实现核心接口，对接具体后端服务：
-
-- `pocketbase/auth-adapter.ts` - 实现 IAuthService 接口
-- `pocketbase/realtime-adapter.ts` - 实现 IRealtimeService 接口
-
-**重要**：如需切换后端（如 Supabase），只需实现新的适配器，核心层和 UI 层无需修改。
-
-### UI 层
-
-- `src/views/` - 页面组件
-- `src/components/` - 可复用组件
-- `src/hooks/` - Composition API hooks（业务逻辑复用）
-
-## 目录说明
-
-```
-src/
-├── core/                    # 核心层 - 抽象接口和管理器
-├── adapters/                # 适配器层 - 具体实现
-├── pocketbase/              # PocketBase 客户端封装
-│   ├── auth.ts             # 认证相关
-│   ├── notes.ts            # 笔记 CRUD
-│   ├── files.ts            # 文件上传
-│   └── users.ts            # 用户管理
-├── database/                # 本地数据库
-│   ├── dexie.ts            # Dexie 实例和表定义
-│   ├── sync.ts             # 同步逻辑
-│   └── types.ts            # 数据类型
-├── stores/                  # Pinia 状态管理
-│   ├── notes.ts            # 笔记状态
-│   └── publicNotes.ts      # 公开笔记状态
-├── hooks/                   # Composition API hooks
-│   ├── useAuth.ts          # 认证相关
-│   ├── useSync.ts          # 同步相关
-│   ├── useEditor.ts        # 编辑器相关
-│   ├── useNoteFiles.ts     # 笔记文件管理
-│   ├── useTheme.ts         # 主题切换
-│   └── ...
-├── components/              # 可复用组件
-│   ├── YYEditor.vue        # 富文本编辑器
-│   ├── NoteList.vue        # 笔记列表
-│   ├── NoteListItem.vue    # 笔记列表项
-│   ├── GlobalSearch/       # 全局搜索组件
-│   └── extensions/         # 编辑器扩展
-├── views/                   # 页面组件
-│   ├── HomePage.vue        # 首页
-│   ├── FolderPage.vue      # 文件夹页面
-│   ├── NoteDetail.vue      # 笔记详情
-│   ├── LoginPage.vue       # 登录页面
-│   └── ...
-├── router/                  # 路由配置
-├── utils/                   # 工具函数
-├── types/                   # TypeScript 类型定义
-├── css/                     # 全局样式
-└── theme/                   # 主题配置
-
-docs/                        # 项目文档
-├── 产品文档/                # 产品需求和规划
-├── 开发文档/                # 技术文档
-└── 主题/                    # 主题相关文档
+docs/
+skills/
 ```
 
-## 关键约定
+## 根目录职责
 
-### 1. 依赖方向
+### `backend/`
 
-- UI 层 → 核心层（通过管理器）
-- 适配器层 → 核心层（实现接口）
-- **禁止**：UI 层直接依赖适配器层
+- PocketBase Go 宿主入口
+- 静态资源挂载
+- 事件钩子
+- migrations
 
-```typescript
-// ❌ 错误：直接使用适配器
-import { pocketbaseAuthAdapter } from '@/adapters/pocketbase'
+说明：
 
-// ✅ 正确：使用核心管理器
-import { authManager } from '@/core/auth-manager'
+- 当前只保留宿主能力
+- 还没有业务 routes、业务 schema、业务 migrations
 
-await authManager.login(email, password)
-await pocketbaseAuthAdapter.signIn(email, password)
+### `fastnote/`
+
+- 前端应用主体
+- 前端构建配置
+- 自动化测试
+- Tauri 资源
+
+### `docs/`
+
+- 开发规划
+- 架构说明
+- 产品与交接文档
+
+## 前端结构
+
+前端按 FSD 组织：
+
+```text
+fastnote/src/
+  app/
+  processes/
+  pages/
+  widgets/
+  features/
+  entities/
+  shared/
 ```
 
-### 2. 初始化流程
+### FSD 约束
 
-核心服务在 `App.vue` 中初始化，确保全局可用：
+- `app`：应用启动、全局 provider、路由装配
+- `processes`：长生命周期流程，如同步、会话、导航恢复
+- `pages`：路由页装配
+- `widgets`：业务 UI 模块
+- `features`：用户动作用例
+- `entities`：实体状态、规则、查询组合
+- `shared`：工具、适配器、类型、通用 UI
 
-```typescript
-// App.vue
-onMounted(async () => {
-  // 1. 注入认证适配器
-  authManager.setAuthService(pocketbaseAuthAdapter)
-  await authManager.initialize()
+## 后端结构
 
-  // 2. 如果已登录，建立实时连接
-  if (authManager.isAuthenticated()) {
-    const realtimeAdapter = new PocketBaseRealtimeAdapter()
-    realtimeManager.setRealtimeService(realtimeAdapter)
-    await realtimeManager.connect()
-  }
-})
-```
+### `backend/main.go`
 
-### 3. 组件规范
+- 创建并启动 PocketBase
+- 注册 migrations
+- 注册 bootstrap
+- 注册 hooks
 
-- 使用 `<script setup>` 语法
-- 使用 Composition API
-- 复杂逻辑抽取到 hooks 中
-- 组件保持简洁，专注于 UI 渲染
+### `backend/internal/server/bootstrap`
 
-### 4. 样式规范
+- 负责前端静态资源目录挂载
+- 为后续一体化部署保留宿主入口
 
-- 优先使用 UnoCSS 原子类
-- 组件特定样式使用 `<style scoped>`
-- 全局样式放在 `src/css/` 目录
-- 使用 CSS 变量（定义在 `src/theme/variables.css`）
+### `backend/internal/server/hooks`
 
-### 5. 类型定义
+- 为后续服务端钩子预留目录
+- 当前不承载业务逻辑
 
-- 业务类型放在 `src/types/`
-- 核心接口放在 `src/core/*-types.ts`
-- 使用 TypeScript 严格模式
+### `backend/migrations`
+
+- 为后续 PocketBase schema 和设置变更预留目录
+- 当前不承载业务 schema
+
+## 关键原则
+
+1. 不把后端逻辑写进 `fastnote/src`
+2. 不把前端状态和 UI 逻辑写进 `backend`
+3. 前端只通过 PocketBase SDK 访问后端
+4. 正式的服务端 schema、规则、初始化变更必须进入 `backend/migrations`
+5. 当前阶段后端是宿主层，不主动新增业务表和业务接口

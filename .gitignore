@@ -30,9 +30,16 @@ npm-debug.log*
 /platforms
 /plugins
 /www
-
-.DS_Store
-node_modules
+/backend/pb_data
+/backend/pb_public
+/backend/internal/server/bootstrap/pb_public/*
+/fastnote/dist
+/fastnote/node_modules
+/apps/web/dist
+/apps/web/node_modules
+/build
+/release
+/node_modules
 /coverage
 /dist
 /ios
@@ -57,4 +64,3 @@ pnpm-debug.log*
 *.njsproj
 *.sln
 *.sw?
-

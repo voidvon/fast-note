@@ -56,7 +56,7 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
         },
         '/api': {
-          target: 'https://api.0122.vip',
+          target: 'http://127.0.0.1:8090',
           changeOrigin: true,
         },
       },

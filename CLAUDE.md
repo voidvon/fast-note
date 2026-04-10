@@ -1,90 +1,67 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with this repository.
+
+## Repository Structure
+
+- `fastnote/` - Frontend app built with Vue 3 + Ionic + Vite. Frontend code follows FSD.
+- `backend/` - PocketBase Go host app, static asset bootstrap, hooks, and migrations.
+- `docs/` - Product, development, and architecture documents.
 
 ## Essential Commands
 
-### Development
+### Frontend
 
-- `npm run dev` - Start development server on port 3000
-- `npm run build` - Build production version (includes TypeScript compilation)
-- `npm run preview` - Preview production build
-- `vue-tsc` - Run TypeScript compiler check
+- `cd fastnote && npm run dev` - Start the frontend dev server on port `8888`
+- `cd fastnote && npm run build` - Run `vue-tsc` and build the frontend
+- `cd fastnote && npm run preview` - Preview the production frontend build
+- `cd fastnote && npm run lint` - Run ESLint
+- `cd fastnote && npm run test:unit` - Run Vitest unit/integration tests
+- `cd fastnote && npm run test:e2e` - Run Cypress end-to-end tests
+- `cd fastnote && npm run tauri` - Run Tauri commands for desktop app development
 
-### Quality & Testing
+### Backend
 
-- `npm run lint` - Run ESLint with auto-formatting
-- `npm run test:unit` - Run unit tests with Vitest
-- `npm run test:e2e` - Run end-to-end tests with Cypress
-
-### Mobile & Desktop
-
-- `npm run tauri` - Tauri commands for desktop app development
-- `npx cap add ios` / `npx cap add android` - Add mobile platforms
-- `npx cap sync` - Sync web assets to native projects
+- `cd backend && go mod tidy` - Sync Go module dependencies
+- `cd backend && go build ./...` - Build the PocketBase host app
+- `cd backend && go run . serve` - Start the PocketBase backend locally
 
 ## Architecture Overview
 
-### Technology Stack
+### Frontend
 
-- **Frontend**: Ionic 8 + Vue 3 + TypeScript
-- **Database**: Dexie.js (IndexedDB wrapper) for local-first storage
-- **Editor**: Tiptap rich text editor with extensions (Color, TextAlign, Image, Table, etc.)
-- **Styling**: UnoCSS + SCSS + Ionic CSS variables
-- **Build**: Vite with path aliases (`@/*` → `./src/*`)
-- **Mobile**: Capacitor for iOS/Android, Tauri for desktop
-- **Sync**: Cloud synchronization with conflict resolution
+- Tech stack: Ionic 8 + Vue 3 + TypeScript + Vite
+- Storage: Dexie / IndexedDB for local-first persistence
+- Sync: PocketBase JavaScript SDK with realtime and file APIs
+- Editor: Tiptap rich text editor with formatting, table, and upload extensions
+- Structure: `app -> processes -> pages/widgets/features -> entities -> shared`
 
-### Application Architecture
+### Backend
 
-This is a **local-first note-taking application** with the following key characteristics:
+- Tech stack: Go + PocketBase
+- Entry: `backend/main.go`
+- Bootstrap: `backend/internal/server/bootstrap`
+- Hooks: `backend/internal/server/hooks`
+- Schema and setup changes: `backend/migrations`
+- Current scope: host-only setup, no business routes or business schema in repo yet
 
-1. **Data Flow**: Local IndexedDB → Cloud Sync → Multi-device access
-2. **Composition API Hooks Pattern**: Business logic organized in `src/hooks/`
-3. **Route-based Navigation**: Supports nested folder hierarchies up to 5 levels deep
-4. **Rich Text Editing**: Tiptap editor with file upload and formatting capabilities
+## Working Rules
 
-### Core Hooks (Business Logic)
+- Do not put backend logic into `fastnote/src`.
+- Do not put frontend state or view logic into `backend`.
+- Treat PocketBase collection schema changes as backend changes and record them in `backend/migrations`.
+- Keep the app offline-first: local persistence is the immediate source of truth, cloud sync is eventual consistency.
+- Default PocketBase access should be same-origin in production and explicit local backend in development.
 
-- `useDexie.ts` - Database initialization and schema management
-- `useNote.ts` - CRUD operations for notes and folders
-- `useSync.ts` - Cloud synchronization with timestamp-based conflict resolution
-- `useFiles.ts` - File attachment management
-- `useUserInfo.ts` - User authentication and session management
+## Current Dev Defaults
 
-### Routing Structure
+- Frontend dev server: `https://localhost:8888` when `VITE_HTTPS=true`
+- Local backend: `http://127.0.0.1:8090`
+- Frontend production build output: `fastnote/dist`
 
-- `/home` - Main notes and folders list
-- `/login` - User authentication
-- `/n/:uuid` - Note detail/editor page
-- `/f/:uuid/...` - Folder navigation (supports up to 5 nested levels)
-- `/deleted` - Deleted items view
+## Key Paths
 
-### Development Configuration
-
-- **Dev Server**: Runs on `0.0.0.0:3000` with HTTPS support
-- **Proxy**: `/e` and `/d` routes proxied to `https://next.0122.vip`
-- **Mode**: Ionic set to iOS mode for consistent UI
-- **TypeScript**: Strict mode enabled with path mapping
-
-### Data Models
-
-Key interfaces defined in hooks:
-
-- `Note`: Core note structure with version control and hierarchy
-- `TypedFile`: File attachments with hash-based deduplication
-- `UserInfo`: User session and authentication data
-
-### Sync Strategy
-
-- Uses `lastdotime` timestamps and `version` numbers for conflict resolution
-- Local-first: All operations work offline, sync when connection available
-- Bidirectional sync: Uploads local changes, downloads remote updates
-
-### File Organization
-
-- `src/components/` - Reusable UI components including the main editor
-- `src/views/` - Page-level components
-- `src/hooks/` - Business logic and data management
-- `src/api/` - HTTP client and API service configuration
-- `src/css/` - SCSS stylesheets and CSS variables
+- Frontend PocketBase client: `fastnote/src/shared/api/pocketbase/client.ts`
+- Frontend router: `fastnote/src/app/router/*`
+- Frontend sync flow: `fastnote/src/processes/sync-notes/*`
+- Backend startup: `backend/main.go`

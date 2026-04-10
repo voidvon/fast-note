@@ -3,10 +3,11 @@ name: P0 Sync Integrity
 on:
   pull_request:
     paths:
-      - src/**
-      - tests/**
-      - package.json
-      - package-lock.json
+      - fastnote/src/**
+      - fastnote/tests/**
+      - fastnote/package.json
+      - fastnote/package-lock.json
+      - fastnote/vite.config.ts
       - .github/workflows/p0-sync-integrity.yml
   push:
     branches:
@@ -27,12 +28,16 @@ jobs:
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: fastnote/package-lock.json
 
       - name: Install dependencies
         run: npm ci
+        working-directory: fastnote
 
       - name: Run P0 sync integrity suite
         run: npm run test:p0:sync-integrity
+        working-directory: fastnote
 
       - name: Build
         run: npm run build
+        working-directory: fastnote

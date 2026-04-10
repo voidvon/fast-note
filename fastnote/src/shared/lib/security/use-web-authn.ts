@@ -240,7 +240,7 @@ export function useWebAuthn(): UseWebAuthnCapability {
         publicKey: {
           challenge: generateChallenge(),
           rp: {
-            name: 'Fast Note',
+            name: 'fastnote',
             id: window.location.hostname,
           },
           user: {

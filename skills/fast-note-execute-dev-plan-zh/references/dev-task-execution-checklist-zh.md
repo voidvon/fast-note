@@ -9,7 +9,8 @@
 ## 2. 代码实现
 
 - 是否仅修改与任务相关模块。
-- 是否遵守 `UI -> hooks -> stores -> database/pocketbase` 边界。
+- 是否遵守 `UI -> features/processes -> entities -> shared` 的前端边界。
+- 若涉及后端，是否只改 `backend` 宿主相关目录。
 - 是否避免引入无关重构。
 
 ## 3. 自动化测试
@@ -20,10 +21,10 @@
 
 ## 4. 质量校验
 
-- 是否执行 `npm run lint`。
-- 是否执行 `npm run test:unit -- --run`。
-- 是否执行 `npm run build`。
-- 若需要，是否执行 `npm run test:e2e`。
+- 是否执行 `cd fastnote && npm run lint`。
+- 是否执行 `cd fastnote && npm run test:unit -- --run`。
+- 是否执行 `cd fastnote && npm run build`。
+- 若需要，是否执行 `cd fastnote && npm run test:e2e`。
 
 ## 5. 文档回写
 

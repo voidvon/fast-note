@@ -6,15 +6,16 @@
     "main"
   ],
   "remote": {
-    "urls": ["https://n.0122.vip"]
+    "urls": ["http://127.0.0.1:8090", "http://localhost:8090", "http://localhost:8888"]
   },
   "permissions": [
     "core:default",
     {
       "identifier": "http:default",
       "allow": [
-        { "url": "https://*.0122.vip" },
-        { "url": "http://localhost:3000" }
+        { "url": "http://127.0.0.1:8090" },
+        { "url": "http://localhost:8090" },
+        { "url": "http://localhost:8888" }
       ]
     }
   ]

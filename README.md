@@ -1,8 +1,8 @@
-# Fast-Note 备忘录
+# fastnote 备忘录
 
 <div align="center">
 
-![Fast-Note Logo](./public/icons/icon-128x128.png)
+![fastnote Logo](./fastnote/public/icons/icon-128x128.png)
 
 **一个简洁高效的本地优先备忘录应用，让您随时随地记录灵感。**
 
@@ -31,51 +31,84 @@
 - 🎨 [UnoCSS](https://unocss.dev/) - 即时的原子化CSS引擎
 - 🌐 [Axios](https://axios-http.com/) - 基于Promise的HTTP客户端
 
+## 📁 仓库结构
+
+- `fastnote/`：前端应用，Vue 3 + Ionic + Vite，按 FSD 组织
+- `backend/`：PocketBase Go 宿主、静态资源挂载、hooks、migrations
+- `docs/`：开发文档、架构规划与产品说明
+
 ## 🚀 开始使用
 
 ### 前提条件
 
-- Node.js (v16+)
-- npm 或 yarn 或 pnpm
+- Node.js
+- Go (v1.24+)
+- npm
 
 ### 安装
 
 ```bash
 # 克隆仓库
-git clone https://github.com/username/fast-note.git
+git clone https://github.com/voidvon/fast-note.git
 
 # 进入项目目录
 cd fast-note
 
-# 安装依赖
-npm install
-# 或
-yarn install
-# 或
-pnpm install
+# 安装前端依赖并整理后端依赖
+npm run install:frontend
+npm run tidy:backend
 ```
 
 ### 开发
 
 ```bash
-# 启动开发服务器
+# 同时启动前端和 PocketBase Go 后端
 npm run dev
-# 或
-yarn dev
-# 或
-pnpm dev
+```
+
+如需分别启动：
+
+```bash
+npm run dev:frontend
+npm run dev:backend
 ```
 
 ### 构建
 
 ```bash
-# 构建生产版本
+# 构建前后端
 npm run build
-# 或
-yarn build
-# 或
-pnpm build
+
+# 生成一体化发布目录
+npm run release
 ```
+
+`npm run release` 会输出：
+
+- `build/fastnote/fastnote`：主程序二进制
+- 前端静态资源已嵌入主程序二进制
+- `build/fastnote/pb_data/`：运行时数据目录
+
+在发布目录中运行：
+
+```bash
+cd build/fastnote
+./fastnote serve
+```
+
+Windows 下使用：
+
+```bash
+cd build/fastnote
+fastnote.exe serve
+```
+
+环境变量示例：
+
+- 前端参考 `fastnote/.env.example`
+- 后端参考 `backend/.env.example`
+
+如需覆盖内嵌前端资源，可通过 `FASTNOTE_WEB_DIST` 指向自定义静态目录，或在运行目录放置 `pb_public/`。
 
 ## 📖 使用指南
 

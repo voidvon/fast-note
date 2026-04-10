@@ -17,7 +17,7 @@
 
 ## 3. 契约完整性
 
-- 是否覆盖 `UI/hooks/stores/database/pocketbase/router` 六层。
+- 是否覆盖 `fastnote/pages/widgets`、`fastnote/features/processes`、`fastnote/entities`、`fastnote/shared`、`backend`、`router` 等关键层。
 - 是否说明 `Note` 契约变化与兼容策略。
 - 是否明确同步冲突策略与失败补偿。
 
@@ -29,7 +29,7 @@
 - 是否定义 CI 门禁级别（阻断/非阻断）并与优先级匹配。
 - 是否包含监控指标、告警阈值、回滚触发条件。
 - 是否给出最小可执行发布路径（灰度 -> 全量）。
-- 是否给出可执行命令与通过标准（例如 `npm test` 全通过）。
+- 是否给出可执行命令与通过标准（例如 `cd fastnote && npm run test:unit -- --run` 全通过）。
 
 ## 5. 跨文档一致性
 

@@ -4,8 +4,8 @@
   "version": "0.1.1",
   "identifier": "vip.x0122.note",
   "build": {
-    "frontendDist": "https://n.0122.vip",
-    "devUrl": "http://localhost:3000",
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:8888",
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build"
   },
