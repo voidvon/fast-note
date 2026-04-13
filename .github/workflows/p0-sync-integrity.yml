@@ -168,6 +168,8 @@ jobs:
           cp -a "${TARGET_DIR}/." "${PROJECT_DIR}/"
           rm -rf "${PROJECT_DIR}/pb_data"
           ln -sfn "${SHARED_DIR}/pb_data" "${PROJECT_DIR}/pb_data"
+          chown -R www:www "${SHARED_DIR}/pb_data"
+          chmod -R u+rwX,g+rwX "${SHARED_DIR}/pb_data"
           chown -R www:www "${PROJECT_DIR}"
           chmod +x "${PROJECT_DIR}/fastnote"
           ln -sfn "${TARGET_DIR}" "${CURRENT_LINK}"
@@ -176,7 +178,6 @@ jobs:
             kill "$(cat "${PID_FILE}")" 2>/dev/null || true
             rm -f "${PID_FILE}"
           fi
-          pkill -f "${COMMAND_PATTERN}" 2>/dev/null || true
           sleep 2
           su -s /bin/bash -c "${START_SCRIPT}" www
 

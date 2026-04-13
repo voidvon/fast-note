@@ -84,10 +84,11 @@ workflow 默认会按下面方式处理：
 
 - 停止旧进程：
   - 优先读取 `/var/tmp/gopids/${DEV_DEPLOY_PROJECT_NAME}.pid`
-  - 再兜底 `pkill -f "/www/wwwroot/${DEV_DEPLOY_PROJECT_NAME}/fastnote serve --http=0.0.0.0:8888"`
 - 启动新进程：
   - 执行 `/www/server/go_project/vhost/scripts/${DEV_DEPLOY_PROJECT_NAME}.sh`
   - 以 `www` 用户启动
+- 共享数据目录：
+  - `shared/pb_data` 会在每次部署时强制修正为 `www:www`
 - 健康校验：
   - 检查 PID 文件是否生成且进程存在
 
