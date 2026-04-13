@@ -431,7 +431,7 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
         >
           <IonIcon :icon="addOutline" />
         </button>
-        <GlobalSearch />
+        <GlobalSearch :sync-with-route="!isDesktop" />
         <button
           v-if="!showGlobalSearch"
           type="button"

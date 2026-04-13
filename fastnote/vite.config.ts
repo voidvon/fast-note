@@ -13,6 +13,7 @@ export default defineConfig(({ mode }) => {
   // 加载环境变量
   const env = loadEnv(mode, '.')
   const isHttps = env.VITE_HTTPS === 'true'
+  const apiProxyTarget = env.VITE_API_PROXY_TARGET?.trim() || 'http://127.0.0.1:8090'
 
   const plugins = [
     vue(),
@@ -56,7 +57,7 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
         },
         '/api': {
-          target: 'http://127.0.0.1:8090',
+          target: apiProxyTarget,
           changeOrigin: true,
         },
       },

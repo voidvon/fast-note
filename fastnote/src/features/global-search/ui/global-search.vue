@@ -3,20 +3,32 @@ import type { Note } from '@/entities/note'
 import { IonContent, IonIcon } from '@ionic/vue'
 import { useDebounceFn } from '@vueuse/core'
 import { closeCircle, closeOutline, searchOutline } from 'ionicons/icons'
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useNote } from '@/entities/note'
 import NoteList from '@/widgets/note-list'
 import { toSearchResultNodes } from '../lib/search-results'
+import {
+  hasGlobalSearchOverlay,
+  shouldUseRouteBackForGlobalSearchClose,
+  withGlobalSearchHistoryState,
+  withGlobalSearchOverlay,
+  withoutGlobalSearchOverlay,
+} from '../model/search-route'
 import { useGlobalSearch } from '../model/use-global-search'
 
 const props = withDefaults(defineProps<{
   puuid?: string | null
+  syncWithRoute?: boolean
 }>(), {
   puuid: null,
+  syncWithRoute: false,
 })
 
 const { showGlobalSearch, showGlobalSearchState, searchKeyword, resetGlobalSearch } = useGlobalSearch()
 const { searchNotesByParentId } = useNote()
+const route = useRoute()
+const router = useRouter()
 const SURFACE_TRANSITION_MS = 320
 const CONTENT_TRANSITION_MS = 220
 
@@ -38,6 +50,8 @@ let enterFrameId: number | null = null
 const searchResults = computed(() => toSearchResultNodes(state.notes))
 const hasKeyword = computed(() => searchKeyword.value.trim().length > 0)
 const shouldRenderPanel = computed(() => showGlobalSearchState.value !== 'hide')
+const shouldSyncWithRoute = computed(() => props.syncWithRoute)
+const hasRouteSearchOverlay = computed(() => shouldSyncWithRoute.value && hasGlobalSearchOverlay(route.query))
 const panelStyle = computed(() => ({
   left: `${state.panelLeft}px`,
   top: `${state.panelTop}px`,
@@ -46,9 +60,18 @@ const panelStyle = computed(() => ({
   minHeight: `${state.panelHeight}px`,
 }))
 
-function activateSearch() {
+if (!hasRouteSearchOverlay.value) {
+  resetGlobalSearch()
+}
+
+function activateSearch(options: { syncRoute?: boolean } = {}) {
+  const { syncRoute = true } = options
+
   if (showGlobalSearch.value && showGlobalSearchState.value !== 'hide') {
     updateLayout()
+    if (syncRoute) {
+      void syncSearchRoute()
+    }
     return
   }
 
@@ -81,6 +104,10 @@ function activateSearch() {
       })
     })
   })
+
+  if (syncRoute) {
+    void syncSearchRoute()
+  }
 }
 
 function resolvePanelContainer() {
@@ -157,7 +184,7 @@ function onFocus() {
   activateSearch()
 }
 
-function onCancel() {
+function startCloseAnimation() {
   inputRef.value?.blur()
   searchRequestId++
   showGlobalSearchState.value = 'leaveStart'
@@ -167,6 +194,44 @@ function onCancel() {
     state.notes = []
     resetGlobalSearch()
   }, Math.max(SURFACE_TRANSITION_MS, CONTENT_TRANSITION_MS))
+}
+
+async function syncSearchRoute() {
+  if (!shouldSyncWithRoute.value || hasGlobalSearchOverlay(route.query)) {
+    return
+  }
+
+  await router.push({
+    path: route.path,
+    query: withGlobalSearchOverlay(route.query),
+    hash: route.hash,
+    state: withGlobalSearchHistoryState(window.history.state),
+  })
+}
+
+async function syncSearchCloseToRoute() {
+  if (!shouldSyncWithRoute.value || !hasGlobalSearchOverlay(route.query)) {
+    startCloseAnimation()
+    return
+  }
+
+  inputRef.value?.blur()
+  searchRequestId++
+
+  if (shouldUseRouteBackForGlobalSearchClose(window.history.state)) {
+    router.back()
+    return
+  }
+
+  await router.replace({
+    path: route.path,
+    query: withoutGlobalSearchOverlay(route.query),
+    hash: route.hash,
+  })
+}
+
+function onCancel() {
+  void syncSearchCloseToRoute()
 }
 
 function onInput(event: Event) {
@@ -202,6 +267,21 @@ function handleViewportChange() {
   updateLayout()
 }
 
+watch(hasRouteSearchOverlay, (visible, previousVisible) => {
+  if (visible) {
+    activateSearch({ syncRoute: false })
+
+    if (!previousVisible && searchKeyword.value.trim()) {
+      void runSearch(searchKeyword.value)
+    }
+    return
+  }
+
+  if (previousVisible && (showGlobalSearch.value || showGlobalSearchState.value !== 'hide')) {
+    startCloseAnimation()
+  }
+}, { immediate: true })
+
 onMounted(() => {
   updateLayout()
   window.addEventListener('resize', handleViewportChange)
@@ -218,7 +298,6 @@ onUnmounted(() => {
     enterFrameId = null
   }
 
-  resetGlobalSearch()
   window.removeEventListener('resize', handleViewportChange)
 })
 </script>
