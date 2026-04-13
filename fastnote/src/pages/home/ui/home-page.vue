@@ -557,6 +557,9 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
   --background: transparent;
   background: transparent;
   box-shadow: none;
+  position: relative;
+  z-index: 1100;
+  isolation: isolate;
 
   &::before {
     display: none;
@@ -569,6 +572,8 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
   gap: 12px;
   min-height: 44px;
   padding: 0 12px 12px;
+  position: relative;
+  z-index: 1;
   pointer-events: auto;
 }
 
