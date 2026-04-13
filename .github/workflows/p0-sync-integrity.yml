@@ -132,47 +132,31 @@ jobs:
           DEV_DEPLOY_HOST: ${{ vars.DEV_DEPLOY_HOST }}
           DEV_DEPLOY_PORT: ${{ vars.DEV_DEPLOY_PORT }}
           DEV_DEPLOY_USER: ${{ vars.DEV_DEPLOY_USER }}
-          DEV_DEPLOY_BASE_DIR: ${{ vars.DEV_DEPLOY_BASE_DIR }}
           DEV_DEPLOY_PROJECT_NAME: ${{ vars.DEV_DEPLOY_PROJECT_NAME }}
           RELEASE_VERSION: dev-${{ github.sha }}
         run: |
-          test -n "${DEV_DEPLOY_BASE_DIR}"
           test -n "${DEV_DEPLOY_PROJECT_NAME}"
 
           PACKAGE_NAME="fastnote_${RELEASE_VERSION}_linux_amd64"
 
           ssh -p "${DEV_DEPLOY_PORT:-22}" "${DEV_DEPLOY_USER}@${DEV_DEPLOY_HOST}" \
-            "PACKAGE_NAME='${PACKAGE_NAME}' DEPLOY_BASE_DIR='${DEV_DEPLOY_BASE_DIR}' DEPLOY_PROJECT_NAME='${DEV_DEPLOY_PROJECT_NAME}' bash -s" <<'EOF'
+            "PACKAGE_NAME='${PACKAGE_NAME}' DEPLOY_PROJECT_NAME='${DEV_DEPLOY_PROJECT_NAME}' bash -s" <<'EOF'
           set -euo pipefail
 
-          RELEASES_DIR="${DEPLOY_BASE_DIR}/releases"
-          SHARED_DIR="${DEPLOY_BASE_DIR}/shared"
-          CURRENT_LINK="${DEPLOY_BASE_DIR}/current"
           PACKAGE_FILE="/tmp/${PACKAGE_NAME}.tar.gz"
-          TARGET_DIR="${RELEASES_DIR}/${PACKAGE_NAME}"
           PROJECT_DIR="/www/wwwroot/${DEPLOY_PROJECT_NAME}"
           START_SCRIPT="/www/server/go_project/vhost/scripts/${DEPLOY_PROJECT_NAME}.sh"
           PID_FILE="/var/tmp/gopids/${DEPLOY_PROJECT_NAME}.pid"
-          COMMAND_PATTERN="${PROJECT_DIR}/fastnote serve --http=0.0.0.0:8888"
+          EXTRACT_DIR="/tmp/${PACKAGE_NAME}"
 
-          if [ "${DEPLOY_BASE_DIR}" = "${PROJECT_DIR}" ]; then
-            echo "DEV_DEPLOY_BASE_DIR must not equal PROJECT_DIR (${PROJECT_DIR})"
-            exit 1
+          rm -rf "${EXTRACT_DIR}"
+          mkdir -p "${EXTRACT_DIR}"
+          tar -xzf "${PACKAGE_FILE}" -C "${EXTRACT_DIR}" --strip-components=1
+          install -m 755 "${EXTRACT_DIR}/fastnote" "${PROJECT_DIR}/fastnote"
+          if [ -f "${EXTRACT_DIR}/README.md" ]; then
+            install -m 644 "${EXTRACT_DIR}/README.md" "${PROJECT_DIR}/README.md"
           fi
-
-          mkdir -p "${RELEASES_DIR}" "${SHARED_DIR}/pb_data"
-          rm -rf "${TARGET_DIR}"
-          tar -xzf "${PACKAGE_FILE}" -C "${RELEASES_DIR}"
-          rm -rf "${PROJECT_DIR}"
-          mkdir -p "${PROJECT_DIR}"
-          cp -a "${TARGET_DIR}/." "${PROJECT_DIR}/"
-          rm -rf "${PROJECT_DIR}/pb_data"
-          ln -sfn "${SHARED_DIR}/pb_data" "${PROJECT_DIR}/pb_data"
-          chown -R www:www "${SHARED_DIR}/pb_data"
-          chmod -R u+rwX,g+rwX "${SHARED_DIR}/pb_data"
-          chown -R www:www "${PROJECT_DIR}"
-          chmod +x "${PROJECT_DIR}/fastnote"
-          ln -sfn "${TARGET_DIR}" "${CURRENT_LINK}"
+          chown www:www "${PROJECT_DIR}/fastnote" "${PROJECT_DIR}/README.md" 2>/dev/null || true
 
           if [ -f "${PID_FILE}" ]; then
             kill "$(cat "${PID_FILE}")" 2>/dev/null || true
@@ -192,5 +176,5 @@ jobs:
           echo "fastnote project failed to start"
           exit 1
 
-          rm -f "${PACKAGE_FILE}"
+          rm -rf "${EXTRACT_DIR}" "${PACKAGE_FILE}"
           EOF
