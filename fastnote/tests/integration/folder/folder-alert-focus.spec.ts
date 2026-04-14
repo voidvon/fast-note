@@ -128,6 +128,11 @@ async function mountHomePageForFolderAlert() {
   vi.doMock('vue-router', () => ({
     onBeforeRouteLeave: vi.fn(),
     useRoute: () => route,
+    useRouter: () => ({
+      push: vi.fn(),
+      replace: vi.fn(),
+      back: vi.fn(),
+    }),
   }))
 
   vi.doMock('@/shared/lib/device', async () => {
@@ -340,8 +345,13 @@ describe('folder alert focus regression (t-fn-028 / tc-fn-018, tc-fn-019)', () =
     const alert = wrapper.getComponent(ionAlertStub)
 
     expect(wrapper.get('#add-folder').exists()).toBe(true)
-    expect(alert.props('trigger')).toBe('add-folder')
+    expect(alert.props('isOpen')).toBe(false)
     expect(alert.props('keyboardClose')).toBe(false)
+
+    await wrapper.get('#add-folder').trigger('click')
+    await nextTick()
+
+    expect(alert.props('isOpen')).toBe(true)
 
     const { alert: alertElement, focusSpy, selectionSpy } = createAlertInput('首页文件夹')
 

@@ -117,6 +117,7 @@ const deletedNotes = computed(() => {
   return notes.value.filter(note => note.is_deleted === 1 && note.updated >= thirtyDaysAgo)
 })
 const presentingElement = ref()
+const showAddFolderAlert = ref(false)
 function focusFolderAlertInput(event: CustomEvent) {
   const alert = event.target as HTMLElement | null
 
@@ -350,6 +351,10 @@ function handleFooterCreateAction() {
   handleMobileCreateNavigation()
 }
 
+function openAddFolderAlert() {
+  showAddFolderAlert.value = true
+}
+
 onIonViewWillEnter(() => {
   init({ preferPersistedSelection: true })
 })
@@ -428,6 +433,7 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
           id="add-folder"
           type="button"
           class="app-glass-circle-button"
+          @click="openAddFolderAlert"
         >
           <IonIcon :icon="addOutline" />
         </button>
@@ -443,12 +449,13 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
       </div>
     </IonFooter>
     <IonAlert
-      trigger="add-folder"
+      :is-open="showAddFolderAlert"
       :keyboard-close="false"
       header="请输入文件夹名称"
       :buttons="addButtons"
       :inputs="[{ name: 'newFolderName', placeholder: '请输入文件夹名称' }]"
       @did-present="focusFolderAlertInput"
+      @did-dismiss="showAddFolderAlert = false"
     />
 
     <!-- 扩展管理器 -->

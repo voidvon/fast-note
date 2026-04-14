@@ -60,7 +60,7 @@ function togglePopover() {
       />
     </IonButton>
 
-    <IonPopover trigger="theme-mode-button" :is-open="showPopover" @did-dismiss="showPopover = false">
+    <IonPopover :is-open="showPopover" @did-dismiss="showPopover = false">
       <IonList>
         <IonItem button :detail="false" @click="handleSetThemeMode(ThemeMode.Auto)">
           <IonIcon slot="start" :icon="contrastOutline" />

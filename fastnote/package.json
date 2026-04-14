@@ -19,11 +19,13 @@
     "test:p0:sync-integrity": "vitest --run tests/unit/hooks/useSync-user-scope.spec.ts tests/unit/hooks/useDesktopActiveNote.spec.ts tests/unit/views/note-detail-missing-note.spec.ts tests/unit/views/home-desktop-restore.spec.ts tests/integration/home/desktop-refresh-restore.spec.ts tests/integration/home/desktop-folder-refresh-restore.spec.ts tests/integration/sync/private-route-restore.spec.ts tests/integration/sync/public-home-restore.spec.ts tests/integration/sync/cache-repair.spec.ts"
   },
   "dependencies": {
+    "@ai-sdk/vue": "^3.0.159",
     "@capacitor/app": "7.0.0",
     "@capacitor/core": "7.0.1",
     "@capacitor/haptics": "7.0.0",
     "@capacitor/keyboard": "7.0.0",
     "@capacitor/status-bar": "7.0.0",
+    "@comark/vue": "^0.2.1",
     "@ionic/vue": "^8.7.9",
     "@ionic/vue-router": "^8.7.9",
     "@tauri-apps/plugin-http": "^2.5.4",
@@ -38,6 +40,7 @@
     "@tiptap/starter-kit": "^3.10.7",
     "@tiptap/vue-3": "^3.10.7",
     "@vueuse/core": "^13.3.0",
+    "ai": "^6.0.159",
     "axios": "^1.13.2",
     "core-js": "^3.42.0",
     "dexie": "^4.0.11",
@@ -49,7 +52,8 @@
     "tiptap-extension-global-drag-handle": "^0.1.18",
     "vconsole": "^3.15.1",
     "vue": "^3.5.24",
-    "vue-router": "^4.2.0"
+    "vue-router": "^4.2.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^6.2.0",

@@ -2,10 +2,11 @@
 import type { Note } from '@/entities/note'
 import { IonContent, IonIcon } from '@ionic/vue'
 import { useDebounceFn } from '@vueuse/core'
-import { closeCircle, closeOutline, searchOutline, sparklesOutline } from 'ionicons/icons'
+import { arrowUpOutline, closeCircle, closeOutline, searchOutline, sparklesOutline, stopCircleOutline } from 'ionicons/icons'
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useNote } from '@/entities/note'
+import AiChatPanel, { useAiChat } from '@/features/ai-chat'
 import NoteList from '@/widgets/note-list'
 import { toSearchResultNodes } from '../lib/search-results'
 import {
@@ -34,6 +35,7 @@ const {
   showGlobalSearchState,
 } = useGlobalSearch()
 const { searchNotesByParentId } = useNote()
+const { chat, isBusy: isAiBusy, sendMessage: sendAiMessage } = useAiChat()
 const route = useRoute()
 const router = useRouter()
 const SURFACE_TRANSITION_MS = 320
@@ -57,13 +59,18 @@ let enterFrameId: number | null = null
 const isSearchMode = computed(() => inputMode.value === 'search')
 const currentDraft = computed(() => isSearchMode.value ? searchKeyword.value : aiDraft.value)
 const currentFieldIcon = computed(() => isSearchMode.value ? searchOutline : sparklesOutline)
+const currentToggleIcon = computed(() => isSearchMode.value ? sparklesOutline : searchOutline)
 const currentPlaceholder = computed(() => isSearchMode.value ? '搜索' : '发消息')
 const currentToggleLabel = computed(() => isSearchMode.value ? '切换到 AI 对话' : '切换到全局搜索')
 const currentEnterKeyHint = computed(() => isSearchMode.value ? 'search' : 'send')
 const currentInputMode = computed(() => isSearchMode.value ? 'search' : 'text')
 const currentInputType = computed(() => isSearchMode.value ? 'search' : 'text')
+const currentActionIcon = computed(() => isAiBusy.value ? stopCircleOutline : arrowUpOutline)
+const currentActionLabel = computed(() => isAiBusy.value ? '停止生成' : '发送消息')
 const searchResults = computed(() => toSearchResultNodes(state.notes))
-const hasKeyword = computed(() => currentDraft.value.trim().length > 0)
+const hasInputValue = computed(() => currentDraft.value.trim().length > 0)
+const hasSearchKeyword = computed(() => searchKeyword.value.trim().length > 0)
+const showAiActionButton = computed(() => !isSearchMode.value && (hasInputValue.value || isAiBusy.value))
 const shouldCollapseFieldIcon = computed(() => showGlobalSearchState.value !== 'hide')
 const shouldRenderPanel = computed(() => showGlobalSearchState.value !== 'hide')
 const shouldSyncWithRoute = computed(() => props.syncWithRoute)
@@ -73,7 +80,7 @@ const panelCaption = computed(() => {
     return 'AI 对话'
   }
 
-  return hasKeyword.value ? '搜索结果' : '搜索'
+  return hasSearchKeyword.value ? '搜索结果' : '搜索'
 })
 const panelIdleMessage = computed(() => {
   return isSearchMode.value
@@ -224,6 +231,25 @@ function onFocus() {
   activateSearch({ syncRoute: isSearchMode.value })
 }
 
+async function submitAiDraft() {
+  const draft = aiDraft.value
+  if (!draft.trim()) {
+    activateSearch({ syncRoute: false })
+    focusInput()
+    return
+  }
+
+  aiDraft.value = ''
+
+  const submitted = await sendAiMessage(draft)
+  if (!submitted) {
+    aiDraft.value = draft
+  }
+
+  activateSearch({ syncRoute: false })
+  focusInput()
+}
+
 function startCloseAnimation() {
   inputRef.value?.blur()
   searchRequestId++
@@ -321,6 +347,31 @@ function onClear() {
   focusInput()
 }
 
+async function onAiAction() {
+  if (isAiBusy.value) {
+    await chat.stop()
+    focusInput()
+    return
+  }
+
+  await submitAiDraft()
+}
+
+function onKeydown(event: KeyboardEvent) {
+  if (isSearchMode.value || event.key !== 'Enter' || isComposing.value) {
+    return
+  }
+
+  event.preventDefault()
+  void onAiAction()
+}
+
+function handleAiPrefill(value: string) {
+  aiDraft.value = value
+  activateSearch({ syncRoute: false })
+  focusInput()
+}
+
 async function toggleInputMode() {
   inputMode.value = isSearchMode.value ? 'ai' : 'search'
   searchRequestId++
@@ -398,7 +449,7 @@ onUnmounted(() => {
         @pointerdown.prevent
         @click="toggleInputMode"
       >
-        <IonIcon :icon="currentFieldIcon" />
+        <IonIcon :icon="currentToggleIcon" />
       </button>
 
       <div class="global-search__field">
@@ -421,17 +472,27 @@ onUnmounted(() => {
             class="global-search__input"
             @focus="onFocus"
             @input="onInput"
+            @keydown="onKeydown"
             @compositionstart="handleCompositionStart"
             @compositionend="handleCompositionEnd"
           >
           <button
-            v-if="hasKeyword"
+            v-if="isSearchMode && hasInputValue"
             type="button"
             class="global-search__clear-button"
             aria-label="清空搜索"
             @click="onClear"
           >
             <IonIcon :icon="closeCircle" />
+          </button>
+          <button
+            v-else-if="showAiActionButton"
+            type="button"
+            class="global-search__submit-button"
+            :aria-label="currentActionLabel"
+            @click="onAiAction"
+          >
+            <IonIcon :icon="currentActionIcon" />
           </button>
         </div>
       </div>
@@ -460,24 +521,24 @@ onUnmounted(() => {
           :class="{ 'global-search__panel-body--active': showGlobalSearchState === 'enterActive' }"
           class="global-search__panel-body"
         >
-          <div class="global-search__panel-header">
+          <div v-if="isSearchMode" class="global-search__panel-header">
             <p class="global-search__panel-caption">
               {{ panelCaption }}
             </p>
-            <p v-if="isSearchMode && hasKeyword" class="global-search__panel-meta">
+            <p v-if="hasSearchKeyword" class="global-search__panel-meta">
               共 {{ state.notes.length }} 条结果
             </p>
           </div>
 
-          <IonContent class="global-search__panel-content">
-            <template v-if="isSearchMode && hasKeyword && state.notes.length > 0">
+          <IonContent v-if="isSearchMode" class="global-search__panel-content">
+            <template v-if="hasSearchKeyword && state.notes.length > 0">
               <NoteList
                 :data-list="searchResults"
                 :all-notes-count="state.notes.length"
                 show-parent-folder
               />
             </template>
-            <div v-else-if="isSearchMode && hasKeyword" class="global-search__empty">
+            <div v-else-if="isSearchMode && hasSearchKeyword" class="global-search__empty">
               没有找到相关备忘录
             </div>
             <div v-else class="global-search__empty global-search__empty--idle">
@@ -485,6 +546,12 @@ onUnmounted(() => {
             </div>
             <div class="h-4" />
           </IonContent>
+
+          <AiChatPanel
+            v-else
+            class="global-search__ai-panel"
+            @prefill="handleAiPrefill"
+          />
         </div>
       </div>
     </div>
@@ -610,6 +677,24 @@ onUnmounted(() => {
     font-size: 18px;
   }
 
+  &__submit-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
+    border: 0;
+    border-radius: 999px;
+    padding: 0;
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.96), rgba(34, 197, 94, 0.96));
+    color: #04111f;
+  }
+
+  &__submit-button ion-icon {
+    font-size: 14px;
+  }
+
   &__panel {
     position: fixed;
     z-index: 1;
@@ -685,6 +770,11 @@ onUnmounted(() => {
     min-height: 0;
     --background: transparent;
     --padding-bottom: calc(88px + env(safe-area-inset-bottom));
+  }
+
+  &__ai-panel {
+    flex: 1;
+    min-height: 0;
   }
 
   &__empty {
