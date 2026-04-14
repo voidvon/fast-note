@@ -2,7 +2,7 @@
 import type { Note } from '@/entities/note'
 import { IonContent, IonIcon } from '@ionic/vue'
 import { useDebounceFn } from '@vueuse/core'
-import { closeCircle, closeOutline, searchOutline } from 'ionicons/icons'
+import { closeCircle, closeOutline, searchOutline, sparklesOutline } from 'ionicons/icons'
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useNote } from '@/entities/note'
@@ -25,7 +25,14 @@ const props = withDefaults(defineProps<{
   syncWithRoute: false,
 })
 
-const { showGlobalSearch, showGlobalSearchState, searchKeyword, resetGlobalSearch } = useGlobalSearch()
+const {
+  aiDraft,
+  inputMode,
+  resetGlobalSearch,
+  searchKeyword,
+  showGlobalSearch,
+  showGlobalSearchState,
+} = useGlobalSearch()
 const { searchNotesByParentId } = useNote()
 const route = useRoute()
 const router = useRouter()
@@ -47,11 +54,32 @@ let searchRequestId = 0
 let hideTimer: ReturnType<typeof setTimeout> | null = null
 let enterFrameId: number | null = null
 
+const isSearchMode = computed(() => inputMode.value === 'search')
+const currentDraft = computed(() => isSearchMode.value ? searchKeyword.value : aiDraft.value)
+const currentFieldIcon = computed(() => isSearchMode.value ? searchOutline : sparklesOutline)
+const currentPlaceholder = computed(() => isSearchMode.value ? '搜索' : '发消息')
+const currentToggleLabel = computed(() => isSearchMode.value ? '切换到 AI 对话' : '切换到全局搜索')
+const currentEnterKeyHint = computed(() => isSearchMode.value ? 'search' : 'send')
+const currentInputMode = computed(() => isSearchMode.value ? 'search' : 'text')
+const currentInputType = computed(() => isSearchMode.value ? 'search' : 'text')
 const searchResults = computed(() => toSearchResultNodes(state.notes))
-const hasKeyword = computed(() => searchKeyword.value.trim().length > 0)
+const hasKeyword = computed(() => currentDraft.value.trim().length > 0)
+const shouldCollapseFieldIcon = computed(() => showGlobalSearchState.value !== 'hide')
 const shouldRenderPanel = computed(() => showGlobalSearchState.value !== 'hide')
 const shouldSyncWithRoute = computed(() => props.syncWithRoute)
 const hasRouteSearchOverlay = computed(() => shouldSyncWithRoute.value && hasGlobalSearchOverlay(route.query))
+const panelCaption = computed(() => {
+  if (!isSearchMode.value) {
+    return 'AI 对话'
+  }
+
+  return hasKeyword.value ? '搜索结果' : '搜索'
+})
+const panelIdleMessage = computed(() => {
+  return isSearchMode.value
+    ? '输入标题或内容关键词搜索备忘录'
+    : '输入消息开始与 AI 对话'
+})
 const panelStyle = computed(() => ({
   left: `${state.panelLeft}px`,
   top: `${state.panelTop}px`,
@@ -105,9 +133,15 @@ function activateSearch(options: { syncRoute?: boolean } = {}) {
     })
   })
 
-  if (syncRoute) {
+  if (syncRoute && isSearchMode.value) {
     void syncSearchRoute()
   }
+}
+
+function focusInput() {
+  void nextTick(() => {
+    inputRef.value?.focus()
+  })
 }
 
 function resolvePanelContainer() {
@@ -162,7 +196,7 @@ function handleCompositionStart() {
   isComposing.value = true
 }
 
-function applyKeyword(value: string) {
+function applySearchKeyword(value: string) {
   searchKeyword.value = value
 
   if (!value.trim()) {
@@ -176,12 +210,18 @@ function applyKeyword(value: string) {
 function handleCompositionEnd(event: CompositionEvent) {
   isComposing.value = false
   const value = (event.target as HTMLInputElement | null)?.value || ''
-  applyKeyword(value)
+  if (!isSearchMode.value) {
+    aiDraft.value = value
+    activateSearch({ syncRoute: false })
+    return
+  }
+
+  applySearchKeyword(value)
   void runSearch(value)
 }
 
 function onFocus() {
-  activateSearch()
+  activateSearch({ syncRoute: isSearchMode.value })
 }
 
 function startCloseAnimation() {
@@ -206,6 +246,18 @@ async function syncSearchRoute() {
     query: withGlobalSearchOverlay(route.query),
     hash: route.hash,
     state: withGlobalSearchHistoryState(window.history.state),
+  })
+}
+
+async function clearSearchRouteOverlay() {
+  if (!shouldSyncWithRoute.value || !hasGlobalSearchOverlay(route.query)) {
+    return
+  }
+
+  await router.replace({
+    path: route.path,
+    query: withoutGlobalSearchOverlay(route.query),
+    hash: route.hash,
   })
 }
 
@@ -245,18 +297,50 @@ function onInput(event: Event) {
     return
   }
 
-  applyKeyword(value)
+  if (!isSearchMode.value) {
+    aiDraft.value = value
+    activateSearch({ syncRoute: false })
+    return
+  }
+
+  applySearchKeyword(value)
   void debouncedSearch(value)
 }
 
 function onClear() {
   searchRequestId++
   state.notes = []
-  searchKeyword.value = ''
-  activateSearch()
-  void nextTick(() => {
-    inputRef.value?.focus()
-  })
+  if (isSearchMode.value) {
+    searchKeyword.value = ''
+    activateSearch()
+  }
+  else {
+    aiDraft.value = ''
+    activateSearch({ syncRoute: false })
+  }
+  focusInput()
+}
+
+async function toggleInputMode() {
+  inputMode.value = isSearchMode.value ? 'ai' : 'search'
+  searchRequestId++
+
+  if (isSearchMode.value) {
+    activateSearch()
+    if (searchKeyword.value.trim()) {
+      await runSearch(searchKeyword.value)
+    }
+    else {
+      state.notes = []
+    }
+  }
+  else {
+    state.notes = []
+    await clearSearchRouteOverlay()
+    activateSearch({ syncRoute: false })
+  }
+
+  focusInput()
 }
 
 function handleViewportChange() {
@@ -269,6 +353,7 @@ function handleViewportChange() {
 
 watch(hasRouteSearchOverlay, (visible, previousVisible) => {
   if (visible) {
+    inputMode.value = 'search'
     activateSearch({ syncRoute: false })
 
     if (!previousVisible && searchKeyword.value.trim()) {
@@ -277,7 +362,7 @@ watch(hasRouteSearchOverlay, (visible, previousVisible) => {
     return
   }
 
-  if (previousVisible && (showGlobalSearch.value || showGlobalSearchState.value !== 'hide')) {
+  if (previousVisible && isSearchMode.value && (showGlobalSearch.value || showGlobalSearchState.value !== 'hide')) {
     startCloseAnimation()
   }
 }, { immediate: true })
@@ -309,28 +394,30 @@ onUnmounted(() => {
         v-if="showGlobalSearch"
         type="button"
         class="app-glass-circle-button"
-        aria-label="搜索"
+        :aria-label="currentToggleLabel"
+        @pointerdown.prevent
+        @click="toggleInputMode"
       >
-        <IonIcon :icon="searchOutline" />
+        <IonIcon :icon="currentFieldIcon" />
       </button>
 
       <div class="global-search__field">
         <div
-          :class="{ 'global-search__field-shell--panel-visible': shouldRenderPanel }"
+          :class="{ 'global-search__field-shell--panel-visible': shouldCollapseFieldIcon }"
           class="global-search__field-shell"
         >
           <IonIcon
-            :icon="searchOutline"
+            :icon="currentFieldIcon"
             class="global-search__search-icon"
           />
           <input
             ref="inputRef"
-            :value="searchKeyword"
-            type="search"
-            inputmode="search"
-            enterkeyhint="search"
+            :value="currentDraft"
+            :type="currentInputType"
+            :inputmode="currentInputMode"
+            :enterkeyhint="currentEnterKeyHint"
             autocomplete="off"
-            placeholder="搜索"
+            :placeholder="currentPlaceholder"
             class="global-search__input"
             @focus="onFocus"
             @input="onInput"
@@ -375,26 +462,26 @@ onUnmounted(() => {
         >
           <div class="global-search__panel-header">
             <p class="global-search__panel-caption">
-              {{ hasKeyword ? '搜索结果' : '搜索' }}
+              {{ panelCaption }}
             </p>
-            <p v-if="hasKeyword" class="global-search__panel-meta">
+            <p v-if="isSearchMode && hasKeyword" class="global-search__panel-meta">
               共 {{ state.notes.length }} 条结果
             </p>
           </div>
 
           <IonContent class="global-search__panel-content">
-            <template v-if="hasKeyword && state.notes.length > 0">
+            <template v-if="isSearchMode && hasKeyword && state.notes.length > 0">
               <NoteList
                 :data-list="searchResults"
                 :all-notes-count="state.notes.length"
                 show-parent-folder
               />
             </template>
-            <div v-else-if="hasKeyword" class="global-search__empty">
+            <div v-else-if="isSearchMode && hasKeyword" class="global-search__empty">
               没有找到相关备忘录
             </div>
             <div v-else class="global-search__empty global-search__empty--idle">
-              输入标题或内容关键词搜索备忘录
+              {{ panelIdleMessage }}
             </div>
             <div class="h-4" />
           </IonContent>
