@@ -51,7 +51,7 @@ function handleDidDismiss() {
       </IonToolbar>
     </IonHeader>
 
-    <IonContent class="ai-chat-settings-modal__content">
+    <IonContent class="ion-padding">
       <AiChatSettingsCard
         :api-key="apiKey"
         :base-url="baseUrl"
@@ -65,13 +65,3 @@ function handleDidDismiss() {
     </IonContent>
   </IonModal>
 </template>
-
-<style scoped lang="scss">
-.ai-chat-settings-modal__content {
-  --background: rgba(8, 8, 10, 0.96);
-  --padding-top: 12px;
-  --padding-bottom: calc(16px + env(safe-area-inset-bottom));
-  --padding-start: 16px;
-  --padding-end: 16px;
-}
-</style>

@@ -35,37 +35,77 @@ const {
 } = useAiChat()
 
 const threadRef = ref<HTMLDivElement>()
+const shouldAutoScroll = ref(true)
+const lastUserMessageId = ref<string | null>(null)
 const shouldShowSettings = computed(() => showSettings.value || !hasConfiguredProvider.value)
 const settingsForm = reactive({
   apiKey: settings.apiKey,
   baseUrl: settings.baseUrl,
   model: settings.model,
 })
+const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 32
 
 const scrollTrackToken = computed(() => {
   return visibleMessages.value
     .map(message => `${message.id}:${message.text}`)
     .join('\n')
 })
+const latestVisibleMessage = computed(() => {
+  return visibleMessages.value.at(-1) || null
+})
 
-watch(() => [scrollTrackToken.value, chat.status], async () => {
-  await nextTick()
+function isNearBottom(element: HTMLElement) {
+  const remainingDistance = element.scrollHeight - element.clientHeight - element.scrollTop
+  return remainingDistance <= AUTO_SCROLL_BOTTOM_THRESHOLD_PX
+}
 
+function syncAutoScrollState() {
   const thread = threadRef.value
   if (!thread) {
     return
   }
 
-  if (typeof thread.scrollTo === 'function') {
-    thread.scrollTo({
-      top: thread.scrollHeight,
-      behavior: 'smooth',
-    })
+  shouldAutoScroll.value = isNearBottom(thread)
+}
+
+function scrollThreadToBottom() {
+  const thread = threadRef.value
+  if (!thread) {
     return
   }
 
   thread.scrollTop = thread.scrollHeight
+}
+
+watch(() => [scrollTrackToken.value, chat.status], async () => {
+  await nextTick()
+
+  const thread = threadRef.value
+  if (!thread || !shouldAutoScroll.value) {
+    return
+  }
+
+  scrollThreadToBottom()
 }, { deep: true })
+
+watch(hasVisibleMessages, (nextHasVisibleMessages) => {
+  if (!nextHasVisibleMessages) {
+    shouldAutoScroll.value = true
+    lastUserMessageId.value = null
+  }
+})
+
+watch(latestVisibleMessage, async (message) => {
+  if (!message || message.role !== 'user' || message.id === lastUserMessageId.value) {
+    return
+  }
+
+  lastUserMessageId.value = message.id
+  shouldAutoScroll.value = true
+
+  await nextTick()
+  scrollThreadToBottom()
+})
 
 watch(() => [settings.apiKey, settings.baseUrl, settings.model], () => {
   settingsForm.apiKey = settings.apiKey
@@ -130,7 +170,7 @@ function handleCloseSettings() {
       @reset="handleResetSettings"
     />
 
-    <div ref="threadRef" class="ai-chat-panel__thread">
+    <div ref="threadRef" class="ai-chat-panel__thread" @scroll.passive="syncAutoScrollState">
       <template v-if="hasVisibleMessages">
         <IonList lines="none" class="ai-chat-panel__message-list">
           <ChatMessage

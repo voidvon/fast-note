@@ -124,6 +124,32 @@ function createPendingSseResponse() {
   }
 }
 
+function stubScrollableElement(element: HTMLElement, options: {
+  clientHeight: number
+  initialScrollTop?: number
+  scrollHeight: number
+}) {
+  let scrollTopValue = options.initialScrollTop ?? 0
+
+  Object.defineProperty(element, 'clientHeight', {
+    configurable: true,
+    value: options.clientHeight,
+  })
+
+  Object.defineProperty(element, 'scrollHeight', {
+    configurable: true,
+    value: options.scrollHeight,
+  })
+
+  Object.defineProperty(element, 'scrollTop', {
+    configurable: true,
+    get: () => scrollTopValue,
+    set: (value: number) => {
+      scrollTopValue = value
+    },
+  })
+}
+
 async function mountGlobalSearch() {
   const GlobalSearch = (await import('@/features/global-search/ui/global-search.vue')).default
   return mount(GlobalSearch, {
@@ -362,6 +388,108 @@ describe('global search ai chat', () => {
     ])
 
     await clickPromise
+    await flushPromises()
+    wrapper.unmount()
+  })
+
+  it('stops auto scrolling when user scrolls upward during streaming', async () => {
+    const pendingResponse = createPendingSseResponse()
+    const fetchMock = vi.fn(async () => pendingResponse.response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { useAiChat } = await import('@/features/ai-chat')
+    useAiChat().saveSettings({
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4.1-mini',
+    })
+
+    const wrapper = await mountGlobalSearch()
+    const input = wrapper.get('textarea')
+
+    await input.trigger('focus')
+    await wrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
+    await nextTick()
+
+    const thread = wrapper.get('.ai-chat-panel__thread').element as HTMLDivElement
+    stubScrollableElement(thread, {
+      clientHeight: 200,
+      initialScrollTop: 400,
+      scrollHeight: 600,
+    })
+
+    await input.setValue('测试滚动保持')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await nextTick()
+
+    thread.scrollTop = 120
+    await wrapper.get('.ai-chat-panel__thread').trigger('scroll')
+
+    pendingResponse.close([
+      JSON.stringify({
+        choices: [{
+          delta: {
+            content: '这里是新的流式内容。',
+          },
+          finish_reason: 'stop',
+        }],
+      }),
+    ])
+
+    await flushPromises()
+    await nextTick()
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(thread.scrollTop).toBe(120)
+
+    wrapper.unmount()
+  })
+
+  it('scrolls back to bottom when the user sends a new message after reading older content', async () => {
+    const pendingResponse = createPendingSseResponse()
+    const fetchMock = vi.fn(async () => pendingResponse.response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { useAiChat } = await import('@/features/ai-chat')
+    useAiChat().saveSettings({
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4.1-mini',
+    })
+
+    const wrapper = await mountGlobalSearch()
+    const input = wrapper.get('textarea')
+
+    await input.trigger('focus')
+    await wrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
+    await nextTick()
+
+    const thread = wrapper.get('.ai-chat-panel__thread').element as HTMLDivElement
+    stubScrollableElement(thread, {
+      clientHeight: 200,
+      initialScrollTop: 120,
+      scrollHeight: 600,
+    })
+
+    await wrapper.get('.ai-chat-panel__thread').trigger('scroll')
+    await input.setValue('带我回到底部')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await nextTick()
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(thread.scrollTop).toBe(600)
+
+    pendingResponse.close([
+      JSON.stringify({
+        choices: [{
+          delta: {
+            content: '已回到底部。',
+          },
+          finish_reason: 'stop',
+        }],
+      }),
+    ])
+
     await flushPromises()
     wrapper.unmount()
   })
