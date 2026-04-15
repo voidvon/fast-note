@@ -8,7 +8,7 @@ defineProps<{
 </script>
 
 <template>
-  <div class="ai-chat-message-markdown">
+  <div class="stream-markdown">
     <Suspense>
       <template #default>
         <Comark
@@ -24,7 +24,7 @@ defineProps<{
       </template>
 
       <template #fallback>
-        <div class="ai-chat-message-markdown__fallback">
+        <div class="stream-markdown__fallback">
           {{ markdown }}
         </div>
       </template>
@@ -33,15 +33,15 @@ defineProps<{
 </template>
 
 <style scoped lang="scss">
-.ai-chat-message-markdown {
+.stream-markdown {
   min-width: 0;
 }
 
-.ai-chat-message-markdown :deep(.comark-stream) {
+.stream-markdown :deep(.comark-stream) {
   min-width: 0;
 }
 
-.ai-chat-message-markdown__fallback {
+.stream-markdown__fallback {
   white-space: pre-wrap;
   word-break: break-word;
 }

@@ -162,6 +162,7 @@ function resolvePanelContainer() {
 
 function updateLayout() {
   const containerRect = resolvePanelContainer()?.getBoundingClientRect()
+  const dockRect = dockRef.value?.getBoundingClientRect()
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
 
@@ -176,7 +177,12 @@ function updateLayout() {
   state.panelLeft = containerRect.left
   state.panelTop = containerRect.top
   state.panelWidth = containerRect.width
-  state.panelHeight = containerRect.height
+
+  const panelBottom = dockRect
+    ? Math.min(dockRect.top, containerRect.bottom)
+    : containerRect.bottom
+
+  state.panelHeight = Math.max(0, panelBottom - containerRect.top)
 }
 
 async function runSearch(searchText: string) {

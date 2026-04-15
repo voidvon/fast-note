@@ -22,6 +22,14 @@ const chat = new Chat<UIMessage>({
   }),
 })
 
+export interface AiChatViewMessage {
+  id: string
+  role: 'assistant' | 'user'
+  text: string
+}
+
+export type AiChatSessionPhase = 'error' | 'ready' | 'responding' | 'thinking' | 'unconfigured'
+
 function getStorageKey() {
   return createScopedStorageKey(AI_CHAT_SETTINGS_STORAGE_KEY)
 }
@@ -97,12 +105,106 @@ function clearConversation() {
   chat.clearError()
 }
 
+function getMessageText(parts: UIMessage['parts']) {
+  return parts
+    .filter(part => part.type === 'text' || part.type === 'reasoning')
+    .map(part => part.text)
+    .join('')
+}
+
 const hasConfiguredProvider = computed(() => {
   hydrateSettings()
   return !!settingsState.baseUrl && !!settingsState.apiKey && !!settingsState.model
 })
 
 const isBusy = computed(() => chat.status === 'submitted' || chat.status === 'streaming')
+const visibleMessages = computed<AiChatViewMessage[]>(() => {
+  return chat.messages
+    .filter((message): message is UIMessage & { role: AiChatViewMessage['role'] } => {
+      return message.role === 'user' || message.role === 'assistant'
+    })
+    .map(message => ({
+      id: message.id,
+      role: message.role,
+      text: getMessageText(message.parts),
+    }))
+})
+const latestAssistantMessage = computed(() => {
+  for (let index = visibleMessages.value.length - 1; index >= 0; index -= 1) {
+    const message = visibleMessages.value[index]
+    if (message.role === 'assistant') {
+      return message
+    }
+  }
+
+  return null
+})
+const streamingAssistantMessageId = computed(() => {
+  if (!isBusy.value) {
+    return null
+  }
+
+  return latestAssistantMessage.value?.id || null
+})
+const isAssistantThinking = computed(() => {
+  if (!isBusy.value) {
+    return false
+  }
+
+  return !latestAssistantMessage.value?.text.trim()
+})
+const hasVisibleMessages = computed(() => visibleMessages.value.length > 0)
+const canRegenerate = computed(() => hasVisibleMessages.value && !isBusy.value)
+const providerLabel = computed(() => settingsState.model.trim() || '未配置模型')
+const sessionPhase = computed<AiChatSessionPhase>(() => {
+  if (!hasConfiguredProvider.value) {
+    return 'unconfigured'
+  }
+
+  if (chat.error) {
+    return 'error'
+  }
+
+  if (isAssistantThinking.value) {
+    return 'thinking'
+  }
+
+  if (isBusy.value) {
+    return 'responding'
+  }
+
+  return 'ready'
+})
+const sessionLabel = computed(() => {
+  switch (sessionPhase.value) {
+    case 'unconfigured':
+      return '待配置'
+    case 'error':
+      return '请求异常'
+    case 'thinking':
+      return '思考中'
+    case 'responding':
+      return '生成中'
+    case 'ready':
+    default:
+      return '已就绪'
+  }
+})
+const statusText = computed(() => {
+  switch (sessionPhase.value) {
+    case 'unconfigured':
+      return '先完成 Base URL、API Key 与模型配置。'
+    case 'error':
+      return '请求失败，可修改配置后重试。'
+    case 'thinking':
+      return 'AI 已收到消息，正在思考。'
+    case 'responding':
+      return 'AI 正在流式生成回复。'
+    case 'ready':
+    default:
+      return hasVisibleMessages.value ? '当前对话可继续追问。' : '等待你的第一条消息。'
+  }
+})
 
 async function sendMessage(text: string) {
   hydrateSettings()
@@ -128,15 +230,25 @@ export function useAiChat() {
   return {
     chat,
     clearConversation,
+    canRegenerate,
     hasConfiguredProvider,
+    hasVisibleMessages,
     isBusy,
+    isAssistantThinking,
+    latestAssistantMessage,
     openSettings: () => {
       showSettings.value = true
     },
+    providerLabel,
     resetSettings,
     saveSettings,
     sendMessage,
+    sessionLabel,
+    sessionPhase,
     settings: settingsState,
     showSettings,
+    statusText,
+    streamingAssistantMessageId,
+    visibleMessages,
   }
 }

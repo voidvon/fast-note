@@ -2,12 +2,75 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick } from 'vue'
 
-function createIonicStub(name: string) {
+function createIonicStub(name: string, tag = 'div') {
   return defineComponent({
     name,
     inheritAttrs: false,
     setup(_, { attrs, slots }) {
-      return () => h('div', attrs, slots.default ? slots.default() : [])
+      return () => h(tag, attrs, slots.default ? slots.default() : [])
+    },
+  })
+}
+
+function createButtonStub(name: string) {
+  return defineComponent({
+    name,
+    inheritAttrs: false,
+    emits: ['click'],
+    setup(_, { attrs, slots, emit }) {
+      return () => h('button', {
+        ...attrs,
+        type: 'button',
+        onClick: (event: MouseEvent) => emit('click', event),
+      }, slots.default ? slots.default() : [])
+    },
+  })
+}
+
+function createInputStub(name: string) {
+  return defineComponent({
+    name,
+    inheritAttrs: false,
+    props: {
+      label: {
+        type: String,
+        default: '',
+      },
+      modelValue: {
+        type: String,
+        default: '',
+      },
+    },
+    emits: ['update:modelValue'],
+    setup(props, { attrs, emit }) {
+      return () => h('label', { ...attrs, 'data-ion-input': name }, [
+        props.label ? h('span', props.label) : null,
+        h('input', {
+          value: props.modelValue,
+          type: attrs.type,
+          placeholder: attrs.placeholder,
+          inputmode: attrs.inputmode,
+          onInput: (event: Event) => emit('update:modelValue', (event.target as HTMLInputElement).value),
+        }),
+      ])
+    },
+  })
+}
+
+function createModalStub(name: string) {
+  return defineComponent({
+    name,
+    inheritAttrs: false,
+    props: {
+      isOpen: {
+        type: Boolean,
+        default: false,
+      },
+    },
+    setup(props, { attrs, slots }) {
+      return () => props.isOpen
+        ? h('div', { ...attrs, 'data-ion-modal': name }, slots.default ? slots.default() : [])
+        : null
     },
   })
 }
@@ -106,8 +169,22 @@ describe('global search ai chat', () => {
     })
 
     vi.doMock('@ionic/vue', () => ({
+      IonButton: createButtonStub('IonButton'),
+      IonButtons: createIonicStub('IonButtons'),
+      IonChip: createIonicStub('IonChip'),
       IonContent: createIonicStub('IonContent'),
+      IonAlert: createModalStub('IonAlert'),
       IonIcon: createIonicStub('IonIcon'),
+      IonInput: createInputStub('IonInput'),
+      IonItem: createIonicStub('IonItem'),
+      IonLabel: createIonicStub('IonLabel', 'span'),
+      IonList: createIonicStub('IonList'),
+      IonModal: createModalStub('IonModal'),
+      IonNote: createIonicStub('IonNote', 'span'),
+      IonSpinner: createIonicStub('IonSpinner', 'span'),
+      IonHeader: createIonicStub('IonHeader'),
+      IonToolbar: createIonicStub('IonToolbar'),
+      IonTitle: createIonicStub('IonTitle', 'span'),
     }))
   })
 
