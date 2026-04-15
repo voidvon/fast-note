@@ -8,6 +8,7 @@ import { NOTE_TYPE } from '@/entities/note'
 import NoteActionsMenu from '@/features/note-actions-menu'
 import { useNoteLockIndicatorState } from '@/features/note-lock'
 import NoteMoveModal from '@/features/note-move/ui/note-move-modal.vue'
+import { useGlobalSearch } from '@/features/global-search'
 import { useDeviceType } from '@/shared/lib/device'
 import { useIonicLongPressList } from '@/shared/lib/ionic'
 import NoteListItem from './note-list-item.vue'
@@ -46,6 +47,7 @@ const props = withDefaults(
 )
 const emit = defineEmits(['refresh', 'update:noteUuid', 'selected'])
 const { isDesktop } = useDeviceType()
+const { showGlobalSearch } = useGlobalSearch()
 const EXPANDED_STATE_STORAGE_PREFIX = 'note-list-expanded:'
 
 // const { getNote } = useNote()
@@ -59,6 +61,12 @@ const expandedItems = ref<string[]>([])
 const longPressMenuRef = ref()
 const movePresentingElement = ref<HTMLElement>()
 const { indicatorStateMap } = useNoteLockIndicatorState(toRef(props, 'dataList'))
+const longPressEnabled = computed(() => {
+  return !props.disabledLongPress
+    && !showGlobalSearch.value
+    && !longPressMenuOpen.value
+    && !showMoveModal.value
+})
 
 const persistedExpandedStateKey = computed(() => {
   if (!props.expandedStateKey)
@@ -139,6 +147,7 @@ if (!props.disabledLongPress) {
     duration: 500,
     pressedClass: 'item-long-press',
     isDesktop: isDesktop.value,
+    enabled: longPressEnabled,
     onItemLongPress: async (element) => {
       const id = element.getAttribute('data-id')
       if (id && !['allnotes', 'deleted', 'unfilednotes'].includes(id)) {

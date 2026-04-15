@@ -7,6 +7,7 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import { useRoute, useRouter } from 'vue-router'
 import { useNote } from '@/entities/note'
 import AiChatPanel, { useAiChat } from '@/features/ai-chat'
+import { cleanupIonicOverlayLocks } from '@/shared/lib/ionic'
 import NoteList from '@/widgets/note-list'
 import { toSearchResultNodes } from '../lib/search-results'
 import {
@@ -40,9 +41,14 @@ const route = useRoute()
 const router = useRouter()
 const SURFACE_TRANSITION_MS = 320
 const CONTENT_TRANSITION_MS = 220
+const TEXTAREA_MAX_ROWS = 3
+const FIELD_SHELL_MIN_HEIGHT = 44
+const FIELD_SHELL_VERTICAL_PADDING = 12
+const FIELD_SHELL_BORDER_WIDTH = 2
 
 const dockRef = ref<HTMLDivElement>()
-const inputRef = ref<HTMLInputElement>()
+const fieldShellRef = ref<HTMLDivElement>()
+const inputRef = ref<HTMLTextAreaElement>()
 const isComposing = ref(false)
 const state = reactive({
   notes: [] as Note[],
@@ -50,6 +56,7 @@ const state = reactive({
   panelTop: 0,
   panelWidth: 0,
   panelHeight: 0,
+  panelBottomInset: 0,
 })
 
 let searchRequestId = 0
@@ -64,7 +71,6 @@ const currentPlaceholder = computed(() => isSearchMode.value ? '搜索' : '发�
 const currentToggleLabel = computed(() => isSearchMode.value ? '切换到 AI 对话' : '切换到全局搜索')
 const currentEnterKeyHint = computed(() => isSearchMode.value ? 'search' : 'send')
 const currentInputMode = computed(() => isSearchMode.value ? 'search' : 'text')
-const currentInputType = computed(() => isSearchMode.value ? 'search' : 'text')
 const currentActionIcon = computed(() => isAiBusy.value ? stopCircleOutline : arrowUpOutline)
 const currentActionLabel = computed(() => isAiBusy.value ? '停止生成' : '发送消息')
 const searchResults = computed(() => toSearchResultNodes(state.notes))
@@ -93,6 +99,7 @@ const panelStyle = computed(() => ({
   width: `${state.panelWidth}px`,
   height: `${state.panelHeight}px`,
   minHeight: `${state.panelHeight}px`,
+  '--global-search-panel-bottom-inset': `${state.panelBottomInset}px`,
 }))
 
 if (!hasRouteSearchOverlay.value) {
@@ -101,6 +108,8 @@ if (!hasRouteSearchOverlay.value) {
 
 function activateSearch(options: { syncRoute?: boolean } = {}) {
   const { syncRoute = true } = options
+
+  cleanupIonicOverlayLocks()
 
   if (showGlobalSearch.value && showGlobalSearchState.value !== 'hide') {
     updateLayout()
@@ -151,6 +160,55 @@ function focusInput() {
   })
 }
 
+function syncInputHeight() {
+  const textarea = inputRef.value
+  if (!textarea) {
+    return
+  }
+
+  const shell = fieldShellRef.value
+  const previousInputHeight = textarea.getBoundingClientRect().height || 32
+  const previousShellHeight = shell?.getBoundingClientRect().height || FIELD_SHELL_MIN_HEIGHT
+
+  textarea.style.height = 'auto'
+
+  const styles = window.getComputedStyle(textarea)
+  const lineHeight = Number.parseFloat(styles.lineHeight) || 22
+  const paddingTop = Number.parseFloat(styles.paddingTop) || 0
+  const paddingBottom = Number.parseFloat(styles.paddingBottom) || 0
+  const borderTop = Number.parseFloat(styles.borderTopWidth) || 0
+  const borderBottom = Number.parseFloat(styles.borderBottomWidth) || 0
+  const maxHeight = lineHeight * TEXTAREA_MAX_ROWS + paddingTop + paddingBottom + borderTop + borderBottom
+  const nextHeight = Math.min(textarea.scrollHeight, maxHeight)
+  const nextShellHeight = Math.max(
+    FIELD_SHELL_MIN_HEIGHT,
+    Math.ceil(nextHeight + FIELD_SHELL_VERTICAL_PADDING + FIELD_SHELL_BORDER_WIDTH),
+  )
+
+  textarea.style.height = `${previousInputHeight}px`
+  if (shell) {
+    shell.style.height = `${previousShellHeight}px`
+  }
+
+  // Force a layout read so the browser can animate between concrete heights.
+  void textarea.offsetHeight
+
+  textarea.style.height = `${nextHeight}px`
+  if (shell) {
+    shell.style.height = `${nextShellHeight}px`
+  }
+  textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden'
+
+  if (typeof requestAnimationFrame === 'undefined') {
+    updateLayout()
+    return
+  }
+
+  requestAnimationFrame(() => {
+    updateLayout()
+  })
+}
+
 function resolvePanelContainer() {
   const desktopSidebar = dockRef.value?.closest('.note-desktop') as HTMLElement | null
   if (desktopSidebar) {
@@ -171,18 +229,19 @@ function updateLayout() {
     state.panelTop = 0
     state.panelWidth = viewportWidth
     state.panelHeight = viewportHeight
+    state.panelBottomInset = dockRect
+      ? Math.max(0, viewportHeight - dockRect.top)
+      : 0
     return
   }
 
   state.panelLeft = containerRect.left
   state.panelTop = containerRect.top
   state.panelWidth = containerRect.width
-
-  const panelBottom = dockRect
-    ? Math.min(dockRect.top, containerRect.bottom)
-    : containerRect.bottom
-
-  state.panelHeight = Math.max(0, panelBottom - containerRect.top)
+  state.panelHeight = Math.max(0, containerRect.height)
+  state.panelBottomInset = dockRect
+    ? Math.max(0, containerRect.bottom - Math.min(dockRect.top, containerRect.bottom))
+    : 0
 }
 
 async function runSearch(searchText: string) {
@@ -222,15 +281,17 @@ function applySearchKeyword(value: string) {
 
 function handleCompositionEnd(event: CompositionEvent) {
   isComposing.value = false
-  const value = (event.target as HTMLInputElement | null)?.value || ''
+  const value = (event.target as HTMLTextAreaElement | null)?.value || ''
   if (!isSearchMode.value) {
     aiDraft.value = value
     activateSearch({ syncRoute: false })
+    void nextTick(syncInputHeight)
     return
   }
 
   applySearchKeyword(value)
   void runSearch(value)
+  void nextTick(syncInputHeight)
 }
 
 function onFocus() {
@@ -319,8 +380,10 @@ function onCancel() {
 }
 
 function onInput(event: Event) {
-  const target = event.target as HTMLInputElement | null
+  const target = event.target as HTMLTextAreaElement | null
   const value = target?.value || ''
+
+  syncInputHeight()
 
   if (
     isComposing.value
@@ -350,6 +413,7 @@ function onClear() {
     aiDraft.value = ''
     activateSearch({ syncRoute: false })
   }
+  void nextTick(syncInputHeight)
   focusInput()
 }
 
@@ -368,6 +432,10 @@ function onKeydown(event: KeyboardEvent) {
     return
   }
 
+  if (!event.metaKey && !event.ctrlKey) {
+    return
+  }
+
   event.preventDefault()
   void onAiAction()
 }
@@ -375,6 +443,7 @@ function onKeydown(event: KeyboardEvent) {
 function handleAiPrefill(value: string) {
   aiDraft.value = value
   activateSearch({ syncRoute: false })
+  void nextTick(syncInputHeight)
   focusInput()
 }
 
@@ -424,8 +493,17 @@ watch(hasRouteSearchOverlay, (visible, previousVisible) => {
   }
 }, { immediate: true })
 
+watch(currentDraft, () => {
+  void nextTick(syncInputHeight)
+})
+
+watch(isSearchMode, () => {
+  void nextTick(syncInputHeight)
+})
+
 onMounted(() => {
   updateLayout()
+  syncInputHeight()
   window.addEventListener('resize', handleViewportChange)
 })
 
@@ -447,6 +525,13 @@ onUnmounted(() => {
 <template>
   <div ref="dockRef" class="global-search">
     <div class="global-search__dock">
+      <div
+        v-if="!showGlobalSearch"
+        class="global-search__slot-button"
+      >
+        <slot name="leading" :panel-visible="showGlobalSearch" />
+      </div>
+
       <button
         v-if="showGlobalSearch"
         type="button"
@@ -460,6 +545,7 @@ onUnmounted(() => {
 
       <div class="global-search__field">
         <div
+          ref="fieldShellRef"
           :class="{ 'global-search__field-shell--panel-visible': shouldCollapseFieldIcon }"
           class="global-search__field-shell"
         >
@@ -467,21 +553,22 @@ onUnmounted(() => {
             :icon="currentFieldIcon"
             class="global-search__search-icon"
           />
-          <input
+          <textarea
             ref="inputRef"
             :value="currentDraft"
-            :type="currentInputType"
             :inputmode="currentInputMode"
             :enterkeyhint="currentEnterKeyHint"
             autocomplete="off"
             :placeholder="currentPlaceholder"
+            rows="1"
+            spellcheck="false"
             class="global-search__input"
             @focus="onFocus"
             @input="onInput"
             @keydown="onKeydown"
             @compositionstart="handleCompositionStart"
             @compositionend="handleCompositionEnd"
-          >
+          />
           <button
             v-if="isSearchMode && hasInputValue"
             type="button"
@@ -512,6 +599,13 @@ onUnmounted(() => {
       >
         <IonIcon :icon="closeOutline" />
       </button>
+
+      <div
+        v-if="!showGlobalSearch"
+        class="global-search__slot-button"
+      >
+        <slot name="trailing" :panel-visible="showGlobalSearch" />
+      </div>
     </div>
 
     <div
@@ -567,7 +661,7 @@ onUnmounted(() => {
 <style lang="scss">
 .global-search {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   min-height: 44px;
   padding: 0;
   position: relative;
@@ -575,7 +669,7 @@ onUnmounted(() => {
 
   &__dock {
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     gap: 12px;
     width: 100%;
     min-height: 44px;
@@ -583,12 +677,16 @@ onUnmounted(() => {
     z-index: 2;
   }
 
+  &__slot-button {
+    display: contents;
+  }
+
   &__field {
     position: relative;
     flex: 1;
     min-width: 0;
     display: flex;
-    align-items: center;
+    align-items: flex-end;
   }
 
   &__field-shell {
@@ -599,15 +697,19 @@ onUnmounted(() => {
     gap: 8px;
     height: 44px;
     min-height: 44px;
-    padding: 0 12px;
-    border-radius: 9999px;
+    padding: 6px 12px;
+    border-radius: 24px;
     border: 1px solid rgba(255, 255, 255, 0.18);
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.08)), rgba(20, 20, 24, 0.12);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.22),
       0 12px 30px rgba(0, 0, 0, 0.14);
     overflow: hidden;
-    transition: gap 180ms ease;
+    transition:
+      height 180ms ease,
+      gap 180ms ease,
+      border-radius 180ms ease,
+      box-shadow 180ms ease;
     backdrop-filter: blur(28px) saturate(180%);
     -webkit-backdrop-filter: blur(28px) saturate(180%);
   }
@@ -647,23 +749,35 @@ onUnmounted(() => {
   &__input {
     flex: 1;
     min-width: 0;
-    height: 44px;
+    height: 32px;
+    min-height: 32px;
+    max-height: calc(22px * 3 + 12px);
     border: 0;
-    padding: 0;
+    padding: 5px 0;
     background: transparent;
     color: #f5f5f7;
     font-size: 16px;
+    line-height: 22px;
     outline: none;
     appearance: none;
     -webkit-appearance: none;
+    resize: none;
+    overflow-y: hidden;
+    field-sizing: content;
+    transition: height 180ms ease;
   }
 
   &__input::placeholder {
     color: #8e8e93;
   }
 
-  &__input::-webkit-search-cancel-button {
-    display: none;
+  &__input::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  &__input::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.2);
   }
 
   &__clear-button {
@@ -706,33 +820,41 @@ onUnmounted(() => {
     z-index: 1;
     padding: 0;
     overflow: hidden;
+    pointer-events: auto;
   }
 
   &__panel-surface {
+    position: relative;
     display: flex;
     flex-direction: column;
     height: 100%;
     min-height: 0;
     overflow: hidden;
     border-radius: 0;
-    background: rgba(10, 10, 12, 0.08);
+    isolation: isolate;
+    background: transparent;
     border: 0;
     box-shadow: none;
+    max-height: none;
+  }
+
+  &__panel-surface::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background: rgba(10, 10, 12, 0.08);
     backdrop-filter: blur(0) saturate(100%);
     -webkit-backdrop-filter: blur(0) saturate(100%);
-    max-height: none;
     transition:
       background-color 320ms ease,
-      border-color 320ms ease,
-      box-shadow 320ms ease,
       backdrop-filter 320ms ease,
       -webkit-backdrop-filter 320ms ease;
   }
 
-  &__panel-surface--active {
+  &__panel-surface--active::before {
     background: rgba(10, 10, 12, 0.38);
-    border-color: transparent;
-    box-shadow: none;
     backdrop-filter: blur(26px) saturate(150%);
     -webkit-backdrop-filter: blur(26px) saturate(150%);
   }
@@ -759,10 +881,15 @@ onUnmounted(() => {
   }
 
   &__panel-body {
+    position: relative;
+    z-index: 1;
     display: flex;
     flex: 1;
     flex-direction: column;
     min-height: 0;
+    box-sizing: border-box;
+    padding-bottom: var(--global-search-panel-bottom-inset, 0px);
+    overflow: hidden;
     opacity: 0;
     transition: opacity 220ms ease;
   }
@@ -775,12 +902,13 @@ onUnmounted(() => {
     flex: 1;
     min-height: 0;
     --background: transparent;
-    --padding-bottom: calc(88px + env(safe-area-inset-bottom));
+    --padding-bottom: 0px;
   }
 
   &__ai-panel {
     flex: 1;
     min-height: 0;
+    overflow: hidden;
   }
 
   &__empty {

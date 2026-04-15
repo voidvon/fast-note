@@ -1,7 +1,7 @@
 import type { Gesture } from '@ionic/vue'
-import type { DefineComponent, Ref } from 'vue'
+import type { ComputedRef, DefineComponent, Ref } from 'vue'
 import { createGesture } from '@ionic/vue'
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 interface LongPressListOptions {
   duration?: number
@@ -11,6 +11,7 @@ interface LongPressListOptions {
   onItemClick?: (element: HTMLElement, event: MouseEvent) => void
   pressedClass?: string
   isDesktop?: boolean
+  enabled?: Ref<boolean> | ComputedRef<boolean>
 }
 
 export function useIonicLongPressList(
@@ -25,14 +26,19 @@ export function useIonicLongPressList(
     onItemClick,
     pressedClass = 'long-press-active',
     isDesktop = false,
+    enabled,
   } = options
 
   const isLongPressing = ref(false)
   const longPressTriggered = ref(false)
   const currentTarget = ref<HTMLElement | null>(null)
+  let pendingLongPressTarget: HTMLElement | null = null
+  let pendingLongPressEvent: UIEvent | undefined
 
   let gesture: Gesture | undefined
   let longPressTimeout: number | undefined
+
+  const isEnabled = () => enabled?.value ?? true
 
   const findItemElement = (event: Event): HTMLElement | null => {
     if (!event || !event.target)
@@ -63,10 +69,35 @@ export function useIonicLongPressList(
     isLongPressing.value = false
   }
 
+  const resetPendingLongPress = () => {
+    pendingLongPressTarget = null
+    pendingLongPressEvent = undefined
+  }
+
+  const triggerPendingLongPress = () => {
+    const target = pendingLongPressTarget
+    const event = pendingLongPressEvent
+
+    resetPendingLongPress()
+
+    if (!target) {
+      return
+    }
+
+    window.setTimeout(() => {
+      onItemLongPress(target, event)
+    }, 0)
+  }
+
   const handleClick = (event: MouseEvent) => {
+    if (!isEnabled()) {
+      return
+    }
+
     if (longPressTriggered.value) {
       event.stopImmediatePropagation()
       event.preventDefault()
+      longPressTriggered.value = false
       return
     }
 
@@ -76,6 +107,10 @@ export function useIonicLongPressList(
   }
 
   const handleContextMenu = (event: MouseEvent) => {
+    if (!isEnabled()) {
+      return
+    }
+
     const itemElement = findItemElement(event)
     if (itemElement) {
       event.preventDefault()
@@ -100,7 +135,12 @@ export function useIonicLongPressList(
       gestureName: 'long-press-list',
 
       onStart: (detail) => {
+        if (!isEnabled()) {
+          return
+        }
+
         longPressTriggered.value = false
+        resetPendingLongPress()
         const itemElement = findItemElement(detail.event)
         if (!itemElement)
           return
@@ -118,7 +158,8 @@ export function useIonicLongPressList(
         longPressTimeout = window.setTimeout(() => {
           if (currentTarget.value === itemElement) {
             longPressTriggered.value = true
-            onItemLongPress(itemElement, detail.event)
+            pendingLongPressTarget = itemElement
+            pendingLongPressEvent = detail.event
           }
         }, duration)
 
@@ -127,6 +168,11 @@ export function useIonicLongPressList(
       },
 
       onMove: (detail) => {
+        if (!isEnabled()) {
+          cancelLongPress()
+          return
+        }
+
         if (!isLongPressing.value || !currentTarget.value)
           return
 
@@ -138,18 +184,29 @@ export function useIonicLongPressList(
 
         if (moveDistance > maxMovePx) {
           cancelLongPress()
+          resetPendingLongPress()
+          longPressTriggered.value = false
         }
       },
 
-      onEnd: cancelLongPress,
-      onCancel: cancelLongPress,
+      onEnd: () => {
+        cancelLongPress()
+        triggerPendingLongPress()
+      },
+      onCancel: () => {
+        cancelLongPress()
+        resetPendingLongPress()
+        longPressTriggered.value = false
+      },
     })
 
-    gesture.enable(true)
+    gesture.enable(isEnabled())
   }
 
   const cleanupLongPressGesture = () => {
     cancelLongPress()
+    resetPendingLongPress()
+    longPressTriggered.value = false
 
     if (listRef.value?.$el) {
       listRef.value.$el.removeEventListener('click', handleClick, true)
@@ -164,6 +221,16 @@ export function useIonicLongPressList(
 
   onMounted(setupLongPressGesture)
   onBeforeUnmount(cleanupLongPressGesture)
+
+  watch(() => isEnabled(), (nextEnabled) => {
+    if (!nextEnabled) {
+      cancelLongPress()
+      resetPendingLongPress()
+      longPressTriggered.value = false
+    }
+
+    gesture?.enable(nextEnabled)
+  })
 
   return {
     isLongPressing,

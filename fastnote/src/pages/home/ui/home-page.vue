@@ -6,7 +6,6 @@ import type { FolderTreeNode, Note } from '@/shared/types'
 import {
   IonAlert,
   IonContent,
-  IonFooter,
   IonHeader,
   IonIcon,
   IonPage,
@@ -381,7 +380,7 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
       <IonToolbar />
     </IonHeader>
 
-    <IonContent :fullscreen="true">
+    <IonContent :fullscreen="true" :scroll-y="!showGlobalSearch">
       <IonRefresher slot="fixed" :disabled="showGlobalSearch" @ion-refresh="refresh($event)">
         <IonRefresherContent />
       </IonRefresher>
@@ -426,10 +425,10 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
         @selected="handleFolderSelected"
       />
     </IonContent>
-    <IonFooter class="home-footer ion-no-border">
-      <div class="home-footer__content">
+    <GlobalSearch class="home-global-search" :sync-with-route="!isDesktop">
+      <template #leading="{ panelVisible }">
         <button
-          v-if="!showGlobalSearch"
+          v-if="!panelVisible"
           id="add-folder"
           type="button"
           class="app-glass-circle-button"
@@ -437,17 +436,19 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
         >
           <IonIcon :icon="addOutline" />
         </button>
-        <GlobalSearch :sync-with-route="!isDesktop" />
+      </template>
+
+      <template #trailing="{ panelVisible }">
         <button
-          v-if="!showGlobalSearch"
+          v-if="!panelVisible"
           type="button"
           class="app-glass-circle-button"
           @click="handleFooterCreateAction"
         >
           <IonIcon :icon="createOutline" />
         </button>
-      </div>
-    </IonFooter>
+      </template>
+    </GlobalSearch>
     <IonAlert
       :is-open="showAddFolderAlert"
       :keyboard-close="false"
@@ -560,33 +561,14 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
   font-size: 13px;
 }
 
-.home-footer {
-  --background: transparent;
-  background: transparent;
-  box-shadow: none;
-  position: relative;
-  z-index: 1100;
-  isolation: isolate;
-
-  &::before {
-    display: none;
-  }
-}
-
-.home-footer__content {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 44px;
-  padding: 0 12px 12px;
-  position: relative;
-  z-index: 1;
-  pointer-events: auto;
-}
-
-.home-footer__content > .global-search {
-  flex: 1;
+.home-global-search {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1300;
   width: 100%;
-  min-width: 0;
+  padding: 0 12px calc(12px + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 </style>

@@ -134,58 +134,61 @@ async function mountGlobalSearch() {
   })
 }
 
+function setupModuleMocks() {
+  vi.doMock('@/entities/note', () => ({
+    useNote: () => ({
+      searchNotesByParentId: vi.fn(async () => []),
+    }),
+  }))
+
+  vi.doMock('@/widgets/note-list', () => ({
+    default: defineComponent({
+      name: 'NoteListStub',
+      template: '<div class="note-list-stub" />',
+    }),
+  }))
+
+  vi.doMock('vue-router', async () => {
+    const actual = await vi.importActual<typeof import('vue-router')>('vue-router')
+    return {
+      ...actual,
+      useRoute: () => ({
+        path: '/home',
+        query: {},
+        hash: '',
+      }),
+      useRouter: () => ({
+        push: vi.fn(),
+        replace: vi.fn(),
+        back: vi.fn(),
+      }),
+    }
+  })
+
+  vi.doMock('@ionic/vue', () => ({
+    IonButton: createButtonStub('IonButton'),
+    IonButtons: createIonicStub('IonButtons'),
+    IonChip: createIonicStub('IonChip'),
+    IonContent: createIonicStub('IonContent'),
+    IonAlert: createModalStub('IonAlert'),
+    IonIcon: createIonicStub('IonIcon'),
+    IonInput: createInputStub('IonInput'),
+    IonItem: createIonicStub('IonItem'),
+    IonLabel: createIonicStub('IonLabel', 'span'),
+    IonList: createIonicStub('IonList'),
+    IonModal: createModalStub('IonModal'),
+    IonNote: createIonicStub('IonNote', 'span'),
+    IonSpinner: createIonicStub('IonSpinner', 'span'),
+    IonHeader: createIonicStub('IonHeader'),
+    IonToolbar: createIonicStub('IonToolbar'),
+    IonTitle: createIonicStub('IonTitle', 'span'),
+  }))
+}
+
 describe('global search ai chat', () => {
   beforeEach(() => {
     vi.resetModules()
-
-    vi.doMock('@/entities/note', () => ({
-      useNote: () => ({
-        searchNotesByParentId: vi.fn(async () => []),
-      }),
-    }))
-
-    vi.doMock('@/widgets/note-list', () => ({
-      default: defineComponent({
-        name: 'NoteListStub',
-        template: '<div class="note-list-stub" />',
-      }),
-    }))
-
-    vi.doMock('vue-router', async () => {
-      const actual = await vi.importActual<typeof import('vue-router')>('vue-router')
-      return {
-        ...actual,
-        useRoute: () => ({
-          path: '/home',
-          query: {},
-          hash: '',
-        }),
-        useRouter: () => ({
-          push: vi.fn(),
-          replace: vi.fn(),
-          back: vi.fn(),
-        }),
-      }
-    })
-
-    vi.doMock('@ionic/vue', () => ({
-      IonButton: createButtonStub('IonButton'),
-      IonButtons: createIonicStub('IonButtons'),
-      IonChip: createIonicStub('IonChip'),
-      IonContent: createIonicStub('IonContent'),
-      IonAlert: createModalStub('IonAlert'),
-      IonIcon: createIonicStub('IonIcon'),
-      IonInput: createInputStub('IonInput'),
-      IonItem: createIonicStub('IonItem'),
-      IonLabel: createIonicStub('IonLabel', 'span'),
-      IonList: createIonicStub('IonList'),
-      IonModal: createModalStub('IonModal'),
-      IonNote: createIonicStub('IonNote', 'span'),
-      IonSpinner: createIonicStub('IonSpinner', 'span'),
-      IonHeader: createIonicStub('IonHeader'),
-      IonToolbar: createIonicStub('IonToolbar'),
-      IonTitle: createIonicStub('IonTitle', 'span'),
-    }))
+    setupModuleMocks()
   })
 
   afterEach(async () => {
@@ -207,7 +210,7 @@ describe('global search ai chat', () => {
 
   it('shows configuration card in ai mode when provider settings are missing', async () => {
     const wrapper = await mountGlobalSearch()
-    const input = wrapper.get('input')
+    const input = wrapper.get('textarea')
 
     await input.trigger('focus')
     await nextTick()
@@ -255,7 +258,7 @@ describe('global search ai chat', () => {
     })
 
     const wrapper = await mountGlobalSearch()
-    const input = wrapper.get('input')
+    const input = wrapper.get('textarea')
 
     await input.trigger('focus')
     await wrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
@@ -273,6 +276,55 @@ describe('global search ai chat', () => {
     wrapper.unmount()
   })
 
+  it('sends ai message with ctrl enter while keeping textarea input', async () => {
+    const fetchMock = vi.fn(async () => createSseResponse([
+      JSON.stringify({
+        choices: [{
+          delta: {
+            role: 'assistant',
+          },
+        }],
+      }),
+      JSON.stringify({
+        choices: [{
+          delta: {
+            content: '已通过快捷键发送。',
+          },
+          finish_reason: 'stop',
+        }],
+      }),
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { useAiChat } = await import('@/features/ai-chat')
+    useAiChat().saveSettings({
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4.1-mini',
+    })
+
+    const wrapper = await mountGlobalSearch()
+    const input = wrapper.get('textarea')
+
+    await input.trigger('focus')
+    await wrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
+    await nextTick()
+
+    await input.setValue('快捷发送')
+    await input.trigger('keydown', {
+      key: 'Enter',
+      ctrlKey: true,
+    })
+    await flushPromises()
+    await nextTick()
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('快捷发送')
+    expect(wrapper.text()).toContain('已通过快捷键发送。')
+
+    wrapper.unmount()
+  })
+
   it('clears ai input immediately after submit while response is still streaming', async () => {
     const pendingResponse = createPendingSseResponse()
     const fetchMock = vi.fn(async () => pendingResponse.response)
@@ -286,7 +338,7 @@ describe('global search ai chat', () => {
     })
 
     const wrapper = await mountGlobalSearch()
-    const input = wrapper.get('input')
+    const input = wrapper.get('textarea')
 
     await input.trigger('focus')
     await wrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
@@ -296,7 +348,7 @@ describe('global search ai chat', () => {
     const clickPromise = wrapper.get('button[aria-label="发送消息"]').trigger('click')
     await nextTick()
 
-    expect((input.element as HTMLInputElement).value).toBe('')
+    expect((input.element as HTMLTextAreaElement).value).toBe('')
 
     pendingResponse.close([
       JSON.stringify({
@@ -312,5 +364,65 @@ describe('global search ai chat', () => {
     await clickPromise
     await flushPromises()
     wrapper.unmount()
+  })
+
+  it('restores ai conversation from local storage after remount', async () => {
+    const fetchMock = vi.fn(async () => createSseResponse([
+      JSON.stringify({
+        choices: [{
+          delta: {
+            role: 'assistant',
+          },
+        }],
+      }),
+      JSON.stringify({
+        choices: [{
+          delta: {
+            content: '本地记录已恢复。',
+          },
+          finish_reason: 'stop',
+        }],
+      }),
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { useAiChat } = await import('@/features/ai-chat')
+    useAiChat().saveSettings({
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4.1-mini',
+    })
+
+    const firstWrapper = await mountGlobalSearch()
+    const firstInput = firstWrapper.get('textarea')
+
+    await firstInput.trigger('focus')
+    await firstWrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
+    await nextTick()
+
+    await firstInput.setValue('帮我记住这段对话')
+    await firstWrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(firstWrapper.text()).toContain('帮我记住这段对话')
+    expect(firstWrapper.text()).toContain('本地记录已恢复。')
+    firstWrapper.unmount()
+
+    vi.resetModules()
+    setupModuleMocks()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const restoredWrapper = await mountGlobalSearch()
+    const restoredInput = restoredWrapper.get('textarea')
+
+    await restoredInput.trigger('focus')
+    await restoredWrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
+    await nextTick()
+
+    expect(restoredWrapper.text()).toContain('帮我记住这段对话')
+    expect(restoredWrapper.text()).toContain('本地记录已恢复。')
+
+    restoredWrapper.unmount()
   })
 })

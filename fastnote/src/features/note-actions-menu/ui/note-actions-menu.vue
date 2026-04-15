@@ -4,6 +4,7 @@ import type { Note } from '@/entities/note'
 import { alertController, IonItem, IonLabel, IonList, IonModal } from '@ionic/vue'
 import { ref, watch } from 'vue'
 import { NOTE_TYPE } from '@/entities/note'
+import { cleanupIonicOverlayLocksAsync } from '@/shared/lib/ionic'
 import { useNoteActionsMenu } from '../model/use-note-actions-menu'
 
 interface IConfig {
@@ -15,11 +16,12 @@ interface IConfig {
 
 const props = withDefaults(defineProps <{
   id: string
+  isOpen: boolean
   items: NoteActionMenuItem[]
   presentingElement?: HTMLElement
 }>(), {})
 
-const emit = defineEmits(['refresh', 'move'])
+const emit = defineEmits(['refresh', 'move', 'did-dismiss'])
 
 const { deleteNote, deleteNow, getNoteById, renameNote, restoreNote } = useNoteActionsMenu()
 
@@ -27,6 +29,11 @@ const modal = ref()
 const note = ref<Note | null>(null)
 
 const dismiss = () => modal.value.$el.dismiss()
+
+function handleDidDismiss() {
+  cleanupIonicOverlayLocksAsync()
+  emit('did-dismiss')
+}
 
 const config = ref<IConfig>({
   rename: {
@@ -115,15 +122,24 @@ const config = ref<IConfig>({
   },
 })
 
-watch(() => props.id, () => {
-  if (props.id) {
+watch(() => [props.id, props.isOpen], () => {
+  if (props.id && props.isOpen) {
     note.value = getNoteById(props.id)
+  }
+  else if (!props.isOpen) {
+    note.value = null
   }
 })
 </script>
 
 <template>
-  <IonModal v-bind="$attrs" id="long-press-menu" ref="modal">
+  <IonModal
+    ref="modal"
+    :is-open="isOpen"
+    :focus-trap="false"
+    id="long-press-menu"
+    @did-dismiss="handleDidDismiss"
+  >
     <div class="long-press-menu">
       <IonList lines="none">
         <IonItem v-for="d in $props.items" :key="d.type" :button="true" :detail="false" @click="config[d.type].handler">
@@ -139,7 +155,31 @@ ion-modal#long-press-menu {
   --width: fit-content;
   --min-width: 250px;
   --height: fit-content;
-  --border-radius: 6px;
+  --border-radius: 14px;
   --box-shadow: 0 28px 48px rgba(0, 0, 0, 0.4);
+}
+
+.long-press-menu {
+  overflow: hidden;
+  border-radius: 14px;
+  background: rgba(20, 20, 24, 0.94);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+}
+
+.long-press-menu :deep(.list-ios),
+.long-press-menu :deep(.list-md) {
+  padding: 0;
+  background: transparent;
+}
+
+.long-press-menu :deep(ion-item) {
+  --background: transparent;
+  --border-width: 0;
+  --inner-border-width: 0;
+  --padding-start: 16px;
+  --inner-padding-end: 16px;
+  min-height: 48px;
+  color: #f5f5f7;
 }
 </style>

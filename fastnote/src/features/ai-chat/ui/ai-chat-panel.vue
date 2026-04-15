@@ -50,19 +50,21 @@ const scrollTrackToken = computed(() => {
 
 watch(() => [scrollTrackToken.value, chat.status], async () => {
   await nextTick()
-  if (!threadRef.value) {
+
+  const thread = threadRef.value
+  if (!thread) {
     return
   }
 
-  if (typeof threadRef.value.scrollTo === 'function') {
-    threadRef.value.scrollTo({
-      top: threadRef.value.scrollHeight,
+  if (typeof thread.scrollTo === 'function') {
+    thread.scrollTo({
+      top: thread.scrollHeight,
       behavior: 'smooth',
     })
     return
   }
 
-  threadRef.value.scrollTop = threadRef.value.scrollHeight
+  thread.scrollTop = thread.scrollHeight
 }, { deep: true })
 
 watch(() => [settings.apiKey, settings.baseUrl, settings.model], () => {
@@ -169,17 +171,24 @@ function handleCloseSettings() {
 .ai-chat-panel {
   display: flex;
   flex: 1;
+  height: 100%;
   flex-direction: column;
   min-height: 0;
   padding: 16px;
   gap: 16px;
+  overflow: hidden;
 
   &__thread {
     display: flex;
-    flex: 1;
+    flex: 1 1 auto;
     min-height: 0;
+    overflow-x: hidden;
     overflow-y: auto;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: auto;
     padding-right: 4px;
+    box-sizing: border-box;
   }
 
   &__message-list {

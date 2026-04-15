@@ -2,9 +2,15 @@
 @use './ionic.scss';
 @use './var.scss';
 @use './var-class.scss';
-ion-content::part(scroll),
-* {
-  overscroll-behavior: none;
+html,
+body,
+ion-app,
+.ion-page {
+  overscroll-behavior-y: none;
+}
+
+ion-content::part(scroll) {
+  overscroll-behavior: auto;
 }
 
 @media (hover: hover) and (pointer: fine) {

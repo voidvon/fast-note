@@ -1,10 +1,11 @@
 import type { UIMessage } from 'ai'
 import type { OpenAiCompatibleChatSettings } from './openai-compatible-chat-transport'
 import { Chat } from '@ai-sdk/vue'
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { createScopedStorageKey } from '@/shared/lib/user-scope'
 import { OpenAiCompatibleChatTransport } from './openai-compatible-chat-transport'
 
+const AI_CHAT_CONVERSATION_STORAGE_KEY = 'ai-chat-conversation'
 const AI_CHAT_SETTINGS_STORAGE_KEY = 'ai-chat-settings'
 const DEFAULT_MODEL = 'gpt-4.1-mini'
 
@@ -13,6 +14,7 @@ const settingsState = reactive<OpenAiCompatibleChatSettings>({
   baseUrl: '',
   model: DEFAULT_MODEL,
 })
+const hasHydratedConversation = ref(false)
 const hasHydrated = ref(false)
 const showSettings = ref(false)
 
@@ -32,6 +34,10 @@ export type AiChatSessionPhase = 'error' | 'ready' | 'responding' | 'thinking' |
 
 function getStorageKey() {
   return createScopedStorageKey(AI_CHAT_SETTINGS_STORAGE_KEY)
+}
+
+function getConversationStorageKey() {
+  return createScopedStorageKey(AI_CHAT_CONVERSATION_STORAGE_KEY)
 }
 
 function getEnvDefaults(): OpenAiCompatibleChatSettings {
@@ -81,6 +87,76 @@ function persistSettings() {
   localStorage.setItem(getStorageKey(), JSON.stringify(settingsState))
 }
 
+function toPersistedMessages(messages: UIMessage[]) {
+  return messages
+    .filter((message): message is UIMessage & { role: AiChatViewMessage['role'] } => {
+      return message.role === 'user' || message.role === 'assistant'
+    })
+    .map(message => ({
+      id: message.id,
+      role: message.role,
+      text: getMessageText(message.parts),
+    }))
+}
+
+function hydrateConversation() {
+  if (hasHydratedConversation.value || typeof localStorage === 'undefined') {
+    hasHydratedConversation.value = true
+    return
+  }
+
+  const stored = localStorage.getItem(getConversationStorageKey())
+  if (!stored) {
+    hasHydratedConversation.value = true
+    return
+  }
+
+  try {
+    const parsed = JSON.parse(stored)
+    if (!Array.isArray(parsed)) {
+      localStorage.removeItem(getConversationStorageKey())
+      hasHydratedConversation.value = true
+      return
+    }
+
+    chat.messages = parsed
+      .filter((message): message is AiChatViewMessage => {
+        return !!message
+          && typeof message.id === 'string'
+          && (message.role === 'user' || message.role === 'assistant')
+          && typeof message.text === 'string'
+      })
+      .map(message => ({
+        id: message.id,
+        role: message.role,
+        parts: [{
+          type: 'text' as const,
+          text: message.text,
+          state: 'done' as const,
+        }],
+      }))
+  }
+  catch {
+    localStorage.removeItem(getConversationStorageKey())
+  }
+
+  hasHydratedConversation.value = true
+}
+
+function persistConversation() {
+  if (typeof localStorage === 'undefined') {
+    return
+  }
+
+  const messages = toPersistedMessages(chat.messages)
+  if (!messages.length) {
+    localStorage.removeItem(getConversationStorageKey())
+    return
+  }
+
+  localStorage.setItem(getConversationStorageKey(), JSON.stringify(messages))
+}
+
 function saveSettings(nextSettings: Partial<OpenAiCompatibleChatSettings>) {
   hydrateSettings()
   Object.assign(settingsState, normalizeSettings({
@@ -103,6 +179,7 @@ function resetSettings() {
 function clearConversation() {
   chat.messages = []
   chat.clearError()
+  persistConversation()
 }
 
 function getMessageText(parts: UIMessage['parts']) {
@@ -208,6 +285,7 @@ const statusText = computed(() => {
 
 async function sendMessage(text: string) {
   hydrateSettings()
+  hydrateConversation()
 
   const content = text.trim()
   if (!content) {
@@ -226,6 +304,7 @@ async function sendMessage(text: string) {
 
 export function useAiChat() {
   hydrateSettings()
+  hydrateConversation()
 
   return {
     chat,
@@ -252,3 +331,11 @@ export function useAiChat() {
     visibleMessages,
   }
 }
+
+watch(() => chat.messages, () => {
+  if (!hasHydratedConversation.value) {
+    return
+  }
+
+  persistConversation()
+}, { deep: true })
