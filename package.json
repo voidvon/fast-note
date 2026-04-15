@@ -1,0 +1,21 @@
+{
+  "name": "fastnote-workspace",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "install:frontend": "npm install --prefix fastnote",
+    "tidy:backend": "node scripts/go-backend.mjs mod tidy",
+    "dev": "node scripts/dev.mjs",
+    "dev:frontend": "npm --prefix fastnote run dev",
+    "dev:backend": "node scripts/go-backend.mjs run . serve",
+    "lint": "npm --prefix fastnote run lint",
+    "test:unit": "npm --prefix fastnote run test:unit",
+    "test:e2e": "npm --prefix fastnote run test:e2e",
+    "sync:web-assets": "node scripts/sync-web-assets.mjs",
+    "build": "npm run build:frontend && npm run build:backend",
+    "build:frontend": "npm --prefix fastnote run build",
+    "build:backend": "npm run sync:web-assets && node scripts/go-backend.mjs build ./...",
+    "release": "node scripts/release.mjs",
+    "release:local": "node scripts/release.mjs --current"
+  }
+}

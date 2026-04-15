@@ -1,0 +1,134 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <style>
+      body {
+        background-color: #777;
+      }
+      .container {
+        display: flex;
+        gap: 24px;
+      }
+      .list {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .list2 {
+        .item {
+          width: 420px;
+        }
+      }
+      .item {
+        width: 260px;
+        height: 36px;
+        border-radius: 4px;
+        text-align: center;
+        line-height: 36px;
+        color: #555;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="list">
+        <h3>黑夜 - 功能排序</h3>
+        <div class="item" style="background-color: #f2bc40"></div>
+        <div class="item" style="background-color: #fff"></div>
+        <div class="item" style="background-color: #000"></div>
+        <div class="item" style="background-color: #1c1c1e"></div>
+        <div class="item" style="background-color: #dcdcdc"></div>
+        <br />
+        <div class="item" style="background-color: #9798a0">搜索框 - placeholder文字</div>
+        <div class="item" style="background-color: #8e8d91">搜索框 - x</div>
+        <div class="item" style="background-color: #262529">搜索框 - 附件背景</div>
+        <br />
+        <div class="item" style="background-color: #99989e">列表 - 数量文字</div>
+        <div class="item" style="background-color: #9b9ca4">列表 - 简介文字</div>
+        <div class="item" style="background-color: #656468">列表 - 禁用文字</div>
+        <div class="item" style="background-color: #5b5a5e">列表 - 箭头</div>
+        <div class="item" style="background-color: #3c3b41">列表 - 分割线</div>
+        <div class="item" style="background-color: #3a3a3c">列表 - 锁定背景</div>
+        <br />
+        <div class="item" style="background-color: #dab13d">主色调 - primary</div>
+        <div class="item" style="background-color: #ea5546">主色调 - danger</div>
+        <br />
+        <div class="item" style="background-color: #202020">tooltip工具栏 - 背景</div>
+        <br />
+        <div class="item" style="background-color: #404040">固定工具栏 - 禁用</div>
+        <div class="item" style="background-color: #9fa0a8">固定工具栏/格式 - x</div>
+        <div class="item" style="background-color: #313034">固定工具栏/格式 - x背景</div>
+        <div class="item" style="background-color: #313034">固定工具栏/格式 - active 文字</div>
+        <br />
+        <div class="item" style="background-color: #222223">更多弹窗 - 背景</div>
+        <div class="item" style="background-color: #242426">更多弹窗 - ionItem 禁用背景</div>
+        <div class="item" style="background-color: #2c2c2e">更多弹窗 - ionItem 背景</div>
+        <div class="item" style="background-color: #3d3c40">更多弹窗 - ionItem active背景</div>
+        <div class="item" style="background-color: #f0a43c">更多菜单 - 置顶</div>
+        <div class="item" style="background-color: #3b82f5">更多菜单 - 扫描</div>
+        <div class="item" style="background-color: #a1a2aa">更多菜单 - x</div>
+        <div class="item" style="background-color: #363539">更多菜单 - x背景</div>
+      </div>
+      <div class="list list2">
+        <h3>黑夜 - 颜色排序</h3>
+        <h4>黄色系</h4>
+        <div class="item" style="background-color: #dab13d">yellow-500 (主色调 - primary)</div>
+        <div class="item" style="background-color: #f2bc40">yellow-300 (浅黄)</div>
+
+        <h4>红色系</h4>
+        <div class="item" style="background-color: #ea5546">red-500 (主色调 - danger)</div>
+
+        <h4>蓝色系</h4>
+        <div class="item" style="background-color: #3b82f5">blue-500 (更多菜单 - 扫描)</div>
+
+        <h4>灰色系 Gray</h4>
+        <h5>纯灰色系</h5>
+        <div class="item" style="background-color: #fff">gray-0 (白色)</div>
+        <div class="item" style="background-color: #dcdcdc">gray-100 (浅灰)</div>
+        <div class="item" style="background-color: #404040">gray-700 (中灰 - 固定工具栏 - 禁用)</div>
+        <div class="item" style="background-color: #202020">gray-900 (深灰 - tooltip工具栏 - 背景)</div>
+        <div class="item" style="background-color: #000">gray-1000 (黑色)</div>
+
+        <h5>偏蓝灰色系</h5>
+        <div class="item" style="background-color: #a1a2aa">blue-gray-300 (浅偏蓝灰 - 更多菜单/工具栏格式 - x)</div>
+        <div class="item" style="background-color: #9fa0a8; text-decoration: line-through">
+          固定工具栏/格式 - x [❌请用 blue-gray-300]
+        </div>
+        <div class="item" style="background-color: #9b9ca4">
+          blue-gray-400 (浅偏蓝灰 - 列表简介文字/搜索框placeholder)
+        </div>
+        <div class="item" style="background-color: #9798a0; text-decoration: line-through">
+          搜索框 - placeholder文字 [❌请用 blue-gray-400]
+        </div>
+        <div class="item" style="background-color: #3a3a3c">blue-gray-700 (深偏蓝灰 - 列表 - 锁定背景)</div>
+        <div class="item" style="background-color: #2c2c2e">blue-gray-800 (深偏蓝灰 - 更多弹窗 - ionItem 背景)</div>
+        <div class="item" style="background-color: #242426">
+          blue-gray-900 (深偏蓝灰 - 更多弹窗背景/ionItem 禁用背景)
+        </div>
+        <div class="item" style="background-color: #222223; text-decoration: line-through">
+          更多弹窗 - 背景 [❌请用 blue-gray-900]
+        </div>
+        <div class="item" style="background-color: #1c1c1e">blue-gray-950 (深偏蓝灰)</div>
+
+        <h5>偏紫灰色系</h5>
+        <div class="item" style="background-color: #99989e">purple-gray-350 (浅偏紫灰 - 列表 - 数量文字)</div>
+        <div class="item" style="background-color: #8e8d91">purple-gray-400 (浅偏紫灰 - 搜索框 - x)</div>
+        <div class="item" style="background-color: #656468">purple-gray-500 (中偏紫灰 - 列表 - 禁用文字)</div>
+        <div class="item" style="background-color: #5b5a5e">purple-gray-550 (中偏紫灰 - 列表 - 箭头)</div>
+        <div class="item" style="background-color: #3d3c40">
+          purple-gray-700 (深偏紫灰 - 更多弹窗active背景/列表分割线)
+        </div>
+        <div class="item" style="background-color: #3c3b41; text-decoration: line-through">
+          列表 - 分割线 [❌请用 purple-gray-700]
+        </div>
+        <div class="item" style="background-color: #363539">purple-gray-800 (深偏紫灰 - 更多菜单 - x背景)</div>
+        <div class="item" style="background-color: #313034">
+          purple-gray-850 (深偏紫灰 - 固定工具栏/格式 - active 文字)
+        </div>
+        <div class="item" style="background-color: #262529">purple-gray-900 (深偏紫灰 - 搜索框 - 附件背景)</div>
+      </div>
+    </div>
+  </body>
+</html>

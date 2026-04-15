@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebAuthn 生物识别测试</title>
+  </head>
+  <body>
+    <h1>WebAuthn 纯客户端生物识别测试</h1>
+    <p>本页面用于测试注册和解锁功能，所有数据保存在本地。</p>
+
+    <!-- 按钮：注册和解锁 -->
+    <button id="registerBtn">注册生物识别</button>
+    <button id="unlockBtn">解锁备忘录</button>
+
+    <!-- 显示结果 -->
+    <p id="result"></p>
+
+    <script>
+      // 使用 localStorage 存储凭据信息
+      const localAuth = {
+        // 生成随机挑战
+        generateChallenge: function () {
+          const challenge = new Uint8Array(32)
+          window.crypto.getRandomValues(challenge)
+          return challenge
+        },
+
+        // 保存凭据到 localStorage
+        saveCredential: function (credentialId, publicKey) {
+          const credentialIdBase64 = btoa(String.fromCharCode.apply(null, new Uint8Array(credentialId)))
+          localStorage.setItem('webauthn_credential_id', credentialIdBase64)
+          console.log('凭据已保存到本地存储')
+        },
+
+        // 从 localStorage 获取凭据
+        getCredentialId: function () {
+          const credentialIdBase64 = localStorage.getItem('webauthn_credential_id')
+          if (!credentialIdBase64) return null
+
+          const binary = atob(credentialIdBase64)
+          const bytes = new Uint8Array(binary.length)
+          for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i)
+          }
+          return bytes.buffer
+        },
+
+        // 检查是否已注册
+        isRegistered: function () {
+          return localStorage.getItem('webauthn_credential_id') !== null
+        },
+      }
+
+      // 注册生物识别
+      async function registerBiometrics() {
+        try {
+          // 检查WebAuthn支持
+          if (!window.PublicKeyCredential) {
+            throw new Error('此浏览器不支持WebAuthn')
+          }
+
+          const challenge = localAuth.generateChallenge()
+
+          const publicKeyCredentialCreationOptions = {
+            challenge: challenge,
+            rp: {
+              name: 'WebAuthn本地测试',
+              id: window.location.hostname,
+            },
+            user: {
+              id: new Uint8Array([1, 2, 3, 4]), // 简化的固定用户ID
+              name: 'local-user',
+              displayName: '本地用户',
+            },
+            pubKeyCredParams: [{ alg: -7, type: 'public-key' }],
+            authenticatorSelection: {
+              authenticatorAttachment: 'platform', // 使用平台认证器(指纹/人脸等)
+              userVerification: 'required',
+            },
+            timeout: 60000,
+          }
+
+          const credential = await navigator.credentials.create({
+            publicKey: publicKeyCredentialCreationOptions,
+          })
+
+          // 保存凭据ID到本地存储
+          localAuth.saveCredential(credential.rawId, credential.id)
+
+          document.getElementById('result').innerText = '生物识别注册成功！'
+          console.log('注册成功：', credential)
+        } catch (err) {
+          console.error('注册失败:', err)
+          document.getElementById('result').innerText = `注册失败: ${err.message}`
+        }
+      }
+
+      // 解锁备忘录
+      async function unlockMemo() {
+        try {
+          // 检查是否已注册
+          if (!localAuth.isRegistered()) {
+            throw new Error('请先注册生物识别')
+          }
+
+          const challenge = localAuth.generateChallenge()
+          const credentialId = localAuth.getCredentialId()
+
+          const publicKeyCredentialRequestOptions = {
+            challenge: challenge,
+            allowCredentials: [
+              {
+                id: credentialId,
+                type: 'public-key',
+              },
+            ],
+            userVerification: 'required',
+            timeout: 60000,
+          }
+
+          const assertion = await navigator.credentials.get({
+            publicKey: publicKeyCredentialRequestOptions,
+          })
+
+          document.getElementById('result').innerText = '验证成功，备忘录已解锁！'
+          console.log('解锁成功：', assertion)
+        } catch (err) {
+          console.error('解锁失败:', err)
+          document.getElementById('result').innerText = `解锁失败: ${err.message}`
+        }
+      }
+
+      // 绑定按钮事件
+      document.getElementById('registerBtn').addEventListener('click', registerBiometrics)
+      document.getElementById('unlockBtn').addEventListener('click', unlockMemo)
+    </script>
+  </body>
+</html>

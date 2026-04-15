@@ -1,0 +1,16 @@
+ion-footer {
+  .title-default {
+    font-size: 0.75rem;
+  }
+}
+
+ion-searchbar {
+  &.sc-ion-searchbar-ios-h {
+    --background: var(--c-blue-gray-950);
+    min-height: initial;
+    padding-top: 0;
+    padding-bottom: 0;
+    padding-inline-start: 16px;
+    padding-inline-end: 16px;
+  }
+}

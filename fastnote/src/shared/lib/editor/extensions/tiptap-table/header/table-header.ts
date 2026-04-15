@@ -1,0 +1,50 @@
+/* eslint-disable perfectionist/sort-imports, unicorn/prefer-number-properties */
+import '../types'
+
+import { mergeAttributes, Node } from '@tiptap/core'
+
+export interface TableHeaderOptions {
+  HTMLAttributes: Record<string, any>
+}
+
+export const TableHeader = Node.create<TableHeaderOptions>({
+  name: 'tableHeader',
+
+  addOptions() {
+    return {
+      HTMLAttributes: {},
+    }
+  },
+
+  content: 'block+',
+
+  addAttributes() {
+    return {
+      colspan: {
+        default: 1,
+      },
+      rowspan: {
+        default: 1,
+      },
+      colwidth: {
+        default: null,
+        parseHTML: (element: HTMLElement) => {
+          const colwidth = element.getAttribute('colwidth')
+          return colwidth ? colwidth.split(',').map(width => parseInt(width, 10)) : null
+        },
+      },
+    }
+  },
+
+  tableRole: 'header_cell',
+
+  isolating: true,
+
+  parseHTML() {
+    return [{ tag: 'th' }]
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return ['th', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0]
+  },
+})

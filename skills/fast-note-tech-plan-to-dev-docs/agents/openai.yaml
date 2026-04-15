@@ -1,0 +1,4 @@
+interface:
+  display_name: 开发落地计划转换
+  short_description: 将功能拆分与技术方案转换为3份可执行开发文档。
+  default_prompt: 'Use $fast-note-tech-plan-to-dev-docs to convert docs under docs/功能拆分与技术方案/ into 3 execution docs under docs/开发计划/: 迭代计划与任务看板.md, 组件与数据契约清单.md, and 测试与发布计划.md.'

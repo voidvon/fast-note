@@ -1,0 +1,13 @@
+/* For information on how to create your own theme, please see:
+http://ionicframework.com/docs/theming/ */
+
+:root {
+  --ion-color-primary: theme('colors.primary');
+}
+
+.dark,
+[data-theme='dark'] {
+  /* 主色系 */
+  --ion-color-primary: theme('colors.primary');
+  --ion-color-danger: theme('colors.danger');
+}

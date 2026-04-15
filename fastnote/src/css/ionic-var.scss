@@ -1,0 +1,8 @@
+@media (prefers-color-scheme: dark) {
+  :root.ios {
+    --ion-item-background: var(--c-blue-gray-950);
+  }
+  ion-button {
+    --background-activated: var(--primary);
+  }
+}
