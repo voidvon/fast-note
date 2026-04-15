@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import type { Note } from '@/entities/note'
+import type { AiChatRequestContext } from '@/features/ai-chat/model/request-context'
+import type { ChatMessageCardAction } from '@/shared/ui/chat-message'
 import { IonContent, IonIcon } from '@ionic/vue'
 import { useDebounceFn } from '@vueuse/core'
 import { arrowUpOutline, closeCircle, closeOutline, searchOutline, sparklesOutline, stopCircleOutline } from 'ionicons/icons'
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useNote } from '@/entities/note'
+import { NOTE_TYPE, useNote } from '@/entities/note'
+import { toAiChatContextNote } from '@/features/ai-chat/model/request-context'
 import AiChatPanel, { useAiChat } from '@/features/ai-chat'
+import { useDesktopActiveNote } from '@/processes/navigation/model/use-desktop-active-note'
 import { cleanupIonicOverlayLocks } from '@/shared/lib/ionic'
 import NoteList from '@/widgets/note-list'
 import { toSearchResultNodes } from '../lib/search-results'
@@ -26,6 +30,10 @@ const props = withDefaults(defineProps<{
   puuid: null,
   syncWithRoute: false,
 })
+const emit = defineEmits<{
+  openFolder: [payload: { folderId: string, parentId?: string }]
+  openNote: [payload: { isDeleted?: boolean, noteId: string, parentId?: string }]
+}>()
 
 const {
   aiDraft,
@@ -35,8 +43,9 @@ const {
   showGlobalSearch,
   showGlobalSearchState,
 } = useGlobalSearch()
-const { searchNotesByParentId } = useNote()
+const { getNote, notes, searchNotesByParentId } = useNote()
 const { chat, isBusy: isAiBusy, sendMessage: sendAiMessage } = useAiChat()
+const { getSnapshot } = useDesktopActiveNote()
 const route = useRoute()
 const router = useRouter()
 const SURFACE_TRANSITION_MS = 320
@@ -101,6 +110,65 @@ const panelStyle = computed(() => ({
   minHeight: `${state.panelHeight}px`,
   '--global-search-panel-bottom-inset': `${state.panelBottomInset}px`,
 }))
+const recentContextNotes = computed(() => {
+  return notes.value
+    .filter(note => note.item_type === NOTE_TYPE.NOTE && note.is_deleted === 0)
+    .slice()
+    .sort((left, right) => new Date(right.updated).getTime() - new Date(left.updated).getTime())
+    .slice(0, 5)
+    .map(note => toAiChatContextNote(note))
+    .filter((note): note is NonNullable<ReturnType<typeof toAiChatContextNote>> => !!note)
+})
+
+function resolveRouteNoteId() {
+  const routeNoteId = Array.isArray(route.params?.id)
+    ? route.params.id[0]
+    : route.params?.id
+
+  return typeof routeNoteId === 'string' && routeNoteId !== '0'
+    ? routeNoteId
+    : ''
+}
+
+function resolveFolderContextTitle(folderId: string) {
+  switch (folderId) {
+    case 'allnotes':
+      return '全部备忘录'
+    case 'unfilednotes':
+      return '未归档备忘录'
+    case 'deleted':
+      return '已删除'
+    default:
+      return getNote(folderId)?.title || ''
+  }
+}
+
+const aiRequestContext = computed<AiChatRequestContext>(() => {
+  const routeNoteId = resolveRouteNoteId()
+  const desktopSnapshot = getSnapshot()
+  const activeNoteId = routeNoteId || desktopSnapshot?.noteId || ''
+  const activeFolderId = desktopSnapshot?.folderId || ''
+  const activeFolderTitle = activeFolderId ? resolveFolderContextTitle(activeFolderId) : ''
+
+  return {
+    source: 'home_global_search',
+    routePath: route.path,
+    publicUserId: props.puuid || null,
+    activeFolder: activeFolderId && activeFolderTitle
+      ? {
+          id: activeFolderId,
+          title: activeFolderTitle,
+          kind: ['allnotes', 'unfilednotes', 'deleted'].includes(activeFolderId) ? 'special' : 'folder',
+        }
+      : null,
+    activeNote: toAiChatContextNote(activeNoteId ? getNote(activeNoteId) : null),
+    candidateNotes: state.notes
+      .slice(0, 5)
+      .map(note => toAiChatContextNote(note))
+      .filter((note): note is NonNullable<ReturnType<typeof toAiChatContextNote>> => !!note),
+    recentNotes: recentContextNotes.value,
+  }
+})
 
 if (!hasRouteSearchOverlay.value) {
   resetGlobalSearch()
@@ -308,7 +376,9 @@ async function submitAiDraft() {
 
   aiDraft.value = ''
 
-  const submitted = await sendAiMessage(draft)
+  const submitted = await sendAiMessage(draft, {
+    requestContext: aiRequestContext.value,
+  })
   if (!submitted) {
     aiDraft.value = draft
   }
@@ -445,6 +515,35 @@ function handleAiPrefill(value: string) {
   activateSearch({ syncRoute: false })
   void nextTick(syncInputHeight)
   focusInput()
+}
+
+function closeSearchImmediately() {
+  if (hideTimer) {
+    clearTimeout(hideTimer)
+    hideTimer = null
+  }
+
+  searchRequestId++
+  state.notes = []
+  resetGlobalSearch()
+}
+
+function handleAiAction(action: ChatMessageCardAction) {
+  closeSearchImmediately()
+
+  if (action.type === 'open-note') {
+    emit('openNote', {
+      isDeleted: action.isDeleted,
+      noteId: action.noteId,
+      parentId: action.parentId,
+    })
+    return
+  }
+
+  emit('openFolder', {
+    folderId: action.folderId,
+    parentId: action.parentId,
+  })
 }
 
 async function toggleInputMode() {
@@ -650,6 +749,7 @@ onUnmounted(() => {
           <AiChatPanel
             v-else
             class="global-search__ai-panel"
+            @action="handleAiAction"
             @prefill="handleAiPrefill"
           />
         </div>

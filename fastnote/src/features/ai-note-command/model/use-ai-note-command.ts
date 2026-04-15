@@ -11,12 +11,13 @@ import type {
   FolderTreeNode,
   Note,
 } from '@/shared/types'
-import { NOTE_TYPE, useNote } from '@/entities/note'
-import { useNoteDelete } from '@/features/note-delete'
-import { useNoteLock } from '@/features/note-lock'
-import { useNoteMove } from '@/features/note-move'
-import { useNoteWrite } from '@/features/note-write'
-import { useSync } from '@/processes/sync-notes'
+import { useNote } from '@/entities/note/model/state/note-store'
+import { useNoteDelete } from '@/features/note-delete/model/use-note-delete'
+import { useNoteLock } from '@/features/note-lock/model/use-note-lock'
+import { useNoteMove } from '@/features/note-move/model/use-note-move'
+import { useNoteWrite } from '@/features/note-write/model/use-note-write'
+import { useSync } from '@/processes/sync-notes/model/use-sync-notes'
+import { NOTE_TYPE } from '@/shared/types'
 
 type MaybePromise<T> = T | Promise<T>
 

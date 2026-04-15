@@ -1,6 +1,28 @@
 import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, h, nextTick } from 'vue'
+import { defineComponent, h, nextTick, ref } from 'vue'
+
+const aiChatSessionMock = {
+  cancelPendingExecution: vi.fn(),
+  confirmPendingExecution: vi.fn(async () => []),
+  hasPendingConfirmation: ref(false),
+  lastResults: ref([]),
+  submitToolCalls: vi.fn(async () => []),
+}
+
+function mockAiChatSession() {
+  aiChatSessionMock.hasPendingConfirmation.value = false
+  aiChatSessionMock.lastResults.value = []
+  aiChatSessionMock.cancelPendingExecution.mockReset()
+  aiChatSessionMock.confirmPendingExecution.mockReset()
+  aiChatSessionMock.submitToolCalls.mockReset()
+  aiChatSessionMock.confirmPendingExecution.mockImplementation(async () => [])
+  aiChatSessionMock.submitToolCalls.mockImplementation(async () => [])
+
+  vi.doMock('@/processes/ai-chat-session', () => ({
+    useAiChatSession: () => aiChatSessionMock,
+  }))
+}
 
 function createRect({ left, top, width, height }: { left: number, top: number, width: number, height: number }) {
   return {
@@ -105,8 +127,15 @@ describe('global search mode toggle', () => {
     const pushMock = vi.fn()
     const replaceMock = vi.fn()
 
+    mockAiChatSession()
     vi.doMock('@/entities/note', () => ({
+      NOTE_TYPE: {
+        FOLDER: 1,
+        NOTE: 2,
+      },
       useNote: () => ({
+        getNote: vi.fn(() => null),
+        notes: ref([]),
         searchNotesByParentId: vi.fn(async () => []),
       }),
     }))
@@ -185,8 +214,15 @@ describe('global search mode toggle', () => {
   })
 
   it('keeps search keyword and ai draft when toggling between modes', async () => {
+    mockAiChatSession()
     vi.doMock('@/entities/note', () => ({
+      NOTE_TYPE: {
+        FOLDER: 1,
+        NOTE: 2,
+      },
       useNote: () => ({
+        getNote: vi.fn(() => null),
+        notes: ref([]),
         searchNotesByParentId: vi.fn(async () => []),
       }),
     }))
@@ -266,8 +302,15 @@ describe('global search mode toggle', () => {
   })
 
   it('keeps the glass panel full screen and reserves the bottom dock area for content', async () => {
+    mockAiChatSession()
     vi.doMock('@/entities/note', () => ({
+      NOTE_TYPE: {
+        FOLDER: 1,
+        NOTE: 2,
+      },
       useNote: () => ({
+        getNote: vi.fn(() => null),
+        notes: ref([]),
         searchNotesByParentId: vi.fn(async () => []),
       }),
     }))

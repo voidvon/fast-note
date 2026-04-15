@@ -331,6 +331,42 @@ function handleNoteSelected(id: string) {
   state.noteId = id
 }
 
+async function handleAiOpenNote(payload: { isDeleted?: boolean, noteId: string, parentId?: string }) {
+  const targetNote = notes.value.find(note => note.id === payload.noteId)
+  if (!targetNote) {
+    return
+  }
+
+  if (!isDesktop.value) {
+    void router.push(`/n/${payload.noteId}`)
+    return
+  }
+
+  isRestoringDesktopSelection.value = true
+  state.parentId = ''
+  state.folerId = targetNote.is_deleted === 1
+    ? 'deleted'
+    : (targetNote.parent_id || 'allnotes')
+  state.noteId = targetNote.id
+  await nextTick()
+  isRestoringDesktopSelection.value = false
+}
+
+async function handleAiOpenFolder(payload: { folderId: string, parentId?: string }) {
+  if (!isDesktop.value) {
+    void router.push(`/f/${payload.folderId}`)
+    return
+  }
+
+  isRestoringDesktopSelection.value = true
+  state.parentId = ''
+  state.noteId = ''
+  state.folerId = payload.folderId
+  await nextTick()
+  isRestoringDesktopSelection.value = false
+  await init()
+}
+
 function handleCreateNote(parentId = '') {
   state.parentId = parentId
   state.noteId = '0'
@@ -425,7 +461,12 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
         @selected="handleFolderSelected"
       />
     </IonContent>
-    <GlobalSearch class="home-global-search" :sync-with-route="!isDesktop">
+    <GlobalSearch
+      class="home-global-search"
+      :sync-with-route="!isDesktop"
+      @open-folder="handleAiOpenFolder"
+      @open-note="handleAiOpenNote"
+    >
       <template #leading="{ panelVisible }">
         <button
           v-if="!panelVisible"

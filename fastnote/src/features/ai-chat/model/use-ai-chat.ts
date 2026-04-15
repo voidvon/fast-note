@@ -1,9 +1,21 @@
 import type { UIMessage } from 'ai'
 import type { OpenAiCompatibleChatSettings } from './openai-compatible-chat-transport'
+import type { AiChatRequestContext } from './request-context'
+import type { ChatMessageCard } from '@/shared/ui/chat-message'
 import { Chat } from '@ai-sdk/vue'
+import { nanoid } from 'nanoid'
 import { computed, reactive, ref, watch } from 'vue'
+import { useAiChatSession } from '@/processes/ai-chat-session'
 import { createScopedStorageKey } from '@/shared/lib/user-scope'
+import {
+  mergeAssistantAnswer,
+  parseAiAssistantToolEnvelope,
+  summarizeExecutionResults,
+  summarizePreviewResults,
+} from './assistant-envelope'
 import { OpenAiCompatibleChatTransport } from './openai-compatible-chat-transport'
+import { AI_CHAT_REQUEST_CONTEXT_BODY_KEY } from './request-context'
+import { createToolResultCards } from './tool-result-cards'
 
 const AI_CHAT_CONVERSATION_STORAGE_KEY = 'ai-chat-conversation'
 const AI_CHAT_SETTINGS_STORAGE_KEY = 'ai-chat-settings'
@@ -23,8 +35,13 @@ const chat = new Chat<UIMessage>({
     resolveSettings: () => settingsState,
   }),
 })
+const aiChatSession = useAiChatSession()
+const handledAssistantEnvelopeIds = new Set<string>()
+const lastRequestContext = ref<AiChatRequestContext | null>(null)
+const messageCards = ref<Record<string, ChatMessageCard[]>>({})
 
 export interface AiChatViewMessage {
+  cards: ChatMessageCard[]
   id: string
   role: 'assistant' | 'user'
   text: string
@@ -179,7 +196,85 @@ function resetSettings() {
 function clearConversation() {
   chat.messages = []
   chat.clearError()
+  aiChatSession.cancelPendingExecution()
+  aiChatSession.lastResults.value = []
+  handledAssistantEnvelopeIds.clear()
+  lastRequestContext.value = null
+  messageCards.value = {}
   persistConversation()
+}
+
+function setMessageCards(messageId: string, cards?: ChatMessageCard[]) {
+  const nextCards = cards?.length ? cards : []
+  if (!nextCards.length) {
+    const { [messageId]: _removed, ...rest } = messageCards.value
+    messageCards.value = rest
+    return
+  }
+
+  messageCards.value = {
+    ...messageCards.value,
+    [messageId]: nextCards,
+  }
+}
+
+function replaceMessageText(messageId: string, text: string, cards?: ChatMessageCard[]) {
+  chat.messages = chat.messages.map((message) => {
+    if (message.id !== messageId) {
+      return message
+    }
+
+    return {
+      ...message,
+      parts: [{
+        type: 'text' as const,
+        text,
+        state: 'done' as const,
+      }],
+    }
+  })
+  setMessageCards(messageId, cards)
+}
+
+function appendAssistantMessage(text: string, cards?: ChatMessageCard[]) {
+  const content = text.trim()
+  if (!content) {
+    return
+  }
+
+  const messageId = nanoid()
+  chat.messages = chat.messages.concat({
+    id: messageId,
+    role: 'assistant',
+    parts: [{
+      type: 'text' as const,
+      text: content,
+      state: 'done' as const,
+    }],
+  })
+  setMessageCards(messageId, cards)
+}
+
+async function processLatestAssistantEnvelope() {
+  const message = latestAssistantMessage.value
+  if (!message || handledAssistantEnvelopeIds.has(message.id)) {
+    return
+  }
+
+  const envelope = parseAiAssistantToolEnvelope(message.text)
+  if (!envelope) {
+    handledAssistantEnvelopeIds.add(message.id)
+    return
+  }
+
+  handledAssistantEnvelopeIds.add(message.id)
+  const results = await aiChatSession.submitToolCalls(envelope.toolCalls)
+  const summary = aiChatSession.hasPendingConfirmation.value
+    ? summarizePreviewResults(results)
+    : summarizeExecutionResults(results)
+  const cards = createToolResultCards(results)
+
+  replaceMessageText(message.id, mergeAssistantAnswer(envelope.answer, summary), cards)
 }
 
 function getMessageText(parts: UIMessage['parts']) {
@@ -201,6 +296,7 @@ const visibleMessages = computed<AiChatViewMessage[]>(() => {
       return message.role === 'user' || message.role === 'assistant'
     })
     .map(message => ({
+      cards: messageCards.value[message.id] || [],
       id: message.id,
       role: message.role,
       text: getMessageText(message.parts),
@@ -283,7 +379,22 @@ const statusText = computed(() => {
   }
 })
 
-async function sendMessage(text: string) {
+function createChatRequestBody(context?: AiChatRequestContext | null) {
+  const normalizedContext = context || null
+  lastRequestContext.value = normalizedContext
+
+  if (!normalizedContext) {
+    return undefined
+  }
+
+  return {
+    [AI_CHAT_REQUEST_CONTEXT_BODY_KEY]: normalizedContext,
+  }
+}
+
+async function sendMessage(text: string, options: {
+  requestContext?: AiChatRequestContext | null
+} = {}) {
   hydrateSettings()
   hydrateConversation()
 
@@ -298,8 +409,45 @@ async function sendMessage(text: string) {
   }
 
   chat.clearError()
-  void chat.sendMessage({ text: content }).catch(() => {})
+  const requestBody = createChatRequestBody(options.requestContext)
+  void chat.sendMessage({ text: content }, requestBody ? {
+    body: requestBody,
+  } : undefined)
+    .then(() => processLatestAssistantEnvelope())
+    .catch(() => {})
   return true
+}
+
+async function regenerate() {
+  if (!canRegenerate.value) {
+    return false
+  }
+
+  chat.clearError()
+  const requestBody = createChatRequestBody(lastRequestContext.value)
+  await chat.regenerate(requestBody ? {
+    body: requestBody,
+  } : undefined)
+  await processLatestAssistantEnvelope()
+  return true
+}
+
+async function confirmPendingExecution() {
+  const results = await aiChatSession.confirmPendingExecution()
+  if (results.length) {
+    appendAssistantMessage(summarizeExecutionResults(results), createToolResultCards(results))
+  }
+  return results
+}
+
+function cancelPendingExecution() {
+  if (!aiChatSession.hasPendingConfirmation.value) {
+    return
+  }
+
+  aiChatSession.cancelPendingExecution()
+  aiChatSession.lastResults.value = []
+  appendAssistantMessage('已取消本次待确认操作。')
 }
 
 export function useAiChat() {
@@ -310,15 +458,20 @@ export function useAiChat() {
     chat,
     clearConversation,
     canRegenerate,
+    cancelPendingExecution,
     hasConfiguredProvider,
+    hasPendingConfirmation: aiChatSession.hasPendingConfirmation,
     hasVisibleMessages,
     isBusy,
     isAssistantThinking,
+    lastToolResults: aiChatSession.lastResults,
     latestAssistantMessage,
     openSettings: () => {
       showSettings.value = true
     },
     providerLabel,
+    confirmPendingExecution,
+    regenerate,
     resetSettings,
     saveSettings,
     sendMessage,

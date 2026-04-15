@@ -1,6 +1,29 @@
+import type { AiToolResult } from '@/shared/types'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, h, nextTick } from 'vue'
+import { defineComponent, h, nextTick, ref } from 'vue'
+
+const aiChatSessionMock = {
+  cancelPendingExecution: vi.fn(),
+  confirmPendingExecution: vi.fn(),
+  hasPendingConfirmation: ref(false),
+  lastResults: ref<AiToolResult[]>([]),
+  submitToolCalls: vi.fn(),
+}
+
+function resetAiChatSessionMock() {
+  aiChatSessionMock.hasPendingConfirmation.value = false
+  aiChatSessionMock.lastResults.value = []
+  aiChatSessionMock.submitToolCalls.mockReset()
+  aiChatSessionMock.confirmPendingExecution.mockReset()
+  aiChatSessionMock.cancelPendingExecution.mockReset()
+  aiChatSessionMock.cancelPendingExecution.mockImplementation(() => {
+    aiChatSessionMock.hasPendingConfirmation.value = false
+    aiChatSessionMock.lastResults.value = []
+  })
+  aiChatSessionMock.submitToolCalls.mockImplementation(async () => [])
+  aiChatSessionMock.confirmPendingExecution.mockImplementation(async () => [])
+}
 
 function createIonicStub(name: string, tag = 'div') {
   return defineComponent({
@@ -162,9 +185,19 @@ async function mountGlobalSearch() {
 
 function setupModuleMocks() {
   vi.doMock('@/entities/note', () => ({
+    NOTE_TYPE: {
+      FOLDER: 1,
+      NOTE: 2,
+    },
     useNote: () => ({
+      getNote: vi.fn(() => null),
+      notes: ref([]),
       searchNotesByParentId: vi.fn(async () => []),
     }),
+  }))
+
+  vi.doMock('@/processes/ai-chat-session', () => ({
+    useAiChatSession: () => aiChatSessionMock,
   }))
 
   vi.doMock('@/widgets/note-list', () => ({
@@ -214,6 +247,7 @@ function setupModuleMocks() {
 describe('global search ai chat', () => {
   beforeEach(() => {
     vi.resetModules()
+    resetAiChatSessionMock()
     setupModuleMocks()
   })
 
@@ -552,5 +586,359 @@ describe('global search ai chat', () => {
     expect(restoredWrapper.text()).toContain('本地记录已恢复。')
 
     restoredWrapper.unmount()
+  })
+
+  it('shows confirmation actions for assistant tool envelope and appends execution summary after confirm', async () => {
+    aiChatSessionMock.submitToolCalls.mockImplementationOnce(async () => {
+      const results = [{
+        ok: true,
+        code: 'confirmation_required',
+        message: null,
+        preview: {
+          title: '准备删除备忘录',
+          summary: '将软删除备忘录 note-1',
+          affectedNoteIds: ['note-1'],
+        },
+        requiresConfirmation: true,
+        affectedNoteIds: ['note-1'],
+      }]
+
+      aiChatSessionMock.hasPendingConfirmation.value = true
+      aiChatSessionMock.lastResults.value = results
+      return results
+    })
+    aiChatSessionMock.confirmPendingExecution.mockImplementationOnce(async () => {
+      const results = [{
+        ok: true,
+        code: 'ok',
+        message: null,
+        preview: {
+          title: '准备删除备忘录',
+          summary: '将软删除备忘录 note-1',
+          affectedNoteIds: ['note-1'],
+        },
+        affectedNoteIds: ['note-1'],
+      }]
+
+      aiChatSessionMock.hasPendingConfirmation.value = false
+      aiChatSessionMock.lastResults.value = results
+      return results
+    })
+
+    const fetchMock = vi.fn(async () => createSseResponse([
+      JSON.stringify({
+        choices: [{
+          delta: {
+            role: 'assistant',
+          },
+        }],
+      }),
+      JSON.stringify({
+        choices: [{
+          delta: {
+            content: JSON.stringify({
+              mode: 'tool_calls',
+              answer: '我已准备删除这条备忘录。',
+              toolCalls: [{
+                tool: 'delete_note',
+                payload: {
+                  noteId: 'note-1',
+                },
+              }],
+            }),
+          },
+          finish_reason: 'stop',
+        }],
+      }),
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { useAiChat } = await import('@/features/ai-chat')
+    useAiChat().saveSettings({
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4.1-mini',
+    })
+
+    const wrapper = await mountGlobalSearch()
+    const input = wrapper.get('textarea')
+
+    await input.trigger('focus')
+    await wrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
+    await nextTick()
+
+    await input.setValue('删除 note-1')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(aiChatSessionMock.submitToolCalls).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('待确认操作')
+    expect(wrapper.text()).toContain('准备删除备忘录：将软删除备忘录 note-1')
+    expect(wrapper.text()).toContain('我已准备删除这条备忘录。')
+
+    const confirmButton = wrapper.findAll('button').find(item => item.text() === '确认执行')
+    expect(confirmButton).toBeTruthy()
+    await confirmButton!.trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(aiChatSessionMock.confirmPendingExecution).toHaveBeenCalledTimes(1)
+    expect(aiChatSessionMock.hasPendingConfirmation.value).toBe(false)
+    expect(wrapper.text()).toContain('本次操作执行结果如下：')
+    expect(wrapper.text()).toContain('已完成：将软删除备忘录 note-1')
+
+    wrapper.unmount()
+  })
+
+  it('renders structured cards for note search results', async () => {
+    aiChatSessionMock.submitToolCalls.mockImplementationOnce(async () => {
+      const results = [{
+        ok: true,
+        code: 'ok',
+        message: null,
+        preview: {
+          title: '搜索备忘录',
+          summary: '搜索关键字“周报”',
+          affectedNoteIds: [],
+        },
+        data: [{
+          id: 'note-1',
+          title: '周报',
+          summary: '本周项目推进',
+          parentId: '',
+          updated: '2026-04-15 10:00:00',
+          isLocked: false,
+          isDeleted: false,
+        }],
+      }]
+
+      aiChatSessionMock.hasPendingConfirmation.value = false
+      aiChatSessionMock.lastResults.value = results
+      return results
+    })
+
+    const fetchMock = vi.fn(async () => createSseResponse([
+      JSON.stringify({
+        choices: [{
+          delta: {
+            role: 'assistant',
+          },
+        }],
+      }),
+      JSON.stringify({
+        choices: [{
+          delta: {
+            content: JSON.stringify({
+              mode: 'tool_calls',
+              answer: '我找到了相关备忘录。',
+              toolCalls: [{
+                tool: 'search_notes',
+                payload: {
+                  query: '周报',
+                },
+              }],
+            }),
+          },
+          finish_reason: 'stop',
+        }],
+      }),
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { useAiChat } = await import('@/features/ai-chat')
+    useAiChat().saveSettings({
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4.1-mini',
+    })
+
+    const wrapper = await mountGlobalSearch()
+    const input = wrapper.get('textarea')
+
+    await input.trigger('focus')
+    await wrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
+    await nextTick()
+
+    await input.setValue('搜索周报')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(aiChatSessionMock.submitToolCalls).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('我找到了相关备忘录。')
+    expect(wrapper.text()).toContain('周报')
+    expect(wrapper.text()).toContain('本周项目推进')
+    expect(wrapper.text()).toContain('更新于 2026-04-15 10:00:00')
+
+    wrapper.unmount()
+  })
+
+  it('emits open-note when clicking a result card action', async () => {
+    aiChatSessionMock.submitToolCalls.mockImplementationOnce(async () => {
+      const results = [{
+        ok: true,
+        code: 'ok',
+        message: null,
+        preview: {
+          title: '搜索备忘录',
+          summary: '搜索关键字“周报”',
+          affectedNoteIds: [],
+        },
+        data: [{
+          id: 'note-1',
+          title: '周报',
+          summary: '本周项目推进',
+          parentId: 'folder-1',
+          updated: '2026-04-15 10:00:00',
+          isLocked: false,
+          isDeleted: false,
+        }],
+      }]
+
+      aiChatSessionMock.hasPendingConfirmation.value = false
+      aiChatSessionMock.lastResults.value = results
+      return results
+    })
+
+    const fetchMock = vi.fn(async () => createSseResponse([
+      JSON.stringify({
+        choices: [{
+          delta: {
+            role: 'assistant',
+          },
+        }],
+      }),
+      JSON.stringify({
+        choices: [{
+          delta: {
+            content: JSON.stringify({
+              mode: 'tool_calls',
+              answer: '我找到了相关备忘录。',
+              toolCalls: [{
+                tool: 'search_notes',
+                payload: {
+                  query: '周报',
+                },
+              }],
+            }),
+          },
+          finish_reason: 'stop',
+        }],
+      }),
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { useAiChat } = await import('@/features/ai-chat')
+    useAiChat().saveSettings({
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4.1-mini',
+    })
+
+    const wrapper = await mountGlobalSearch()
+    const input = wrapper.get('textarea')
+
+    await input.trigger('focus')
+    await wrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
+    await nextTick()
+
+    await input.setValue('搜索周报')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    const openButton = wrapper.get('button.chat-message__card-item-button')
+    await openButton.trigger('click')
+
+    expect(wrapper.emitted('openNote')?.[0]?.[0]).toEqual({
+      isDeleted: false,
+      noteId: 'note-1',
+      parentId: 'folder-1',
+    })
+
+    wrapper.unmount()
+  })
+
+  it('emits open-folder when clicking a folder result card action', async () => {
+    aiChatSessionMock.submitToolCalls.mockImplementationOnce(async () => {
+      const results = [{
+        ok: true,
+        code: 'ok',
+        message: null,
+        preview: {
+          title: '读取文件夹列表',
+          summary: '读取根目录下的文件夹',
+          affectedNoteIds: [],
+        },
+        data: [{
+          id: 'folder-1',
+          title: '项目资料',
+          parentId: '',
+          noteCount: 3,
+        }],
+      }]
+
+      aiChatSessionMock.hasPendingConfirmation.value = false
+      aiChatSessionMock.lastResults.value = results
+      return results
+    })
+
+    const fetchMock = vi.fn(async () => createSseResponse([
+      JSON.stringify({
+        choices: [{
+          delta: {
+            role: 'assistant',
+          },
+        }],
+      }),
+      JSON.stringify({
+        choices: [{
+          delta: {
+            content: JSON.stringify({
+              mode: 'tool_calls',
+              answer: '我找到了相关目录。',
+              toolCalls: [{
+                tool: 'list_folders',
+                payload: {
+                  parentId: '',
+                },
+              }],
+            }),
+          },
+          finish_reason: 'stop',
+        }],
+      }),
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { useAiChat } = await import('@/features/ai-chat')
+    useAiChat().saveSettings({
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4.1-mini',
+    })
+
+    const wrapper = await mountGlobalSearch()
+    const input = wrapper.get('textarea')
+
+    await input.trigger('focus')
+    await wrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
+    await nextTick()
+
+    await input.setValue('查看目录')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    const openButton = wrapper.get('button.chat-message__card-item-button')
+    await openButton.trigger('click')
+
+    expect(wrapper.emitted('openFolder')?.[0]?.[0]).toEqual({
+      folderId: 'folder-1',
+      parentId: '',
+    })
+
+    wrapper.unmount()
   })
 })

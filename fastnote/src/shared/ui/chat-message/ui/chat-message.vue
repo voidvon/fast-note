@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ChatMessageCard, ChatMessageCardAction } from '../model/message-card'
 import { IonButton, IonIcon, IonItem, IonNote, IonSpinner } from '@ionic/vue'
 import { checkmarkOutline, copyOutline } from 'ionicons/icons'
 import { computed, onBeforeUnmount, ref } from 'vue'
@@ -6,6 +7,7 @@ import { copyText } from '@/shared/lib/clipboard'
 import StreamMarkdown from '@/shared/ui/stream-markdown'
 
 const props = withDefaults(defineProps<{
+  cards?: ChatMessageCard[]
   content?: string
   label?: string
   pending?: boolean
@@ -13,12 +15,16 @@ const props = withDefaults(defineProps<{
   role: 'assistant' | 'user'
   streaming?: boolean
 }>(), {
+  cards: () => [],
   content: '',
   label: undefined,
   pending: false,
   pendingLabel: '思考中',
   streaming: false,
 })
+const emit = defineEmits<{
+  action: [payload: ChatMessageCardAction]
+}>()
 
 const resolvedLabel = computed(() => {
   if (props.label) {
@@ -56,6 +62,14 @@ async function handleCopy() {
     copiedTimer = null
   }, 1600)
 }
+
+function handleCardAction(action?: ChatMessageCardAction) {
+  if (!action) {
+    return
+  }
+
+  emit('action', action)
+}
 </script>
 
 <template>
@@ -84,6 +98,55 @@ async function handleCopy() {
         />
         <div v-else class="chat-message__plain">
           {{ content }}
+        </div>
+
+        <div v-if="cards.length" class="chat-message__cards">
+          <section
+            v-for="card in cards"
+            :key="card.id"
+            class="chat-message__card"
+            :class="card.status ? `chat-message__card--${card.status}` : ''"
+          >
+            <div class="chat-message__card-head">
+              <strong class="chat-message__card-title">{{ card.title }}</strong>
+              <span v-if="card.status" class="chat-message__card-status">
+                {{ card.status === 'success' ? '已完成' : card.status === 'warning' ? '待处理' : card.status === 'error' ? '失败' : '信息' }}
+              </span>
+            </div>
+
+            <p v-if="card.description" class="chat-message__card-description">
+              {{ card.description }}
+            </p>
+
+            <ul v-if="card.items?.length" class="chat-message__card-list">
+              <li v-for="item in card.items" :key="item.id" class="chat-message__card-item">
+                <div class="chat-message__card-item-main">
+                  <button
+                    v-if="item.action"
+                    type="button"
+                    class="chat-message__card-item-button"
+                    @click="handleCardAction(item.action)"
+                  >
+                    {{ item.title }}
+                  </button>
+                  <strong v-else class="chat-message__card-item-title">{{ item.title }}</strong>
+                  <span v-if="item.meta" class="chat-message__card-item-meta">{{ item.meta }}</span>
+                </div>
+                <p v-if="item.description" class="chat-message__card-item-description">
+                  {{ item.description }}
+                </p>
+                <div v-if="item.tags?.length" class="chat-message__card-tags">
+                  <span v-for="tag in item.tags" :key="tag" class="chat-message__card-tag">
+                    {{ tag }}
+                  </span>
+                </div>
+              </li>
+            </ul>
+
+            <p v-if="card.footer" class="chat-message__card-footer">
+              {{ card.footer }}
+            </p>
+          </section>
         </div>
       </div>
 
@@ -157,6 +220,114 @@ async function handleCopy() {
 
 .chat-message__plain {
   white-space: pre-wrap;
+}
+
+.chat-message__cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.chat-message__card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(7, 10, 18, 0.36);
+}
+
+.chat-message__card--success {
+  border-color: rgba(74, 222, 128, 0.22);
+}
+
+.chat-message__card--warning {
+  border-color: rgba(250, 204, 21, 0.24);
+}
+
+.chat-message__card--error {
+  border-color: rgba(248, 113, 113, 0.24);
+}
+
+.chat-message__card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.chat-message__card-title,
+.chat-message__card-item-title {
+  font-size: 13px;
+  color: #f5f5f7;
+}
+
+.chat-message__card-item-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #7dd3fc;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.chat-message__card-status,
+.chat-message__card-item-meta,
+.chat-message__card-footer {
+  font-size: 12px;
+  color: #a1a1aa;
+}
+
+.chat-message__card-description,
+.chat-message__card-item-description {
+  margin: 0;
+  font-size: 12px;
+  color: #d4d4d8;
+}
+
+.chat-message__card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat-message__card-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.chat-message__card-item-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.chat-message__card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chat-message__card-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(125, 211, 252, 0.12);
+  color: #bae6fd;
+  font-size: 11px;
 }
 
 .chat-message__actions {

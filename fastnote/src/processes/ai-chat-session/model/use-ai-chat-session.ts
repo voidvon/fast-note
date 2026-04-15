@@ -1,6 +1,6 @@
 import type { AiNoteToolCall, AiToolResult } from '@/shared/types'
 import { computed, ref } from 'vue'
-import { useAiNoteCommand } from '@/features/ai-note-command'
+import { useAiNoteCommand } from '@/features/ai-note-command/model/use-ai-note-command'
 
 export interface AiChatPendingExecution {
   calls: AiNoteToolCall[]

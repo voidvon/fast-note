@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { IonList } from '@ionic/vue'
+import type { ChatMessageCardAction } from '@/shared/ui/chat-message'
+import { IonButton, IonButtons, IonList, IonNote } from '@ionic/vue'
 import { computed, nextTick, reactive, ref, watch } from 'vue'
 import ChatMessage from '@/shared/ui/chat-message'
 import { AI_CHAT_STARTER_PROMPTS } from '../model/starter-prompts'
@@ -10,19 +11,25 @@ import AiChatSettingsModal from './ai-chat-settings-modal.vue'
 import AiChatToolbar from './ai-chat-toolbar.vue'
 
 const emit = defineEmits<{
+  action: [payload: ChatMessageCardAction]
   prefill: [value: string]
 }>()
 
 const {
   canRegenerate,
+  cancelPendingExecution,
   chat,
   clearConversation,
+  confirmPendingExecution,
   hasConfiguredProvider,
+  hasPendingConfirmation,
   hasVisibleMessages,
   isAssistantThinking,
   isBusy,
+  lastToolResults,
   openSettings,
   providerLabel,
+  regenerate,
   resetSettings,
   saveSettings,
   sessionLabel,
@@ -52,6 +59,12 @@ const scrollTrackToken = computed(() => {
 })
 const latestVisibleMessage = computed(() => {
   return visibleMessages.value.at(-1) || null
+})
+const confirmationPreviewLines = computed(() => {
+  return lastToolResults.value
+    .map(result => result.preview)
+    .filter((preview): preview is NonNullable<typeof lastToolResults.value[number]['preview']> => !!preview)
+    .map(preview => `${preview.title}：${preview.summary}`)
 })
 
 function isNearBottom(element: HTMLElement) {
@@ -122,11 +135,7 @@ function handleSaveSettings() {
 }
 
 async function handleRegenerate() {
-  if (!canRegenerate.value) {
-    return
-  }
-
-  await chat.regenerate()
+  await regenerate()
 }
 
 function handleResetSettings() {
@@ -142,6 +151,14 @@ function handleCloseSettings() {
   }
 
   showSettings.value = false
+}
+
+async function handleConfirmPendingExecution() {
+  await confirmPendingExecution()
+}
+
+function handleMessageAction(action: ChatMessageCardAction) {
+  emit('action', action)
 }
 </script>
 
@@ -176,9 +193,11 @@ function handleCloseSettings() {
           <ChatMessage
             v-for="message in visibleMessages"
             :key="message.id"
+            :cards="message.cards"
             :role="message.role"
             :content="message.text"
             :streaming="streamingAssistantMessageId === message.id"
+            @action="handleMessageAction"
           />
           <ChatMessage
             v-if="isAssistantThinking"
@@ -195,6 +214,25 @@ function handleCloseSettings() {
         :prompts="AI_CHAT_STARTER_PROMPTS"
         @prefill="emit('prefill', $event)"
       />
+    </div>
+
+    <div v-if="hasPendingConfirmation" class="ai-chat-panel__confirmation">
+      <IonNote class="ai-chat-panel__confirmation-label">
+        待确认操作
+      </IonNote>
+      <ul class="ai-chat-panel__confirmation-list">
+        <li v-for="line in confirmationPreviewLines" :key="line">
+          {{ line }}
+        </li>
+      </ul>
+      <IonButtons class="ai-chat-panel__confirmation-actions">
+        <IonButton size="small" @click="handleConfirmPendingExecution">
+          确认执行
+        </IonButton>
+        <IonButton size="small" fill="clear" @click="cancelPendingExecution">
+          取消
+        </IonButton>
+      </IonButtons>
     </div>
 
     <AiChatErrorBanner
@@ -239,6 +277,34 @@ function handleCloseSettings() {
     gap: 12px;
     padding: 0;
     background: transparent;
+  }
+
+  &__confirmation {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 1px solid rgba(125, 211, 252, 0.18);
+    border-radius: 16px;
+    background: rgba(125, 211, 252, 0.06);
+  }
+
+  &__confirmation-label {
+    margin: 0;
+    color: #bae6fd;
+    font-size: 12px;
+  }
+
+  &__confirmation-list {
+    margin: 0;
+    padding-left: 18px;
+    color: #e4e4e7;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  &__confirmation-actions {
+    gap: 8px;
   }
 }
 </style>

@@ -5,6 +5,10 @@ import type {
   UIMessageChunk,
 } from 'ai'
 import { nanoid } from 'nanoid'
+import {
+  buildAiChatContextSystemPrompt,
+  extractAiChatRequestContext,
+} from './request-context'
 
 export interface OpenAiCompatibleChatSettings {
   apiKey: string
@@ -43,6 +47,12 @@ const OPENAI_CHAT_COMPLETIONS_PATH = '/chat/completions'
 const DEFAULT_SYSTEM_PROMPT = [
   '你是 FastNote 首页里的 AI 助手。',
   '回答保持简洁、直接、可执行，优先帮助用户处理笔记与整理信息。',
+  '当用户只是提问、改写、解释时，直接用自然语言回答。',
+  '当用户明确要求执行笔记或文件夹操作时，你可以返回一个 JSON 对象来请求本地工具执行。',
+  '返回工具请求时，不要输出 Markdown，不要输出解释文字，只返回合法 JSON。',
+  '工具请求 JSON 格式如下：{"mode":"tool_calls","answer":"可选的简短说明","toolCalls":[{"tool":"search_notes","payload":{"query":"关键词"}}]}。',
+  '可用工具包括：search_notes、get_note_detail、list_folders、create_note、update_note、move_note、delete_note、set_note_lock。',
+  '只有在你能够明确构造参数时才返回工具请求；否则继续用自然语言说明你还缺少什么信息。',
 ].join('\n')
 
 export class OpenAiCompatibleChatTransport implements ChatTransport<UIMessage> {
@@ -72,12 +82,14 @@ export class OpenAiCompatibleChatTransport implements ChatTransport<UIMessage> {
   } & ChatRequestOptions): Promise<ReadableStream<UIMessageChunk>> {
     const settings = this.resolveSettings()
     assertCompleteSettings(settings)
+    const { context, requestBody: extraRequestBody } = extractAiChatRequestContext(body)
+    const contextSystemPrompt = buildAiChatContextSystemPrompt(context)
 
     const requestBody = {
       model: settings.model,
       stream: true,
-      messages: buildOpenAiMessages(messages, this.systemPrompt),
-      ...body,
+      messages: buildOpenAiMessages(messages, this.systemPrompt, contextSystemPrompt),
+      ...extraRequestBody,
     }
 
     const response = await (this.fetchImplementation || globalThis.fetch)(
@@ -140,13 +152,20 @@ function toRecord(headers?: Record<string, string> | Headers) {
   return headers
 }
 
-function buildOpenAiMessages(messages: UIMessage[], systemPrompt: string): OpenAiCompatibleMessage[] {
+function buildOpenAiMessages(messages: UIMessage[], systemPrompt: string, contextSystemPrompt = ''): OpenAiCompatibleMessage[] {
   const requestMessages: OpenAiCompatibleMessage[] = []
 
   if (systemPrompt.trim()) {
     requestMessages.push({
       role: 'system',
       content: systemPrompt.trim(),
+    })
+  }
+
+  if (contextSystemPrompt.trim()) {
+    requestMessages.push({
+      role: 'system',
+      content: contextSystemPrompt.trim(),
     })
   }
 
