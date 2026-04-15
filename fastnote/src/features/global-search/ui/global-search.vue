@@ -15,6 +15,7 @@ import { cleanupIonicOverlayLocks } from '@/shared/lib/ionic'
 import NoteList from '@/widgets/note-list'
 import { toSearchResultNodes } from '../lib/search-results'
 import {
+  getGlobalSearchOverlayMode,
   hasGlobalSearchOverlay,
   shouldUseRouteBackForGlobalSearchClose,
   withGlobalSearchHistoryState,
@@ -90,6 +91,7 @@ const shouldCollapseFieldIcon = computed(() => showGlobalSearchState.value !== '
 const shouldRenderPanel = computed(() => showGlobalSearchState.value !== 'hide')
 const shouldSyncWithRoute = computed(() => props.syncWithRoute)
 const hasRouteSearchOverlay = computed(() => shouldSyncWithRoute.value && hasGlobalSearchOverlay(route.query))
+const routeOverlayMode = computed(() => hasRouteSearchOverlay.value ? getGlobalSearchOverlayMode(route.query) : 'search')
 const panelCaption = computed(() => {
   if (!isSearchMode.value) {
     return 'AI 对话'
@@ -217,7 +219,7 @@ function activateSearch(options: { syncRoute?: boolean } = {}) {
     })
   })
 
-  if (syncRoute && isSearchMode.value) {
+  if (syncRoute) {
     void syncSearchRoute()
   }
 }
@@ -352,7 +354,7 @@ function handleCompositionEnd(event: CompositionEvent) {
   const value = (event.target as HTMLTextAreaElement | null)?.value || ''
   if (!isSearchMode.value) {
     aiDraft.value = value
-    activateSearch({ syncRoute: false })
+    activateSearch()
     void nextTick(syncInputHeight)
     return
   }
@@ -363,13 +365,13 @@ function handleCompositionEnd(event: CompositionEvent) {
 }
 
 function onFocus() {
-  activateSearch({ syncRoute: isSearchMode.value })
+  activateSearch()
 }
 
 async function submitAiDraft() {
   const draft = aiDraft.value
   if (!draft.trim()) {
-    activateSearch({ syncRoute: false })
+    activateSearch()
     focusInput()
     return
   }
@@ -383,7 +385,7 @@ async function submitAiDraft() {
     aiDraft.value = draft
   }
 
-  activateSearch({ syncRoute: false })
+  activateSearch()
   focusInput()
 }
 
@@ -400,27 +402,19 @@ function startCloseAnimation() {
 }
 
 async function syncSearchRoute() {
-  if (!shouldSyncWithRoute.value || hasGlobalSearchOverlay(route.query)) {
+  if (!shouldSyncWithRoute.value) {
+    return
+  }
+
+  if (hasGlobalSearchOverlay(route.query) && getGlobalSearchOverlayMode(route.query) === inputMode.value) {
     return
   }
 
   await router.push({
     path: route.path,
-    query: withGlobalSearchOverlay(route.query),
+    query: withGlobalSearchOverlay(route.query, inputMode.value),
     hash: route.hash,
     state: withGlobalSearchHistoryState(window.history.state),
-  })
-}
-
-async function clearSearchRouteOverlay() {
-  if (!shouldSyncWithRoute.value || !hasGlobalSearchOverlay(route.query)) {
-    return
-  }
-
-  await router.replace({
-    path: route.path,
-    query: withoutGlobalSearchOverlay(route.query),
-    hash: route.hash,
   })
 }
 
@@ -464,7 +458,7 @@ function onInput(event: Event) {
 
   if (!isSearchMode.value) {
     aiDraft.value = value
-    activateSearch({ syncRoute: false })
+    activateSearch()
     return
   }
 
@@ -481,7 +475,7 @@ function onClear() {
   }
   else {
     aiDraft.value = ''
-    activateSearch({ syncRoute: false })
+    activateSearch()
   }
   void nextTick(syncInputHeight)
   focusInput()
@@ -512,7 +506,7 @@ function onKeydown(event: KeyboardEvent) {
 
 function handleAiPrefill(value: string) {
   aiDraft.value = value
-  activateSearch({ syncRoute: false })
+  activateSearch()
   void nextTick(syncInputHeight)
   focusInput()
 }
@@ -561,8 +555,7 @@ async function toggleInputMode() {
   }
   else {
     state.notes = []
-    await clearSearchRouteOverlay()
-    activateSearch({ syncRoute: false })
+    activateSearch()
   }
 
   focusInput()
@@ -578,10 +571,10 @@ function handleViewportChange() {
 
 watch(hasRouteSearchOverlay, (visible, previousVisible) => {
   if (visible) {
-    inputMode.value = 'search'
+    inputMode.value = routeOverlayMode.value
     activateSearch({ syncRoute: false })
 
-    if (!previousVisible && searchKeyword.value.trim()) {
+    if (!previousVisible && inputMode.value === 'search' && searchKeyword.value.trim()) {
       void runSearch(searchKeyword.value)
     }
     return
@@ -591,6 +584,14 @@ watch(hasRouteSearchOverlay, (visible, previousVisible) => {
     startCloseAnimation()
   }
 }, { immediate: true })
+
+watch(routeOverlayMode, (mode) => {
+  if (!hasRouteSearchOverlay.value || inputMode.value === mode) {
+    return
+  }
+
+  inputMode.value = mode
+})
 
 watch(currentDraft, () => {
   void nextTick(syncInputHeight)

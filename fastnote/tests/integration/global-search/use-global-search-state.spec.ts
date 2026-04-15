@@ -3,7 +3,7 @@ import { useGlobalSearch } from '@/features/global-search'
 
 function resetGlobalSearchState() {
   const { resetGlobalSearch } = useGlobalSearch()
-  resetGlobalSearch()
+  resetGlobalSearch({ preserveInputMode: false })
 }
 
 describe('useGlobalSearch integration', () => {

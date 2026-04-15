@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ChatMessageCardAction } from '@/shared/ui/chat-message'
 import { IonButton, IonButtons, IonList, IonNote } from '@ionic/vue'
-import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import ChatMessage from '@/shared/ui/chat-message'
 import { AI_CHAT_STARTER_PROMPTS } from '../model/starter-prompts'
 import { useAiChat } from '../model/use-ai-chat'
@@ -89,6 +89,16 @@ function scrollThreadToBottom() {
 
   thread.scrollTop = thread.scrollHeight
 }
+
+onMounted(async () => {
+  if (!hasVisibleMessages.value) {
+    return
+  }
+
+  shouldAutoScroll.value = true
+  await nextTick()
+  scrollThreadToBottom()
+})
 
 watch(() => [scrollTrackToken.value, chat.status], async () => {
   await nextTick()

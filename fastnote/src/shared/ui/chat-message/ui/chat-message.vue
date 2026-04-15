@@ -201,21 +201,10 @@ function handleCardAction(action?: ChatMessageCardAction) {
   max-width: min(680px, 86%);
   padding: 12px 14px;
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.08);
   color: #f5f5f7;
   font-size: 14px;
   line-height: 1.65;
   word-break: break-word;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-
-.chat-message--assistant .chat-message__bubble {
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.05)), rgba(255, 255, 255, 0.04);
-}
-
-.chat-message--user .chat-message__bubble {
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.28), rgba(56, 189, 248, 0.24));
 }
 
 .chat-message__plain {

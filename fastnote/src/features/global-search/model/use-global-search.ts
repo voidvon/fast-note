@@ -8,12 +8,17 @@ const inputMode = ref<GlobalSearchInputMode>('search')
 const searchKeyword = ref('')
 const aiDraft = ref('')
 
-function resetGlobalSearch() {
+function resetGlobalSearch(options: { preserveInputMode?: boolean } = {}) {
+  const { preserveInputMode = true } = options
+
   showGlobalSearch.value = false
   showGlobalSearchState.value = 'hide'
   searchKeyword.value = ''
   aiDraft.value = ''
-  inputMode.value = 'search'
+
+  if (!preserveInputMode) {
+    inputMode.value = 'search'
+  }
 }
 
 export function useGlobalSearch() {

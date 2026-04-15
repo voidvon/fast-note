@@ -588,6 +588,104 @@ describe('global search ai chat', () => {
     restoredWrapper.unmount()
   })
 
+  it('scrolls to bottom when entering ai mode with restored conversation', async () => {
+    const fetchMock = vi.fn(async () => createSseResponse([
+      JSON.stringify({
+        choices: [{
+          delta: {
+            role: 'assistant',
+          },
+        }],
+      }),
+      JSON.stringify({
+        choices: [{
+          delta: {
+            content: '已恢复到底部。',
+          },
+          finish_reason: 'stop',
+        }],
+      }),
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { useAiChat } = await import('@/features/ai-chat')
+    useAiChat().saveSettings({
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4.1-mini',
+    })
+
+    const firstWrapper = await mountGlobalSearch()
+    const firstInput = firstWrapper.get('textarea')
+
+    await firstInput.trigger('focus')
+    await firstWrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
+    await nextTick()
+
+    await firstInput.setValue('帮我保留滚动位置')
+    await firstWrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+    firstWrapper.unmount()
+
+    vi.resetModules()
+    setupModuleMocks()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const scrollTopMap = new WeakMap<HTMLDivElement, number>()
+    const originalClientHeight = Object.getOwnPropertyDescriptor(HTMLDivElement.prototype, 'clientHeight')
+    const originalScrollHeight = Object.getOwnPropertyDescriptor(HTMLDivElement.prototype, 'scrollHeight')
+    const originalScrollTop = Object.getOwnPropertyDescriptor(HTMLDivElement.prototype, 'scrollTop')
+
+    Object.defineProperty(HTMLDivElement.prototype, 'clientHeight', {
+      configurable: true,
+      get() {
+        return this.classList.contains('ai-chat-panel__thread') ? 200 : 0
+      },
+    })
+    Object.defineProperty(HTMLDivElement.prototype, 'scrollHeight', {
+      configurable: true,
+      get() {
+        return this.classList.contains('ai-chat-panel__thread') ? 600 : 0
+      },
+    })
+    Object.defineProperty(HTMLDivElement.prototype, 'scrollTop', {
+      configurable: true,
+      get() {
+        return scrollTopMap.get(this) ?? 0
+      },
+      set(value: number) {
+        scrollTopMap.set(this, value)
+      },
+    })
+
+    try {
+      const restoredWrapper = await mountGlobalSearch()
+      const restoredInput = restoredWrapper.get('textarea')
+
+      await restoredInput.trigger('focus')
+      await restoredWrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
+      await nextTick()
+      await nextTick()
+
+      const thread = restoredWrapper.get('.ai-chat-panel__thread').element as HTMLDivElement
+      expect(thread.scrollTop).toBe(600)
+
+      restoredWrapper.unmount()
+    }
+    finally {
+      if (originalClientHeight) {
+        Object.defineProperty(HTMLDivElement.prototype, 'clientHeight', originalClientHeight)
+      }
+      if (originalScrollHeight) {
+        Object.defineProperty(HTMLDivElement.prototype, 'scrollHeight', originalScrollHeight)
+      }
+      if (originalScrollTop) {
+        Object.defineProperty(HTMLDivElement.prototype, 'scrollTop', originalScrollTop)
+      }
+    }
+  })
+
   it('shows confirmation actions for assistant tool envelope and appends execution summary after confirm', async () => {
     aiChatSessionMock.submitToolCalls.mockImplementationOnce(async () => {
       const results = [{
