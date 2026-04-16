@@ -183,6 +183,21 @@ async function mountGlobalSearch() {
   })
 }
 
+async function ensureAiMode(wrapper: Awaited<ReturnType<typeof mountGlobalSearch>>) {
+  const input = wrapper.get('textarea')
+
+  await input.trigger('focus')
+  await nextTick()
+
+  const toggleButton = wrapper.find('button[aria-label="切换到 AI 对话"]')
+  if (toggleButton.exists()) {
+    await toggleButton.trigger('click')
+    await nextTick()
+  }
+
+  return input
+}
+
 function setupModuleMocks() {
   vi.doMock('@/entities/note', () => ({
     NOTE_TYPE: {
@@ -576,14 +591,102 @@ describe('global search ai chat', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const restoredWrapper = await mountGlobalSearch()
-    const restoredInput = restoredWrapper.get('textarea')
-
-    await restoredInput.trigger('focus')
-    await restoredWrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
-    await nextTick()
+    await ensureAiMode(restoredWrapper)
 
     expect(restoredWrapper.text()).toContain('帮我记住这段对话')
     expect(restoredWrapper.text()).toContain('本地记录已恢复。')
+
+    restoredWrapper.unmount()
+  })
+
+  it('restores structured result cards from local storage after remount', async () => {
+    aiChatSessionMock.submitToolCalls.mockImplementationOnce(async () => {
+      const results = [{
+        ok: true,
+        code: 'ok',
+        message: null,
+        preview: {
+          title: '搜索备忘录',
+          summary: '搜索关键字“周报”',
+          affectedNoteIds: [],
+        },
+        data: [{
+          id: 'note-1',
+          title: '周报',
+          summary: '本周项目推进',
+          parentId: 'folder-1',
+          updated: '2026-04-15 10:00:00',
+          isLocked: false,
+          isDeleted: false,
+        }],
+      }]
+
+      aiChatSessionMock.hasPendingConfirmation.value = false
+      aiChatSessionMock.lastResults.value = results
+      return results
+    })
+
+    const fetchMock = vi.fn(async () => createSseResponse([
+      JSON.stringify({
+        choices: [{
+          delta: {
+            role: 'assistant',
+          },
+        }],
+      }),
+      JSON.stringify({
+        choices: [{
+          delta: {
+            content: JSON.stringify({
+              mode: 'tool_calls',
+              answer: '我找到了相关备忘录。',
+              toolCalls: [{
+                tool: 'search_notes',
+                payload: {
+                  query: '周报',
+                },
+              }],
+            }),
+          },
+          finish_reason: 'stop',
+        }],
+      }),
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { useAiChat } = await import('@/features/ai-chat')
+    useAiChat().saveSettings({
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4.1-mini',
+    })
+
+    const firstWrapper = await mountGlobalSearch()
+    const firstInput = firstWrapper.get('textarea')
+
+    await firstInput.trigger('focus')
+    await firstWrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
+    await nextTick()
+
+    await firstInput.setValue('搜索周报')
+    await firstWrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(firstWrapper.find('button.chat-message__card-item-button').exists()).toBe(true)
+    firstWrapper.unmount()
+
+    vi.resetModules()
+    resetAiChatSessionMock()
+    setupModuleMocks()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const restoredWrapper = await mountGlobalSearch()
+    await ensureAiMode(restoredWrapper)
+
+    expect(restoredWrapper.text()).toContain('我找到了相关备忘录。')
+    expect(restoredWrapper.text()).toContain('周报')
+    expect(restoredWrapper.find('button.chat-message__card-item-button').exists()).toBe(true)
 
     restoredWrapper.unmount()
   })
@@ -661,11 +764,7 @@ describe('global search ai chat', () => {
 
     try {
       const restoredWrapper = await mountGlobalSearch()
-      const restoredInput = restoredWrapper.get('textarea')
-
-      await restoredInput.trigger('focus')
-      await restoredWrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
-      await nextTick()
+      await ensureAiMode(restoredWrapper)
       await nextTick()
 
       const thread = restoredWrapper.get('.ai-chat-panel__thread').element as HTMLDivElement

@@ -1,7 +1,7 @@
 import type { UIMessage } from 'ai'
 import type { OpenAiCompatibleChatSettings } from './openai-compatible-chat-transport'
 import type { AiChatRequestContext } from './request-context'
-import type { ChatMessageCard } from '@/shared/ui/chat-message'
+import type { ChatMessageCard, ChatMessageCardAction, ChatMessageCardItem } from '@/shared/ui/chat-message'
 import { Chat } from '@ai-sdk/vue'
 import { nanoid } from 'nanoid'
 import { computed, reactive, ref, watch } from 'vue'
@@ -46,6 +46,8 @@ export interface AiChatViewMessage {
   role: 'assistant' | 'user'
   text: string
 }
+
+interface PersistedAiChatMessage extends AiChatViewMessage {}
 
 export type AiChatSessionPhase = 'error' | 'ready' | 'responding' | 'thinking' | 'unconfigured'
 
@@ -110,10 +112,84 @@ function toPersistedMessages(messages: UIMessage[]) {
       return message.role === 'user' || message.role === 'assistant'
     })
     .map(message => ({
+      cards: messageCards.value[message.id] || [],
       id: message.id,
       role: message.role,
       text: getMessageText(message.parts),
     }))
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function normalizeCardAction(value: unknown): ChatMessageCardAction | undefined {
+  if (!isRecord(value) || typeof value.type !== 'string') {
+    return undefined
+  }
+
+  if (value.type === 'open-note' && typeof value.noteId === 'string') {
+    return {
+      type: 'open-note',
+      noteId: value.noteId,
+      parentId: typeof value.parentId === 'string' ? value.parentId : undefined,
+      isDeleted: value.isDeleted === true,
+    }
+  }
+
+  if (value.type === 'open-folder' && typeof value.folderId === 'string') {
+    return {
+      type: 'open-folder',
+      folderId: value.folderId,
+      parentId: typeof value.parentId === 'string' ? value.parentId : undefined,
+    }
+  }
+
+  return undefined
+}
+
+function normalizeCardItem(value: unknown): ChatMessageCardItem | null {
+  if (!isRecord(value) || typeof value.id !== 'string' || typeof value.title !== 'string') {
+    return null
+  }
+
+  const tags = Array.isArray(value.tags)
+    ? value.tags.filter((tag): tag is string => typeof tag === 'string')
+    : undefined
+
+  return {
+    action: normalizeCardAction(value.action),
+    description: typeof value.description === 'string' ? value.description : undefined,
+    id: value.id,
+    meta: typeof value.meta === 'string' ? value.meta : undefined,
+    tags: tags?.length ? tags : undefined,
+    title: value.title,
+  }
+}
+
+function normalizeCard(value: unknown): ChatMessageCard | null {
+  if (!isRecord(value) || typeof value.id !== 'string' || typeof value.title !== 'string') {
+    return null
+  }
+
+  const items = Array.isArray(value.items)
+    ? value.items
+        .map(item => normalizeCardItem(item))
+        .filter((item): item is ChatMessageCardItem => !!item)
+    : undefined
+
+  const status = value.status === 'error' || value.status === 'info' || value.status === 'success' || value.status === 'warning'
+    ? value.status
+    : undefined
+
+  return {
+    description: typeof value.description === 'string' ? value.description : undefined,
+    footer: typeof value.footer === 'string' ? value.footer : undefined,
+    id: value.id,
+    items: items?.length ? items : undefined,
+    status,
+    title: value.title,
+  }
 }
 
 function hydrateConversation() {
@@ -136,13 +212,14 @@ function hydrateConversation() {
       return
     }
 
-    chat.messages = parsed
-      .filter((message): message is AiChatViewMessage => {
+    const persistedMessages = parsed
+      .filter((message): message is PersistedAiChatMessage => {
         return !!message
           && typeof message.id === 'string'
           && (message.role === 'user' || message.role === 'assistant')
           && typeof message.text === 'string'
       })
+    chat.messages = persistedMessages
       .map(message => ({
         id: message.id,
         role: message.role,
@@ -152,6 +229,22 @@ function hydrateConversation() {
           state: 'done' as const,
         }],
       }))
+    messageCards.value = persistedMessages.reduce<Record<string, ChatMessageCard[]>>((cards, message) => {
+      if (!Array.isArray(message.cards)) {
+        return cards
+      }
+
+      const normalizedCards = message.cards
+        .map(card => normalizeCard(card))
+        .filter((card): card is ChatMessageCard => !!card)
+
+      if (!normalizedCards.length) {
+        return cards
+      }
+
+      cards[message.id] = normalizedCards
+      return cards
+    }, {})
   }
   catch {
     localStorage.removeItem(getConversationStorageKey())
@@ -486,6 +579,14 @@ export function useAiChat() {
 }
 
 watch(() => chat.messages, () => {
+  if (!hasHydratedConversation.value) {
+    return
+  }
+
+  persistConversation()
+}, { deep: true })
+
+watch(() => messageCards.value, () => {
   if (!hasHydratedConversation.value) {
     return
   }

@@ -556,6 +556,151 @@ describe('global search mode toggle', () => {
     vi.useRealTimers()
   })
 
+  it('restores ai mode after module reload', async () => {
+    mockAiChatSession()
+    vi.doMock('@/entities/note', () => ({
+      NOTE_TYPE: {
+        FOLDER: 1,
+        NOTE: 2,
+      },
+      useNote: () => ({
+        getNote: vi.fn(() => null),
+        notes: ref([]),
+        searchNotesByParentId: vi.fn(async () => []),
+      }),
+    }))
+
+    vi.doMock('@/widgets/note-list', () => ({
+      default: defineComponent({
+        name: 'NoteListStub',
+        template: '<div class="note-list-stub" />',
+      }),
+    }))
+
+    vi.doMock('vue-router', async () => {
+      const actual = await vi.importActual<typeof import('vue-router')>('vue-router')
+      return {
+        ...actual,
+        useRoute: () => ({
+          path: '/home',
+          query: {},
+          hash: '',
+        }),
+        useRouter: () => ({
+          push: vi.fn(),
+          replace: vi.fn(),
+          back: vi.fn(),
+        }),
+      }
+    })
+
+    vi.doMock('@ionic/vue', () => ({
+      IonButton: createButtonStub('IonButton'),
+      IonButtons: createIonicStub('IonButtons'),
+      IonChip: createIonicStub('IonChip'),
+      IonContent: createIonicStub('IonContent'),
+      IonAlert: createModalStub('IonAlert'),
+      IonIcon: createIonicStub('IonIcon'),
+      IonInput: createInputStub('IonInput'),
+      IonItem: createIonicStub('IonItem'),
+      IonLabel: createIonicStub('IonLabel', 'span'),
+      IonList: createIonicStub('IonList'),
+      IonModal: createModalStub('IonModal'),
+      IonNote: createIonicStub('IonNote', 'span'),
+      IonSpinner: createIonicStub('IonSpinner', 'span'),
+      IonHeader: createIonicStub('IonHeader'),
+      IonToolbar: createIonicStub('IonToolbar'),
+      IonTitle: createIonicStub('IonTitle', 'span'),
+    }))
+
+    const FirstGlobalSearch = (await import('@/features/global-search/ui/global-search.vue')).default
+    const firstWrapper = mount(FirstGlobalSearch, {
+      attachTo: document.body,
+      props: {
+        syncWithRoute: false,
+      },
+    })
+
+    await firstWrapper.get('textarea').trigger('focus')
+    await nextTick()
+    await firstWrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
+    await nextTick()
+    firstWrapper.unmount()
+
+    vi.resetModules()
+    mockAiChatSession()
+    vi.doMock('@/entities/note', () => ({
+      NOTE_TYPE: {
+        FOLDER: 1,
+        NOTE: 2,
+      },
+      useNote: () => ({
+        getNote: vi.fn(() => null),
+        notes: ref([]),
+        searchNotesByParentId: vi.fn(async () => []),
+      }),
+    }))
+    vi.doMock('@/widgets/note-list', () => ({
+      default: defineComponent({
+        name: 'NoteListStub',
+        template: '<div class="note-list-stub" />',
+      }),
+    }))
+    vi.doMock('vue-router', async () => {
+      const actual = await vi.importActual<typeof import('vue-router')>('vue-router')
+      return {
+        ...actual,
+        useRoute: () => ({
+          path: '/home',
+          query: {},
+          hash: '',
+        }),
+        useRouter: () => ({
+          push: vi.fn(),
+          replace: vi.fn(),
+          back: vi.fn(),
+        }),
+      }
+    })
+    vi.doMock('@ionic/vue', () => ({
+      IonButton: createButtonStub('IonButton'),
+      IonButtons: createIonicStub('IonButtons'),
+      IonChip: createIonicStub('IonChip'),
+      IonContent: createIonicStub('IonContent'),
+      IonAlert: createModalStub('IonAlert'),
+      IonIcon: createIonicStub('IonIcon'),
+      IonInput: createInputStub('IonInput'),
+      IonItem: createIonicStub('IonItem'),
+      IonLabel: createIonicStub('IonLabel', 'span'),
+      IonList: createIonicStub('IonList'),
+      IonModal: createModalStub('IonModal'),
+      IonNote: createIonicStub('IonNote', 'span'),
+      IonSpinner: createIonicStub('IonSpinner', 'span'),
+      IonHeader: createIonicStub('IonHeader'),
+      IonToolbar: createIonicStub('IonToolbar'),
+      IonTitle: createIonicStub('IonTitle', 'span'),
+    }))
+
+    const RestoredGlobalSearch = (await import('@/features/global-search/ui/global-search.vue')).default
+    const { useGlobalSearch } = await import('@/features/global-search')
+    const state = useGlobalSearch()
+    const restoredWrapper = mount(RestoredGlobalSearch, {
+      attachTo: document.body,
+      props: {
+        syncWithRoute: false,
+      },
+    })
+
+    await restoredWrapper.get('textarea').trigger('focus')
+    await nextTick()
+
+    expect(state.inputMode.value).toBe('ai')
+    expect(restoredWrapper.text()).toContain('AI 对话')
+    expect(restoredWrapper.get('textarea').attributes('placeholder')).toBe('发消息')
+
+    restoredWrapper.unmount()
+  })
+
   it('keeps the glass panel full screen and reserves the bottom dock area for content', async () => {
     mockAiChatSession()
     vi.doMock('@/entities/note', () => ({
