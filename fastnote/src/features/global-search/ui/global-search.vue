@@ -9,6 +9,7 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import { useRoute, useRouter } from 'vue-router'
 import { NOTE_TYPE, useNote } from '@/entities/note'
 import { toAiChatContextNote } from '@/features/ai-chat/model/request-context'
+import { resolveAiChatTarget } from '@/features/ai-chat/model/target-resolution'
 import AiChatPanel, { useAiChat } from '@/features/ai-chat'
 import { useDesktopActiveNote } from '@/processes/navigation/model/use-desktop-active-note'
 import { cleanupIonicOverlayLocks } from '@/shared/lib/ionic'
@@ -45,7 +46,7 @@ const {
   showGlobalSearchState,
 } = useGlobalSearch()
 const { getNote, notes, searchNotesByParentId } = useNote()
-const { chat, isBusy: isAiBusy, sendMessage: sendAiMessage } = useAiChat()
+const { chat, currentTask, isBusy: isAiBusy, resumeInterruptedTask, sendMessage: sendAiMessage } = useAiChat()
 const { getSnapshot } = useDesktopActiveNote()
 const route = useRoute()
 const router = useRouter()
@@ -122,6 +123,16 @@ const recentContextNotes = computed(() => {
     .filter((note): note is NonNullable<ReturnType<typeof toAiChatContextNote>> => !!note)
 })
 
+function resolveCurrentBrowserRoutePath() {
+  if (typeof window === 'undefined') {
+    return route.path
+  }
+
+  const pathname = window.location.pathname || route.path || '/home'
+  const normalizedPath = pathname === '/' ? '/home' : pathname
+  return `${normalizedPath}${window.location.search || ''}`
+}
+
 function resolveRouteNoteId() {
   const routeNoteId = Array.isArray(route.params?.id)
     ? route.params.id[0]
@@ -145,24 +156,51 @@ function resolveFolderContextTitle(folderId: string) {
   }
 }
 
-const aiRequestContext = computed<AiChatRequestContext>(() => {
+function isSpecialFolderId(folderId: string) {
+  return ['allnotes', 'unfilednotes', 'deleted'].includes(folderId)
+}
+
+function resolveContextFolder(folderId: string) {
+  const title = resolveFolderContextTitle(folderId)
+  if (!folderId || !title) {
+    return null
+  }
+
+  return {
+    id: folderId,
+    title,
+    kind: isSpecialFolderId(folderId) ? 'special' as const : 'folder' as const,
+  }
+}
+
+function resolveResolvedFolder(folderId: string, fallbackTitle: string, fallbackKind: 'folder' | 'special') {
+  if (!folderId) {
+    return null
+  }
+
+  const resolved = resolveContextFolder(folderId)
+  if (resolved) {
+    return resolved
+  }
+
+  return {
+    id: folderId,
+    title: fallbackTitle,
+    kind: fallbackKind,
+  }
+}
+
+const baseAiRequestContext = computed<AiChatRequestContext>(() => {
   const routeNoteId = resolveRouteNoteId()
   const desktopSnapshot = getSnapshot()
   const activeNoteId = routeNoteId || desktopSnapshot?.noteId || ''
   const activeFolderId = desktopSnapshot?.folderId || ''
-  const activeFolderTitle = activeFolderId ? resolveFolderContextTitle(activeFolderId) : ''
 
   return {
     source: 'home_global_search',
-    routePath: route.path,
+    routePath: resolveCurrentBrowserRoutePath(),
     publicUserId: props.puuid || null,
-    activeFolder: activeFolderId && activeFolderTitle
-      ? {
-          id: activeFolderId,
-          title: activeFolderTitle,
-          kind: ['allnotes', 'unfilednotes', 'deleted'].includes(activeFolderId) ? 'special' : 'folder',
-        }
-      : null,
+    activeFolder: resolveContextFolder(activeFolderId),
     activeNote: toAiChatContextNote(activeNoteId ? getNote(activeNoteId) : null),
     candidateNotes: state.notes
       .slice(0, 5)
@@ -171,6 +209,27 @@ const aiRequestContext = computed<AiChatRequestContext>(() => {
     recentNotes: recentContextNotes.value,
   }
 })
+
+function createAiRequestContext(input: string): AiChatRequestContext {
+  const context = baseAiRequestContext.value
+  const resolvedTarget = resolveAiChatTarget(input, context)
+  if (!resolvedTarget) {
+    return context
+  }
+
+  return {
+    ...context,
+    resolvedTarget: {
+      source: resolvedTarget.source,
+      note: resolvedTarget.note?.id
+        ? (toAiChatContextNote(getNote(resolvedTarget.note.id)) || resolvedTarget.note)
+        : null,
+      folder: resolvedTarget.folder?.id
+        ? resolveResolvedFolder(resolvedTarget.folder.id, resolvedTarget.folder.title, resolvedTarget.folder.kind)
+        : null,
+    },
+  }
+}
 
 if (!hasRouteSearchOverlay.value) {
   resetGlobalSearch()
@@ -379,7 +438,7 @@ async function submitAiDraft() {
   aiDraft.value = ''
 
   const submitted = await sendAiMessage(draft, {
-    requestContext: aiRequestContext.value,
+    requestContext: createAiRequestContext(draft),
   })
   if (!submitted) {
     aiDraft.value = draft
@@ -508,6 +567,19 @@ function handleAiPrefill(value: string) {
   aiDraft.value = value
   activateSearch()
   void nextTick(syncInputHeight)
+  focusInput()
+}
+
+async function handleResumeTask() {
+  const resumed = await resumeInterruptedTask({
+    requestContext: createAiRequestContext(currentTask.value?.input || ''),
+  })
+
+  if (!resumed) {
+    return
+  }
+
+  activateSearch()
   focusInput()
 }
 
@@ -752,6 +824,7 @@ onUnmounted(() => {
             class="global-search__ai-panel"
             @action="handleAiAction"
             @prefill="handleAiPrefill"
+            @resume-task="handleResumeTask"
           />
         </div>
       </div>

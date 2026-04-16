@@ -42,6 +42,8 @@ describe('openAiCompatibleChatTransport', () => {
     expect(DEFAULT_SYSTEM_PROMPT).toContain('/n/<noteId>')
     expect(DEFAULT_SYSTEM_PROMPT).toContain('get_note_detail')
     expect(DEFAULT_SYSTEM_PROMPT).toContain('读取这个链接里的备忘录')
+    expect(DEFAULT_SYSTEM_PROMPT).toContain('move_note')
+    expect(DEFAULT_SYSTEM_PROMPT).toContain('不要用它变更目录')
   })
 
   it('normalizes chat completions endpoint', () => {
@@ -149,6 +151,18 @@ describe('openAiCompatibleChatTransport', () => {
             isDeleted: false,
             isLocked: false,
           },
+          resolvedTarget: {
+            source: 'message_note_url',
+            note: {
+              id: 'note-2',
+              title: '链接里的周报',
+              summary: '需要优先处理',
+              parentId: '',
+              updated: '2026-04-16 09:00:00',
+              isDeleted: false,
+              isLocked: false,
+            },
+          },
         },
         temperature: 0.3,
       },
@@ -177,6 +191,7 @@ describe('openAiCompatibleChatTransport', () => {
       role: 'system',
     })
     expect(body.messages[1].content).toContain('当前选中备忘录')
+    expect(body.messages[1].content).toContain('前端显式解析目标备忘录')
     expect(body.messages[2]).toMatchObject({
       role: 'user',
       content: '帮我处理当前备忘录',

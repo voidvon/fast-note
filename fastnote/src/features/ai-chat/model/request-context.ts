@@ -21,12 +21,19 @@ export interface AiChatContextFolder {
   kind: 'folder' | 'special'
 }
 
+export interface AiChatResolvedTarget {
+  folder?: AiChatContextFolder | null
+  note?: AiChatContextNote | null
+  source: 'active_folder' | 'active_note' | 'message_folder_url' | 'message_note_url'
+}
+
 export interface AiChatRequestContext {
   activeFolder?: AiChatContextFolder | null
   activeNote?: AiChatContextNote | null
   candidateNotes?: AiChatContextNote[]
   publicUserId?: string | null
   recentNotes?: AiChatContextNote[]
+  resolvedTarget?: AiChatResolvedTarget | null
   routePath?: string
   source?: string
 }
@@ -87,6 +94,35 @@ function normalizeContextNoteList(value: unknown) {
     .slice(0, MAX_CONTEXT_NOTES)
 }
 
+function normalizeResolvedTarget(value: unknown): AiChatResolvedTarget | null {
+  if (!isRecord(value) || typeof value.source !== 'string') {
+    return null
+  }
+
+  const source = value.source === 'active_folder'
+    || value.source === 'active_note'
+    || value.source === 'message_folder_url'
+    || value.source === 'message_note_url'
+    ? value.source
+    : null
+
+  if (!source) {
+    return null
+  }
+
+  const note = normalizeContextNote(value.note)
+  const folder = normalizeContextFolder(value.folder)
+  if (!note && !folder) {
+    return null
+  }
+
+  return {
+    source,
+    note,
+    folder,
+  }
+}
+
 export function normalizeAiChatRequestContext(value: unknown): AiChatRequestContext | null {
   if (!isRecord(value)) {
     return null
@@ -100,6 +136,7 @@ export function normalizeAiChatRequestContext(value: unknown): AiChatRequestCont
     activeNote: normalizeContextNote(value.activeNote),
     candidateNotes: normalizeContextNoteList(value.candidateNotes),
     recentNotes: normalizeContextNoteList(value.recentNotes),
+    resolvedTarget: normalizeResolvedTarget(value.resolvedTarget),
   }
 
   if (!context.source
@@ -108,7 +145,8 @@ export function normalizeAiChatRequestContext(value: unknown): AiChatRequestCont
     && !context.activeFolder
     && !context.activeNote
     && !context.candidateNotes?.length
-    && !context.recentNotes?.length) {
+    && !context.recentNotes?.length
+    && !context.resolvedTarget) {
     return null
   }
 
@@ -134,6 +172,19 @@ function formatNoteSection(title: string, notes: AiChatContextNote[] | undefined
     `- ${title}：`,
     ...notes.map((note, index) => `  ${index + 1}. ${formatNoteLine(note)}`),
   ]
+}
+
+function getResolvedTargetSourceLabel(source: AiChatResolvedTarget['source']) {
+  switch (source) {
+    case 'active_note':
+      return '当前活动备忘录'
+    case 'active_folder':
+      return '当前活动目录'
+    case 'message_note_url':
+      return '消息中的备忘录链接'
+    case 'message_folder_url':
+      return '消息中的目录链接'
+  }
 }
 
 export function buildAiChatContextSystemPrompt(context: AiChatRequestContext | null | undefined) {
@@ -165,6 +216,18 @@ export function buildAiChatContextSystemPrompt(context: AiChatRequestContext | n
 
   if (normalizedContext.activeNote) {
     lines.push(`- 当前选中备忘录：${formatNoteLine(normalizedContext.activeNote)}`)
+  }
+
+  if (normalizedContext.resolvedTarget?.note) {
+    lines.push(`- 前端显式解析目标备忘录：${formatNoteLine(normalizedContext.resolvedTarget.note)}｜来源：${getResolvedTargetSourceLabel(normalizedContext.resolvedTarget.source)}`)
+  }
+
+  if (normalizedContext.resolvedTarget?.folder) {
+    lines.push(`- 前端显式解析目标目录：${normalizedContext.resolvedTarget.folder.title} [${normalizedContext.resolvedTarget.folder.id}]｜来源：${getResolvedTargetSourceLabel(normalizedContext.resolvedTarget.source)}`)
+  }
+
+  if (normalizedContext.resolvedTarget) {
+    lines.push('- 若用户本轮指令与该显式目标一致，优先围绕该对象继续读取、改写或执行后续工具，不要忽略这个对象。')
   }
 
   lines.push(...formatNoteSection('当前候选备忘录', normalizedContext.candidateNotes))

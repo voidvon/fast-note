@@ -13,6 +13,7 @@ import AiChatToolbar from './ai-chat-toolbar.vue'
 const emit = defineEmits<{
   action: [payload: ChatMessageCardAction]
   prefill: [value: string]
+  resumeTask: []
 }>()
 
 const {
@@ -21,6 +22,11 @@ const {
   chat,
   clearConversation,
   confirmPendingExecution,
+  canResumeInterruptedTask,
+  currentTask,
+  currentTaskConfirmationModeLabel,
+  currentTaskRiskLabel,
+  currentTaskStatusLabel,
   hasConfiguredProvider,
   hasPendingConfirmation,
   hasVisibleMessages,
@@ -60,6 +66,30 @@ const scrollTrackToken = computed(() => {
 const latestVisibleMessage = computed(() => {
   return visibleMessages.value.at(-1) || null
 })
+const latestTaskStep = computed(() => currentTask.value?.steps.at(-1) || null)
+const shouldShowTaskPanel = computed(() => {
+  if (!currentTask.value) {
+    return false
+  }
+
+  return currentTask.value.status !== 'completed' && currentTask.value.status !== 'cancelled'
+})
+const taskStepText = computed(() => {
+  if (!latestTaskStep.value) {
+    return ''
+  }
+
+  if (latestTaskStep.value.kind === 'answer') {
+    return ''
+  }
+
+  return latestTaskStep.value.detail
+    ? `${latestTaskStep.value.title}：${latestTaskStep.value.detail}`
+    : latestTaskStep.value.title
+})
+const canResumeTask = computed(() => canResumeInterruptedTask.value)
+const showRouteMismatchNotice = computed(() => currentTask.value?.requiresRelocation === true && !canResumeTask.value)
+const showConfirmationBlock = computed(() => hasPendingConfirmation.value && !showRouteMismatchNotice.value)
 const confirmationPreviewLines = computed(() => {
   return lastToolResults.value
     .map(result => result.preview)
@@ -197,6 +227,39 @@ function handleMessageAction(action: ChatMessageCardAction) {
       @reset="handleResetSettings"
     />
 
+    <div v-if="shouldShowTaskPanel" class="ai-chat-panel__task">
+      <div class="ai-chat-panel__task-header">
+        <IonNote class="ai-chat-panel__task-label">
+          当前任务
+        </IonNote>
+        <div class="ai-chat-panel__task-meta">
+          <span class="ai-chat-panel__task-status">
+            {{ currentTaskStatusLabel }}
+          </span>
+          <span v-if="currentTaskRiskLabel" class="ai-chat-panel__task-chip">
+            {{ currentTaskRiskLabel }}
+          </span>
+          <span v-if="currentTaskConfirmationModeLabel" class="ai-chat-panel__task-chip">
+            {{ currentTaskConfirmationModeLabel }}
+          </span>
+        </div>
+      </div>
+      <p class="ai-chat-panel__task-input">
+        {{ currentTask.input }}
+      </p>
+      <p v-if="taskStepText" class="ai-chat-panel__task-step">
+        {{ taskStepText }}
+      </p>
+      <div v-if="showRouteMismatchNotice" class="ai-chat-panel__task-warning">
+        当前页面对象已变化，请回到原来的笔记或目录后再继续。
+      </div>
+      <IonButtons v-if="canResumeTask" class="ai-chat-panel__task-actions">
+        <IonButton size="small" @click="emit('resumeTask')">
+          继续任务
+        </IonButton>
+      </IonButtons>
+    </div>
+
     <div ref="threadRef" class="ai-chat-panel__thread" @scroll.passive="syncAutoScrollState">
       <template v-if="hasVisibleMessages">
         <IonList lines="none" class="ai-chat-panel__message-list">
@@ -226,7 +289,7 @@ function handleMessageAction(action: ChatMessageCardAction) {
       />
     </div>
 
-    <div v-if="hasPendingConfirmation" class="ai-chat-panel__confirmation">
+    <div v-if="showConfirmationBlock" class="ai-chat-panel__confirmation">
       <IonNote class="ai-chat-panel__confirmation-label">
         待确认操作
       </IonNote>
@@ -277,6 +340,73 @@ function handleMessageAction(action: ChatMessageCardAction) {
     touch-action: auto;
     padding-right: 4px;
     box-sizing: border-box;
+  }
+
+  &__task {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  &__task-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  &__task-meta {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  &__task-label {
+    color: #a1a1aa;
+    font-size: 12px;
+  }
+
+  &__task-status {
+    color: #f4f4f5;
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  &__task-chip {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #d4d4d8;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  &__task-input,
+  &__task-step {
+    margin: 0;
+    color: #f4f4f5;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  &__task-step {
+    color: #d4d4d8;
+  }
+
+  &__task-actions {
+    gap: 8px;
+  }
+
+  &__task-warning {
+    color: #fbbf24;
+    font-size: 12px;
+    line-height: 1.6;
   }
 
   &__message-list {
