@@ -34,10 +34,24 @@ describe('ai chat request context helpers', () => {
         isDeleted: false,
         isLocked: false,
       }],
+      resolvedTarget: {
+        source: 'message_note_url',
+        note: {
+          id: 'note-3',
+          title: '链接里的备忘录',
+          summary: '需要优先处理',
+          parentId: '',
+          updated: '2026-04-15 11:00:00',
+          isDeleted: false,
+          isLocked: false,
+        },
+      },
     })
 
     expect(prompt).toContain('当前入口')
     expect(prompt).toContain('当前选中备忘录')
+    expect(prompt).toContain('前端显式解析目标备忘录')
+    expect(prompt).toContain('消息中的备忘录链接')
     expect(prompt).toContain('最近更新的备忘录')
   })
 
@@ -45,12 +59,27 @@ describe('ai chat request context helpers', () => {
     const result = extractAiChatRequestContext({
       [AI_CHAT_REQUEST_CONTEXT_BODY_KEY]: {
         source: 'home_global_search',
+        resolvedTarget: {
+          source: 'message_note_url',
+          note: {
+            id: 'note-1',
+            title: '周报',
+            summary: '',
+            parentId: '',
+            updated: '',
+            isDeleted: false,
+            isLocked: false,
+          },
+        },
       },
       temperature: 0.2,
     })
 
     expect(result.context).toMatchObject({
       source: 'home_global_search',
+      resolvedTarget: {
+        source: 'message_note_url',
+      },
     })
     expect(result.requestBody).toEqual({
       temperature: 0.2,

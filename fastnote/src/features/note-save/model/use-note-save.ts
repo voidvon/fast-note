@@ -2,6 +2,7 @@ import type { Note } from '@/shared/types'
 import { ref } from 'vue'
 import { useNoteWrite } from '@/features/note-write'
 import { NOTE_TYPE } from '@/shared/types'
+import { saveExistingNote } from './save-existing-note'
 
 type MaybePromise<T> = T | Promise<T>
 
@@ -138,7 +139,13 @@ export function useNoteSave(options: UseNoteSaveOptions) {
 
     try {
       if (noteExists) {
-        const updateResult = await noteWrite.updateNote({
+        const updateResult = await saveExistingNote({
+          setCurrentNote(note) {
+            options.setCurrentNote?.(note)
+          },
+          sync: params.silent ? undefined : options.sync,
+          writeNote: noteWrite.updateNote,
+        }, {
           noteId,
           title,
           summary,
@@ -148,8 +155,6 @@ export function useNoteSave(options: UseNoteSaveOptions) {
         if (!updateResult.ok || !updateResult.note) {
           throw new Error(updateResult.message || '更新备忘录失败')
         }
-
-        options.setCurrentNote?.(updateResult.note)
 
         if (!params.silent) {
           options.emitNoteSaved?.({
@@ -194,7 +199,7 @@ export function useNoteSave(options: UseNoteSaveOptions) {
       lastSavedContent.value = content
       await flushNotesToLocalIfNeeded(params.leaveFlushReason)
 
-      if (!params.silent) {
+      if (!params.silent && !noteExists) {
         try {
           await options.sync(true)
         }

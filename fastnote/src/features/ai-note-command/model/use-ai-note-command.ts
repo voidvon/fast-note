@@ -15,6 +15,7 @@ import { useNote } from '@/entities/note/model/state/note-store'
 import { useNoteDelete } from '@/features/note-delete/model/use-note-delete'
 import { useNoteLock } from '@/features/note-lock/model/use-note-lock'
 import { useNoteMove } from '@/features/note-move/model/use-note-move'
+import { saveExistingNote } from '@/features/note-save/model/save-existing-note'
 import { useNoteWrite } from '@/features/note-write/model/use-note-write'
 import { useSync } from '@/processes/sync-notes/model/use-sync-notes'
 import { NOTE_TYPE } from '@/shared/types'
@@ -88,6 +89,50 @@ function appendHtml(baseContent: string, appendedContent: string) {
   return `${baseContent}${appendedContent}`
 }
 
+function htmlToPreviewText(contentHtml: string) {
+  return contentHtml
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function summarizeUpdatePreview(payload: AiUpdateNotePayload) {
+  const nextContent = typeof payload.contentHtml === 'string'
+    ? payload.contentHtml
+    : typeof payload.content === 'string'
+      ? payload.content
+      : ''
+
+  if (nextContent.trim()) {
+    const previewText = htmlToPreviewText(nextContent)
+    return previewText ? `将写入正文：${previewText.slice(0, 48)}` : '将更新正文内容'
+  }
+
+  if (typeof payload.appendContentHtml === 'string' && payload.appendContentHtml.trim()) {
+    const previewText = htmlToPreviewText(payload.appendContentHtml)
+    return previewText ? `将追加正文：${previewText.slice(0, 48)}` : '将追加正文内容'
+  }
+
+  if (typeof payload.title === 'string' && payload.title.trim()) {
+    return `将更新标题为“${payload.title.trim().slice(0, 24)}”`
+  }
+
+  if (typeof payload.summary === 'string' && payload.summary.trim()) {
+    return `将更新摘要：${payload.summary.trim().slice(0, 32)}`
+  }
+
+  return '将更新备忘录的标题、摘要或正文'
+}
+
+function toLogSnippet(content: string) {
+  return htmlToPreviewText(content).slice(0, 120)
+}
+
 function isMutationTool(tool: AiNoteToolCall['tool']) {
   return tool === 'create_note'
     || tool === 'update_note'
@@ -117,7 +162,7 @@ function buildPreview(call: AiNoteToolCall): AiToolPreview {
     case 'update_note':
       return {
         title: '准备更新备忘录',
-        summary: `将更新备忘录 ${call.payload.noteId} 的标题、内容或目录信息`,
+        summary: `备忘录 ${call.payload.noteId}：${summarizeUpdatePreview(call.payload)}`,
         affectedNoteIds: [call.payload.noteId],
       }
     case 'move_note':
@@ -232,18 +277,73 @@ export function useAiNoteCommand(options: UseAiNoteCommandOptions = {}) {
       }
     }
 
-    const nextContent = payload.contentHtml ?? (
+    const nextContent = (payload.contentHtml ?? payload.content) ?? (
       payload.appendContentHtml
         ? appendHtml(currentNote.content || '', payload.appendContentHtml)
         : currentNote.content
     )
-    const result = await updateNote({
+    const hasContentChange = nextContent !== (currentNote.content || '')
+    const hasTitleChange = typeof payload.title === 'string' && payload.title !== currentNote.title
+    const hasSummaryChange = typeof payload.summary === 'string' && payload.summary !== currentNote.summary
+    const hasParentChange = payload.parentId !== undefined && payload.parentId !== currentNote.parent_id
+
+    console.info('[AI update_note] payload received', {
+      noteId: payload.noteId,
+      currentContentPreview: toLogSnippet(currentNote.content || ''),
+      incomingContentPreview: typeof (payload.contentHtml ?? payload.content) === 'string'
+        ? toLogSnippet(payload.contentHtml ?? payload.content ?? '')
+        : typeof payload.appendContentHtml === 'string'
+          ? `[append] ${toLogSnippet(payload.appendContentHtml)}`
+          : '',
+      nextContentPreview: toLogSnippet(nextContent || ''),
+      hasContentChange,
+      hasTitleChange,
+      hasSummaryChange,
+      hasParentChange,
+      title: payload.title,
+      summary: payload.summary,
+      parentId: payload.parentId,
+    })
+
+    if (hasParentChange) {
+      return {
+        ok: false,
+        code: 'use_move_note',
+        message: '变更备忘录所在目录请改用 move_note',
+        affectedNoteIds: [payload.noteId],
+      }
+    }
+
+    if (!hasContentChange && !hasTitleChange && !hasSummaryChange) {
+      return {
+        ok: false,
+        code: 'no_effective_changes',
+        message: '本次 update_note 没有携带新的标题、摘要或正文内容',
+        affectedNoteIds: [payload.noteId],
+      }
+    }
+
+    const result = await saveExistingNote({
+      sync,
+      writeNote: input => updateNote({
+        ...input,
+        parentId: payload.parentId,
+        expectedUpdated: payload.expectedUpdated,
+      }),
+    }, {
       noteId: payload.noteId,
       title: payload.title,
       summary: payload.summary,
       content: nextContent,
-      parentId: payload.parentId,
-      expectedUpdated: payload.expectedUpdated,
+      files: currentNote.files ?? [],
+    })
+
+    console.info('[AI update_note] save result', {
+      noteId: payload.noteId,
+      ok: result.ok,
+      code: result.code,
+      syncQueued: result.syncQueued,
+      savedContentPreview: result.note?.content ? toLogSnippet(result.note.content) : '',
     })
 
     return {
@@ -252,6 +352,7 @@ export function useAiNoteCommand(options: UseAiNoteCommandOptions = {}) {
       message: result.message,
       data: result.note ? { note: result.note } : undefined,
       affectedNoteIds: [payload.noteId],
+      syncQueued: result.syncQueued,
     }
   }
 
@@ -304,7 +405,10 @@ export function useAiNoteCommand(options: UseAiNoteCommandOptions = {}) {
               ok: true,
               code: 'ok',
               message: null,
-              data: { note },
+              data: {
+                note,
+                source: 'store',
+              },
               affectedNoteIds: [note.id],
             }
           : {
@@ -385,7 +489,9 @@ export function useAiNoteCommand(options: UseAiNoteCommandOptions = {}) {
     }
 
     result.preview = preview
-    result.syncQueued = await queueSyncIfNeeded(call, result.ok)
+    if (typeof result.syncQueued !== 'boolean') {
+      result.syncQueued = await queueSyncIfNeeded(call, result.ok)
+    }
     return result
   }
 

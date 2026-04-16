@@ -38,6 +38,7 @@ export interface AiUpdateNotePayload {
   noteId: string
   title?: string
   summary?: string
+  content?: string
   contentHtml?: string
   appendContentHtml?: string
   parentId?: string
@@ -106,4 +107,5 @@ export interface AiNoteSearchItem {
 
 export interface AiNoteDetailItem {
   note: Note
+  source?: 'store' | 'persisted-cache' | 'unavailable'
 }

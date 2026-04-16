@@ -1,8 +1,9 @@
 import type { UIMessage } from 'ai'
 import type { OpenAiCompatibleChatSettings } from './openai-compatible-chat-transport'
 import type { AiChatRequestContext } from './request-context'
+import type { AiAgentTask } from './agent-task'
 import type { ChatMessageCard, ChatMessageCardAction, ChatMessageCardItem } from '@/shared/ui/chat-message'
-import type { AiToolResult } from '@/shared/types'
+import type { AiNoteToolCall, AiToolResult } from '@/shared/types'
 import { Chat } from '@ai-sdk/vue'
 import { nanoid } from 'nanoid'
 import { computed, reactive, ref, watch } from 'vue'
@@ -15,14 +16,35 @@ import {
   summarizePreviewResults,
 } from './assistant-envelope'
 import {
+  createAgentTask,
+  getAgentTaskConfirmationModeLabel,
+  getAgentTaskRiskLabel,
+  getAgentTaskStatusLabel,
+  normalizeAgentTask,
+  restoreAgentTaskAfterReload,
+  updateAgentTask,
+} from './agent-task'
+import {
+  applyAgentMutationPolicy,
+  getHighestConfirmationMode,
+  getHighestMutationRiskLevel,
+} from './mutation-policy'
+import {
+  createRouteTargetSnapshot,
+  isRouteTargetSnapshotMatched,
+  readCurrentRouteTargetSnapshot,
+} from './route-target-snapshot'
+import {
   DEFAULT_SYSTEM_PROMPT,
   OpenAiCompatibleChatTransport,
   requestOpenAiCompatibleCompletion,
 } from './openai-compatible-chat-transport'
+import { isAiChatAgentEnabled } from './agent-feature-flag'
 import { AI_CHAT_REQUEST_CONTEXT_BODY_KEY, buildAiChatContextSystemPrompt } from './request-context'
 import { createToolResultCards } from './tool-result-cards'
 
 const AI_CHAT_CONVERSATION_STORAGE_KEY = 'ai-chat-conversation'
+const AI_CHAT_AGENT_TASK_STORAGE_KEY = 'ai-chat-agent-task'
 const AI_CHAT_SETTINGS_STORAGE_KEY = 'ai-chat-settings'
 const DEFAULT_MODEL = 'gpt-4.1-mini'
 
@@ -44,7 +66,9 @@ const aiChatSession = useAiChatSession()
 const handledAssistantEnvelopeIds = new Set<string>()
 const lastRequestContext = ref<AiChatRequestContext | null>(null)
 const messageCards = ref<Record<string, ChatMessageCard[]>>({})
+const currentTask = ref<AiAgentTask | null>(null)
 const MAX_TOOL_LOOP_DEPTH = 3
+const agentFeatureEnabled = isAiChatAgentEnabled()
 
 export interface AiChatViewMessage {
   cards: ChatMessageCard[]
@@ -63,6 +87,10 @@ function getStorageKey() {
 
 function getConversationStorageKey() {
   return createScopedStorageKey(AI_CHAT_CONVERSATION_STORAGE_KEY)
+}
+
+function getAgentTaskStorageKey() {
+  return createScopedStorageKey(AI_CHAT_AGENT_TASK_STORAGE_KEY)
 }
 
 function getEnvDefaults(): OpenAiCompatibleChatSettings {
@@ -259,6 +287,52 @@ function hydrateConversation() {
   hasHydratedConversation.value = true
 }
 
+function hydrateAgentTask() {
+  if (!agentFeatureEnabled) {
+    currentTask.value = null
+    return
+  }
+
+  if (!hasHydratedConversation.value || typeof localStorage === 'undefined') {
+    return
+  }
+
+  const stored = localStorage.getItem(getAgentTaskStorageKey())
+  if (!stored) {
+    currentTask.value = null
+    return
+  }
+
+  try {
+    const restoredTask = normalizeAgentTask(JSON.parse(stored))
+    currentTask.value = restoredTask ? restoreAgentTaskAfterReload(restoredTask, readCurrentRouteTargetSnapshot()) : null
+    if (!currentTask.value) {
+      localStorage.removeItem(getAgentTaskStorageKey())
+    }
+  }
+  catch {
+    currentTask.value = null
+    localStorage.removeItem(getAgentTaskStorageKey())
+  }
+}
+
+function persistAgentTask() {
+  if (!agentFeatureEnabled) {
+    return
+  }
+
+  if (typeof localStorage === 'undefined') {
+    return
+  }
+
+  if (!currentTask.value) {
+    localStorage.removeItem(getAgentTaskStorageKey())
+    return
+  }
+
+  localStorage.setItem(getAgentTaskStorageKey(), JSON.stringify(currentTask.value))
+}
+
 function persistConversation() {
   if (typeof localStorage === 'undefined') {
     return
@@ -292,6 +366,139 @@ function resetSettings() {
   }
 }
 
+function isLikelyAgentTaskRequest(text: string) {
+  const normalized = text.trim()
+  if (!normalized) {
+    return false
+  }
+
+  if (/https?:\/\/\S+\/[nf]\//i.test(normalized) || /(?:^|\s)\/[nf]\//i.test(normalized)) {
+    return true
+  }
+
+  return /(读取|打开|搜索|查找|改写|重写|润色|总结|提炼|移动|删除|重命名|新建|创建|锁定|覆盖)/.test(normalized)
+}
+
+function getLatestUserMessageText() {
+  for (let index = visibleMessages.value.length - 1; index >= 0; index -= 1) {
+    const message = visibleMessages.value[index]
+    if (message.role === 'user' && message.text.trim()) {
+      return message.text.trim()
+    }
+  }
+
+  return ''
+}
+
+function setCurrentTask(nextTask: AiAgentTask | null) {
+  if (!agentFeatureEnabled) {
+    currentTask.value = null
+    return
+  }
+
+  currentTask.value = nextTask
+}
+
+function ensureCurrentTask(fallbackInput = '') {
+  if (currentTask.value) {
+    return currentTask.value
+  }
+
+  const task = createAgentTask(fallbackInput || getLatestUserMessageText() || 'AI 任务')
+  setCurrentTask(task)
+  return task
+}
+
+function updateCurrentTask(
+  updater: (task: AiAgentTask) => AiAgentTask | null,
+) {
+  if (!currentTask.value) {
+    return null
+  }
+
+  const nextTask = updater(currentTask.value)
+  setCurrentTask(nextTask)
+  return nextTask
+}
+
+function startAgentTaskIfNeeded(input: string) {
+  if (!isLikelyAgentTaskRequest(input)) {
+    setCurrentTask(null)
+    return null
+  }
+
+  const task = createAgentTask(input)
+  setCurrentTask(task)
+  return task
+}
+
+function resumeCurrentTask() {
+  if (!currentTask.value) {
+    return null
+  }
+
+  const currentInput = currentTask.value.input
+  const resumedTask = updateAgentTask(currentTask.value, {
+    appendStep: {
+      kind: 'task',
+      title: '已手动继续任务',
+      detail: currentInput,
+    },
+    requiresRelocation: false,
+    restoredFromReload: false,
+    status: 'identifying',
+    terminationReason: 'running',
+  })
+
+  setCurrentTask(resumedTask)
+  return resumedTask
+}
+
+function markTaskCompleted(answerText: string) {
+  updateCurrentTask((task) => {
+    if (task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') {
+      return task
+    }
+
+    return updateAgentTask(task, {
+      appendStep: {
+        kind: 'answer',
+        title: '已生成最终答复',
+        detail: answerText.trim(),
+      },
+      lastResponseText: answerText.trim(),
+      status: 'completed',
+      terminationReason: 'answered',
+    })
+  })
+}
+
+function markTaskFailed(title: string, detail: string, terminationReason: AiAgentTask['terminationReason']) {
+  updateCurrentTask(task => updateAgentTask(task, {
+    appendStep: {
+      kind: 'failure',
+      title,
+      detail,
+      status: 'failed',
+    },
+    lastError: detail.trim(),
+    status: 'failed',
+    terminationReason,
+  }))
+}
+
+function markTaskInterrupted(title: string, detail: string, terminationReason: AiAgentTask['terminationReason']) {
+  updateCurrentTask(task => updateAgentTask(task, {
+    appendStep: {
+      kind: 'interrupted',
+      title,
+      detail,
+    },
+    status: 'interrupted',
+    terminationReason,
+  }))
+}
+
 function clearConversation() {
   chat.messages = []
   chat.clearError()
@@ -300,7 +507,62 @@ function clearConversation() {
   handledAssistantEnvelopeIds.clear()
   lastRequestContext.value = null
   messageCards.value = {}
+  currentTask.value = null
   persistConversation()
+  persistAgentTask()
+}
+
+function normalizeRewriteSuggestion(content: string) {
+  const normalized = content.trim()
+  if (!normalized) {
+    return ''
+  }
+
+  if (typeof DOMParser !== 'undefined') {
+    const document = new DOMParser().parseFromString(normalized, 'text/html')
+    return document.body.textContent?.replace(/\n{3,}/g, '\n\n').trim() || ''
+  }
+
+  return normalized
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function buildRewriteFallbackText(summary: string, answer = '') {
+  const suggestion = normalizeRewriteSuggestion(currentTask.value?.lastRewriteSuggestion || '')
+  if (!suggestion) {
+    return mergeAssistantAnswer(answer, summary)
+  }
+
+  return [
+    answer.trim() || '写回失败，已保留本次改写结果：',
+    '',
+    suggestion,
+    '',
+    summary,
+  ].filter(Boolean).join('\n')
+}
+
+function applyMutationPolicies(calls: AiNoteToolCall[], taskInput: string, requestContext: AiChatRequestContext | null) {
+  const policies = calls.map(call => applyAgentMutationPolicy(call, taskInput, requestContext))
+  const riskLevel = getHighestMutationRiskLevel(policies.map(policy => policy.riskLevel))
+  const confirmationMode = getHighestConfirmationMode(policies.map(policy => policy.confirmationMode))
+  const rewriteSuggestion = policies
+    .map(policy => policy.rewriteSuggestion)
+    .find(Boolean) || ''
+
+  return {
+    confirmationMode,
+    riskLevel,
+    rewriteSuggestion,
+    reasons: policies
+      .map(policy => policy.reason)
+      .filter(Boolean),
+    toolCalls: policies.map(policy => policy.call),
+  }
 }
 
 function setMessageCards(messageId: string, cards?: ChatMessageCard[]) {
@@ -395,7 +657,11 @@ function formatToolResultData(result: AiToolResult) {
   }
 
   if (typeof result.data === 'object' && result.data !== null && 'note' in result.data) {
-    const note = (result.data as { note?: Record<string, unknown> }).note
+    const notePayload = result.data as {
+      note?: Record<string, unknown>
+      source?: string
+    }
+    const note = notePayload.note
     if (!note || typeof note !== 'object') {
       return ''
     }
@@ -406,6 +672,7 @@ function formatToolResultData(result: AiToolResult) {
       `title: ${typeof note.title === 'string' ? note.title : ''}`,
       `summary: ${typeof note.summary === 'string' ? note.summary : ''}`,
       `updated: ${typeof note.updated === 'string' ? note.updated : ''}`,
+      `readSource: ${typeof notePayload.source === 'string' ? notePayload.source : ''}`,
       `contentHtml:\n${typeof note.content === 'string' ? note.content : ''}`,
     ].join('\n')
   }
@@ -466,13 +733,71 @@ async function resolveAssistantToolLoop(rawText: string, depth = 0): Promise<{ c
     }
   }
 
-  const results = await aiChatSession.submitToolCalls(envelope.toolCalls)
+  const mutationPolicies = applyMutationPolicies(
+    envelope.toolCalls,
+    currentTask.value?.input || getLatestUserMessageText(),
+    lastRequestContext.value,
+  )
+  const mutationMeta = [
+    getAgentTaskRiskLabel(mutationPolicies.riskLevel),
+    getAgentTaskConfirmationModeLabel(mutationPolicies.confirmationMode),
+    ...mutationPolicies.reasons,
+  ].filter(Boolean).join('｜')
+
+  updateCurrentTask(task => updateAgentTask(task, {
+    appendStep: {
+      kind: 'tool_call',
+      title: '模型请求执行本地工具',
+      detail: [mutationPolicies.toolCalls.map(call => call.tool).join('、'), mutationMeta].filter(Boolean).join('｜'),
+    },
+    confirmationMode: mutationPolicies.confirmationMode,
+    lastRewriteSuggestion: mutationPolicies.rewriteSuggestion || task.lastRewriteSuggestion,
+    riskLevel: mutationPolicies.riskLevel,
+    status: 'executing',
+    terminationReason: 'running',
+  }))
+
+  const results = await aiChatSession.submitToolCalls(mutationPolicies.toolCalls)
   const cards = createToolResultCards(results)
   const summary = aiChatSession.hasPendingConfirmation.value
     ? summarizePreviewResults(results)
     : summarizeExecutionResults(results)
 
+  updateCurrentTask(task => updateAgentTask(task, {
+    appendStep: {
+      kind: 'tool_result',
+      title: aiChatSession.hasPendingConfirmation.value ? '已生成执行预览' : '本地工具执行完成',
+      detail: summary,
+      status: results.every(result => result.ok) ? 'completed' : 'failed',
+    },
+    lastError: results.every(result => result.ok) ? task.lastError : summary,
+    status: results.every(result => result.ok) ? 'executing' : 'failed',
+    terminationReason: results.every(result => result.ok) ? 'running' : 'tool_failed',
+  }))
+
+  if (!results.every(result => result.ok)) {
+    return {
+      cards,
+      text: buildRewriteFallbackText(summary, envelope.answer),
+    }
+  }
+
   if (aiChatSession.hasPendingConfirmation.value || depth >= MAX_TOOL_LOOP_DEPTH) {
+    if (aiChatSession.hasPendingConfirmation.value) {
+      updateCurrentTask(task => updateAgentTask(task, {
+        appendStep: {
+          kind: 'confirmation',
+          title: '等待你确认执行',
+          detail: summary,
+        },
+        status: 'waiting_confirmation',
+        terminationReason: 'waiting_confirmation',
+      }))
+    }
+    else {
+      markTaskInterrupted('已达到最大续跑深度', summary, 'max_depth')
+    }
+
     return {
       cards,
       text: mergeAssistantAnswer(envelope.answer, summary),
@@ -488,10 +813,44 @@ async function resolveAssistantToolLoop(rawText: string, depth = 0): Promise<{ c
     }
   }
   catch {
+    markTaskFailed('工具续跑失败', summary, 'request_failed')
     return {
       cards,
       text: mergeAssistantAnswer(envelope.answer, summary),
     }
+  }
+}
+
+async function resolveAssistantMessageWithoutAgent(rawText: string): Promise<{ cards: ChatMessageCard[], text: string }> {
+  const envelope = parseAiAssistantToolEnvelope(rawText)
+  if (!envelope) {
+    return {
+      cards: [],
+      text: rawText.trim(),
+    }
+  }
+
+  const mutationPolicies = applyMutationPolicies(
+    envelope.toolCalls,
+    getLatestUserMessageText(),
+    lastRequestContext.value,
+  )
+  const results = await aiChatSession.submitToolCalls(mutationPolicies.toolCalls)
+  const cards = createToolResultCards(results)
+  const summary = aiChatSession.hasPendingConfirmation.value
+    ? summarizePreviewResults(results)
+    : summarizeExecutionResults(results)
+
+  if (!results.every(result => result.ok)) {
+    return {
+      cards,
+      text: buildRewriteFallbackText(summary, envelope.answer),
+    }
+  }
+
+  return {
+    cards,
+    text: mergeAssistantAnswer(envelope.answer, summary),
   }
 }
 
@@ -502,14 +861,33 @@ async function processLatestAssistantEnvelope() {
   }
 
   const envelope = parseAiAssistantToolEnvelope(message.text)
+  console.info('[AI envelope] latest assistant raw text', message.text)
+
   if (!envelope) {
+    console.info('[AI envelope] no valid tool envelope parsed')
     handledAssistantEnvelopeIds.add(message.id)
+    if (currentTask.value && (currentTask.value.status === 'identifying' || currentTask.value.status === 'executing')) {
+      markTaskCompleted(message.text)
+    }
     return
   }
 
+  console.info('[AI envelope] parsed tool calls', envelope.toolCalls)
+
   handledAssistantEnvelopeIds.add(message.id)
+
+  if (!agentFeatureEnabled) {
+    const resolved = await resolveAssistantMessageWithoutAgent(message.text)
+    replaceMessageText(message.id, resolved.text, resolved.cards)
+    return
+  }
+
+  ensureCurrentTask()
   const resolved = await resolveAssistantToolLoop(message.text)
   replaceMessageText(message.id, resolved.text, resolved.cards)
+  if (currentTask.value && (currentTask.value.status === 'identifying' || currentTask.value.status === 'executing')) {
+    markTaskCompleted(resolved.text)
+  }
 }
 
 function getMessageText(parts: UIMessage['parts']) {
@@ -628,6 +1006,7 @@ function createChatRequestBody(context?: AiChatRequestContext | null) {
 }
 
 async function sendMessage(text: string, options: {
+  reuseCurrentTask?: boolean
   requestContext?: AiChatRequestContext | null
 } = {}) {
   hydrateSettings()
@@ -644,13 +1023,60 @@ async function sendMessage(text: string, options: {
   }
 
   chat.clearError()
+  if (agentFeatureEnabled) {
+    if (options.reuseCurrentTask) {
+      resumeCurrentTask()
+    }
+    else {
+      startAgentTaskIfNeeded(content)
+    }
+
+    updateCurrentTask(task => updateAgentTask(task, {
+      routeTargetSnapshot: createRouteTargetSnapshot(options.requestContext || null),
+    }))
+  }
+
   const requestBody = createChatRequestBody(options.requestContext)
   void chat.sendMessage({ text: content }, requestBody ? {
     body: requestBody,
   } : undefined)
     .then(() => processLatestAssistantEnvelope())
-    .catch(() => {})
+    .catch((error) => {
+      if (agentFeatureEnabled && currentTask.value?.status === 'identifying') {
+        markTaskFailed('请求发送失败', error instanceof Error ? error.message : 'AI 请求失败', 'request_failed')
+      }
+    })
   return true
+}
+
+async function resumeInterruptedTask(options: {
+  requestContext?: AiChatRequestContext | null
+} = {}) {
+  if (!agentFeatureEnabled) {
+    return false
+  }
+
+  if (!currentTask.value || currentTask.value.status !== 'interrupted') {
+    return false
+  }
+
+  if (!isRouteTargetSnapshotMatched(currentTask.value.routeTargetSnapshot, readCurrentRouteTargetSnapshot())) {
+    updateCurrentTask(task => updateAgentTask(task, {
+      appendStep: {
+        kind: 'interrupted',
+        title: '当前页面对象已变化',
+        detail: '请先回到原页面对象，再继续当前任务。',
+      },
+      requiresRelocation: true,
+      terminationReason: 'restored',
+    }))
+    return false
+  }
+
+  return await sendMessage(currentTask.value.input, {
+    requestContext: options.requestContext,
+    reuseCurrentTask: true,
+  })
 }
 
 async function regenerate() {
@@ -669,9 +1095,64 @@ async function regenerate() {
 
 async function confirmPendingExecution() {
   const results = await aiChatSession.confirmPendingExecution()
-  if (results.length) {
-    appendAssistantMessage(summarizeExecutionResults(results), createToolResultCards(results))
+  if (!results.length) {
+    return results
   }
+
+  const summary = summarizeExecutionResults(results)
+  const cards = createToolResultCards(results)
+
+  if (!agentFeatureEnabled) {
+    appendAssistantMessage(results.every(result => result.ok) ? summary : buildRewriteFallbackText(summary), cards)
+    return results
+  }
+
+  if (!results.every(result => result.ok)) {
+    const fallbackText = buildRewriteFallbackText(summary)
+    appendAssistantMessage(fallbackText, cards)
+    updateCurrentTask(task => updateAgentTask(task, {
+      appendStep: {
+        kind: 'tool_result',
+        title: '已确认并执行本地工具',
+        detail: summary,
+        status: 'failed',
+      },
+      lastError: summary,
+      lastResponseText: fallbackText,
+      status: 'failed',
+      terminationReason: 'tool_failed',
+    }))
+    return results
+  }
+
+  updateCurrentTask(task => updateAgentTask(task, {
+    appendStep: {
+      kind: 'tool_result',
+      title: '已确认并执行本地工具',
+      detail: summary,
+      status: 'completed',
+    },
+    lastError: '',
+    status: 'executing',
+    terminationReason: 'running',
+  }))
+
+  try {
+    const followUpText = await continueAssistantAfterToolResults(summary, results)
+    const resolved = await resolveAssistantToolLoop(followUpText, 1)
+    const finalText = resolved.text.trim() || summary
+    appendAssistantMessage(finalText, mergeCards(cards, resolved.cards))
+    markTaskCompleted(finalText)
+  }
+  catch {
+    appendAssistantMessage(summary, cards)
+    updateCurrentTask(task => updateAgentTask(task, {
+      lastResponseText: summary,
+      status: 'completed',
+      terminationReason: 'answered',
+    }))
+  }
+
   return results
 }
 
@@ -683,11 +1164,21 @@ function cancelPendingExecution() {
   aiChatSession.cancelPendingExecution()
   aiChatSession.lastResults.value = []
   appendAssistantMessage('已取消本次待确认操作。')
+  updateCurrentTask(task => updateAgentTask(task, {
+    appendStep: {
+      kind: 'failure',
+      title: '已取消待确认操作',
+      detail: '你取消了本次待确认任务。',
+    },
+    status: 'cancelled',
+    terminationReason: 'cancelled',
+  }))
 }
 
 export function useAiChat() {
   hydrateSettings()
   hydrateConversation()
+  hydrateAgentTask()
 
   return {
     chat,
@@ -699,6 +1190,22 @@ export function useAiChat() {
     hasVisibleMessages,
     isBusy,
     isAssistantThinking,
+    canResumeInterruptedTask: computed(() => {
+      if (!agentFeatureEnabled) {
+        return false
+      }
+
+      if (!currentTask.value || currentTask.value.status !== 'interrupted' || isBusy.value) {
+        return false
+      }
+
+      return isRouteTargetSnapshotMatched(currentTask.value.routeTargetSnapshot, readCurrentRouteTargetSnapshot())
+    }),
+    currentTask,
+    isAgentEnabled: agentFeatureEnabled,
+    currentTaskConfirmationModeLabel: computed(() => currentTask.value ? getAgentTaskConfirmationModeLabel(currentTask.value.confirmationMode) : ''),
+    currentTaskRiskLabel: computed(() => currentTask.value ? getAgentTaskRiskLabel(currentTask.value.riskLevel) : ''),
+    currentTaskStatusLabel: computed(() => currentTask.value ? getAgentTaskStatusLabel(currentTask.value.status) : ''),
     lastToolResults: aiChatSession.lastResults,
     latestAssistantMessage,
     openSettings: () => {
@@ -708,6 +1215,7 @@ export function useAiChat() {
     confirmPendingExecution,
     regenerate,
     resetSettings,
+    resumeInterruptedTask,
     saveSettings,
     sendMessage,
     sessionLabel,
@@ -734,4 +1242,12 @@ watch(() => messageCards.value, () => {
   }
 
   persistConversation()
+}, { deep: true })
+
+watch(() => currentTask.value, () => {
+  if (!hasHydratedConversation.value) {
+    return
+  }
+
+  persistAgentTask()
 }, { deep: true })

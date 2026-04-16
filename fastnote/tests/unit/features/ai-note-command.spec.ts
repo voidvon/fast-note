@@ -98,4 +98,216 @@ describe('useAiNoteCommand', () => {
       affectedNoteIds: ['note-1'],
     })
   })
+
+  it('marks get note detail responses as coming from local store', async () => {
+    const api = createApi()
+
+    const result = await api.executeToolCall({
+      tool: 'get_note_detail',
+      payload: {
+        noteId: 'note-1',
+      },
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      code: 'ok',
+      data: {
+        note: expect.objectContaining({
+          id: 'note-1',
+        }),
+        source: 'store',
+      },
+      affectedNoteIds: ['note-1'],
+    })
+  })
+
+  it('reuses the shared note save path for update_note and syncs immediately', async () => {
+    const sync = vi.fn(async () => null)
+    const updateNote = vi.fn(async () => ({
+      ok: true,
+      code: 'ok',
+      message: null,
+      note: {
+        ...baseNote,
+        content: '<p>改写后的内容</p>',
+        updated: '2026-03-20 10:00:00',
+        version: 2,
+      },
+    }))
+
+    const api = useAiNoteCommand({
+      notes: ref([baseNote]),
+      getNote: vi.fn(async (id: string) => id === baseNote.id ? baseNote : null),
+      getFolderTreeByParentId: vi.fn(() => []),
+      searchNotesInDatabase: vi.fn(async () => [baseNote]),
+      createNote: vi.fn(),
+      updateNote,
+      moveNote: vi.fn(),
+      deleteNote: vi.fn(),
+      enableLockForNote: vi.fn(),
+      disableLockForNote: vi.fn(),
+      sync,
+    })
+
+    const result = await api.executeToolCall({
+      tool: 'update_note',
+      payload: {
+        noteId: 'note-1',
+        contentHtml: '<p>改写后的内容</p>',
+      },
+    })
+
+    expect(updateNote).toHaveBeenCalledTimes(1)
+    expect(sync).toHaveBeenCalledTimes(1)
+    expect(result).toMatchObject({
+      ok: true,
+      code: 'ok',
+      syncQueued: true,
+      affectedNoteIds: ['note-1'],
+      data: {
+        note: expect.objectContaining({
+          id: 'note-1',
+          content: '<p>改写后的内容</p>',
+        }),
+      },
+    })
+  })
+
+  it('accepts payload.content as an alias of contentHtml for rewrite writeback', async () => {
+    const sync = vi.fn(async () => null)
+    const updateNote = vi.fn(async () => ({
+      ok: true,
+      code: 'ok',
+      message: null,
+      note: {
+        ...baseNote,
+        content: '<p>兼容 content 字段后的正文</p>',
+        updated: '2026-03-20 10:00:00',
+        version: 2,
+      },
+    }))
+
+    const api = useAiNoteCommand({
+      notes: ref([baseNote]),
+      getNote: vi.fn(async (id: string) => id === baseNote.id ? baseNote : null),
+      getFolderTreeByParentId: vi.fn(() => []),
+      searchNotesInDatabase: vi.fn(async () => [baseNote]),
+      createNote: vi.fn(),
+      updateNote,
+      moveNote: vi.fn(),
+      deleteNote: vi.fn(),
+      enableLockForNote: vi.fn(),
+      disableLockForNote: vi.fn(),
+      sync,
+    })
+
+    const result = await api.executeToolCall({
+      tool: 'update_note',
+      payload: {
+        noteId: 'note-1',
+        content: '<p>兼容 content 字段后的正文</p>',
+      },
+    })
+
+    expect(updateNote).toHaveBeenCalledTimes(1)
+    expect(updateNote).toHaveBeenCalledWith(expect.objectContaining({
+      content: '<p>兼容 content 字段后的正文</p>',
+      noteId: 'note-1',
+    }))
+    expect(sync).toHaveBeenCalledTimes(1)
+    expect(result).toMatchObject({
+      ok: true,
+      code: 'ok',
+      syncQueued: true,
+      data: {
+        note: expect.objectContaining({
+          content: '<p>兼容 content 字段后的正文</p>',
+        }),
+      },
+    })
+  })
+
+  it('rejects folder moves through update_note and requires move_note instead', async () => {
+    const updateNote = vi.fn(async () => ({
+      ok: true,
+      code: 'ok',
+      message: null,
+      note: baseNote,
+    }))
+    const sync = vi.fn(async () => null)
+
+    const api = useAiNoteCommand({
+      notes: ref([baseNote]),
+      getNote: vi.fn(async (id: string) => id === baseNote.id ? baseNote : null),
+      getFolderTreeByParentId: vi.fn(() => []),
+      searchNotesInDatabase: vi.fn(async () => [baseNote]),
+      createNote: vi.fn(),
+      updateNote,
+      moveNote: vi.fn(),
+      deleteNote: vi.fn(),
+      enableLockForNote: vi.fn(),
+      disableLockForNote: vi.fn(),
+      sync,
+    })
+
+    const result = await api.executeToolCall({
+      tool: 'update_note',
+      payload: {
+        noteId: 'note-1',
+        parentId: 'folder-1',
+      },
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'use_move_note',
+      message: '变更备忘录所在目录请改用 move_note',
+      affectedNoteIds: ['note-1'],
+      syncQueued: false,
+    })
+    expect(updateNote).not.toHaveBeenCalled()
+    expect(sync).not.toHaveBeenCalled()
+  })
+
+  it('rejects update_note when it does not carry effective new content', async () => {
+    const updateNote = vi.fn(async () => ({
+      ok: true,
+      code: 'ok',
+      message: null,
+      note: baseNote,
+    }))
+    const sync = vi.fn(async () => null)
+
+    const api = useAiNoteCommand({
+      notes: ref([baseNote]),
+      getNote: vi.fn(async (id: string) => id === baseNote.id ? baseNote : null),
+      getFolderTreeByParentId: vi.fn(() => []),
+      searchNotesInDatabase: vi.fn(async () => [baseNote]),
+      createNote: vi.fn(),
+      updateNote,
+      moveNote: vi.fn(),
+      deleteNote: vi.fn(),
+      enableLockForNote: vi.fn(),
+      disableLockForNote: vi.fn(),
+      sync,
+    })
+
+    const result = await api.executeToolCall({
+      tool: 'update_note',
+      payload: {
+        noteId: 'note-1',
+      },
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'no_effective_changes',
+      message: '本次 update_note 没有携带新的标题、摘要或正文内容',
+      affectedNoteIds: ['note-1'],
+      syncQueued: false,
+    })
+    expect(updateNote).not.toHaveBeenCalled()
+    expect(sync).not.toHaveBeenCalled()
+  })
 })
