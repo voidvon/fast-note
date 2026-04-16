@@ -82,6 +82,24 @@ export function parseAiAssistantToolEnvelope(rawText: string) {
   return null
 }
 
+export function isLikelyPartialAiAssistantToolEnvelope(rawText: string) {
+  const text = rawText.trim()
+  if (!text) {
+    return false
+  }
+
+  if (parseAiAssistantToolEnvelope(text)) {
+    return true
+  }
+
+  const startsLikeJson = text.startsWith('{') || text.startsWith('```')
+  if (!startsLikeJson) {
+    return false
+  }
+
+  return /"mode"|"toolCalls"|"payload"|"answer"/.test(text)
+}
+
 export function summarizePreviewResults(results: AiToolResult[]) {
   const lines = results.map((result) => {
     const title = result.preview?.title || '待执行操作'

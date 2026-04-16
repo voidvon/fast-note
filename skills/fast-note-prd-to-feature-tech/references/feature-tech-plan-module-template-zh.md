@@ -1,11 +1,11 @@
-# 分模块技术方案模板（Fast-Note）
+# 分模块技术方案模板（fastnote）
 
 ## 1. 文档信息
 
 - 模块名称：
 - 输出日期：
-- 输出文件：`docs/功能拆分与技术方案/Fast-Note-功能拆分与技术方案-<模块名>-YYYY-MM-DD.md`
-- 对应总览：`Fast-Note-功能拆分与技术方案-总览-YYYY-MM-DD.md`
+- 输出文件：`docs/功能拆分与技术方案/fastnote-功能拆分与技术方案-<模块名>-YYYY-MM-DD.md`
+- 对应总览：`fastnote-功能拆分与技术方案-总览-YYYY-MM-DD.md`
 - 模块范围：
 - 不在范围：
 

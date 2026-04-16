@@ -156,6 +156,15 @@ function createPendingSseResponse() {
   }))
 
   return {
+    push(events: string[]) {
+      if (!streamController) {
+        return
+      }
+
+      for (const event of events) {
+        streamController.enqueue(encoder.encode(`data: ${event}\n\n`))
+      }
+    },
     close(events: string[] = []) {
       if (!streamController) {
         return
@@ -376,6 +385,63 @@ describe('global search ai chat', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('你好')
     expect(wrapper.text()).toContain('你好，我已经接入流式渲染。')
+
+    wrapper.unmount()
+  })
+
+  it('hides raw tool envelope json while the assistant response is still streaming', async () => {
+    const pendingResponse = createPendingSseResponse()
+    const fetchMock = vi.fn(async () => pendingResponse.response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { useAiChat } = await import('@/features/ai-chat')
+    useAiChat().saveSettings({
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4.1-mini',
+    })
+
+    const wrapper = await mountGlobalSearch()
+    const input = await ensureAiMode(wrapper)
+
+    await input.setValue('读取并改写这条笔记')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await nextTick()
+
+    pendingResponse.push([
+      JSON.stringify({
+        choices: [{
+          delta: {
+            content: '{"mode":"tool_calls","answer":"已整理好润色版本，准备直接写回这篇备忘录。","toolCalls":[{"tool":"update_note"',
+          },
+        }],
+      }),
+    ])
+
+    await flushPromises()
+    await nextTick()
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('正在准备操作')
+    expect(wrapper.text()).not.toContain('"toolCalls"')
+    expect(wrapper.text()).not.toContain('update_note')
+    expect(wrapper.text()).not.toContain('"}]}')
+
+    pendingResponse.close([
+      JSON.stringify({
+        choices: [{
+          delta: {
+            content: ',"payload":{"noteId":"note-1","content":"<p>改写后的正文</p>"}}]}',
+          },
+          finish_reason: 'stop',
+        }],
+      }),
+    ])
+
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.text()).not.toContain('"toolCalls"')
 
     wrapper.unmount()
   })
