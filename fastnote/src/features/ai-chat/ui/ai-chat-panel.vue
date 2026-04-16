@@ -74,6 +74,7 @@ const shouldShowTaskPanel = computed(() => {
 
   return currentTask.value.status !== 'completed' && currentTask.value.status !== 'cancelled'
 })
+const currentTaskInput = computed(() => currentTask.value?.input ?? '')
 const taskStepText = computed(() => {
   if (!latestTaskStep.value) {
     return ''
@@ -245,7 +246,7 @@ function handleMessageAction(action: ChatMessageCardAction) {
         </div>
       </div>
       <p class="ai-chat-panel__task-input">
-        {{ currentTask.input }}
+        {{ currentTaskInput }}
       </p>
       <p v-if="taskStepText" class="ai-chat-panel__task-step">
         {{ taskStepText }}
