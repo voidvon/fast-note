@@ -19,21 +19,24 @@ export function useSessionBootstrap() {
     isDeferredPrivateRoute,
     restoreDeferredLastVisitedRoute,
     restoreImmediateLastVisitedRoute,
+    shouldRestoreLastVisitedRouteForCurrentPath,
     setupAutoSave,
   } = useLastVisitedRoute()
   const noteLock = useNoteLock()
   const { sync } = useSync()
 
-  const isPrivateRouteRestoreReady = ref(!authService.isAuthenticated())
+  const isPrivateRouteLocalReady = ref(!authService.isAuthenticated())
 
   const shouldBlockPrivateRoute = computed(() => {
     return authService.isAuthenticated()
       && isDeferredPrivateRoute(router.currentRoute.value.fullPath)
-      && !isPrivateRouteRestoreReady.value
+      && !isPrivateRouteLocalReady.value
   })
 
   setupAutoSave(router)
-  void restoreImmediateLastVisitedRoute(router, authService.getCurrentAuthUser()?.id)
+  if (shouldRestoreLastVisitedRouteForCurrentPath(router.currentRoute.value.fullPath)) {
+    void restoreImmediateLastVisitedRoute(router, authService.getCurrentAuthUser()?.id)
+  }
 
   let hasRealtimeService = false
   let sessionBootstrapPromise: Promise<void> | null = null
@@ -113,9 +116,10 @@ export function useSessionBootstrap() {
     }
 
     sessionBootstrapPromise = (async () => {
-      isPrivateRouteRestoreReady.value = false
+      isPrivateRouteLocalReady.value = false
 
       await prepareSessionContext(authManager.userInfo.value?.id)
+      isPrivateRouteLocalReady.value = true
 
       if (!hasRealtimeService) {
         const realtimeService = new PocketBaseRealtimeService({
@@ -138,10 +142,12 @@ export function useSessionBootstrap() {
       await noteLock.syncSecuritySettingsFromCloud(true)
       logger.info('全局 PIN 配置同步完成')
 
-      isPrivateRouteRestoreReady.value = true
-      await restoreDeferredLastVisitedRoute(router, authManager.userInfo.value?.id)
+      isPrivateRouteLocalReady.value = true
+      if (shouldRestoreLastVisitedRouteForCurrentPath(router.currentRoute.value.fullPath)) {
+        await restoreDeferredLastVisitedRoute(router, authManager.userInfo.value?.id)
+      }
     })().catch(async (error) => {
-      isPrivateRouteRestoreReady.value = true
+      isPrivateRouteLocalReady.value = true
 
       if (isDeferredPrivateRoute(router.currentRoute.value.fullPath)) {
         await router.replace('/home')
@@ -173,7 +179,9 @@ export function useSessionBootstrap() {
 
       if (token && user) {
         try {
-          await restoreImmediateLastVisitedRoute(router, user.id)
+          if (shouldRestoreLastVisitedRouteForCurrentPath(router.currentRoute.value.fullPath)) {
+            await restoreImmediateLastVisitedRoute(router, user.id)
+          }
           if (shouldPromptGuestData) {
             await handleGuestDataDecision()
           }
@@ -184,10 +192,12 @@ export function useSessionBootstrap() {
         }
       }
       else {
-        isPrivateRouteRestoreReady.value = true
+        isPrivateRouteLocalReady.value = true
         realtimeManager.disconnect()
         guestDecisionHandled = false
-        await restoreImmediateLastVisitedRoute(router, null)
+        if (shouldRestoreLastVisitedRouteForCurrentPath(router.currentRoute.value.fullPath)) {
+          await restoreImmediateLastVisitedRoute(router, null)
+        }
       }
     })
 
@@ -201,7 +211,7 @@ export function useSessionBootstrap() {
     }
 
     if (!authManager.isAuthenticated()) {
-      isPrivateRouteRestoreReady.value = true
+      isPrivateRouteLocalReady.value = true
       return
     }
 

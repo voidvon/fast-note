@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from '@ionic/vue-router'
 import { registerRouterDependencies } from '@/processes/navigation'
-import { ensurePublicNotesRouteReady, shouldRedirectDesktopNoteRoute } from '@/processes/public-notes'
+import { ensurePublicNotesRouteReady } from '@/processes/public-notes'
 import { appRoutes } from './routes'
 
 const router = createRouter({
@@ -11,10 +11,6 @@ const router = createRouter({
 registerRouterDependencies(router)
 
 router.beforeEach(async (to) => {
-  if (shouldRedirectDesktopNoteRoute(to.path, window.innerWidth)) {
-    return '/home'
-  }
-
   try {
     await ensurePublicNotesRouteReady(to)
   }

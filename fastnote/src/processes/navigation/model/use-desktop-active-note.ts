@@ -112,6 +112,50 @@ export function isDesktopFolderAvailable(
   )
 }
 
+export function getDesktopFolderRoutePath(folderId: string, notes: Note[]) {
+  if (folderId === 'allnotes' || folderId === 'unfilednotes') {
+    return '/home'
+  }
+
+  if (folderId === 'deleted') {
+    return '/deleted'
+  }
+
+  const segments: string[] = []
+  const visitedFolderIds = new Set<string>()
+  let currentFolderId = folderId
+
+  while (currentFolderId && !visitedFolderIds.has(currentFolderId)) {
+    const currentFolder = notes.find(note =>
+      note.id === currentFolderId
+      && note.item_type === NOTE_TYPE.FOLDER
+      && note.is_deleted === 0,
+    )
+
+    if (!currentFolder) {
+      break
+    }
+
+    visitedFolderIds.add(currentFolderId)
+    segments.unshift(currentFolderId)
+    currentFolderId = currentFolder.parent_id || ''
+  }
+
+  if (segments.length === 0) {
+    return '/home'
+  }
+
+  return `/f/${segments.join('/')}`
+}
+
+export function getDesktopNoteRoutePath(noteId: string, parentId = '') {
+  if (noteId === '0') {
+    return parentId ? `/n/0?parent_id=${encodeURIComponent(parentId)}` : '/n/0'
+  }
+
+  return `/n/${encodeURIComponent(noteId)}`
+}
+
 export function resolveDesktopActiveNoteSelection(
   snapshot: DesktopActiveNoteSnapshot | null,
   notes: Note[],

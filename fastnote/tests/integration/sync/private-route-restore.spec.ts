@@ -173,22 +173,27 @@ describe('private route restore timing (t-fn-031 / tc-fn-023)', () => {
     vi.restoreAllMocks()
   })
 
-  it('blocks a direct private detail route until deferred restore is ready', async () => {
+  it('unblocks a direct private detail route once local context is ready', async () => {
     const { wrapper, mocks } = await mountAppForRouteRestore({
       currentPath: '/n/private-note',
       currentName: 'NoteDetail',
       savedLastRoute: '/n/private-note',
     })
 
-    expect(wrapper.find('[data-testid="app-private-route-pending"]').exists()).toBe(true)
-    expect(mocks.routerReplaceMock).not.toHaveBeenCalledWith('/n/private-note')
-
-    mocks.syncDeferred.resolve(null)
-    await flushPromises()
-    await nextTick()
-
+    expect(mocks.initializeDatabaseMock).toHaveBeenCalled()
+    expect(mocks.initializeNotesMock).toHaveBeenCalled()
     expect(wrapper.find('[data-testid="app-private-route-pending"]').exists()).toBe(false)
     expect(mocks.routerReplaceMock).not.toHaveBeenCalledWith('/n/private-note')
+  })
+
+  it('keeps an explicit private detail route instead of restoring /home', async () => {
+    const { mocks } = await mountAppForRouteRestore({
+      currentPath: '/n/private-note',
+      currentName: 'NoteDetail',
+      savedLastRoute: '/home',
+    })
+
+    expect(mocks.routerReplaceMock).not.toHaveBeenCalledWith('/home')
   })
 
   it('defers restoring a saved private detail until sync bootstrap completes', async () => {
