@@ -10,6 +10,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useAiChatSession } from '@/processes/ai-chat-session'
 import { createScopedStorageKey } from '@/shared/lib/user-scope'
 import {
+  isLikelyPartialAiAssistantToolEnvelope,
   mergeAssistantAnswer,
   parseAiAssistantToolEnvelope,
   summarizeExecutionResults,
@@ -69,6 +70,7 @@ const messageCards = ref<Record<string, ChatMessageCard[]>>({})
 const currentTask = ref<AiAgentTask | null>(null)
 const MAX_TOOL_LOOP_DEPTH = 3
 const agentFeatureEnabled = isAiChatAgentEnabled()
+const TOOL_ENVELOPE_PLACEHOLDER = '正在准备操作…'
 
 export interface AiChatViewMessage {
   cards: ChatMessageCard[]
@@ -855,7 +857,7 @@ async function resolveAssistantMessageWithoutAgent(rawText: string): Promise<{ c
 }
 
 async function processLatestAssistantEnvelope() {
-  const message = latestAssistantMessage.value
+  const message = latestAssistantRawMessage.value
   if (!message || handledAssistantEnvelopeIds.has(message.id)) {
     return
   }
@@ -897,6 +899,23 @@ function getMessageText(parts: UIMessage['parts']) {
     .join('')
 }
 
+function getVisibleAssistantText(messageId: string, rawText: string) {
+  if (handledAssistantEnvelopeIds.has(messageId)) {
+    return rawText
+  }
+
+  const envelope = parseAiAssistantToolEnvelope(rawText)
+  if (envelope) {
+    return envelope.answer?.trim() || TOOL_ENVELOPE_PLACEHOLDER
+  }
+
+  if (isLikelyPartialAiAssistantToolEnvelope(rawText)) {
+    return TOOL_ENVELOPE_PLACEHOLDER
+  }
+
+  return rawText
+}
+
 const hasConfiguredProvider = computed(() => {
   hydrateSettings()
   return !!settingsState.baseUrl && !!settingsState.apiKey && !!settingsState.model
@@ -908,29 +927,48 @@ const visibleMessages = computed<AiChatViewMessage[]>(() => {
     .filter((message): message is UIMessage & { role: AiChatViewMessage['role'] } => {
       return message.role === 'user' || message.role === 'assistant'
     })
-    .map(message => ({
-      cards: messageCards.value[message.id] || [],
-      id: message.id,
-      role: message.role,
-      text: getMessageText(message.parts),
-    }))
+    .map((message) => {
+      const rawText = getMessageText(message.parts)
+      return {
+        cards: messageCards.value[message.id] || [],
+        id: message.id,
+        role: message.role,
+        text: message.role === 'assistant' ? getVisibleAssistantText(message.id, rawText) : rawText,
+      }
+    })
 })
-const latestAssistantMessage = computed(() => {
-  for (let index = visibleMessages.value.length - 1; index >= 0; index -= 1) {
-    const message = visibleMessages.value[index]
+const latestAssistantRawMessage = computed(() => {
+  for (let index = chat.messages.length - 1; index >= 0; index -= 1) {
+    const message = chat.messages[index]
     if (message.role === 'assistant') {
-      return message
+      return {
+        cards: messageCards.value[message.id] || [],
+        id: message.id,
+        role: 'assistant' as const,
+        text: getMessageText(message.parts),
+      }
     }
   }
 
   return null
+})
+const latestAssistantMessage = computed(() => {
+  const message = latestAssistantRawMessage.value
+  if (!message) {
+    return null
+  }
+
+  return {
+    ...message,
+    text: getVisibleAssistantText(message.id, message.text),
+  }
 })
 const streamingAssistantMessageId = computed(() => {
   if (!isBusy.value) {
     return null
   }
 
-  return latestAssistantMessage.value?.id || null
+  return latestAssistantRawMessage.value?.id || null
 })
 const isAssistantThinking = computed(() => {
   if (!isBusy.value) {

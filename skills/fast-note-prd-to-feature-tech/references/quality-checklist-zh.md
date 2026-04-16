@@ -16,7 +16,7 @@
 ## 3. 架构与落点
 
 - 是否按层说明改动落点（UI/hooks/stores/database/pocketbase/router）。
-- 是否遵守 Fast-Note 边界（UI 不直接调 PocketBase、核心数据经 store）。
+- 是否遵守 fastnote 边界（UI 不直接调 PocketBase、核心数据经 store）。
 - 是否说明 offline-first 语义是否受影响。
 
 ## 4. 数据与同步
