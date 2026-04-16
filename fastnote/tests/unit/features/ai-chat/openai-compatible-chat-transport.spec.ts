@@ -1,6 +1,7 @@
 import type { UIMessageChunk } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 import {
+  DEFAULT_SYSTEM_PROMPT,
   OpenAiCompatibleChatTransport,
   resolveChatCompletionsEndpoint,
 } from '@/features/ai-chat/model/openai-compatible-chat-transport'
@@ -37,6 +38,12 @@ async function readChunks(stream: ReadableStream<UIMessageChunk>) {
 }
 
 describe('openAiCompatibleChatTransport', () => {
+  it('documents FastNote note urls in the default system prompt', () => {
+    expect(DEFAULT_SYSTEM_PROMPT).toContain('/n/<noteId>')
+    expect(DEFAULT_SYSTEM_PROMPT).toContain('get_note_detail')
+    expect(DEFAULT_SYSTEM_PROMPT).toContain('读取这个链接里的备忘录')
+  })
+
   it('normalizes chat completions endpoint', () => {
     expect(resolveChatCompletionsEndpoint('https://api.openai.com/v1')).toBe('https://api.openai.com/v1/chat/completions')
     expect(resolveChatCompletionsEndpoint('https://api.openai.com/v1/')).toBe('https://api.openai.com/v1/chat/completions')

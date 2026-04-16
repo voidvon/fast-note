@@ -112,6 +112,14 @@ function createSseResponse(events: string[]) {
   }))
 }
 
+function createJsonResponse(payload: unknown) {
+  return new Response(JSON.stringify(payload), {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  })
+}
+
 function createPendingSseResponse() {
   const encoder = new TextEncoder()
   let streamController: ReadableStreamDefaultController<Uint8Array> | null = null
@@ -967,6 +975,107 @@ describe('global search ai chat', () => {
     expect(wrapper.text()).toContain('周报')
     expect(wrapper.text()).toContain('本周项目推进')
     expect(wrapper.text()).toContain('更新于 2026-04-15 10:00:00')
+
+    wrapper.unmount()
+  })
+
+  it('continues answering after reading note detail via tool call', async () => {
+    aiChatSessionMock.submitToolCalls.mockImplementationOnce(async () => {
+      const results = [{
+        ok: true,
+        code: 'ok',
+        message: null,
+        preview: {
+          title: '读取备忘录详情',
+          summary: '读取备忘录 note-1 的详情',
+          affectedNoteIds: ['note-1'],
+        },
+        data: {
+          note: {
+            id: 'note-1',
+            title: '原文',
+            summary: '原摘要',
+            content: '<p>这是一段需要重写的内容。</p>',
+            parent_id: '',
+            updated: '2026-04-16 10:00:00',
+            is_deleted: 0,
+            is_locked: 0,
+          },
+        },
+        affectedNoteIds: ['note-1'],
+      }]
+
+      aiChatSessionMock.hasPendingConfirmation.value = false
+      aiChatSessionMock.lastResults.value = results
+      return results
+    })
+
+    const fetchMock = vi.fn()
+      .mockImplementationOnce(async () => createSseResponse([
+        JSON.stringify({
+          choices: [{
+            delta: {
+              role: 'assistant',
+            },
+          }],
+        }),
+        JSON.stringify({
+          choices: [{
+            delta: {
+              content: JSON.stringify({
+                mode: 'tool_calls',
+                answer: '我先读取这条备忘录。',
+                toolCalls: [{
+                  tool: 'get_note_detail',
+                  payload: {
+                    noteId: 'note-1',
+                  },
+                }],
+              }),
+            },
+            finish_reason: 'stop',
+          }],
+        }),
+      ]))
+      .mockImplementationOnce(async () => createJsonResponse({
+        choices: [{
+          message: {
+            role: 'assistant',
+            content: '下面是重写后的版本：\n\n这段内容经过重组，表达更清晰，也更适合直接发送。',
+          },
+          finish_reason: 'stop',
+        }],
+      }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { useAiChat } = await import('@/features/ai-chat')
+    useAiChat().saveSettings({
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4.1-mini',
+    })
+
+    const wrapper = await mountGlobalSearch()
+    const input = wrapper.get('textarea')
+
+    await input.trigger('focus')
+    await wrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
+    await nextTick()
+
+    await input.setValue('读取这条笔记并帮我重写')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const secondRequest = fetchMock.mock.calls[1]?.[1]
+    const secondRequestBody = JSON.parse(String(secondRequest?.body || '{}'))
+    expect(JSON.stringify(secondRequestBody)).toContain('这是一段需要重写的内容')
+    expect(JSON.stringify(secondRequestBody)).toContain('读取备忘录 note-1 的详情')
+    expect(aiChatSessionMock.submitToolCalls).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('下面是重写后的版本')
+    expect(wrapper.text()).toContain('表达更清晰')
+    expect(wrapper.text()).not.toContain('本次操作执行结果如下：')
 
     wrapper.unmount()
   })

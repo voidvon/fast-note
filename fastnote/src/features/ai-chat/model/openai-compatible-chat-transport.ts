@@ -27,6 +27,19 @@ interface OpenAiCompatibleMessage {
   role: 'assistant' | 'system' | 'user'
 }
 
+interface OpenAiChatCompletionResponse {
+  choices?: Array<{
+    finish_reason?: string | null
+    message?: {
+      content?: string | Array<{ text?: string }>
+      role?: string
+    }
+  }>
+  error?: {
+    message?: string
+  }
+}
+
 interface OpenAiChatCompletionChunk {
   choices?: Array<{
     delta?: {
@@ -44,11 +57,14 @@ type UiMessageFinishReason = 'stop' | 'length' | 'content-filter' | 'error' | 'o
 type OpenAiDeltaPayload = NonNullable<OpenAiChatCompletionChunk['choices']>[number]['delta']
 
 const OPENAI_CHAT_COMPLETIONS_PATH = '/chat/completions'
-const DEFAULT_SYSTEM_PROMPT = [
+export const DEFAULT_SYSTEM_PROMPT = [
   '你是 FastNote 首页里的 AI 助手。',
   '回答保持简洁、直接、可执行，优先帮助用户处理笔记与整理信息。',
   '当用户只是提问、改写、解释时，直接用自然语言回答。',
   '当用户明确要求执行笔记或文件夹操作时，你可以返回一个 JSON 对象来请求本地工具执行。',
+  '如果用户消息里直接给出了 FastNote 链接或路径，例如 http://localhost:8888/n/<noteId>、https://域名/n/<noteId>、/n/<noteId>，你可以直接从 URL 提取 noteId，并调用 get_note_detail 读取该备忘录内容。',
+  '如果用户给出的是 FastNote 文件夹链接或路径，例如 /f/...，你也可以直接从 URL 提取目录信息并调用 list_folders 或结合其他工具继续处理。',
+  '当用户要求“读取这个链接里的备忘录并帮我改写/总结/润色”时，优先先调用 get_note_detail，再基于读取到的内容继续回答或继续请求工具。',
   '返回工具请求时，不要输出 Markdown，不要输出解释文字，只返回合法 JSON。',
   '工具请求 JSON 格式如下：{"mode":"tool_calls","answer":"可选的简短说明","toolCalls":[{"tool":"search_notes","payload":{"query":"关键词"}}]}。',
   '可用工具包括：search_notes、get_note_detail、list_folders、create_note、update_note、move_note、delete_note、set_note_lock。',
@@ -85,26 +101,18 @@ export class OpenAiCompatibleChatTransport implements ChatTransport<UIMessage> {
     const { context, requestBody: extraRequestBody } = extractAiChatRequestContext(body)
     const contextSystemPrompt = buildAiChatContextSystemPrompt(context)
 
-    const requestBody = {
-      model: settings.model,
-      stream: true,
-      messages: buildOpenAiMessages(messages, this.systemPrompt, contextSystemPrompt),
-      ...extraRequestBody,
-    }
-
-    const response = await (this.fetchImplementation || globalThis.fetch)(
-      resolveChatCompletionsEndpoint(settings.baseUrl),
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${settings.apiKey}`,
-          ...toRecord(headers),
-        },
-        body: JSON.stringify(requestBody),
-        signal: abortSignal,
+    const response = await requestOpenAiCompatibleResponse({
+      abortSignal,
+      body: {
+        model: settings.model,
+        stream: true,
+        messages: buildOpenAiMessages(messages, this.systemPrompt, contextSystemPrompt),
+        ...extraRequestBody,
       },
-    )
+      fetchImplementation: this.fetchImplementation,
+      headers,
+      settings,
+    })
 
     if (!response.ok) {
       throw new Error(await resolveOpenAiError(response))
@@ -152,7 +160,7 @@ function toRecord(headers?: Record<string, string> | Headers) {
   return headers
 }
 
-function buildOpenAiMessages(messages: UIMessage[], systemPrompt: string, contextSystemPrompt = ''): OpenAiCompatibleMessage[] {
+export function buildOpenAiMessages(messages: UIMessage[], systemPrompt: string, contextSystemPrompt = ''): OpenAiCompatibleMessage[] {
   const requestMessages: OpenAiCompatibleMessage[] = []
 
   if (systemPrompt.trim()) {
@@ -184,6 +192,78 @@ function buildOpenAiMessages(messages: UIMessage[], systemPrompt: string, contex
   }
 
   return requestMessages
+}
+
+interface RequestOpenAiCompatibleResponseOptions {
+  abortSignal?: AbortSignal
+  body: Record<string, unknown>
+  fetchImplementation?: typeof fetch
+  headers?: Record<string, string> | Headers
+  settings: OpenAiCompatibleChatSettings
+}
+
+async function requestOpenAiCompatibleResponse(options: RequestOpenAiCompatibleResponseOptions) {
+  const { abortSignal, body, fetchImplementation, headers, settings } = options
+
+  return await (fetchImplementation || globalThis.fetch)(
+    resolveChatCompletionsEndpoint(settings.baseUrl),
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${settings.apiKey}`,
+        ...toRecord(headers),
+      },
+      body: JSON.stringify(body),
+      signal: abortSignal,
+    },
+  )
+}
+
+function extractCompletionMessageText(payload: OpenAiChatCompletionResponse) {
+  const content = payload.choices?.[0]?.message?.content
+  if (typeof content === 'string') {
+    return content.trim()
+  }
+
+  if (Array.isArray(content)) {
+    return content
+      .map(item => typeof item?.text === 'string' ? item.text : '')
+      .join('')
+      .trim()
+  }
+
+  return ''
+}
+
+export async function requestOpenAiCompatibleCompletion(options: {
+  abortSignal?: AbortSignal
+  body?: Record<string, unknown>
+  fetchImplementation?: typeof fetch
+  headers?: Record<string, string> | Headers
+  messages: UIMessage[]
+  settings: OpenAiCompatibleChatSettings
+  systemPrompt?: string
+}) {
+  const response = await requestOpenAiCompatibleResponse({
+    abortSignal: options.abortSignal,
+    body: {
+      model: options.settings.model,
+      stream: false,
+      messages: buildOpenAiMessages(options.messages, options.systemPrompt || DEFAULT_SYSTEM_PROMPT),
+      ...(options.body || {}),
+    },
+    fetchImplementation: options.fetchImplementation,
+    headers: options.headers,
+    settings: options.settings,
+  })
+
+  if (!response.ok) {
+    throw new Error(await resolveOpenAiError(response))
+  }
+
+  const payload = await response.json() as OpenAiChatCompletionResponse
+  return extractCompletionMessageText(payload)
 }
 
 function extractPlainText(message: UIMessage) {

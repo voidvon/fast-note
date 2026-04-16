@@ -2,6 +2,7 @@ import type { UIMessage } from 'ai'
 import type { OpenAiCompatibleChatSettings } from './openai-compatible-chat-transport'
 import type { AiChatRequestContext } from './request-context'
 import type { ChatMessageCard, ChatMessageCardAction, ChatMessageCardItem } from '@/shared/ui/chat-message'
+import type { AiToolResult } from '@/shared/types'
 import { Chat } from '@ai-sdk/vue'
 import { nanoid } from 'nanoid'
 import { computed, reactive, ref, watch } from 'vue'
@@ -13,8 +14,12 @@ import {
   summarizeExecutionResults,
   summarizePreviewResults,
 } from './assistant-envelope'
-import { OpenAiCompatibleChatTransport } from './openai-compatible-chat-transport'
-import { AI_CHAT_REQUEST_CONTEXT_BODY_KEY } from './request-context'
+import {
+  DEFAULT_SYSTEM_PROMPT,
+  OpenAiCompatibleChatTransport,
+  requestOpenAiCompatibleCompletion,
+} from './openai-compatible-chat-transport'
+import { AI_CHAT_REQUEST_CONTEXT_BODY_KEY, buildAiChatContextSystemPrompt } from './request-context'
 import { createToolResultCards } from './tool-result-cards'
 
 const AI_CHAT_CONVERSATION_STORAGE_KEY = 'ai-chat-conversation'
@@ -39,6 +44,7 @@ const aiChatSession = useAiChatSession()
 const handledAssistantEnvelopeIds = new Set<string>()
 const lastRequestContext = ref<AiChatRequestContext | null>(null)
 const messageCards = ref<Record<string, ChatMessageCard[]>>({})
+const MAX_TOOL_LOOP_DEPTH = 3
 
 export interface AiChatViewMessage {
   cards: ChatMessageCard[]
@@ -348,6 +354,147 @@ function appendAssistantMessage(text: string, cards?: ChatMessageCard[]) {
   setMessageCards(messageId, cards)
 }
 
+function mergeCards(...groups: Array<ChatMessageCard[] | undefined>) {
+  const merged = groups.flatMap(group => group || [])
+  if (!merged.length) {
+    return []
+  }
+
+  const seenIds = new Set<string>()
+  return merged.filter((card) => {
+    if (seenIds.has(card.id)) {
+      return false
+    }
+
+    seenIds.add(card.id)
+    return true
+  })
+}
+
+function createHiddenSystemMessage(text: string): UIMessage {
+  return {
+    id: nanoid(),
+    role: 'system',
+    parts: [{
+      type: 'text' as const,
+      text,
+      state: 'done' as const,
+    }],
+  }
+}
+
+function formatToolResultData(result: AiToolResult) {
+  if (!result.data) {
+    return ''
+  }
+
+  if (Array.isArray(result.data)) {
+    return result.data.length
+      ? `返回数据：\n${JSON.stringify(result.data, null, 2)}`
+      : '返回数据：空列表'
+  }
+
+  if (typeof result.data === 'object' && result.data !== null && 'note' in result.data) {
+    const note = (result.data as { note?: Record<string, unknown> }).note
+    if (!note || typeof note !== 'object') {
+      return ''
+    }
+
+    return [
+      '返回数据：',
+      `noteId: ${typeof note.id === 'string' ? note.id : ''}`,
+      `title: ${typeof note.title === 'string' ? note.title : ''}`,
+      `summary: ${typeof note.summary === 'string' ? note.summary : ''}`,
+      `updated: ${typeof note.updated === 'string' ? note.updated : ''}`,
+      `contentHtml:\n${typeof note.content === 'string' ? note.content : ''}`,
+    ].join('\n')
+  }
+
+  return `返回数据：\n${JSON.stringify(result.data, null, 2)}`
+}
+
+function buildDetailedToolResultsPrompt(results: AiToolResult[]) {
+  return results.map((result, index) => {
+    const lines = [
+      `工具结果 ${index + 1}:`,
+      `ok: ${result.ok}`,
+      `code: ${result.code}`,
+      `summary: ${result.preview?.summary || result.message || ''}`,
+    ]
+
+    const dataBlock = formatToolResultData(result)
+    if (dataBlock) {
+      lines.push(dataBlock)
+    }
+
+    return lines.join('\n')
+  }).join('\n\n')
+}
+
+function buildToolLoopPrompt(resultsSummary: string, results: AiToolResult[], requestContext?: AiChatRequestContext | null) {
+  const contextPrompt = buildAiChatContextSystemPrompt(requestContext || null)
+  return [
+    '以下是你刚才请求的本地工具执行结果，请继续完成用户上一条请求。',
+    '如果当前信息已足够，请直接输出自然语言最终答复，不要再解释 JSON 格式。',
+    '如果仍需进一步读取或执行其他本地工具，请继续只返回合法 JSON 工具请求。',
+    contextPrompt ? `附加上下文：\n${contextPrompt}` : '',
+    `工具执行摘要：\n${resultsSummary}`,
+    `工具详细返回：\n${buildDetailedToolResultsPrompt(results)}`,
+  ].filter(Boolean).join('\n\n')
+}
+
+async function continueAssistantAfterToolResults(resultsSummary: string, results: AiToolResult[]) {
+  hydrateSettings()
+
+  const followUpMessages = chat.messages.concat(
+    createHiddenSystemMessage(buildToolLoopPrompt(resultsSummary, results, lastRequestContext.value)),
+  )
+
+  return await requestOpenAiCompatibleCompletion({
+    messages: followUpMessages,
+    settings: settingsState,
+    systemPrompt: DEFAULT_SYSTEM_PROMPT,
+  })
+}
+
+async function resolveAssistantToolLoop(rawText: string, depth = 0): Promise<{ cards: ChatMessageCard[], text: string }> {
+  const envelope = parseAiAssistantToolEnvelope(rawText)
+  if (!envelope) {
+    return {
+      cards: [],
+      text: rawText.trim(),
+    }
+  }
+
+  const results = await aiChatSession.submitToolCalls(envelope.toolCalls)
+  const cards = createToolResultCards(results)
+  const summary = aiChatSession.hasPendingConfirmation.value
+    ? summarizePreviewResults(results)
+    : summarizeExecutionResults(results)
+
+  if (aiChatSession.hasPendingConfirmation.value || depth >= MAX_TOOL_LOOP_DEPTH) {
+    return {
+      cards,
+      text: mergeAssistantAnswer(envelope.answer, summary),
+    }
+  }
+
+  try {
+    const followUpText = await continueAssistantAfterToolResults(summary, results)
+    const nested = await resolveAssistantToolLoop(followUpText, depth + 1)
+    return {
+      cards: mergeCards(cards, nested.cards),
+      text: nested.text.trim() || mergeAssistantAnswer(envelope.answer, summary),
+    }
+  }
+  catch {
+    return {
+      cards,
+      text: mergeAssistantAnswer(envelope.answer, summary),
+    }
+  }
+}
+
 async function processLatestAssistantEnvelope() {
   const message = latestAssistantMessage.value
   if (!message || handledAssistantEnvelopeIds.has(message.id)) {
@@ -361,13 +508,8 @@ async function processLatestAssistantEnvelope() {
   }
 
   handledAssistantEnvelopeIds.add(message.id)
-  const results = await aiChatSession.submitToolCalls(envelope.toolCalls)
-  const summary = aiChatSession.hasPendingConfirmation.value
-    ? summarizePreviewResults(results)
-    : summarizeExecutionResults(results)
-  const cards = createToolResultCards(results)
-
-  replaceMessageText(message.id, mergeAssistantAnswer(envelope.answer, summary), cards)
+  const resolved = await resolveAssistantToolLoop(message.text)
+  replaceMessageText(message.id, resolved.text, resolved.cards)
 }
 
 function getMessageText(parts: UIMessage['parts']) {
