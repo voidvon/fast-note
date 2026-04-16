@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getRouteRestoreMode, isDeferredPrivateRoute } from '@/processes/navigation'
+import { getRouteRestoreMode, isDeferredPrivateRoute, shouldRestoreLastVisitedRouteForCurrentPath } from '@/processes/navigation'
 
 describe('useLastVisitedRoute restore mode', () => {
   it('treats private existing note detail routes as deferred restore targets', () => {
@@ -15,5 +15,15 @@ describe('useLastVisitedRoute restore mode', () => {
     expect(isDeferredPrivateRoute('/home')).toBe(false)
     expect(getRouteRestoreMode('/n/0')).toBe('immediate')
     expect(getRouteRestoreMode('/alice')).toBe('immediate')
+  })
+
+  it('restores last visited route only from entry pages', () => {
+    expect(shouldRestoreLastVisitedRouteForCurrentPath('/')).toBe(true)
+    expect(shouldRestoreLastVisitedRouteForCurrentPath('/home')).toBe(true)
+    expect(shouldRestoreLastVisitedRouteForCurrentPath('/login')).toBe(true)
+    expect(shouldRestoreLastVisitedRouteForCurrentPath('/register')).toBe(true)
+    expect(shouldRestoreLastVisitedRouteForCurrentPath('/n/private-note')).toBe(false)
+    expect(shouldRestoreLastVisitedRouteForCurrentPath('/f/folder-1')).toBe(false)
+    expect(shouldRestoreLastVisitedRouteForCurrentPath('/alice')).toBe(false)
   })
 })

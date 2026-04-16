@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  getDesktopFolderRoutePath,
+  getDesktopNoteRoutePath,
   getDesktopActiveNoteStorageKey,
   getDesktopNotesForFolder,
   resolveDesktopActiveNoteSelection,
@@ -71,5 +73,21 @@ describe('useDesktopActiveNote (t-fn-019 / tc-fn-013)', () => {
     const deleted = makeNote({ id: 'note-c', is_deleted: 1, updated: '2026-03-06 12:00:00' })
 
     expect(getDesktopNotesForFolder('allnotes', [noteA, noteB, deleted], []).map(note => note.id)).toEqual(['note-b', 'note-a'])
+  })
+
+  it('builds nested desktop folder routes from the folder parent chain', () => {
+    const folderA = makeNote({ id: 'folder-a', item_type: NOTE_TYPE.FOLDER, parent_id: '' })
+    const folderB = makeNote({ id: 'folder-b', item_type: NOTE_TYPE.FOLDER, parent_id: 'folder-a' })
+    const folderC = makeNote({ id: 'folder-c', item_type: NOTE_TYPE.FOLDER, parent_id: 'folder-b' })
+
+    expect(getDesktopFolderRoutePath('allnotes', [folderA, folderB, folderC])).toBe('/home')
+    expect(getDesktopFolderRoutePath('deleted', [folderA, folderB, folderC])).toBe('/deleted')
+    expect(getDesktopFolderRoutePath('folder-c', [folderA, folderB, folderC])).toBe('/f/folder-a/folder-b/folder-c')
+  })
+
+  it('builds desktop note routes for drafts and existing notes', () => {
+    expect(getDesktopNoteRoutePath('note-1')).toBe('/n/note-1')
+    expect(getDesktopNoteRoutePath('0')).toBe('/n/0')
+    expect(getDesktopNoteRoutePath('0', 'folder-1')).toBe('/n/0?parent_id=folder-1')
   })
 })

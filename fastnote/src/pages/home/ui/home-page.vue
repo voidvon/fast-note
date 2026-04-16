@@ -26,6 +26,8 @@ import { useExtensions } from '@/features/extension-manager'
 import GlobalSearch, { useGlobalSearch } from '@/features/global-search'
 import DarkModeToggle from '@/features/theme-switch'
 import {
+  getDesktopFolderRoutePath,
+  getDesktopNoteRoutePath,
   getDesktopNotesForFolder,
   isDesktopFolderAvailable,
   resolveDesktopActiveNoteSelection,
@@ -87,6 +89,8 @@ const page = ref()
 const folderPageRef = ref()
 const hasAttemptedDesktopRestore = ref(false)
 const isRestoringDesktopSelection = ref(false)
+const isSyncingDesktopRoute = ref(false)
+const desktopRouteState = ref(parseDesktopRouteState())
 
 // 将 dataList 改为计算属性，自动响应 notes 的变化
 const dataList = computed(() => {
@@ -162,6 +166,10 @@ const state = reactive({
 
 const isDeletedFolder = computed(() => state.folerId === 'deleted')
 const showDesktopEmptyDetailOverlay = computed(() => isDesktop.value && !state.noteId)
+const desktopRoutePath = computed(() => desktopRouteState.value.path)
+const desktopRouteFullPath = computed(() => desktopRouteState.value.fullPath)
+const isDesktopPrivateNoteRoute = computed(() => isDesktop.value && desktopRoutePath.value.startsWith('/n/'))
+const shouldRestoreDesktopSnapshotFromCurrentRoute = computed(() => isDesktop.value && desktopRoutePath.value === '/home')
 
 const sortDataList = computed(() => {
   return dataList.value
@@ -198,6 +206,186 @@ function persistDesktopSelection(noteId = state.noteId) {
   }, currentUserId.value)
 }
 
+function parseDesktopRouteState() {
+  if (typeof window === 'undefined') {
+    return {
+      fullPath: '/home',
+      path: '/home',
+      pathMatch: '',
+      noteId: '',
+      parentId: '',
+    }
+  }
+
+  const currentUrl = new URL(window.location.href)
+  const path = currentUrl.pathname || '/home'
+  const normalizedPath = path === '/' ? '/home' : path
+  const search = currentUrl.search || ''
+
+  if (normalizedPath.startsWith('/f/')) {
+    return {
+      fullPath: `${normalizedPath}${search}`,
+      path: normalizedPath,
+      pathMatch: decodeURIComponent(normalizedPath.slice(3)),
+      noteId: '',
+      parentId: '',
+    }
+  }
+
+  if (normalizedPath.startsWith('/n/')) {
+    return {
+      fullPath: `${normalizedPath}${search}`,
+      path: normalizedPath,
+      pathMatch: '',
+      noteId: decodeURIComponent(normalizedPath.slice(3)),
+      parentId: currentUrl.searchParams.get('parent_id') || '',
+    }
+  }
+
+  return {
+    fullPath: `${normalizedPath}${search}`,
+    path: normalizedPath,
+    pathMatch: '',
+    noteId: '',
+    parentId: currentUrl.searchParams.get('parent_id') || '',
+  }
+}
+
+function refreshDesktopRouteState() {
+  desktopRouteState.value = parseDesktopRouteState()
+}
+
+function updateDesktopBrowserUrl(targetPath: string, mode: 'push' | 'replace' = 'push') {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  const currentUrl = window.location.pathname + window.location.search + window.location.hash
+  if (currentUrl === targetPath) {
+    refreshDesktopRouteState()
+    return
+  }
+
+  const historyMethod = mode === 'replace' ? 'replaceState' : 'pushState'
+  window.history[historyMethod](window.history.state, '', targetPath)
+  refreshDesktopRouteState()
+}
+
+function withDesktopSelectionSync(updateSelection: () => void) {
+  isRestoringDesktopSelection.value = true
+  updateSelection()
+
+  void nextTick(() => {
+    isRestoringDesktopSelection.value = false
+  })
+}
+
+function resolveDesktopFolderIdFromNote(noteId: string) {
+  const targetNote = notes.value.find(note => note.id === noteId)
+  if (!targetNote) {
+    return desktopRouteState.value.parentId || 'allnotes'
+  }
+
+  if (targetNote.is_deleted === 1) {
+    return 'deleted'
+  }
+
+  return targetNote.parent_id || 'allnotes'
+}
+
+function resolveDesktopFolderIdFromRoutePath() {
+  const { pathMatch } = desktopRouteState.value
+  if (pathMatch) {
+    const segments = pathMatch.split('/')
+    return segments[segments.length - 1] || ''
+  }
+
+  return ''
+}
+
+function syncDesktopSelectionFromRoute() {
+  if (!isDesktop.value || isSyncingDesktopRoute.value) {
+    return false
+  }
+
+  const currentPath = desktopRoutePath.value
+
+  if (currentPath === '/home' || currentPath === '/') {
+    return false
+  }
+
+  isSyncingDesktopRoute.value = true
+
+  withDesktopSelectionSync(() => {
+    if (currentPath === '/deleted') {
+      state.folerId = 'deleted'
+      state.noteId = ''
+      state.parentId = ''
+      return
+    }
+
+    if (currentPath.startsWith('/f/')) {
+      const folderId = resolveDesktopFolderIdFromRoutePath()
+      if (!folderId) {
+        return
+      }
+
+      state.folerId = folderId
+      state.noteId = ''
+      state.parentId = ''
+      return
+    }
+
+    if (!currentPath.startsWith('/n/')) {
+      return
+    }
+
+    const noteId = desktopRouteState.value.noteId
+    const parentId = desktopRouteState.value.parentId
+    if (!noteId) {
+      return
+    }
+
+    state.folerId = noteId === '0'
+      ? (parentId && isDesktopFolderAvailable(parentId, notes.value, deletedNotes.value) ? parentId : state.folerId || 'allnotes')
+      : resolveDesktopFolderIdFromNote(noteId)
+    state.noteId = noteId
+    state.parentId = noteId === '0' ? parentId : ''
+  })
+
+  hasAttemptedDesktopRestore.value = true
+  void nextTick(() => {
+    isSyncingDesktopRoute.value = false
+  })
+  return true
+}
+
+function navigateDesktopToFolder(folderId: string) {
+  const targetPath = getDesktopFolderRoutePath(folderId, notes.value)
+  if (desktopRouteFullPath.value === targetPath) {
+    withDesktopSelectionSync(() => {
+      state.folerId = folderId
+      state.noteId = ''
+      state.parentId = ''
+    })
+    clearSnapshot(currentUserId.value)
+    void init({ preferPersistedSelection: false })
+    return
+  }
+
+  updateDesktopBrowserUrl(targetPath)
+}
+
+function navigateDesktopToNote(noteId: string, parentId = '') {
+  const targetPath = getDesktopNoteRoutePath(noteId, parentId)
+  if (desktopRouteFullPath.value === targetPath) {
+    syncDesktopSelectionFromRoute()
+    return
+  }
+
+  updateDesktopBrowserUrl(targetPath)
+}
+
 function restoreDesktopSelection() {
   if (!isDesktop.value) {
     return false
@@ -214,13 +402,10 @@ function restoreDesktopSelection() {
     return false
   }
 
-  isRestoringDesktopSelection.value = true
-  state.folerId = selection.folderId
-  state.noteId = selection.noteId
-  state.parentId = selection.parentId
-
-  void nextTick(() => {
-    isRestoringDesktopSelection.value = false
+  withDesktopSelectionSync(() => {
+    state.folerId = selection.folderId
+    state.noteId = selection.noteId
+    state.parentId = selection.parentId
   })
 
   if (selection.noteId) {
@@ -298,7 +483,11 @@ async function refresh(ev: CustomEvent) {
 }
 
 async function init(options: { preferPersistedSelection?: boolean } = {}) {
-  if (options.preferPersistedSelection && !hasAttemptedDesktopRestore.value) {
+  if (syncDesktopSelectionFromRoute()) {
+    options = { preferPersistedSelection: false }
+  }
+
+  if (options.preferPersistedSelection && shouldRestoreDesktopSnapshotFromCurrentRoute.value && !hasAttemptedDesktopRestore.value) {
     hasAttemptedDesktopRestore.value = true
     if (restoreDesktopSelection()) {
       return
@@ -309,12 +498,12 @@ async function init(options: { preferPersistedSelection?: boolean } = {}) {
     state.folerId = 'allnotes'
   }
 
-  if (isDesktop.value && !hasCurrentDesktopNoteSelection()) {
+  if (isDesktop.value && !hasCurrentDesktopNoteSelection() && !isDesktopPrivateNoteRoute.value) {
     state.noteId = ''
     state.parentId = ''
   }
 
-  if (isDesktop.value && !state.noteId) {
+  if (isDesktop.value && !state.noteId && !isDesktopPrivateNoteRoute.value) {
     const defaultNoteId = getDefaultNoteId(state.folerId)
     if (defaultNoteId) {
       state.noteId = defaultNoteId
@@ -323,10 +512,20 @@ async function init(options: { preferPersistedSelection?: boolean } = {}) {
 }
 
 function handleFolderSelected(id: string) {
+  if (isDesktop.value) {
+    navigateDesktopToFolder(id)
+    return
+  }
+
   state.folerId = id
 }
 
 function handleNoteSelected(id: string) {
+  if (isDesktop.value) {
+    navigateDesktopToNote(id)
+    return
+  }
+
   state.parentId = ''
   state.noteId = id
 }
@@ -342,14 +541,7 @@ async function handleAiOpenNote(payload: { isDeleted?: boolean, noteId: string, 
     return
   }
 
-  isRestoringDesktopSelection.value = true
-  state.parentId = ''
-  state.folerId = targetNote.is_deleted === 1
-    ? 'deleted'
-    : (targetNote.parent_id || 'allnotes')
-  state.noteId = targetNote.id
-  await nextTick()
-  isRestoringDesktopSelection.value = false
+  navigateDesktopToNote(targetNote.id)
 }
 
 async function handleAiOpenFolder(payload: { folderId: string, parentId?: string }) {
@@ -358,16 +550,16 @@ async function handleAiOpenFolder(payload: { folderId: string, parentId?: string
     return
   }
 
-  isRestoringDesktopSelection.value = true
-  state.parentId = ''
-  state.noteId = ''
-  state.folerId = payload.folderId
-  await nextTick()
-  isRestoringDesktopSelection.value = false
-  await init()
+  navigateDesktopToFolder(payload.folderId)
 }
 
 function handleCreateNote(parentId = '') {
+  if (isDesktop.value) {
+    clearSnapshot(currentUserId.value)
+    navigateDesktopToNote('0', parentId)
+    return
+  }
+
   state.parentId = parentId
   state.noteId = '0'
   clearSnapshot(currentUserId.value)
@@ -391,16 +583,42 @@ function openAddFolderAlert() {
 }
 
 onIonViewWillEnter(() => {
-  init({ preferPersistedSelection: true })
+  void init({ preferPersistedSelection: true })
 })
 
 onMounted(() => {
   presentingElement.value = page.value.$el
-  init({ preferPersistedSelection: true })
+  refreshDesktopRouteState()
+  void init({ preferPersistedSelection: true })
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('popstate', refreshDesktopRouteState)
+  }
 })
 
+watch(
+  () => desktopRouteFullPath.value,
+  () => {
+    if (!isDesktop.value) {
+      return
+    }
+
+    void init({ preferPersistedSelection: true })
+  },
+)
+
 function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
-  state.noteId = event.noteId
+  if (isDesktop.value) {
+    if (event.isNew) {
+      updateDesktopBrowserUrl(getDesktopNoteRoutePath(event.noteId), 'replace')
+    }
+    else {
+      navigateDesktopToNote(event.noteId)
+    }
+  }
+  else {
+    state.noteId = event.noteId
+  }
 
   // 如果是新建的笔记，选中它并刷新列表
   if (event.isNew && folderPageRef.value) {
@@ -408,6 +626,12 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
   }
   // 更新笔记时不需要刷新列表，因为 notes store 是响应式的，列表会自动更新
 }
+
+onUnmounted(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('popstate', refreshDesktopRouteState)
+  }
+})
 </script>
 
 <template>

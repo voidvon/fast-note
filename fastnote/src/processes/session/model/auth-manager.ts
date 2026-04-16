@@ -7,6 +7,7 @@ class AuthManager {
   private currentUser = ref<UserInfo | null>(null)
   private isLoading = ref(false)
   private authChangeUnsubscribe: (() => void) | null = null
+  private backgroundValidationPromise: Promise<void> | null = null
 
   readonly isLoggedIn = computed(() => !!this.currentUser.value)
   readonly userInfo = computed(() => this.currentUser.value)
@@ -103,13 +104,7 @@ class AuthManager {
       }
 
       if (this.authService.isAuthenticated()) {
-        const result = await this.authService.getCurrentUser()
-        if (result.success && result.user) {
-          this.currentUser.value = result.user
-        }
-        else {
-          this.currentUser.value = null
-        }
+        void this.validateCurrentUserInBackground()
       }
       else {
         this.currentUser.value = null
@@ -173,6 +168,32 @@ class AuthManager {
     this.authChangeUnsubscribe = this.authService.onAuthChange((token, user) => {
       this.currentUser.value = token && user ? user : null
     })
+  }
+
+  private async validateCurrentUserInBackground() {
+    if (!this.authService) {
+      return
+    }
+
+    if (this.backgroundValidationPromise) {
+      return this.backgroundValidationPromise
+    }
+
+    this.backgroundValidationPromise = (async () => {
+      try {
+        const result = await this.authService!.getCurrentUser()
+        if (result.success && result.user) {
+          this.currentUser.value = result.user
+        }
+      }
+      catch (error: any) {
+        console.error('后台校验认证状态失败:', error?.message || error)
+      }
+    })().finally(() => {
+      this.backgroundValidationPromise = null
+    })
+
+    return this.backgroundValidationPromise
   }
 
   private cleanup() {

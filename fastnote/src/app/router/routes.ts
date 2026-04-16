@@ -1,5 +1,6 @@
 import type { RouteRecordRaw } from 'vue-router'
-import HomePage from '@/pages/home'
+import PrivateFolderRoute from './ui/private-folder-route.vue'
+import PrivateNoteRoute from './ui/private-note-route.vue'
 
 export const appRoutes: Array<RouteRecordRaw> = [
   {
@@ -9,11 +10,11 @@ export const appRoutes: Array<RouteRecordRaw> = [
   {
     path: '/home',
     name: 'Home',
-    component: HomePage,
+    component: () => import('@/pages/home'),
   },
   {
     path: '/n/:id',
-    component: () => import('@/pages/note-detail'),
+    component: PrivateNoteRoute,
   },
   {
     path: '/login',
@@ -43,7 +44,7 @@ export const appRoutes: Array<RouteRecordRaw> = [
   {
     path: '/f/:pathMatch(.*)*',
     name: 'Folder',
-    component: () => import('@/pages/folder'),
+    component: PrivateFolderRoute,
   },
   {
     path: '/deleted',

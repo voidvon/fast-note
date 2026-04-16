@@ -3,6 +3,8 @@ export {
   createDesktopActiveNoteSnapshot,
   DESKTOP_ACTIVE_NOTE_STORAGE_PREFIX,
   getDesktopActiveNoteStorageKey,
+  getDesktopFolderRoutePath,
+  getDesktopNoteRoutePath,
   getDesktopNotesForFolder,
   isDesktopFolderAvailable,
   isPersistableDesktopNoteId,
@@ -19,6 +21,7 @@ export {
   getRouteRestoreMode,
   isDeferredPrivateRoute,
   LAST_ROUTE_STORAGE_PREFIX,
+  shouldRestoreLastVisitedRouteForCurrentPath,
   useLastVisitedRoute,
 } from './model/use-last-visited-route'
 export type { RouteRestoreMode } from './model/use-last-visited-route'
