@@ -67,7 +67,7 @@ function appendDistinctParagraph(result: string, value: string) {
 }
 
 function mergeEnvelopeAnswerParts(...parts: Array<string | undefined>) {
-  return parts.reduce((result, part) => appendDistinctParagraph(result, part || ''), '')
+  return parts.reduce<string>((result, part) => appendDistinctParagraph(result, part ?? ''), '')
 }
 
 function stripFencePrefix(text: string) {
