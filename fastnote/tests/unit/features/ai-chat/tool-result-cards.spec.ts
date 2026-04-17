@@ -32,9 +32,7 @@ describe('tool result cards', () => {
           noteId: 'note-1',
         },
         id: 'note-1',
-        layout: 'note-compact',
-        meta: '2026/4/15',
-        description: '本周项目推进',
+        meta: '2026/4/15\u00A0\u00A0本周项目推进',
         title: '周报',
       }],
     })

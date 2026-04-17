@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import type { ChatMessageBlock, ChatMessageCard, ChatMessageCardAction, ChatMessageCardItem } from '../model/message-card'
+import type { ChatMessageBlock, ChatMessageCard, ChatMessageCardAction } from '../model/message-card'
 import { IonButton, IonIcon, IonItem, IonNote, IonSpinner } from '@ionic/vue'
 import { checkmarkOutline, copyOutline } from 'ionicons/icons'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { copyText } from '@/shared/lib/clipboard'
 import StreamMarkdown from '@/shared/ui/stream-markdown'
+import ChatMessageCards from './chat-message-cards.vue'
 
 const props = withDefaults(defineProps<{
   blocks?: ChatMessageBlock[]
@@ -110,10 +111,6 @@ function handleCardItemClick(action?: ChatMessageCardAction) {
   handleCardAction(action)
 }
 
-function isCompactNoteItem(item: ChatMessageCardItem) {
-  return item.layout === 'note-compact'
-}
-
 function isCardsBlock(block: ChatMessageBlock): block is Extract<ChatMessageBlock, { type: 'cards' }> {
   return block.type === 'cards'
 }
@@ -153,79 +150,11 @@ function isCardsBlock(block: ChatMessageBlock): block is Extract<ChatMessageBloc
             <div v-else-if="block.type === 'text'" class="chat-message__plain">
               {{ block.text }}
             </div>
-            <div v-else-if="isCardsBlock(block) && block.cards.length" class="chat-message__cards">
-              <section
-                v-for="card in block.cards"
-                :key="card.id"
-                class="chat-message__card"
-                :class="card.status ? `chat-message__card--${card.status}` : ''"
-              >
-                <div class="chat-message__card-head">
-                  <strong class="chat-message__card-title">{{ card.title }}</strong>
-                  <span v-if="card.status" class="chat-message__card-status">
-                    {{ card.status === 'success' ? '已完成' : card.status === 'warning' ? '待处理' : card.status === 'error' ? '失败' : '信息' }}
-                  </span>
-                </div>
-
-                <p v-if="card.description" class="chat-message__card-description">
-                  {{ card.description }}
-                </p>
-
-                <ul v-if="card.items?.length" class="chat-message__card-list">
-                  <li
-                    v-for="item in card.items"
-                    :key="item.id"
-                    class="chat-message__card-item"
-                    :class="{ 'chat-message__card-item--actionable': !!item.action }"
-                    :role="item.action ? 'button' : undefined"
-                    :tabindex="item.action ? 0 : undefined"
-                    @click="handleCardItemClick(item.action)"
-                    @keydown.enter.prevent="handleCardItemClick(item.action)"
-                    @keydown.space.prevent="handleCardItemClick(item.action)"
-                  >
-                    <template v-if="isCompactNoteItem(item)">
-                      <div class="chat-message__card-item-main chat-message__card-item-main--compact">
-                        <span
-                          v-if="item.action"
-                          class="chat-message__card-item-button chat-message__card-item-button--compact"
-                        >
-                          {{ item.title }}
-                        </span>
-                        <strong v-else class="chat-message__card-item-title">{{ item.title }}</strong>
-                      </div>
-                      <p v-if="item.meta || item.description" class="chat-message__card-item-secondary">
-                        <span v-if="item.meta" class="chat-message__card-item-meta chat-message__card-item-meta--compact">{{ item.meta }}</span>
-                        <span v-if="item.description" class="chat-message__card-item-description chat-message__card-item-description--compact">{{ item.description }}</span>
-                      </p>
-                    </template>
-                    <template v-else>
-                      <div class="chat-message__card-item-main">
-                        <span
-                          v-if="item.action"
-                          class="chat-message__card-item-button"
-                        >
-                          {{ item.title }}
-                        </span>
-                        <strong v-else class="chat-message__card-item-title">{{ item.title }}</strong>
-                        <span v-if="item.meta" class="chat-message__card-item-meta">{{ item.meta }}</span>
-                      </div>
-                      <p v-if="item.description" class="chat-message__card-item-description">
-                        {{ item.description }}
-                      </p>
-                    </template>
-                    <div v-if="item.tags?.length && !isCompactNoteItem(item)" class="chat-message__card-tags">
-                      <span v-for="tag in item.tags" :key="tag" class="chat-message__card-tag">
-                        {{ tag }}
-                      </span>
-                    </div>
-                  </li>
-                </ul>
-
-                <p v-if="card.footer" class="chat-message__card-footer">
-                  {{ card.footer }}
-                </p>
-              </section>
-            </div>
+            <ChatMessageCards
+              v-else-if="isCardsBlock(block) && block.cards.length"
+              :cards="block.cards"
+              @action="handleCardItemClick"
+            />
           </template>
         </template>
 
@@ -305,161 +234,8 @@ function isCardsBlock(block: ChatMessageBlock): block is Extract<ChatMessageBloc
   white-space: pre-wrap;
 }
 
-.chat-message__cards {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 12px;
-}
-
 .chat-message__cards + .stream-markdown {
   margin-top: 12px;
-}
-
-.chat-message__card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
-  background: rgba(7, 10, 18, 0.36);
-}
-
-.chat-message__card--success {
-  border-color: rgba(74, 222, 128, 0.22);
-}
-
-.chat-message__card--warning {
-  border-color: rgba(250, 204, 21, 0.24);
-}
-
-.chat-message__card--error {
-  border-color: rgba(248, 113, 113, 0.24);
-}
-
-.chat-message__card-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.chat-message__card-title,
-.chat-message__card-item-title {
-  font-size: 13px;
-  color: #f5f5f7;
-}
-
-.chat-message__card-item-button {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: #7dd3fc;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 700;
-  text-align: left;
-}
-
-.chat-message__card-status,
-.chat-message__card-item-meta,
-.chat-message__card-footer {
-  font-size: 12px;
-  color: #a1a1aa;
-}
-
-.chat-message__card-description,
-.chat-message__card-item-description {
-  margin: 0;
-  font-size: 12px;
-  color: #d4d4d8;
-}
-
-.chat-message__card-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  padding-left: 0;
-  list-style: none;
-}
-
-.chat-message__card-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.chat-message__card-item--actionable {
-  cursor: pointer;
-}
-
-.chat-message__card-item--actionable:focus-visible {
-  outline: 2px solid rgba(125, 211, 252, 0.8);
-  outline-offset: 2px;
-}
-
-.chat-message__card-item-main {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.chat-message__card-item-main--compact {
-  display: block;
-}
-
-.chat-message__card-item-button--compact,
-.chat-message__card-item-main--compact .chat-message__card-item-title {
-  display: block;
-  width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.chat-message__card-item-secondary {
-  display: flex;
-  gap: 8px;
-  min-width: 0;
-  margin: 0;
-  font-size: 12px;
-  color: #a1a1aa;
-  white-space: nowrap;
-}
-
-.chat-message__card-item-meta--compact {
-  flex: 0 0 auto;
-}
-
-.chat-message__card-item-description--compact {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.chat-message__card-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.chat-message__card-tag {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(125, 211, 252, 0.12);
-  color: #bae6fd;
-  font-size: 11px;
 }
 
 .chat-message__actions {

@@ -53,6 +53,7 @@ const route = useRoute()
 const router = useRouter()
 const SURFACE_TRANSITION_MS = 320
 const CONTENT_TRANSITION_MS = 220
+const TEXTAREA_MAX_ROWS = 3
 
 type SearchTextareaEvent = CustomEvent<{
   event?: Event
@@ -60,7 +61,7 @@ type SearchTextareaEvent = CustomEvent<{
 }> & {
   target: HTMLIonTextareaElement
 }
-type SearchTextareaHost = Pick<HTMLElement, 'blur' | 'focus'> & Partial<Pick<HTMLIonTextareaElement, 'setFocus'>>
+type SearchTextareaHost = Pick<HTMLElement, 'blur' | 'focus' | 'style'> & Partial<Pick<HTMLIonTextareaElement, 'setFocus' | 'getInputElement'>>
 type SearchTextareaRef = SearchTextareaHost | { $el?: SearchTextareaHost }
 
 const dockRef = ref<HTMLDivElement>()
@@ -335,8 +336,36 @@ function focusInput() {
   })
 }
 
-function syncInputLayout() {
-  void nextTick(() => {
+async function syncInputTextareaMaxHeight() {
+  const inputHost = resolveInputHost()
+  if (!inputHost) {
+    return
+  }
+
+  const nativeInput = typeof inputHost.getInputElement === 'function'
+    ? await inputHost.getInputElement()
+    : inputHost instanceof HTMLTextAreaElement
+      ? inputHost
+      : null
+
+  if (!nativeInput) {
+    return
+  }
+
+  const styles = window.getComputedStyle(nativeInput)
+  const lineHeight = Number.parseFloat(styles.lineHeight) || 22
+  const paddingTop = Number.parseFloat(styles.paddingTop) || 0
+  const paddingBottom = Number.parseFloat(styles.paddingBottom) || 0
+  const maxHeight = Math.ceil(lineHeight * TEXTAREA_MAX_ROWS + paddingTop + paddingBottom)
+
+  inputHost.style.maxHeight = `${maxHeight}px`
+  nativeInput.style.maxHeight = `${maxHeight}px`
+  nativeInput.style.overflowY = nativeInput.scrollHeight > maxHeight ? 'auto' : 'hidden'
+}
+
+function syncInputHeightLimits() {
+  void nextTick(async () => {
+    await syncInputTextareaMaxHeight()
     scheduleLayoutUpdate()
   })
 }
@@ -424,13 +453,13 @@ function handleCompositionEnd(event: CompositionEvent) {
   if (!isSearchMode.value) {
     aiDraft.value = value
     activateSearch()
-    syncInputLayout()
+    syncInputHeightLimits()
     return
   }
 
   applySearchKeyword(value)
   void runSearch(value)
-  syncInputLayout()
+  syncInputHeightLimits()
 }
 
 function onFocus() {
@@ -516,7 +545,7 @@ function onInput(event: SearchTextareaEvent) {
   const value = event.detail.value || ''
   const nativeEvent = event.detail.event
 
-  syncInputLayout()
+  syncInputHeightLimits()
 
   if (
     isComposing.value
@@ -546,7 +575,7 @@ function onClear() {
     aiDraft.value = ''
     activateSearch()
   }
-  syncInputLayout()
+  syncInputHeightLimits()
   focusInput()
 }
 
@@ -576,7 +605,7 @@ function onKeydown(event: KeyboardEvent) {
 function handleAiPrefill(value: string) {
   aiDraft.value = value
   activateSearch()
-  syncInputLayout()
+  syncInputHeightLimits()
   focusInput()
 }
 
@@ -676,16 +705,16 @@ watch(routeOverlayMode, (mode) => {
 })
 
 watch(currentDraft, () => {
-  syncInputLayout()
+  syncInputHeightLimits()
 })
 
 watch(isSearchMode, () => {
-  syncInputLayout()
+  syncInputHeightLimits()
 })
 
 onMounted(() => {
   updateLayout()
-  syncInputLayout()
+  syncInputHeightLimits()
   window.addEventListener('resize', handleViewportChange)
 })
 
@@ -941,6 +970,7 @@ onUnmounted(() => {
     flex: 1;
     min-width: 0;
     min-height: 32px;
+    max-height: calc(22px * 3 + 10px);
     font-size: 16px;
     line-height: 22px;
     transition: min-height 180ms ease;

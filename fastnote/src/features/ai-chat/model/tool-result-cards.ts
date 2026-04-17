@@ -1,16 +1,6 @@
 import type { ChatMessageCard, ChatMessageCardItem } from '@/shared/ui/chat-message'
 import type { AiToolResult, Note } from '@/shared/types'
-import dayjs from 'dayjs'
-import calendar from 'dayjs/plugin/calendar'
-
-dayjs.extend(calendar)
-
-const NOTE_CARD_CALENDAR_CONFIG = {
-  sameDay: 'HH:mm',
-  lastDay: '[昨天] HH:mm',
-  lastWeek: 'YYYY/M/D',
-  sameElse: 'YYYY/M/D',
-}
+import { formatNotePreviewLine } from '@/shared/lib/date'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -32,20 +22,8 @@ function toTags(tags: Array<string | false | null | undefined>) {
   return tags.filter((tag): tag is string => !!tag)
 }
 
-function formatNoteCardDate(updated?: string) {
-  if (!updated) {
-    return ''
-  }
-
-  return dayjs(updated).calendar(null, NOTE_CARD_CALENDAR_CONFIG)
-}
-
 function toNoteMeta(note: Partial<Note>) {
-  const parentId = note.parent_id || (note as Partial<{ parentId: string }>).parentId || ''
-  return [
-    parentId ? `目录 ${parentId}` : '根目录',
-    note.updated ? `更新于 ${note.updated}` : '',
-  ].filter(Boolean).join(' · ')
+  return formatNotePreviewLine(note.created || note.updated, note.summary)
 }
 
 function toNoteCardItem(note: Partial<Note> & { id: string, title?: string, summary?: string }): ChatMessageCardItem {
@@ -62,31 +40,12 @@ function toNoteCardItem(note: Partial<Note> & { id: string, title?: string, summ
     },
     id: note.id,
     title: note.title || '未命名备忘录',
-    description: note.summary || '',
+    description: '',
     meta: toNoteMeta(note),
     tags: toTags([
       isLocked ? '已加锁' : '',
       isDeleted ? '已删除' : '',
     ]),
-  }
-}
-
-function toCompactNoteCardItem(note: Partial<Note> & { id: string, title?: string, summary?: string }): ChatMessageCardItem {
-  const parentId = note.parent_id || (note as Partial<{ parentId: string }>).parentId || ''
-  const isDeleted = note.is_deleted === 1 || (note as Partial<{ isDeleted: boolean }>).isDeleted === true
-
-  return {
-    action: {
-      type: 'open-note',
-      isDeleted,
-      noteId: note.id,
-      parentId,
-    },
-    description: note.summary || '',
-    id: note.id,
-    layout: 'note-compact',
-    meta: formatNoteCardDate(note.updated),
-    title: note.title || '未命名备忘录',
   }
 }
 
@@ -154,12 +113,14 @@ function tryCreateSearchResultCard(result: AiToolResult, index: number) {
         isDeleted?: boolean
         isLocked?: boolean
         parentId?: string
+        created?: string
         summary?: string
         title: string
         updated?: string
       }
 
-      return toCompactNoteCardItem({
+      return toNoteCardItem({
+        created: typedItem.created,
         id: typedItem.id,
         title: typedItem.title,
         summary: typedItem.summary,
@@ -200,6 +161,7 @@ function tryCreateFolderListCard(result: AiToolResult, index: number) {
           folderId: typedItem.id,
           parentId: typedItem.parentId,
         },
+        description: '',
         id: typedItem.id,
         title: typedItem.title,
         meta: [
