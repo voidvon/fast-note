@@ -38,7 +38,7 @@ async function readChunks(stream: ReadableStream<UIMessageChunk>) {
 }
 
 describe('openAiCompatibleChatTransport', () => {
-  it('documents FastNote note urls in the default system prompt', () => {
+  it('documents fastnote note urls in the default system prompt', () => {
     expect(DEFAULT_SYSTEM_PROMPT).toContain('/n/<noteId>')
     expect(DEFAULT_SYSTEM_PROMPT).toContain('get_note_detail')
     expect(DEFAULT_SYSTEM_PROMPT).toContain('读取这个链接里的备忘录')

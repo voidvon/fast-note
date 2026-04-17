@@ -37,7 +37,7 @@
 #### 3.1.1 目标与边界
 
 - 用户场景：
-  - 用户输入一个 FastNote 链接，Agent 应优先定位该对象，而不是先模糊搜索。
+  - 用户输入一个 fastnote 链接，Agent 应优先定位该对象，而不是先模糊搜索。
 - 范围内：
   - 统一对象定位优先级。
 - 范围外：
@@ -201,7 +201,7 @@
 | ------ | -------- | ---- |
 | E1 | `fastnote/src/features/global-search/ui/global-search.vue:148` | AI 请求上下文来源 |
 | E2 | `fastnote/src/features/ai-chat/model/request-context.ts:139` | 本地上下文 system prompt 组装 |
-| E3 | `fastnote/src/features/ai-chat/model/openai-compatible-chat-transport.ts:65` | 提示词中已支持 FastNote URL |
+| E3 | `fastnote/src/features/ai-chat/model/openai-compatible-chat-transport.ts:65` | 提示词中已支持 fastnote URL |
 | E4 | `fastnote/src/features/ai-note-command/model/use-ai-note-command.ts:300` | `get_note_detail` 当前走本地 `getNote()` |
 | E5 | `fastnote/src/entities/note/model/state/note-store.ts:131` | `getNote()` 本地索引读取 |
 | E6 | `fastnote/src/processes/session/model/use-session-bootstrap.ts:118` | 登录启动仍串行同步 |

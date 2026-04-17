@@ -29,7 +29,7 @@ describe('resolveAiChatTarget', () => {
     recentNotes: [],
   }
 
-  it('resolves note id from a FastNote note url', () => {
+  it('resolves note id from a fastnote note url', () => {
     expect(resolveAiChatTarget('读取 http://localhost:8888/n/note-2 并帮我改写', context)).toMatchObject({
       source: 'message_note_url',
       note: {
@@ -48,7 +48,7 @@ describe('resolveAiChatTarget', () => {
     })
   })
 
-  it('resolves folder id from a FastNote folder url', () => {
+  it('resolves folder id from a fastnote folder url', () => {
     expect(resolveAiChatTarget('查看 /f/root/folder-88 这个目录', context)).toMatchObject({
       source: 'message_folder_url',
       folder: {
