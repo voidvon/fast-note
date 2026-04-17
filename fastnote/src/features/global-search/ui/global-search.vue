@@ -2,7 +2,7 @@
 import type { Note } from '@/entities/note'
 import type { AiChatRequestContext } from '@/features/ai-chat/model/request-context'
 import type { ChatMessageCardAction } from '@/shared/ui/chat-message'
-import { IonContent, IonIcon } from '@ionic/vue'
+import { IonContent, IonIcon, IonTextarea } from '@ionic/vue'
 import { useDebounceFn } from '@vueuse/core'
 import { arrowUpOutline, closeCircle, closeOutline, searchOutline, sparklesOutline, stopCircleOutline } from 'ionicons/icons'
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
@@ -45,21 +45,26 @@ const {
   showGlobalSearch,
   showGlobalSearchState,
 } = useGlobalSearch()
-const { getNote, notes, searchNotes } = useNote()
+const noteStore = useNote()
+const { getNote, notes } = noteStore
 const { chat, currentTask, isBusy: isAiBusy, resumeInterruptedTask, sendMessage: sendAiMessage } = useAiChat()
 const { getSnapshot } = useDesktopActiveNote()
 const route = useRoute()
 const router = useRouter()
 const SURFACE_TRANSITION_MS = 320
 const CONTENT_TRANSITION_MS = 220
-const TEXTAREA_MAX_ROWS = 3
-const FIELD_SHELL_MIN_HEIGHT = 44
-const FIELD_SHELL_VERTICAL_PADDING = 12
-const FIELD_SHELL_BORDER_WIDTH = 2
+
+type SearchTextareaEvent = CustomEvent<{
+  event?: Event
+  value?: string | null
+}> & {
+  target: HTMLIonTextareaElement
+}
+type SearchTextareaHost = Pick<HTMLElement, 'blur' | 'focus'> & Partial<Pick<HTMLIonTextareaElement, 'setFocus'>>
+type SearchTextareaRef = SearchTextareaHost | { $el?: SearchTextareaHost }
 
 const dockRef = ref<HTMLDivElement>()
-const fieldShellRef = ref<HTMLDivElement>()
-const inputRef = ref<HTMLTextAreaElement>()
+const inputRef = ref<SearchTextareaRef | null>(null)
 const isComposing = ref(false)
 const state = reactive({
   notes: [] as Note[],
@@ -284,51 +289,36 @@ function activateSearch(options: { syncRoute?: boolean } = {}) {
   }
 }
 
-function focusInput() {
-  void nextTick(() => {
-    inputRef.value?.focus()
-  })
+function resolveInputHost() {
+  const input = inputRef.value
+  if (!input) {
+    return null
+  }
+
+  return ('$el' in input && input.$el
+    ? input.$el
+    : input) as SearchTextareaHost
 }
 
-function syncInputHeight() {
-  const textarea = inputRef.value
-  if (!textarea) {
+function focusResolvedInput() {
+  const input = resolveInputHost()
+  if (!input) {
     return
   }
 
-  const shell = fieldShellRef.value
-  const previousInputHeight = textarea.getBoundingClientRect().height || 32
-  const previousShellHeight = shell?.getBoundingClientRect().height || FIELD_SHELL_MIN_HEIGHT
-
-  textarea.style.height = 'auto'
-
-  const styles = window.getComputedStyle(textarea)
-  const lineHeight = Number.parseFloat(styles.lineHeight) || 22
-  const paddingTop = Number.parseFloat(styles.paddingTop) || 0
-  const paddingBottom = Number.parseFloat(styles.paddingBottom) || 0
-  const borderTop = Number.parseFloat(styles.borderTopWidth) || 0
-  const borderBottom = Number.parseFloat(styles.borderBottomWidth) || 0
-  const maxHeight = lineHeight * TEXTAREA_MAX_ROWS + paddingTop + paddingBottom + borderTop + borderBottom
-  const nextHeight = Math.min(textarea.scrollHeight, maxHeight)
-  const nextShellHeight = Math.max(
-    FIELD_SHELL_MIN_HEIGHT,
-    Math.ceil(nextHeight + FIELD_SHELL_VERTICAL_PADDING + FIELD_SHELL_BORDER_WIDTH),
-  )
-
-  textarea.style.height = `${previousInputHeight}px`
-  if (shell) {
-    shell.style.height = `${previousShellHeight}px`
+  if (typeof input.setFocus === 'function') {
+    void input.setFocus()
+    return
   }
 
-  // Force a layout read so the browser can animate between concrete heights.
-  void textarea.offsetHeight
+  input.focus()
+}
 
-  textarea.style.height = `${nextHeight}px`
-  if (shell) {
-    shell.style.height = `${nextShellHeight}px`
-  }
-  textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden'
+function blurResolvedInput() {
+  resolveInputHost()?.blur()
+}
 
+function scheduleLayoutUpdate() {
   if (typeof requestAnimationFrame === 'undefined') {
     updateLayout()
     return
@@ -336,6 +326,18 @@ function syncInputHeight() {
 
   requestAnimationFrame(() => {
     updateLayout()
+  })
+}
+
+function focusInput() {
+  void nextTick(() => {
+    focusResolvedInput()
+  })
+}
+
+function syncInputLayout() {
+  void nextTick(() => {
+    scheduleLayoutUpdate()
   })
 }
 
@@ -383,10 +385,12 @@ async function runSearch(searchText: string) {
     return
   }
 
-  const matchedNotes = await searchNotes(keyword, {
-    parentId: props.puuid || '',
-    rootTitle: '全部',
-  })
+  const matchedNotes = typeof noteStore.searchNotes === 'function'
+    ? await noteStore.searchNotes(keyword, {
+        parentId: props.puuid || '',
+        rootTitle: '全部',
+      })
+    : await noteStore.searchNotesByParentId?.(props.puuid || '', '全部', keyword) || []
 
   if (requestId !== searchRequestId) {
     return
@@ -414,17 +418,19 @@ function applySearchKeyword(value: string) {
 
 function handleCompositionEnd(event: CompositionEvent) {
   isComposing.value = false
-  const value = (event.target as HTMLTextAreaElement | null)?.value || ''
+  const value = (
+    event.target as HTMLIonTextareaElement | HTMLTextAreaElement | null
+  )?.value || ''
   if (!isSearchMode.value) {
     aiDraft.value = value
     activateSearch()
-    void nextTick(syncInputHeight)
+    syncInputLayout()
     return
   }
 
   applySearchKeyword(value)
   void runSearch(value)
-  void nextTick(syncInputHeight)
+  syncInputLayout()
 }
 
 function onFocus() {
@@ -453,7 +459,7 @@ async function submitAiDraft() {
 }
 
 function startCloseAnimation() {
-  inputRef.value?.blur()
+  blurResolvedInput()
   searchRequestId++
   showGlobalSearchState.value = 'leaveStart'
 
@@ -487,7 +493,7 @@ async function syncSearchCloseToRoute() {
     return
   }
 
-  inputRef.value?.blur()
+  blurResolvedInput()
   searchRequestId++
 
   if (shouldUseRouteBackForGlobalSearchClose(window.history.state)) {
@@ -506,15 +512,15 @@ function onCancel() {
   void syncSearchCloseToRoute()
 }
 
-function onInput(event: Event) {
-  const target = event.target as HTMLTextAreaElement | null
-  const value = target?.value || ''
+function onInput(event: SearchTextareaEvent) {
+  const value = event.detail.value || ''
+  const nativeEvent = event.detail.event
 
-  syncInputHeight()
+  syncInputLayout()
 
   if (
     isComposing.value
-    || (typeof InputEvent !== 'undefined' && event instanceof InputEvent && event.isComposing)
+    || (typeof InputEvent !== 'undefined' && nativeEvent instanceof InputEvent && nativeEvent.isComposing)
   ) {
     return
   }
@@ -540,7 +546,7 @@ function onClear() {
     aiDraft.value = ''
     activateSearch()
   }
-  void nextTick(syncInputHeight)
+  syncInputLayout()
   focusInput()
 }
 
@@ -570,7 +576,7 @@ function onKeydown(event: KeyboardEvent) {
 function handleAiPrefill(value: string) {
   aiDraft.value = value
   activateSearch()
-  void nextTick(syncInputHeight)
+  syncInputLayout()
   focusInput()
 }
 
@@ -670,16 +676,16 @@ watch(routeOverlayMode, (mode) => {
 })
 
 watch(currentDraft, () => {
-  void nextTick(syncInputHeight)
+  syncInputLayout()
 })
 
 watch(isSearchMode, () => {
-  void nextTick(syncInputHeight)
+  syncInputLayout()
 })
 
 onMounted(() => {
   updateLayout()
-  syncInputHeight()
+  syncInputLayout()
   window.addEventListener('resize', handleViewportChange)
 })
 
@@ -721,7 +727,6 @@ onUnmounted(() => {
 
       <div class="global-search__field">
         <div
-          ref="fieldShellRef"
           :class="{ 'global-search__field-shell--panel-visible': shouldCollapseFieldIcon }"
           class="global-search__field-shell"
         >
@@ -729,18 +734,19 @@ onUnmounted(() => {
             :icon="currentFieldIcon"
             class="global-search__search-icon"
           />
-          <textarea
+          <IonTextarea
             ref="inputRef"
             :value="currentDraft"
+            auto-grow
             :inputmode="currentInputMode"
             :enterkeyhint="currentEnterKeyHint"
             autocomplete="off"
             :placeholder="currentPlaceholder"
-            rows="1"
-            spellcheck="false"
+            :rows="1"
+            :spellcheck="false"
             class="global-search__input"
-            @focus="onFocus"
-            @input="onInput"
+            @ionFocus="onFocus"
+            @ionInput="onInput"
             @keydown="onKeydown"
             @compositionstart="handleCompositionStart"
             @compositionend="handleCompositionEnd"
@@ -873,7 +879,7 @@ onUnmounted(() => {
     width: 100%;
     min-width: 0;
     gap: 8px;
-    height: 44px;
+    height: auto;
     min-height: 44px;
     padding: 6px 12px;
     border-radius: 24px;
@@ -925,37 +931,19 @@ onUnmounted(() => {
   }
 
   &__input {
+    --background: transparent;
+    --color: #f5f5f7;
+    --padding-top: 5px;
+    --padding-bottom: 5px;
+    --padding-start: 0;
+    --padding-end: 0;
+    --placeholder-color: #8e8e93;
     flex: 1;
     min-width: 0;
-    height: 32px;
     min-height: 32px;
-    max-height: calc(22px * 3 + 12px);
-    border: 0;
-    padding: 5px 0;
-    background: transparent;
-    color: #f5f5f7;
     font-size: 16px;
     line-height: 22px;
-    outline: none;
-    appearance: none;
-    -webkit-appearance: none;
-    resize: none;
-    overflow-y: hidden;
-    field-sizing: content;
-    transition: height 180ms ease;
-  }
-
-  &__input::placeholder {
-    color: #8e8e93;
-  }
-
-  &__input::-webkit-scrollbar {
-    width: 4px;
-  }
-
-  &__input::-webkit-scrollbar-thumb {
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.2);
+    transition: min-height 180ms ease;
   }
 
   &__clear-button {
