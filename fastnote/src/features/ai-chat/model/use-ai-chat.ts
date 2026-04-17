@@ -20,7 +20,7 @@ import {
   updateAgentTask,
 } from './agent-task'
 import {
-  isLikelyPartialAiAssistantToolEnvelope,
+  extractVisibleAiAssistantText,
   mergeAssistantAnswer,
   parseAiAssistantToolEnvelope,
   summarizeExecutionResults,
@@ -1388,16 +1388,7 @@ function getVisibleAssistantText(messageId: string, rawText: string) {
     return getRenderedTextFromBlocks(customBlocks)
   }
 
-  const envelope = parseAiAssistantToolEnvelope(rawText)
-  if (envelope) {
-    return envelope.answer?.trim() || ''
-  }
-
-  if (isLikelyPartialAiAssistantToolEnvelope(rawText)) {
-    return ''
-  }
-
-  return rawText
+  return extractVisibleAiAssistantText(rawText)
 }
 
 function getVisibleMessageBlocks(message: UIMessage & { role: AiChatViewMessage['role'] }) {
