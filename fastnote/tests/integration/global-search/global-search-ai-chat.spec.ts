@@ -545,7 +545,7 @@ describe('global search ai chat', () => {
     wrapper.unmount()
   })
 
-  it('injects a resolved note target into the ai request context for FastNote urls', async () => {
+  it('injects a resolved note target into the ai request context for fastnote urls', async () => {
     noteStoreMock.notes.value = [{
       id: 'note-42',
       title: '本地草稿',

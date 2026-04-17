@@ -194,7 +194,7 @@ export function buildAiChatContextSystemPrompt(context: AiChatRequestContext | n
   }
 
   const lines = [
-    '以下是 FastNote 前端注入的本地上下文，仅用于帮助你理解当前界面与定位目标，不等于用户已经确认执行对象。',
+    '以下是 fastnote 前端注入的本地上下文，仅用于帮助你理解当前界面与定位目标，不等于用户已经确认执行对象。',
     '当涉及删除、移动、加锁、改写等操作时，如果目标不够明确，先调用查询工具或继续向用户确认，不要臆造 noteId。',
   ]
 

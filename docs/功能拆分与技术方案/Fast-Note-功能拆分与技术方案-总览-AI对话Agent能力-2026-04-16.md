@@ -81,7 +81,7 @@
 | E5 | `fastnote/src/processes/ai-chat-session/model/use-ai-chat-session.ts:162` | 待确认工具调用与确认执行当前已支持 |
 | E6 | `fastnote/src/features/ai-note-command/model/use-ai-note-command.ts:258` | AI 本地工具执行器当前覆盖搜索、读取、更新、移动、删除、加锁 |
 | E7 | `fastnote/src/features/global-search/ui/global-search.vue:148` | 首页 AI 请求上下文当前包含路由、活动对象、候选对象、最近对象 |
-| E8 | `fastnote/src/features/ai-chat/model/openai-compatible-chat-transport.ts:60` | 默认系统提示词已约束 FastNote URL 与工具调用格式 |
+| E8 | `fastnote/src/features/ai-chat/model/openai-compatible-chat-transport.ts:60` | 默认系统提示词已约束 fastnote URL 与工具调用格式 |
 | E9 | `fastnote/src/processes/session/model/use-session-bootstrap.ts:118` | 登录会话启动当前仍串行执行本地上下文准备、同步与 PIN 同步 |
 | E10 | `fastnote/src/pages/home/ui/home-page.vue:258` | PC 端当前通过原生 `history.pushState/replaceState` 保持深链接 |
 | E11 | `fastnote/src/processes/navigation/model/use-desktop-active-note.ts:151` | 桌面端当前已有 `/n/<id>`、`/f/...` 路径生成工具 |
