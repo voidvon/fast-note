@@ -93,6 +93,42 @@ function createInputStub(name: string) {
   })
 }
 
+function createTextareaStub(name: string) {
+  return defineComponent({
+    name,
+    inheritAttrs: false,
+    setup(_, { attrs }) {
+      return () => h('textarea', {
+        value: attrs.value,
+        placeholder: attrs.placeholder,
+        inputmode: attrs.inputmode,
+        enterkeyhint: attrs.enterkeyhint,
+        autocomplete: attrs.autocomplete,
+        rows: attrs.rows,
+        spellcheck: attrs.spellcheck,
+        class: attrs.class,
+        onFocus: (event: FocusEvent) => {
+          ;(attrs.onIonFocus as ((event: FocusEvent) => void) | undefined)?.(event)
+          ;(attrs.onFocus as ((event: FocusEvent) => void) | undefined)?.(event)
+        },
+        onInput: (event: Event) => {
+          ;(attrs.onIonInput as ((event: { detail: { event: Event, value: string }, target: EventTarget | null }) => void) | undefined)?.({
+            detail: {
+              event,
+              value: (event.target as HTMLTextAreaElement).value,
+            },
+            target: event.target,
+          })
+          ;(attrs.onInput as ((event: Event) => void) | undefined)?.(event)
+        },
+        onKeydown: attrs.onKeydown as ((event: KeyboardEvent) => void) | undefined,
+        onCompositionstart: attrs.onCompositionstart as ((event: CompositionEvent) => void) | undefined,
+        onCompositionend: attrs.onCompositionend as ((event: CompositionEvent) => void) | undefined,
+      })
+    },
+  })
+}
+
 function createModalStub(name: string) {
   return defineComponent({
     name,
@@ -172,6 +208,7 @@ describe('global search mode toggle', () => {
       IonAlert: createModalStub('IonAlert'),
       IonIcon: createIonicStub('IonIcon'),
       IonInput: createInputStub('IonInput'),
+      IonTextarea: createTextareaStub('IonTextarea'),
       IonItem: createIonicStub('IonItem'),
       IonLabel: createIonicStub('IonLabel', 'span'),
       IonList: createIonicStub('IonList'),
@@ -261,6 +298,7 @@ describe('global search mode toggle', () => {
       IonAlert: createModalStub('IonAlert'),
       IonIcon: createIonicStub('IonIcon'),
       IonInput: createInputStub('IonInput'),
+      IonTextarea: createTextareaStub('IonTextarea'),
       IonItem: createIonicStub('IonItem'),
       IonLabel: createIonicStub('IonLabel', 'span'),
       IonList: createIonicStub('IonList'),
@@ -346,6 +384,7 @@ describe('global search mode toggle', () => {
       IonAlert: createModalStub('IonAlert'),
       IonIcon: createIonicStub('IonIcon'),
       IonInput: createInputStub('IonInput'),
+      IonTextarea: createTextareaStub('IonTextarea'),
       IonItem: createIonicStub('IonItem'),
       IonLabel: createIonicStub('IonLabel', 'span'),
       IonList: createIonicStub('IonList'),
@@ -422,6 +461,7 @@ describe('global search mode toggle', () => {
       IonAlert: createModalStub('IonAlert'),
       IonIcon: createIonicStub('IonIcon'),
       IonInput: createInputStub('IonInput'),
+      IonTextarea: createTextareaStub('IonTextarea'),
       IonItem: createIonicStub('IonItem'),
       IonLabel: createIonicStub('IonLabel', 'span'),
       IonList: createIonicStub('IonList'),
@@ -511,6 +551,7 @@ describe('global search mode toggle', () => {
       IonAlert: createModalStub('IonAlert'),
       IonIcon: createIonicStub('IonIcon'),
       IonInput: createInputStub('IonInput'),
+      IonTextarea: createTextareaStub('IonTextarea'),
       IonItem: createIonicStub('IonItem'),
       IonLabel: createIonicStub('IonLabel', 'span'),
       IonList: createIonicStub('IonList'),
@@ -602,6 +643,7 @@ describe('global search mode toggle', () => {
       IonAlert: createModalStub('IonAlert'),
       IonIcon: createIonicStub('IonIcon'),
       IonInput: createInputStub('IonInput'),
+      IonTextarea: createTextareaStub('IonTextarea'),
       IonItem: createIonicStub('IonItem'),
       IonLabel: createIonicStub('IonLabel', 'span'),
       IonList: createIonicStub('IonList'),
@@ -670,6 +712,7 @@ describe('global search mode toggle', () => {
       IonAlert: createModalStub('IonAlert'),
       IonIcon: createIonicStub('IonIcon'),
       IonInput: createInputStub('IonInput'),
+      IonTextarea: createTextareaStub('IonTextarea'),
       IonItem: createIonicStub('IonItem'),
       IonLabel: createIonicStub('IonLabel', 'span'),
       IonList: createIonicStub('IonList'),
@@ -747,6 +790,7 @@ describe('global search mode toggle', () => {
       IonAlert: createModalStub('IonAlert'),
       IonIcon: createIonicStub('IonIcon'),
       IonInput: createInputStub('IonInput'),
+      IonTextarea: createTextareaStub('IonTextarea'),
       IonItem: createIonicStub('IonItem'),
       IonLabel: createIonicStub('IonLabel', 'span'),
       IonList: createIonicStub('IonList'),
