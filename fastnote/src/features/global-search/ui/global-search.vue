@@ -4,7 +4,7 @@ import type { AiChatRequestContext } from '@/features/ai-chat/model/request-cont
 import type { ChatMessageCardAction } from '@/shared/ui/chat-message'
 import { IonContent, IonIcon, IonTextarea } from '@ionic/vue'
 import { useDebounceFn } from '@vueuse/core'
-import { arrowUpOutline, closeCircle, closeOutline, searchOutline, sparklesOutline, stopCircleOutline } from 'ionicons/icons'
+import { arrowUpOutline, closeCircle, closeOutline, searchOutline, sparklesOutline, stop } from 'ionicons/icons'
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NOTE_TYPE, useNote } from '@/entities/note'
@@ -88,7 +88,7 @@ const currentPlaceholder = computed(() => isSearchMode.value ? '搜索' : '发�
 const currentToggleLabel = computed(() => isSearchMode.value ? '切换到 AI 对话' : '切换到全局搜索')
 const currentEnterKeyHint = computed(() => isSearchMode.value ? 'search' : 'send')
 const currentInputMode = computed(() => isSearchMode.value ? 'search' : 'text')
-const currentActionIcon = computed(() => isAiBusy.value ? stopCircleOutline : arrowUpOutline)
+const currentActionIcon = computed(() => isAiBusy.value ? stop : arrowUpOutline)
 const currentActionLabel = computed(() => isAiBusy.value ? '停止生成' : '发送消息')
 const searchResults = computed(() => toSearchResultNodes(state.notes))
 const hasInputValue = computed(() => currentDraft.value.trim().length > 0)

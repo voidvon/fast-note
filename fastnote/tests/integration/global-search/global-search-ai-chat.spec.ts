@@ -462,7 +462,7 @@ describe('global search ai chat', () => {
     await nextTick()
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(wrapper.text()).toContain('正在准备操作')
+    expect(wrapper.text()).toContain('已整理好润色版本，准备直接写回这篇备忘录。')
     expect(wrapper.text()).not.toContain('"toolCalls"')
     expect(wrapper.text()).not.toContain('update_note')
     expect(wrapper.text()).not.toContain('"}]}')
@@ -482,6 +482,65 @@ describe('global search ai chat', () => {
     await nextTick()
 
     expect(wrapper.text()).not.toContain('"toolCalls"')
+
+    wrapper.unmount()
+  })
+
+  it('keeps mixed prose plus tool envelope json out of the rendered assistant message', async () => {
+    const pendingResponse = createPendingSseResponse()
+    const fetchMock = vi.fn(async () => pendingResponse.response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { useAiChat } = await import('@/features/ai-chat')
+    useAiChat().saveSettings({
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4.1-mini',
+    })
+
+    const wrapper = await mountGlobalSearch()
+    const input = await ensureAiMode(wrapper)
+
+    await input.setValue('统计备忘录总数')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await nextTick()
+
+    pendingResponse.push([
+      JSON.stringify({
+        choices: [{
+          delta: {
+            content: '我还不能直接知道总数，需要先读取你的备忘录列表。\n\n{"mode":"tool_calls","answer":"先帮你统计备忘录总数。","toolCalls":[{"tool":"search_notes"',
+          },
+        }],
+      }),
+    ])
+
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.text()).toContain('我还不能直接知道总数，需要先读取你的备忘录列表。')
+    expect(wrapper.text()).not.toContain('"toolCalls"')
+    expect(wrapper.text()).not.toContain('search_notes')
+    expect(wrapper.text()).not.toContain('}]}*')
+
+    pendingResponse.close([
+      JSON.stringify({
+        choices: [{
+          delta: {
+            content: ',"payload":{"query":"*"}}]}',
+          },
+          finish_reason: 'stop',
+        }],
+      }),
+    ])
+
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.text()).toContain('我还不能直接知道总数，需要先读取你的备忘录列表。')
+    expect(wrapper.text()).not.toContain('"toolCalls"')
+    expect(wrapper.text()).not.toContain('search_notes')
+    expect(wrapper.text()).not.toContain('}]}*')
 
     wrapper.unmount()
   })
@@ -779,6 +838,7 @@ describe('global search ai chat', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(wrapper.find('button[aria-label="发送消息"]').exists()).toBe(false)
     expect(wrapper.find('button[aria-label="停止生成"]').exists()).toBe(true)
+    expect(wrapper.findAll('button[aria-label="停止生成"]')).toHaveLength(1)
     expect((input.element as HTMLTextAreaElement).value).toBe('')
 
     pendingResponse.close([
@@ -1225,6 +1285,144 @@ describe('global search ai chat', () => {
       restoredWrapper.unmount()
     }
     finally {
+      if (originalClientHeight) {
+        Object.defineProperty(HTMLDivElement.prototype, 'clientHeight', originalClientHeight)
+      }
+      if (originalScrollHeight) {
+        Object.defineProperty(HTMLDivElement.prototype, 'scrollHeight', originalScrollHeight)
+      }
+      if (originalScrollTop) {
+        Object.defineProperty(HTMLDivElement.prototype, 'scrollTop', originalScrollTop)
+      }
+    }
+  })
+
+  it('keeps restored conversation pinned to bottom after delayed panel resize', async () => {
+    vi.useFakeTimers()
+
+    const fetchMock = vi.fn(async () => createSseResponse([
+      JSON.stringify({
+        choices: [{
+          delta: {
+            role: 'assistant',
+          },
+        }],
+      }),
+      JSON.stringify({
+        choices: [{
+          delta: {
+            content: '进入面板后还会继续贴底。',
+          },
+          finish_reason: 'stop',
+        }],
+      }),
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const resizeObserverCallbacks: ResizeObserverCallback[] = []
+    class ResizeObserverMock {
+      constructor(callback: ResizeObserverCallback) {
+        resizeObserverCallbacks.push(callback)
+      }
+
+      disconnect() {}
+
+      observe() {}
+
+      unobserve() {}
+    }
+
+    vi.stubGlobal('ResizeObserver', ResizeObserverMock as unknown as typeof ResizeObserver)
+    vi.stubGlobal('requestAnimationFrame', ((callback: FrameRequestCallback) => {
+      return window.setTimeout(() => callback(performance.now()), 16)
+    }) as typeof requestAnimationFrame)
+    vi.stubGlobal('cancelAnimationFrame', ((id: number) => {
+      window.clearTimeout(id)
+    }) as typeof cancelAnimationFrame)
+
+    const { useAiChat } = await import('@/features/ai-chat')
+    useAiChat().saveSettings({
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4.1-mini',
+    })
+
+    const firstWrapper = await mountGlobalSearch()
+    const firstInput = firstWrapper.get('textarea')
+
+    await firstInput.trigger('focus')
+    await firstWrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
+    await nextTick()
+
+    await firstInput.setValue('测试延迟布局后的自动贴底')
+    await firstWrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+    firstWrapper.unmount()
+
+    vi.resetModules()
+    setupModuleMocks()
+    vi.stubGlobal('fetch', fetchMock)
+    vi.stubGlobal('ResizeObserver', ResizeObserverMock as unknown as typeof ResizeObserver)
+    vi.stubGlobal('requestAnimationFrame', ((callback: FrameRequestCallback) => {
+      return window.setTimeout(() => callback(performance.now()), 16)
+    }) as typeof requestAnimationFrame)
+    vi.stubGlobal('cancelAnimationFrame', ((id: number) => {
+      window.clearTimeout(id)
+    }) as typeof cancelAnimationFrame)
+
+    let threadScrollHeight = 300
+    const scrollTopMap = new WeakMap<HTMLDivElement, number>()
+    const originalClientHeight = Object.getOwnPropertyDescriptor(HTMLDivElement.prototype, 'clientHeight')
+    const originalScrollHeight = Object.getOwnPropertyDescriptor(HTMLDivElement.prototype, 'scrollHeight')
+    const originalScrollTop = Object.getOwnPropertyDescriptor(HTMLDivElement.prototype, 'scrollTop')
+
+    Object.defineProperty(HTMLDivElement.prototype, 'clientHeight', {
+      configurable: true,
+      get() {
+        return this.classList.contains('ai-chat-panel__thread') ? 200 : 0
+      },
+    })
+    Object.defineProperty(HTMLDivElement.prototype, 'scrollHeight', {
+      configurable: true,
+      get() {
+        return this.classList.contains('ai-chat-panel__thread') ? threadScrollHeight : 0
+      },
+    })
+    Object.defineProperty(HTMLDivElement.prototype, 'scrollTop', {
+      configurable: true,
+      get() {
+        return scrollTopMap.get(this) ?? 0
+      },
+      set(value: number) {
+        scrollTopMap.set(this, value)
+      },
+    })
+
+    try {
+      const restoredWrapper = await mountGlobalSearch()
+      await ensureAiMode(restoredWrapper)
+      await nextTick()
+
+      vi.runAllTimers()
+      await nextTick()
+
+      const thread = restoredWrapper.get('.ai-chat-panel__thread').element as HTMLDivElement
+      expect(thread.scrollTop).toBe(300)
+
+      threadScrollHeight = 600
+      for (const callback of resizeObserverCallbacks) {
+        callback([], {} as ResizeObserver)
+      }
+
+      await nextTick()
+      expect(thread.scrollTop).toBe(600)
+
+      restoredWrapper.unmount()
+    }
+    finally {
+      vi.useRealTimers()
+
       if (originalClientHeight) {
         Object.defineProperty(HTMLDivElement.prototype, 'clientHeight', originalClientHeight)
       }

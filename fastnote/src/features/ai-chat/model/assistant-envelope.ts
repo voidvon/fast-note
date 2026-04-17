@@ -6,6 +6,8 @@ export interface AiAssistantToolEnvelope {
   toolCalls: AiNoteToolCall[]
 }
 
+const TOOL_ENVELOPE_KEY_PATTERN = /"mode"\s*:|"toolCalls"\s*:|"payload"\s*:|"answer"\s*:/
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
@@ -42,44 +44,251 @@ function normalizeEnvelope(value: unknown): AiAssistantToolEnvelope | null {
   }
 }
 
+function appendDistinctParagraph(result: string, value: string) {
+  const normalizedValue = value.trim()
+  if (!normalizedValue) {
+    return result
+  }
+
+  const normalizedResult = result.trim()
+  if (!normalizedResult) {
+    return normalizedValue
+  }
+
+  if (normalizedResult === normalizedValue || normalizedResult.endsWith(normalizedValue)) {
+    return normalizedResult
+  }
+
+  if (normalizedValue.endsWith(normalizedResult)) {
+    return normalizedValue
+  }
+
+  return `${normalizedResult}\n\n${normalizedValue}`
+}
+
+function mergeEnvelopeAnswerParts(...parts: Array<string | undefined>) {
+  return parts.reduce((result, part) => appendDistinctParagraph(result, part || ''), '')
+}
+
+function stripFencePrefix(text: string) {
+  return text.replace(/^\s*```(?:json)?\s*/i, '')
+}
+
+function stripFenceSuffix(text: string) {
+  return text.replace(/\s*```\s*$/i, '')
+}
+
+function cleanOuterEnvelopeText(text: string) {
+  return stripFenceSuffix(stripFencePrefix(text)).trim()
+}
+
+interface EnvelopeCandidate {
+  candidate: string
+  leadingText: string
+  trailingText: string
+}
+
+function buildEnvelopeFromCandidate(candidate: EnvelopeCandidate) {
+  try {
+    const parsed = JSON.parse(candidate.candidate)
+    const envelope = normalizeEnvelope(parsed)
+    if (!envelope) {
+      return null
+    }
+
+    return {
+      ...envelope,
+      answer: mergeEnvelopeAnswerParts(
+        cleanOuterEnvelopeText(candidate.leadingText),
+        envelope.answer,
+        cleanOuterEnvelopeText(candidate.trailingText),
+      ),
+    }
+  }
+  catch {
+    return null
+  }
+}
+
+function extractFencedJsonCandidates(rawText: string) {
+  const candidates: EnvelopeCandidate[] = []
+  const regex = /```(?:json)?\s*([\s\S]*?)```/gi
+  let match: RegExpExecArray | null = regex.exec(rawText)
+  while (match) {
+    const block = match[0]
+    const content = match[1]?.trim() || ''
+    if (content) {
+      candidates.push({
+        candidate: content,
+        leadingText: rawText.slice(0, match.index),
+        trailingText: rawText.slice(match.index + block.length),
+      })
+    }
+    match = regex.exec(rawText)
+  }
+
+  return candidates
+}
+
+function extractEmbeddedJsonCandidates(rawText: string) {
+  const candidates: EnvelopeCandidate[] = []
+  const seen = new Set<string>()
+
+  for (let start = 0; start < rawText.length; start += 1) {
+    if (rawText[start] !== '{') {
+      continue
+    }
+
+    let depth = 0
+    let inString = false
+    let escaped = false
+
+    for (let end = start; end < rawText.length; end += 1) {
+      const char = rawText[end]
+
+      if (inString) {
+        if (escaped) {
+          escaped = false
+          continue
+        }
+
+        if (char === '\\') {
+          escaped = true
+          continue
+        }
+
+        if (char === '"') {
+          inString = false
+        }
+        continue
+      }
+
+      if (char === '"') {
+        inString = true
+        continue
+      }
+
+      if (char === '{') {
+        depth += 1
+        continue
+      }
+
+      if (char !== '}') {
+        continue
+      }
+
+      depth -= 1
+      if (depth !== 0) {
+        continue
+      }
+
+      const candidate = rawText.slice(start, end + 1).trim()
+      if (!candidate || seen.has(candidate)) {
+        break
+      }
+
+      seen.add(candidate)
+      candidates.push({
+        candidate,
+        leadingText: rawText.slice(0, start),
+        trailingText: rawText.slice(end + 1),
+      })
+      break
+    }
+  }
+
+  return candidates
+}
+
 function extractJsonCandidates(rawText: string) {
   const text = rawText.trim()
   if (!text) {
     return []
   }
 
-  const candidates = [text]
-  const fencedMatches = text.match(/```(?:json)?\s*([\s\S]*?)```/gi) || []
-  for (const block of fencedMatches) {
-    const content = block
-      .replace(/^```(?:json)?\s*/i, '')
-      .replace(/```$/i, '')
-      .trim()
-    if (content) {
-      candidates.push(content)
+  const candidates: EnvelopeCandidate[] = [{
+    candidate: text,
+    leadingText: '',
+    trailingText: '',
+  }]
+
+  candidates.push(...extractFencedJsonCandidates(rawText))
+  candidates.push(...extractEmbeddedJsonCandidates(rawText))
+
+  const seen = new Set<string>()
+  return candidates.filter((candidate) => {
+    const key = `${candidate.candidate}\u0000${candidate.leadingText}\u0000${candidate.trailingText}`
+    if (seen.has(key)) {
+      return false
     }
+
+    seen.add(key)
+    return true
+  })
+}
+
+function findLikelyEnvelopeStart(rawText: string) {
+  const match = TOOL_ENVELOPE_KEY_PATTERN.exec(rawText)
+  if (!match) {
+    return -1
   }
 
-  return [...new Set(candidates)]
+  return rawText.slice(0, match.index).lastIndexOf('{')
+}
+
+function extractPartialEnvelopeAnswer(rawText: string) {
+  const match = rawText.match(/"answer"\s*:\s*"((?:[^"\\]|\\.)*)"/s)
+  if (!match?.[1]) {
+    return ''
+  }
+
+  try {
+    return JSON.parse(`"${match[1]}"`).trim()
+  }
+  catch {
+    return match[1].trim()
+  }
 }
 
 export function parseAiAssistantToolEnvelope(rawText: string) {
   const candidates = extractJsonCandidates(rawText)
 
   for (const candidate of candidates) {
-    try {
-      const parsed = JSON.parse(candidate)
-      const envelope = normalizeEnvelope(parsed)
-      if (envelope) {
-        return envelope
-      }
-    }
-    catch {
-      continue
+    const envelope = buildEnvelopeFromCandidate(candidate)
+    if (envelope) {
+      return envelope
     }
   }
 
   return null
+}
+
+export function extractVisibleAiAssistantText(rawText: string) {
+  const text = rawText.trim()
+  if (!text) {
+    return ''
+  }
+
+  const envelope = parseAiAssistantToolEnvelope(rawText)
+  if (envelope) {
+    return envelope.answer?.trim() || ''
+  }
+
+  const envelopeStart = findLikelyEnvelopeStart(rawText)
+  if (envelopeStart >= 0) {
+    const prefix = cleanOuterEnvelopeText(rawText.slice(0, envelopeStart))
+    if (prefix) {
+      return prefix
+    }
+
+    return extractPartialEnvelopeAnswer(rawText)
+  }
+
+  if (/^\s*```(?:json)?/i.test(rawText) && TOOL_ENVELOPE_KEY_PATTERN.test(rawText)) {
+    return extractPartialEnvelopeAnswer(rawText)
+  }
+
+  return rawText
 }
 
 export function isLikelyPartialAiAssistantToolEnvelope(rawText: string) {
@@ -92,12 +301,7 @@ export function isLikelyPartialAiAssistantToolEnvelope(rawText: string) {
     return true
   }
 
-  const startsLikeJson = text.startsWith('{') || text.startsWith('```')
-  if (!startsLikeJson) {
-    return false
-  }
-
-  return /"mode"|"toolCalls"|"payload"|"answer"/.test(text)
+  return extractVisibleAiAssistantText(rawText) !== rawText
 }
 
 export function summarizePreviewResults(results: AiToolResult[]) {

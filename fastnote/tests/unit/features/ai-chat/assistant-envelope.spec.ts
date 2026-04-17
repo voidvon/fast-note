@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  extractVisibleAiAssistantText,
+  isLikelyPartialAiAssistantToolEnvelope,
   mergeAssistantAnswer,
   parseAiAssistantToolEnvelope,
   summarizeExecutionResults,
@@ -64,5 +66,46 @@ describe('assistant envelope helpers', () => {
     }])).toContain('需要人工完成后续步骤')
 
     expect(mergeAssistantAnswer('我来处理。', '本次操作执行结果如下：')).toContain('我来处理。')
+  })
+
+  it('parses mixed prose and embedded tool envelope json', () => {
+    const rawText = `
+我还不能直接知道总数，需要先读取你的备忘录列表。
+
+{"mode":"tool_calls","answer":"我还不能直接知道总数，需要先读取你的备忘录列表。","toolCalls":[{"tool":"search_notes","payload":{"query":"*"}}]}
+    `
+
+    expect(parseAiAssistantToolEnvelope(rawText)).toEqual({
+      mode: 'tool_calls',
+      answer: '我还不能直接知道总数，需要先读取你的备忘录列表。',
+      toolCalls: [{
+        tool: 'search_notes',
+        payload: {
+          query: '*',
+        },
+      }],
+    })
+
+    expect(extractVisibleAiAssistantText(rawText)).toBe('我还不能直接知道总数，需要先读取你的备忘录列表。')
+  })
+
+  it('hides a partial embedded tool envelope suffix while streaming', () => {
+    const partial = `
+我还不能直接知道总数，需要先读取你的备忘录列表。
+
+{"mode":"tool_calls","answer":"先帮你统计备忘录总数。","toolCalls":[{"tool":"search_notes"
+    `
+
+    expect(parseAiAssistantToolEnvelope(partial)).toBeNull()
+    expect(isLikelyPartialAiAssistantToolEnvelope(partial)).toBe(true)
+    expect(extractVisibleAiAssistantText(partial)).toBe('我还不能直接知道总数，需要先读取你的备忘录列表。')
+  })
+
+  it('shows the answer from a partial pure json envelope', () => {
+    const partial = '{"mode":"tool_calls","answer":"已整理好润色版本，准备直接写回这篇备忘录。","toolCalls":[{"tool":"update_note"'
+
+    expect(parseAiAssistantToolEnvelope(partial)).toBeNull()
+    expect(isLikelyPartialAiAssistantToolEnvelope(partial)).toBe(true)
+    expect(extractVisibleAiAssistantText(partial)).toBe('已整理好润色版本，准备直接写回这篇备忘录。')
   })
 })

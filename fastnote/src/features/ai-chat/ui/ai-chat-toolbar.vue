@@ -1,17 +1,15 @@
 <script setup lang="ts">
 import { IonButton, IonButtons, IonChip, IonIcon, IonLabel } from '@ionic/vue'
-import { refreshOutline, settingsOutline, sparklesOutline, stopCircleOutline } from 'ionicons/icons'
+import { refreshOutline, settingsOutline, sparklesOutline } from 'ionicons/icons'
 
 defineProps<{
   canClear: boolean
-  isBusy: boolean
   providerLabel: string
 }>()
 
 const emit = defineEmits<{
   clear: []
   openSettings: []
-  stop: []
 }>()
 </script>
 
@@ -39,15 +37,6 @@ const emit = defineEmits<{
         @click="emit('clear')"
       >
         <IonIcon :icon="refreshOutline" />
-      </IonButton>
-      <IonButton
-        v-if="isBusy"
-        fill="clear"
-        class="ai-chat-toolbar__button"
-        aria-label="停止生成"
-        @click="emit('stop')"
-      >
-        <IonIcon :icon="stopCircleOutline" />
       </IonButton>
     </IonButtons>
   </div>

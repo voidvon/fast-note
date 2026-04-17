@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ChatMessageCardAction } from '@/shared/ui/chat-message'
 import { IonButton, IonButtons, IonList, IonNote } from '@ionic/vue'
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import ChatMessage from '@/shared/ui/chat-message'
 import { AI_CHAT_STARTER_PROMPTS } from '../model/starter-prompts'
 import { useAiChat } from '../model/use-ai-chat'
@@ -51,6 +51,12 @@ const settingsForm = reactive({
   model: settings.model,
 })
 const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 32
+const INITIAL_AUTO_SCROLL_RETRY_FRAMES = 4
+
+let autoScrollFrameId: number | null = null
+let autoScrollTimeoutId: ReturnType<typeof setTimeout> | null = null
+let threadResizeObserver: ResizeObserver | null = null
+let messageListResizeObserver: ResizeObserver | null = null
 
 const scrollTrackToken = computed(() => {
   return visibleMessages.value
@@ -108,14 +114,105 @@ function scrollThreadToBottom() {
   thread.scrollTop = thread.scrollHeight
 }
 
+function clearScheduledAutoScroll() {
+  if (autoScrollFrameId !== null && typeof cancelAnimationFrame !== 'undefined') {
+    cancelAnimationFrame(autoScrollFrameId)
+    autoScrollFrameId = null
+  }
+
+  if (autoScrollTimeoutId !== null) {
+    clearTimeout(autoScrollTimeoutId)
+    autoScrollTimeoutId = null
+  }
+}
+
+function disconnectResizeObservers() {
+  threadResizeObserver?.disconnect()
+  messageListResizeObserver?.disconnect()
+  threadResizeObserver = null
+  messageListResizeObserver = null
+}
+
+function scheduleScrollToBottom(retryFrames = 0) {
+  clearScheduledAutoScroll()
+
+  const run = async (remainingFrames: number) => {
+    await nextTick()
+
+    const thread = threadRef.value
+    if (!thread || !shouldAutoScroll.value) {
+      return
+    }
+
+    scrollThreadToBottom()
+
+    if (remainingFrames <= 0) {
+      return
+    }
+
+    if (typeof requestAnimationFrame === 'function') {
+      autoScrollFrameId = requestAnimationFrame(() => {
+        autoScrollFrameId = null
+        void run(remainingFrames - 1)
+      })
+      return
+    }
+
+    autoScrollTimeoutId = setTimeout(() => {
+      autoScrollTimeoutId = null
+      void run(remainingFrames - 1)
+    }, 16)
+  }
+
+  void run(retryFrames)
+}
+
+function syncResizeObservers() {
+  disconnectResizeObservers()
+
+  if (typeof ResizeObserver === 'undefined') {
+    return
+  }
+
+  const thread = threadRef.value
+  if (!thread) {
+    return
+  }
+
+  const handleResize = () => {
+    if (!shouldAutoScroll.value) {
+      return
+    }
+
+    scheduleScrollToBottom()
+  }
+
+  threadResizeObserver = new ResizeObserver(handleResize)
+  threadResizeObserver.observe(thread)
+
+  const messageList = thread.querySelector('.ai-chat-panel__message-list')
+  if (!messageList) {
+    return
+  }
+
+  messageListResizeObserver = new ResizeObserver(handleResize)
+  messageListResizeObserver.observe(messageList)
+}
+
 onMounted(async () => {
+  syncResizeObservers()
+
   if (!hasVisibleMessages.value) {
     return
   }
 
   shouldAutoScroll.value = true
-  await nextTick()
-  scrollThreadToBottom()
+  scheduleScrollToBottom(INITIAL_AUTO_SCROLL_RETRY_FRAMES)
+})
+
+onUnmounted(() => {
+  clearScheduledAutoScroll()
+  disconnectResizeObservers()
 })
 
 watch(() => [scrollTrackToken.value, chat.status], async () => {
@@ -126,14 +223,21 @@ watch(() => [scrollTrackToken.value, chat.status], async () => {
     return
   }
 
-  scrollThreadToBottom()
+  syncResizeObservers()
+  scheduleScrollToBottom()
 }, { deep: true })
 
 watch(hasVisibleMessages, (nextHasVisibleMessages) => {
   if (!nextHasVisibleMessages) {
     shouldAutoScroll.value = true
     lastUserMessageId.value = null
+    syncResizeObservers()
+    clearScheduledAutoScroll()
+    return
   }
+
+  syncResizeObservers()
+  scheduleScrollToBottom(INITIAL_AUTO_SCROLL_RETRY_FRAMES)
 })
 
 watch(latestVisibleMessage, async (message) => {
@@ -144,8 +248,7 @@ watch(latestVisibleMessage, async (message) => {
   lastUserMessageId.value = message.id
   shouldAutoScroll.value = true
 
-  await nextTick()
-  scrollThreadToBottom()
+  scheduleScrollToBottom()
 })
 
 watch(() => [settings.apiKey, settings.baseUrl, settings.model], () => {
@@ -194,11 +297,9 @@ function handleMessageAction(action: ChatMessageCardAction) {
   <div class="ai-chat-panel">
     <AiChatToolbar
       :can-clear="hasVisibleMessages"
-      :is-busy="isBusy"
       :provider-label="providerLabel"
       @clear="clearConversation"
       @open-settings="openSettings"
-      @stop="chat.stop()"
     />
 
     <AiChatSettingsModal
