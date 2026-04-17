@@ -23,14 +23,11 @@ const {
   clearConversation,
   confirmPendingExecution,
   canResumeInterruptedTask,
+  conversationProgress,
   currentTask,
-  currentTaskConfirmationModeLabel,
-  currentTaskRiskLabel,
-  currentTaskStatusLabel,
   hasConfiguredProvider,
   hasPendingConfirmation,
   hasVisibleMessages,
-  isAssistantThinking,
   isBusy,
   lastToolResults,
   openSettings,
@@ -38,11 +35,8 @@ const {
   regenerate,
   resetSettings,
   saveSettings,
-  sessionLabel,
-  sessionPhase,
   settings,
   showSettings,
-  statusText,
   streamingAssistantMessageId,
   visibleMessages,
 } = useAiChat()
@@ -60,33 +54,26 @@ const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 32
 
 const scrollTrackToken = computed(() => {
   return visibleMessages.value
-    .map(message => `${message.id}:${message.text}`)
+    .map((message) => {
+      const blockToken = message.blocks
+        .map(block => block.type === 'text' ? `text:${block.text}` : `cards:${block.cards.map(card => card.id).join(',')}`)
+        .join('|')
+      return `${message.id}:${message.text}:${blockToken}`
+    })
     .join('\n')
 })
 const latestVisibleMessage = computed(() => {
   return visibleMessages.value.at(-1) || null
 })
-const latestTaskStep = computed(() => currentTask.value?.steps.at(-1) || null)
-const shouldShowTaskPanel = computed(() => {
-  if (!currentTask.value) {
-    return false
+const latestVisibleAssistantMessageId = computed(() => {
+  for (let index = visibleMessages.value.length - 1; index >= 0; index -= 1) {
+    const message = visibleMessages.value[index]
+    if (message.role === 'assistant') {
+      return message.id
+    }
   }
 
-  return currentTask.value.status !== 'completed' && currentTask.value.status !== 'cancelled'
-})
-const currentTaskInput = computed(() => currentTask.value?.input ?? '')
-const taskStepText = computed(() => {
-  if (!latestTaskStep.value) {
-    return ''
-  }
-
-  if (latestTaskStep.value.kind === 'answer') {
-    return ''
-  }
-
-  return latestTaskStep.value.detail
-    ? `${latestTaskStep.value.title}：${latestTaskStep.value.detail}`
-    : latestTaskStep.value.title
+  return ''
 })
 const canResumeTask = computed(() => canResumeInterruptedTask.value)
 const showRouteMismatchNotice = computed(() => currentTask.value?.requiresRelocation === true && !canResumeTask.value)
@@ -209,9 +196,6 @@ function handleMessageAction(action: ChatMessageCardAction) {
       :can-clear="hasVisibleMessages"
       :is-busy="isBusy"
       :provider-label="providerLabel"
-      :session-label="sessionLabel"
-      :session-phase="sessionPhase"
-      :status-text="statusText"
       @clear="clearConversation"
       @open-settings="openSettings"
       @stop="chat.stop()"
@@ -228,56 +212,27 @@ function handleMessageAction(action: ChatMessageCardAction) {
       @reset="handleResetSettings"
     />
 
-    <div v-if="shouldShowTaskPanel" class="ai-chat-panel__task">
-      <div class="ai-chat-panel__task-header">
-        <IonNote class="ai-chat-panel__task-label">
-          当前任务
-        </IonNote>
-        <div class="ai-chat-panel__task-meta">
-          <span class="ai-chat-panel__task-status">
-            {{ currentTaskStatusLabel }}
-          </span>
-          <span v-if="currentTaskRiskLabel" class="ai-chat-panel__task-chip">
-            {{ currentTaskRiskLabel }}
-          </span>
-          <span v-if="currentTaskConfirmationModeLabel" class="ai-chat-panel__task-chip">
-            {{ currentTaskConfirmationModeLabel }}
-          </span>
-        </div>
-      </div>
-      <p class="ai-chat-panel__task-input">
-        {{ currentTaskInput }}
-      </p>
-      <p v-if="taskStepText" class="ai-chat-panel__task-step">
-        {{ taskStepText }}
-      </p>
-      <div v-if="showRouteMismatchNotice" class="ai-chat-panel__task-warning">
-        当前页面对象已变化，请回到原来的笔记或目录后再继续。
-      </div>
-      <IonButtons v-if="canResumeTask" class="ai-chat-panel__task-actions">
-        <IonButton size="small" @click="emit('resumeTask')">
-          继续任务
-        </IonButton>
-      </IonButtons>
-    </div>
-
     <div ref="threadRef" class="ai-chat-panel__thread" @scroll.passive="syncAutoScrollState">
       <template v-if="hasVisibleMessages">
         <IonList lines="none" class="ai-chat-panel__message-list">
           <ChatMessage
             v-for="message in visibleMessages"
             :key="message.id"
-            :cards="message.cards"
+            :blocks="message.blocks"
             :role="message.role"
             :content="message.text"
+            :status-label="message.id === latestVisibleAssistantMessageId ? conversationProgress?.label : ''"
+            :status-description="message.id === latestVisibleAssistantMessageId ? conversationProgress?.description : ''"
+            :status-loading="message.id === latestVisibleAssistantMessageId && !!conversationProgress"
             :streaming="streamingAssistantMessageId === message.id"
             @action="handleMessageAction"
           />
           <ChatMessage
-            v-if="isAssistantThinking"
+            v-if="conversationProgress && !latestVisibleAssistantMessageId"
             role="assistant"
             pending
-            pending-label="思考中"
+            :pending-label="conversationProgress.label"
+            :pending-description="conversationProgress.description"
           />
         </IonList>
       </template>
@@ -288,6 +243,17 @@ function handleMessageAction(action: ChatMessageCardAction) {
         :prompts="AI_CHAT_STARTER_PROMPTS"
         @prefill="emit('prefill', $event)"
       />
+    </div>
+
+    <div v-if="showRouteMismatchNotice || canResumeTask" class="ai-chat-panel__task-notice">
+      <div v-if="showRouteMismatchNotice" class="ai-chat-panel__task-warning">
+        当前页面对象已变化，请回到原来的笔记或目录后再继续。
+      </div>
+      <IonButtons v-if="canResumeTask" class="ai-chat-panel__task-actions">
+        <IonButton size="small" @click="emit('resumeTask')">
+          继续任务
+        </IonButton>
+      </IonButtons>
     </div>
 
     <div v-if="showConfirmationBlock" class="ai-chat-panel__confirmation">
@@ -343,61 +309,20 @@ function handleMessageAction(action: ChatMessageCardAction) {
     box-sizing: border-box;
   }
 
-  &__task {
+  &__message-list {
+    display: flex;
+    width: 100%;
+    min-height: min-content;
+    flex-direction: column;
+    gap: 12px;
+    padding: 0;
+    background: transparent;
+  }
+
+  &__task-notice {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 12px 14px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.03);
-  }
-
-  &__task-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  &__task-meta {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-
-  &__task-label {
-    color: #a1a1aa;
-    font-size: 12px;
-  }
-
-  &__task-status {
-    color: #f4f4f5;
-    font-size: 12px;
-    line-height: 1;
-  }
-
-  &__task-chip {
-    padding: 2px 8px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.08);
-    color: #d4d4d8;
-    font-size: 11px;
-    line-height: 1.4;
-  }
-
-  &__task-input,
-  &__task-step {
-    margin: 0;
-    color: #f4f4f5;
-    font-size: 13px;
-    line-height: 1.6;
-  }
-
-  &__task-step {
-    color: #d4d4d8;
+    gap: 8px;
   }
 
   &__task-actions {
@@ -408,16 +333,6 @@ function handleMessageAction(action: ChatMessageCardAction) {
     color: #fbbf24;
     font-size: 12px;
     line-height: 1.6;
-  }
-
-  &__message-list {
-    display: flex;
-    width: 100%;
-    min-height: min-content;
-    flex-direction: column;
-    gap: 12px;
-    padding: 0;
-    background: transparent;
   }
 
   &__confirmation {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChatMessageCard, ChatMessageCardAction, ChatMessageCardItem } from '../model/message-card'
+import type { ChatMessageBlock, ChatMessageCard, ChatMessageCardAction, ChatMessageCardItem } from '../model/message-card'
 import { IonButton, IonIcon, IonItem, IonNote, IonSpinner } from '@ionic/vue'
 import { checkmarkOutline, copyOutline } from 'ionicons/icons'
 import { computed, onBeforeUnmount, ref } from 'vue'
@@ -7,20 +7,30 @@ import { copyText } from '@/shared/lib/clipboard'
 import StreamMarkdown from '@/shared/ui/stream-markdown'
 
 const props = withDefaults(defineProps<{
+  blocks?: ChatMessageBlock[]
   cards?: ChatMessageCard[]
   content?: string
   label?: string
   pending?: boolean
+  pendingDescription?: string
   pendingLabel?: string
   role: 'assistant' | 'user'
+  statusDescription?: string
+  statusLabel?: string
+  statusLoading?: boolean
   streaming?: boolean
 }>(), {
+  blocks: () => [],
   cards: () => [],
   content: '',
   label: undefined,
   pending: false,
+  pendingDescription: '',
   pendingLabel: '思考中',
   streaming: false,
+  statusDescription: '',
+  statusLabel: '',
+  statusLoading: false,
 })
 const emit = defineEmits<{
   action: [payload: ChatMessageCardAction]
@@ -32,6 +42,31 @@ const resolvedLabel = computed(() => {
   }
 
   return props.role === 'user' ? '你' : 'AI'
+})
+
+const resolvedBlocks = computed<ChatMessageBlock[]>(() => {
+  if (props.blocks.length) {
+    return props.blocks
+  }
+
+  const fallbackBlocks: ChatMessageBlock[] = []
+  if (props.content.trim()) {
+    fallbackBlocks.push({
+      id: 'content',
+      text: props.content,
+      type: 'text',
+    })
+  }
+
+  if (props.cards.length) {
+    fallbackBlocks.push({
+      cards: props.cards,
+      id: 'cards',
+      type: 'cards',
+    })
+  }
+
+  return fallbackBlocks
 })
 
 const canCopy = computed(() => !props.pending && !!props.content.trim())
@@ -71,8 +106,16 @@ function handleCardAction(action?: ChatMessageCardAction) {
   emit('action', action)
 }
 
+function handleCardItemClick(action?: ChatMessageCardAction) {
+  handleCardAction(action)
+}
+
 function isCompactNoteItem(item: ChatMessageCardItem) {
   return item.layout === 'note-compact'
+}
+
+function isCardsBlock(block: ChatMessageBlock): block is Extract<ChatMessageBlock, { type: 'cards' }> {
+  return block.type === 'cards'
 }
 </script>
 
@@ -92,84 +135,112 @@ function isCompactNoteItem(item: ChatMessageCardItem) {
 
       <div class="chat-message__bubble">
         <div v-if="pending" class="chat-message__pending-state">
-          <IonSpinner name="crescent" class="chat-message__spinner" />
-          <span>{{ pendingLabel }}</span>
+          <div class="chat-message__pending-main">
+            <IonSpinner name="crescent" class="chat-message__spinner" />
+            <span>{{ pendingLabel }}</span>
+          </div>
+          <p v-if="pendingDescription" class="chat-message__pending-description">
+            {{ pendingDescription }}
+          </p>
         </div>
-        <StreamMarkdown
-          v-else-if="role === 'assistant'"
-          :markdown="content"
-          :streaming="streaming"
-        />
-        <div v-else class="chat-message__plain">
-          {{ content }}
-        </div>
-
-        <div v-if="cards.length" class="chat-message__cards">
-          <section
-            v-for="card in cards"
-            :key="card.id"
-            class="chat-message__card"
-            :class="card.status ? `chat-message__card--${card.status}` : ''"
-          >
-            <div class="chat-message__card-head">
-              <strong class="chat-message__card-title">{{ card.title }}</strong>
-              <span v-if="card.status" class="chat-message__card-status">
-                {{ card.status === 'success' ? '已完成' : card.status === 'warning' ? '待处理' : card.status === 'error' ? '失败' : '信息' }}
-              </span>
+        <template v-else>
+          <template v-for="block in resolvedBlocks" :key="block.id">
+            <StreamMarkdown
+              v-if="block.type === 'text' && role === 'assistant'"
+              :markdown="block.text"
+              :streaming="streaming"
+            />
+            <div v-else-if="block.type === 'text'" class="chat-message__plain">
+              {{ block.text }}
             </div>
-
-            <p v-if="card.description" class="chat-message__card-description">
-              {{ card.description }}
-            </p>
-
-            <ul v-if="card.items?.length" class="chat-message__card-list">
-              <li v-for="item in card.items" :key="item.id" class="chat-message__card-item">
-                <template v-if="isCompactNoteItem(item)">
-                  <div class="chat-message__card-item-main chat-message__card-item-main--compact">
-                    <button
-                      v-if="item.action"
-                      type="button"
-                      class="chat-message__card-item-button chat-message__card-item-button--compact"
-                      @click="handleCardAction(item.action)"
-                    >
-                      {{ item.title }}
-                    </button>
-                    <strong v-else class="chat-message__card-item-title">{{ item.title }}</strong>
-                  </div>
-                  <p v-if="item.meta || item.description" class="chat-message__card-item-secondary">
-                    <span v-if="item.meta" class="chat-message__card-item-meta chat-message__card-item-meta--compact">{{ item.meta }}</span>
-                    <span v-if="item.description" class="chat-message__card-item-description chat-message__card-item-description--compact">{{ item.description }}</span>
-                  </p>
-                </template>
-                <template v-else>
-                  <div class="chat-message__card-item-main">
-                    <button
-                      v-if="item.action"
-                      type="button"
-                      class="chat-message__card-item-button"
-                      @click="handleCardAction(item.action)"
-                    >
-                      {{ item.title }}
-                    </button>
-                    <strong v-else class="chat-message__card-item-title">{{ item.title }}</strong>
-                    <span v-if="item.meta" class="chat-message__card-item-meta">{{ item.meta }}</span>
-                  </div>
-                  <p v-if="item.description" class="chat-message__card-item-description">
-                    {{ item.description }}
-                  </p>
-                </template>
-                <div v-if="item.tags?.length && !isCompactNoteItem(item)" class="chat-message__card-tags">
-                  <span v-for="tag in item.tags" :key="tag" class="chat-message__card-tag">
-                    {{ tag }}
+            <div v-else-if="isCardsBlock(block) && block.cards.length" class="chat-message__cards">
+              <section
+                v-for="card in block.cards"
+                :key="card.id"
+                class="chat-message__card"
+                :class="card.status ? `chat-message__card--${card.status}` : ''"
+              >
+                <div class="chat-message__card-head">
+                  <strong class="chat-message__card-title">{{ card.title }}</strong>
+                  <span v-if="card.status" class="chat-message__card-status">
+                    {{ card.status === 'success' ? '已完成' : card.status === 'warning' ? '待处理' : card.status === 'error' ? '失败' : '信息' }}
                   </span>
                 </div>
-              </li>
-            </ul>
 
-            <p v-if="card.footer" class="chat-message__card-footer">
-              {{ card.footer }}
-            </p>
-          </section>
+                <p v-if="card.description" class="chat-message__card-description">
+                  {{ card.description }}
+                </p>
+
+                <ul v-if="card.items?.length" class="chat-message__card-list">
+                  <li
+                    v-for="item in card.items"
+                    :key="item.id"
+                    class="chat-message__card-item"
+                    :class="{ 'chat-message__card-item--actionable': !!item.action }"
+                    :role="item.action ? 'button' : undefined"
+                    :tabindex="item.action ? 0 : undefined"
+                    @click="handleCardItemClick(item.action)"
+                    @keydown.enter.prevent="handleCardItemClick(item.action)"
+                    @keydown.space.prevent="handleCardItemClick(item.action)"
+                  >
+                    <template v-if="isCompactNoteItem(item)">
+                      <div class="chat-message__card-item-main chat-message__card-item-main--compact">
+                        <span
+                          v-if="item.action"
+                          class="chat-message__card-item-button chat-message__card-item-button--compact"
+                        >
+                          {{ item.title }}
+                        </span>
+                        <strong v-else class="chat-message__card-item-title">{{ item.title }}</strong>
+                      </div>
+                      <p v-if="item.meta || item.description" class="chat-message__card-item-secondary">
+                        <span v-if="item.meta" class="chat-message__card-item-meta chat-message__card-item-meta--compact">{{ item.meta }}</span>
+                        <span v-if="item.description" class="chat-message__card-item-description chat-message__card-item-description--compact">{{ item.description }}</span>
+                      </p>
+                    </template>
+                    <template v-else>
+                      <div class="chat-message__card-item-main">
+                        <span
+                          v-if="item.action"
+                          class="chat-message__card-item-button"
+                        >
+                          {{ item.title }}
+                        </span>
+                        <strong v-else class="chat-message__card-item-title">{{ item.title }}</strong>
+                        <span v-if="item.meta" class="chat-message__card-item-meta">{{ item.meta }}</span>
+                      </div>
+                      <p v-if="item.description" class="chat-message__card-item-description">
+                        {{ item.description }}
+                      </p>
+                    </template>
+                    <div v-if="item.tags?.length && !isCompactNoteItem(item)" class="chat-message__card-tags">
+                      <span v-for="tag in item.tags" :key="tag" class="chat-message__card-tag">
+                        {{ tag }}
+                      </span>
+                    </div>
+                  </li>
+                </ul>
+
+                <p v-if="card.footer" class="chat-message__card-footer">
+                  {{ card.footer }}
+                </p>
+              </section>
+            </div>
+          </template>
+        </template>
+
+        <div v-if="statusLabel" class="chat-message__status-state">
+          <div class="chat-message__status-main">
+            <IonSpinner
+              v-if="statusLoading"
+              name="crescent"
+              class="chat-message__spinner"
+            />
+            <span>{{ statusLabel }}</span>
+          </div>
+          <p v-if="statusDescription" class="chat-message__status-description">
+            {{ statusDescription }}
+          </p>
         </div>
       </div>
 
@@ -238,6 +309,10 @@ function isCompactNoteItem(item: ChatMessageCardItem) {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  margin-top: 12px;
+}
+
+.chat-message__cards + .stream-markdown {
   margin-top: 12px;
 }
 
@@ -318,6 +393,15 @@ function isCompactNoteItem(item: ChatMessageCardItem) {
   padding: 10px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.04);
+}
+
+.chat-message__card-item--actionable {
+  cursor: pointer;
+}
+
+.chat-message__card-item--actionable:focus-visible {
+  outline: 2px solid rgba(125, 211, 252, 0.8);
+  outline-offset: 2px;
 }
 
 .chat-message__card-item-main {
@@ -402,9 +486,49 @@ function isCompactNoteItem(item: ChatMessageCardItem) {
 
 .chat-message__pending-state {
   display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  color: #d4d4d8;
+}
+
+.chat-message__pending-main {
+  display: inline-flex;
   align-items: center;
   gap: 10px;
+}
+
+.chat-message__pending-description {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #a1a1aa;
+  white-space: pre-wrap;
+}
+
+.chat-message__status-state {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 12px;
   color: #d4d4d8;
+}
+
+.chat-message__status-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.chat-message__status-description {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #a1a1aa;
+  white-space: pre-wrap;
 }
 
 .chat-message__spinner {
