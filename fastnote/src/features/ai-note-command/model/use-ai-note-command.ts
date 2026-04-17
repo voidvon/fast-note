@@ -41,6 +41,11 @@ interface LockNoteOutcome {
   note?: Note
 }
 
+interface SearchNotesOptions {
+  folderId?: string
+  limit?: number
+}
+
 export interface UseAiNoteCommandOptions {
   createNote?: ReturnType<typeof useNoteWrite>['createNote']
   deleteNote?: (note: Note) => MaybePromise<DeleteNoteOutcome>
@@ -50,7 +55,7 @@ export interface UseAiNoteCommandOptions {
   getNote?: (id: string) => MaybePromise<Note | null | undefined>
   moveNote?: (noteId: string, targetFolderId: string) => MaybePromise<MoveNoteOutcome>
   notes?: Ref<Note[]>
-  searchNotesInDatabase?: (query: string) => MaybePromise<Note[]>
+  searchNotes?: (query: string, options?: SearchNotesOptions) => MaybePromise<Note[]>
   sync?: (silent?: boolean) => MaybePromise<unknown>
   updateNote?: ReturnType<typeof useNoteWrite>['updateNote']
 }
@@ -205,7 +210,7 @@ function buildPreview(call: AiNoteToolCall): AiToolPreview {
 }
 
 export function useAiNoteCommand(options: UseAiNoteCommandOptions = {}) {
-  const noteStore = options.getNote && options.searchNotesInDatabase && options.getFolderTreeByParentId && options.notes
+  const noteStore = options.getNote && options.searchNotes && options.getFolderTreeByParentId && options.notes
     ? null
     : useNote()
   const noteMoveApi = options.moveNote ? null : useNoteMove()
@@ -223,7 +228,12 @@ export function useAiNoteCommand(options: UseAiNoteCommandOptions = {}) {
 
   const getNote = options.getNote || noteStore!.getNote
   const notes = options.notes || noteStore!.notes
-  const searchNotesInDatabase = options.searchNotesInDatabase || noteStore!.searchNotesInDatabase
+  const searchNotes = options.searchNotes || ((query: string, searchOptions?: SearchNotesOptions) => {
+    return noteStore!.searchNotes(query, {
+      parentId: searchOptions?.folderId,
+      limit: searchOptions?.limit,
+    })
+  })
   const getFolderTreeByParentId = options.getFolderTreeByParentId || noteStore!.getFolderTreeByParentId
   const createNote = options.createNote || noteWriteApi!.createNote
   const updateNote = options.updateNote || noteWriteApi!.updateNote
@@ -383,11 +393,12 @@ export function useAiNoteCommand(options: UseAiNoteCommandOptions = {}) {
           break
         }
 
-        const matchedNotes = await searchNotesInDatabase(query)
+        const matchedNotes = await searchNotes(query, {
+          folderId: call.payload.folderId,
+          limit: call.payload.limit || 20,
+        })
         const filteredNotes = matchedNotes
           .filter(note => call.payload.includeDeleted || note.is_deleted !== 1)
-          .filter(note => !call.payload.folderId || note.parent_id === call.payload.folderId)
-          .slice(0, call.payload.limit || 20)
           .map(toSearchItem)
 
         result = {

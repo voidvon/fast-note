@@ -707,6 +707,60 @@ describe('global search ai chat', () => {
     wrapper.unmount()
   })
 
+  it('replaces the close button with send and stop actions in ai mode based on draft and streaming state', async () => {
+    const pendingResponse = createPendingSseResponse()
+    const fetchMock = vi.fn(async () => pendingResponse.response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { useAiChat } = await import('@/features/ai-chat')
+    useAiChat().saveSettings({
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4.1-mini',
+    })
+
+    const wrapper = await mountGlobalSearch()
+    const input = await ensureAiMode(wrapper)
+
+    expect(wrapper.find('button[aria-label="关闭搜索"]').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="发送消息"]').exists()).toBe(false)
+    expect(wrapper.find('button[aria-label="停止生成"]').exists()).toBe(false)
+    expect(wrapper.find('.global-search__submit-button').exists()).toBe(false)
+
+    await input.setValue('帮我继续写')
+    await nextTick()
+
+    expect(wrapper.find('button[aria-label="关闭搜索"]').exists()).toBe(false)
+    expect(wrapper.find('button[aria-label="发送消息"]').exists()).toBe(true)
+
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await nextTick()
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('button[aria-label="发送消息"]').exists()).toBe(false)
+    expect(wrapper.find('button[aria-label="停止生成"]').exists()).toBe(true)
+    expect((input.element as HTMLTextAreaElement).value).toBe('')
+
+    pendingResponse.close([
+      JSON.stringify({
+        choices: [{
+          delta: {
+            content: '已经继续写完。',
+          },
+          finish_reason: 'stop',
+        }],
+      }),
+    ])
+
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.find('button[aria-label="停止生成"]').exists()).toBe(false)
+    expect(wrapper.find('button[aria-label="关闭搜索"]').exists()).toBe(true)
+
+    wrapper.unmount()
+  })
+
   it('stops auto scrolling when user scrolls upward during streaming', async () => {
     const pendingResponse = createPendingSseResponse()
     const fetchMock = vi.fn(async () => pendingResponse.response)
@@ -1468,7 +1522,7 @@ describe('global search ai chat', () => {
     expect(wrapper.text()).toContain('我找到了相关备忘录。')
     expect(wrapper.text()).toContain('周报')
     expect(wrapper.text()).toContain('本周项目推进')
-    expect(wrapper.text()).toContain('更新于 2026-04-15 10:00:00')
+    expect(wrapper.text()).toContain('2026/4/15')
 
     wrapper.unmount()
   })

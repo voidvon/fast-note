@@ -44,6 +44,12 @@ describe('openAiCompatibleChatTransport', () => {
     expect(DEFAULT_SYSTEM_PROMPT).toContain('读取这个链接里的备忘录')
     expect(DEFAULT_SYSTEM_PROMPT).toContain('move_note')
     expect(DEFAULT_SYSTEM_PROMPT).toContain('不要用它变更目录')
+    expect(DEFAULT_SYSTEM_PROMPT).toContain('搜索、查找、筛选、汇总、归纳、统计、总结某类备忘录')
+    expect(DEFAULT_SYSTEM_PROMPT).toContain('自行提炼 2 到 5 个搜索关键词或短语')
+    expect(DEFAULT_SYSTEM_PROMPT).toContain('优先把它们用空格拼成一次 search_notes.query 去搜索')
+    expect(DEFAULT_SYSTEM_PROMPT).toContain('如果用户要的是总结、对比、归纳')
+    expect(DEFAULT_SYSTEM_PROMPT).toContain('关键词1 关键词2')
+    expect(DEFAULT_SYSTEM_PROMPT).toContain('只有结果不足时再追加新的工具调用')
   })
 
   it('normalizes chat completions endpoint', () => {

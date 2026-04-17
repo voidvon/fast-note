@@ -34,5 +34,23 @@ export function isDeletedNoteRetained(note: Pick<Note, 'is_deleted' | 'updated'>
 }
 
 export function matchesNoteKeyword(note: Pick<Note, 'title' | 'content'>, keyword: string) {
-  return note.title.includes(keyword) || note.content.includes(keyword)
+  return createSearchTerms(keyword).some(term =>
+    note.title.includes(term) || note.content.includes(term),
+  )
+}
+
+export function matchesFolderKeyword(note: Pick<Note, 'title'>, keyword: string) {
+  return createSearchTerms(keyword).some(term => note.title.includes(term))
+}
+
+export function createSearchTerms(keyword: string) {
+  const normalized = keyword.trim()
+  if (!normalized) {
+    return []
+  }
+
+  return [...new Set(normalized
+    .split(/[\s,，、/|]+/g)
+    .map(term => term.trim())
+    .filter(Boolean))]
 }

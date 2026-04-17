@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChatMessageCard, ChatMessageCardAction } from '../model/message-card'
+import type { ChatMessageCard, ChatMessageCardAction, ChatMessageCardItem } from '../model/message-card'
 import { IonButton, IonIcon, IonItem, IonNote, IonSpinner } from '@ionic/vue'
 import { checkmarkOutline, copyOutline } from 'ionicons/icons'
 import { computed, onBeforeUnmount, ref } from 'vue'
@@ -70,6 +70,10 @@ function handleCardAction(action?: ChatMessageCardAction) {
 
   emit('action', action)
 }
+
+function isCompactNoteItem(item: ChatMessageCardItem) {
+  return item.layout === 'note-compact'
+}
 </script>
 
 <template>
@@ -120,22 +124,41 @@ function handleCardAction(action?: ChatMessageCardAction) {
 
             <ul v-if="card.items?.length" class="chat-message__card-list">
               <li v-for="item in card.items" :key="item.id" class="chat-message__card-item">
-                <div class="chat-message__card-item-main">
-                  <button
-                    v-if="item.action"
-                    type="button"
-                    class="chat-message__card-item-button"
-                    @click="handleCardAction(item.action)"
-                  >
-                    {{ item.title }}
-                  </button>
-                  <strong v-else class="chat-message__card-item-title">{{ item.title }}</strong>
-                  <span v-if="item.meta" class="chat-message__card-item-meta">{{ item.meta }}</span>
-                </div>
-                <p v-if="item.description" class="chat-message__card-item-description">
-                  {{ item.description }}
-                </p>
-                <div v-if="item.tags?.length" class="chat-message__card-tags">
+                <template v-if="isCompactNoteItem(item)">
+                  <div class="chat-message__card-item-main chat-message__card-item-main--compact">
+                    <button
+                      v-if="item.action"
+                      type="button"
+                      class="chat-message__card-item-button chat-message__card-item-button--compact"
+                      @click="handleCardAction(item.action)"
+                    >
+                      {{ item.title }}
+                    </button>
+                    <strong v-else class="chat-message__card-item-title">{{ item.title }}</strong>
+                  </div>
+                  <p v-if="item.meta || item.description" class="chat-message__card-item-secondary">
+                    <span v-if="item.meta" class="chat-message__card-item-meta chat-message__card-item-meta--compact">{{ item.meta }}</span>
+                    <span v-if="item.description" class="chat-message__card-item-description chat-message__card-item-description--compact">{{ item.description }}</span>
+                  </p>
+                </template>
+                <template v-else>
+                  <div class="chat-message__card-item-main">
+                    <button
+                      v-if="item.action"
+                      type="button"
+                      class="chat-message__card-item-button"
+                      @click="handleCardAction(item.action)"
+                    >
+                      {{ item.title }}
+                    </button>
+                    <strong v-else class="chat-message__card-item-title">{{ item.title }}</strong>
+                    <span v-if="item.meta" class="chat-message__card-item-meta">{{ item.meta }}</span>
+                  </div>
+                  <p v-if="item.description" class="chat-message__card-item-description">
+                    {{ item.description }}
+                  </p>
+                </template>
+                <div v-if="item.tags?.length && !isCompactNoteItem(item)" class="chat-message__card-tags">
                   <span v-for="tag in item.tags" :key="tag" class="chat-message__card-tag">
                     {{ tag }}
                   </span>
@@ -284,6 +307,7 @@ function handleCardAction(action?: ChatMessageCardAction) {
   gap: 8px;
   margin: 0;
   padding: 0;
+  padding-left: 0;
   list-style: none;
 }
 
@@ -301,6 +325,41 @@ function handleCardAction(action?: ChatMessageCardAction) {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.chat-message__card-item-main--compact {
+  display: block;
+}
+
+.chat-message__card-item-button--compact,
+.chat-message__card-item-main--compact .chat-message__card-item-title {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-message__card-item-secondary {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  font-size: 12px;
+  color: #a1a1aa;
+  white-space: nowrap;
+}
+
+.chat-message__card-item-meta--compact {
+  flex: 0 0 auto;
+}
+
+.chat-message__card-item-description--compact {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chat-message__card-tags {
@@ -383,7 +442,6 @@ function handleCardAction(action?: ChatMessageCardAction) {
 .chat-message__bubble :deep(ul),
 .chat-message__bubble :deep(ol) {
   margin: 0;
-  padding-left: 1.25em;
 }
 
 .chat-message__bubble :deep(li + li) {
