@@ -2,12 +2,11 @@
 import type { FolderTreeNode } from '@/entities/note'
 import type { NoteLockIndicatorState } from '@/features/note-lock'
 import { IonAccordion, IonIcon, IonItem, IonLabel, IonNote, useIonRouter } from '@ionic/vue'
-import dayjs from 'dayjs'
-import calendar from 'dayjs/plugin/calendar'
 import { folderOutline, lockClosed, lockOpen, trashOutline } from 'ionicons/icons'
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { NOTE_TYPE } from '@/entities/note'
+import { formatNotePreviewLine } from '@/shared/lib/date'
 import { useDeviceType } from '@/shared/lib/device'
 
 defineOptions({
@@ -29,8 +28,6 @@ const props = withDefaults(
 )
 
 const emit = defineEmits(['selected'])
-
-dayjs.extend(calendar)
 
 const route = useRoute()
 const router = useIonRouter()
@@ -66,13 +63,6 @@ const showLockIcon = computed(() => {
 const lockIcon = computed(() => {
   return resolvedLockIndicatorState.value === 'unlocked' ? lockOpen : lockClosed
 })
-
-const calendarConfig = {
-  sameDay: 'HH:mm', // 今天显示时间
-  lastDay: '[昨天] HH:mm', // 昨天显示"昨天 HH:mm:ss"
-  lastWeek: 'YYYY/M/D', // 上周
-  sameElse: 'YYYY/M/D', // 其他情况
-}
 
 const routerLink = computed(() => {
   if (isDesktop.value)
@@ -182,8 +172,7 @@ function onClick() {
         </span>
       </h2>
       <p class="text-gray-400! text-elipsis!">
-        {{ dayjs(noteData.created).calendar(null, calendarConfig) }}&nbsp;&nbsp;
-        {{ noteData.summary }}
+        {{ formatNotePreviewLine(noteData.created, noteData.summary) }}
       </p>
       <p v-if="showParentFolder" class="text-gray-400!">
         <IonIcon :icon="folderOutline" class="v-text-bottom" />

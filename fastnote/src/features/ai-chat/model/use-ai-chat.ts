@@ -8,6 +8,7 @@ import { Chat } from '@ai-sdk/vue'
 import { nanoid } from 'nanoid'
 import { computed, reactive, ref, watch } from 'vue'
 import { useAiChatSession } from '@/processes/ai-chat-session'
+import { formatNotePreviewDate, formatNotePreviewLine } from '@/shared/lib/date'
 import { createScopedStorageKey } from '@/shared/lib/user-scope'
 import { isAiChatAgentEnabled } from './agent-feature-flag'
 import {
@@ -67,6 +68,8 @@ const handledAssistantEnvelopeIds = new Set<string>()
 const lastRequestContext = ref<AiChatRequestContext | null>(null)
 const messageBlocks = ref<Record<string, ChatMessageBlock[]>>({})
 const currentTask = ref<AiAgentTask | null>(null)
+const executedMutationFingerprints = ref<string[]>([])
+const mutationFingerprintTaskId = ref('')
 const MAX_TOOL_LOOP_DEPTH = 3
 const agentFeatureEnabled = isAiChatAgentEnabled()
 const STREAM_STALL_THRESHOLD_MS = 800
@@ -267,6 +270,33 @@ function normalizeCardAction(value: unknown): ChatMessageCardAction | undefined 
   return undefined
 }
 
+function normalizeLegacyNoteCardMeta(
+  action: ChatMessageCardAction | undefined,
+  meta: string | undefined,
+  description: string | undefined,
+) {
+  if (action?.type !== 'open-note') {
+    return { description, meta }
+  }
+
+  const legacyUpdatedMatch = meta?.match(/更新于\s+(.+)$/)
+  if (!legacyUpdatedMatch) {
+    return {
+      description: undefined,
+      meta: [meta, description]
+        .filter(Boolean)
+        .join('\u00A0\u00A0'),
+    }
+  }
+
+  return {
+    description: undefined,
+    meta: [formatNotePreviewDate(legacyUpdatedMatch[1]?.trim()), description]
+      .filter(Boolean)
+      .join('\u00A0\u00A0'),
+  }
+}
+
 function normalizeCardItem(value: unknown): ChatMessageCardItem | null {
   if (!isRecord(value) || typeof value.id !== 'string' || typeof value.title !== 'string') {
     return null
@@ -275,13 +305,16 @@ function normalizeCardItem(value: unknown): ChatMessageCardItem | null {
   const tags = Array.isArray(value.tags)
     ? value.tags.filter((tag): tag is string => typeof tag === 'string')
     : undefined
+  const action = normalizeCardAction(value.action)
+  const description = typeof value.description === 'string' ? value.description : undefined
+  const meta = typeof value.meta === 'string' ? value.meta : undefined
+  const normalizedSecondary = normalizeLegacyNoteCardMeta(action, meta, description)
 
   return {
-    action: normalizeCardAction(value.action),
-    description: typeof value.description === 'string' ? value.description : undefined,
+    action,
+    description: normalizedSecondary.description,
     id: value.id,
-    layout: value.layout === 'note-compact' ? 'note-compact' : 'default',
-    meta: typeof value.meta === 'string' ? value.meta : undefined,
+    meta: normalizedSecondary.meta,
     tags: tags?.length ? tags : undefined,
     title: value.title,
   }
@@ -433,7 +466,7 @@ function hydrateConversation() {
 
 function hydrateAgentTask() {
   if (!agentFeatureEnabled) {
-    currentTask.value = null
+    setCurrentTask(null)
     return
   }
 
@@ -443,19 +476,19 @@ function hydrateAgentTask() {
 
   const stored = localStorage.getItem(getAgentTaskStorageKey())
   if (!stored) {
-    currentTask.value = null
+    setCurrentTask(null)
     return
   }
 
   try {
     const restoredTask = normalizeAgentTask(JSON.parse(stored))
-    currentTask.value = restoredTask ? restoreAgentTaskAfterReload(restoredTask, readCurrentRouteTargetSnapshot()) : null
+    setCurrentTask(restoredTask ? restoreAgentTaskAfterReload(restoredTask, readCurrentRouteTargetSnapshot()) : null)
     if (!currentTask.value) {
       localStorage.removeItem(getAgentTaskStorageKey())
     }
   }
   catch {
-    currentTask.value = null
+    setCurrentTask(null)
     localStorage.removeItem(getAgentTaskStorageKey())
   }
 }
@@ -542,7 +575,15 @@ function getLatestUserMessageText() {
 function setCurrentTask(nextTask: AiAgentTask | null) {
   if (!agentFeatureEnabled) {
     currentTask.value = null
+    mutationFingerprintTaskId.value = ''
+    executedMutationFingerprints.value = []
     return
+  }
+
+  const nextTaskId = nextTask?.id || ''
+  if (mutationFingerprintTaskId.value !== nextTaskId) {
+    mutationFingerprintTaskId.value = nextTaskId
+    executedMutationFingerprints.value = []
   }
 
   currentTask.value = nextTask
@@ -648,6 +689,92 @@ function markTaskInterrupted(title: string, detail: string, terminationReason: A
   }))
 }
 
+function isMutationTool(tool: AiNoteToolCall['tool']) {
+  return tool === 'create_note'
+    || tool === 'update_note'
+    || tool === 'move_note'
+    || tool === 'delete_note'
+    || tool === 'set_note_lock'
+}
+
+function sortFingerprintValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(item => sortFingerprintValue(item))
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, nested]) => [key, sortFingerprintValue(nested)]),
+    )
+  }
+
+  return value
+}
+
+function normalizeToolCallForFingerprint(call: AiNoteToolCall) {
+  if (call.tool !== 'update_note') {
+    return {
+      payload: sortFingerprintValue(call.payload),
+      tool: call.tool,
+    }
+  }
+
+  const { expectedUpdated, ...payload } = call.payload
+  void expectedUpdated
+
+  return {
+    payload: sortFingerprintValue(payload),
+    tool: call.tool,
+  }
+}
+
+function getToolCallFingerprint(call: AiNoteToolCall) {
+  return JSON.stringify(normalizeToolCallForFingerprint(call))
+}
+
+function getDuplicateMutationCalls(calls: AiNoteToolCall[]) {
+  const executedFingerprints = new Set(executedMutationFingerprints.value)
+
+  return calls.filter((call) => {
+    if (!isMutationTool(call.tool)) {
+      return false
+    }
+
+    return executedFingerprints.has(getToolCallFingerprint(call))
+  })
+}
+
+function rememberExecutedMutationCalls(calls: AiNoteToolCall[]) {
+  const mutationCalls = calls.filter(call => isMutationTool(call.tool))
+  if (!mutationCalls.length) {
+    return
+  }
+
+  const nextFingerprints = new Set(executedMutationFingerprints.value)
+  for (const call of mutationCalls) {
+    nextFingerprints.add(getToolCallFingerprint(call))
+  }
+
+  executedMutationFingerprints.value = [...nextFingerprints]
+}
+
+function buildDuplicateMutationGuardText(calls: AiNoteToolCall[]) {
+  const mutationCalls = calls.filter(call => isMutationTool(call.tool))
+  if (!mutationCalls.length) {
+    return ''
+  }
+
+  const duplicateMutationCalls = getDuplicateMutationCalls(calls)
+  if (!duplicateMutationCalls.length || duplicateMutationCalls.length !== mutationCalls.length) {
+    return ''
+  }
+
+  const toolNames = [...new Set(duplicateMutationCalls.map(call => call.tool))].join('、')
+  return `检测到模型再次请求执行相同的本地写操作（${toolNames}）。为避免对同一内容反复修改，已拦截这次重复执行，当前结果保持不变。`
+}
+
 function clearConversation() {
   chat.messages = []
   chat.clearError()
@@ -657,7 +784,7 @@ function clearConversation() {
   handledAssistantEnvelopeIds.clear()
   lastRequestContext.value = null
   messageBlocks.value = {}
-  currentTask.value = null
+  setCurrentTask(null)
   resetStreamActivity()
   persistConversation()
   persistAgentTask()
@@ -969,24 +1096,43 @@ function buildDetailedToolResultsPrompt(results: AiToolResult[]) {
   }).join('\n\n')
 }
 
-function buildToolLoopPrompt(resultsSummary: string, results: AiToolResult[], requestContext?: AiChatRequestContext | null) {
+function buildToolLoopPrompt(
+  resultsSummary: string,
+  results: AiToolResult[],
+  requestContext?: AiChatRequestContext | null,
+  options: {
+    finalAnswerOnly?: boolean
+  } = {},
+) {
   const contextPrompt = buildAiChatContextSystemPrompt(requestContext || null)
   return [
     '以下是你刚才请求的本地工具执行结果，请继续完成用户上一条请求。',
-    '如果当前信息已足够，请直接输出自然语言最终答复，不要再解释 JSON 格式。',
-    '如果用户要的是主题筛选、汇总或总结，而当前结果只有搜索列表、不足以支撑可靠结论，请继续调用 get_note_detail 读取相关备忘录正文，不要停在“已帮你筛出结果”。',
-    '如果仍需进一步读取或执行其他本地工具，请继续只返回合法 JSON 工具请求。',
+    options.finalAnswerOnly
+      ? '相关本地写操作已经执行完成。你现在只能输出自然语言最终答复，不要返回 JSON，不要再次请求任何工具，也不要再次要求用户确认。'
+      : '如果当前信息已足够，请直接输出自然语言最终答复，不要再解释 JSON 格式。',
+    options.finalAnswerOnly
+      ? '如果需要提及执行结果，请基于下方工具结果直接总结给用户，不要重复描述将要执行的动作。'
+      : '如果用户要的是主题筛选、汇总或总结，而当前结果只有搜索列表、不足以支撑可靠结论，请继续调用 get_note_detail 读取相关备忘录正文，不要停在“已帮你筛出结果”。',
+    options.finalAnswerOnly
+      ? ''
+      : '如果仍需进一步读取或执行其他本地工具，请继续只返回合法 JSON 工具请求。',
     contextPrompt ? `附加上下文：\n${contextPrompt}` : '',
     `工具执行摘要：\n${resultsSummary}`,
     `工具详细返回：\n${buildDetailedToolResultsPrompt(results)}`,
   ].filter(Boolean).join('\n\n')
 }
 
-async function continueAssistantAfterToolResults(resultsSummary: string, results: AiToolResult[]) {
+async function continueAssistantAfterToolResults(
+  resultsSummary: string,
+  results: AiToolResult[],
+  options: {
+    finalAnswerOnly?: boolean
+  } = {},
+) {
   hydrateSettings()
 
   const followUpMessages = chat.messages.concat(
-    createHiddenSystemMessage(buildToolLoopPrompt(resultsSummary, results, lastRequestContext.value)),
+    createHiddenSystemMessage(buildToolLoopPrompt(resultsSummary, results, lastRequestContext.value, options)),
   )
 
   followUpCompletionRequestCount.value += 1
@@ -1001,6 +1147,19 @@ async function continueAssistantAfterToolResults(resultsSummary: string, results
   finally {
     followUpCompletionRequestCount.value = Math.max(0, followUpCompletionRequestCount.value - 1)
   }
+}
+
+function shouldFinalizeAfterToolResults(calls: AiNoteToolCall[]) {
+  return calls.some(call => isMutationTool(call.tool))
+}
+
+function extractSafeFollowUpText(rawText: string, summary: string) {
+  const envelope = parseAiAssistantToolEnvelope(rawText)
+  if (!envelope) {
+    return rawText.trim()
+  }
+
+  return summary
 }
 
 async function resolveAssistantToolLoop(
@@ -1028,6 +1187,23 @@ async function resolveAssistantToolLoop(
     currentTask.value?.input || getLatestUserMessageText(),
     lastRequestContext.value,
   )
+  const duplicateMutationText = buildDuplicateMutationGuardText(mutationPolicies.toolCalls)
+  if (duplicateMutationText) {
+    updateCurrentTask(task => updateAgentTask(task, {
+      appendStep: {
+        kind: 'interrupted',
+        title: '已拦截重复本地修改请求',
+        detail: duplicateMutationText,
+      },
+      terminationReason: 'running',
+    }))
+    appendTextBlockToAssistantMessage(messageId, duplicateMutationText)
+    return {
+      cards: [],
+      text: getRenderedAssistantText(messageId, duplicateMutationText),
+    }
+  }
+
   const mutationMeta = [
     getAgentTaskRiskLabel(mutationPolicies.riskLevel),
     getAgentTaskConfirmationModeLabel(mutationPolicies.confirmationMode),
@@ -1076,6 +1252,9 @@ async function resolveAssistantToolLoop(
   }
 
   appendCardsBlockToAssistantMessage(messageId, cards)
+  if (!aiChatSession.hasPendingConfirmation.value) {
+    rememberExecutedMutationCalls(mutationPolicies.toolCalls)
+  }
 
   if (aiChatSession.hasPendingConfirmation.value || depth >= MAX_TOOL_LOOP_DEPTH) {
     if (aiChatSession.hasPendingConfirmation.value) {
@@ -1100,8 +1279,22 @@ async function resolveAssistantToolLoop(
     }
   }
 
+  const finalizeAfterMutation = shouldFinalizeAfterToolResults(mutationPolicies.toolCalls)
+
   try {
-    const followUpText = await continueAssistantAfterToolResults(summary, results)
+    const followUpText = await continueAssistantAfterToolResults(summary, results, {
+      finalAnswerOnly: finalizeAfterMutation,
+    })
+
+    if (finalizeAfterMutation) {
+      const safeFollowUpText = extractSafeFollowUpText(followUpText, summary)
+      appendTextBlockToAssistantMessage(messageId, safeFollowUpText)
+      return {
+        cards,
+        text: getRenderedAssistantText(messageId, safeFollowUpText),
+      }
+    }
+
     const nested = await resolveAssistantToolLoop(followUpText, depth + 1, messageId, true)
     return {
       cards: mergeCards(cards, nested.cards),
@@ -1490,6 +1683,7 @@ async function regenerate() {
 }
 
 async function confirmPendingExecution() {
+  const confirmedCalls = aiChatSession.pendingExecution?.value?.calls || []
   const results = await aiChatSession.confirmPendingExecution()
   if (!results.length) {
     return results
@@ -1538,11 +1732,26 @@ async function confirmPendingExecution() {
     status: 'executing',
     terminationReason: 'running',
   }))
+  rememberExecutedMutationCalls(confirmedCalls)
 
   appendCardsBlockToAssistantMessage(continuationMessageId, cards)
 
+  const finalizeAfterMutation = shouldFinalizeAfterToolResults(confirmedCalls)
+
   try {
-    const followUpText = await continueAssistantAfterToolResults(summary, results)
+    const followUpText = await continueAssistantAfterToolResults(summary, results, {
+      finalAnswerOnly: finalizeAfterMutation,
+    })
+
+    if (finalizeAfterMutation) {
+      const safeFollowUpText = extractSafeFollowUpText(followUpText, summary)
+      const combinedText = appendTextBlockToAssistantMessage(continuationMessageId, safeFollowUpText)
+      if (currentTask.value && (currentTask.value.status === 'identifying' || currentTask.value.status === 'executing')) {
+        markTaskCompleted(combinedText)
+      }
+      return results
+    }
+
     const resolved = await resolveAssistantToolLoop(followUpText, 1, continuationMessageId, true)
     if (currentTask.value && (currentTask.value.status === 'identifying' || currentTask.value.status === 'executing')) {
       markTaskCompleted(resolved.text)

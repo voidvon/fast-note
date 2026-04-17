@@ -1,4 +1,4 @@
-import type { AiToolResult, Note } from '@/shared/types'
+import type { AiNoteToolCall, AiToolResult, Note } from '@/shared/types'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick, ref } from 'vue'
@@ -10,6 +10,7 @@ const aiChatSessionMock = {
   confirmPendingExecution: vi.fn(),
   hasPendingConfirmation: ref(false),
   lastResults: ref<AiToolResult[]>([]),
+  pendingExecution: ref<{ calls: AiNoteToolCall[], createdAt: number } | null>(null),
   submitToolCalls: vi.fn(),
 }
 
@@ -22,12 +23,14 @@ const noteStoreMock = {
 function resetAiChatSessionMock() {
   aiChatSessionMock.hasPendingConfirmation.value = false
   aiChatSessionMock.lastResults.value = []
+  aiChatSessionMock.pendingExecution.value = null
   aiChatSessionMock.submitToolCalls.mockReset()
   aiChatSessionMock.confirmPendingExecution.mockReset()
   aiChatSessionMock.cancelPendingExecution.mockReset()
   aiChatSessionMock.cancelPendingExecution.mockImplementation(() => {
     aiChatSessionMock.hasPendingConfirmation.value = false
     aiChatSessionMock.lastResults.value = []
+    aiChatSessionMock.pendingExecution.value = null
   })
   aiChatSessionMock.submitToolCalls.mockImplementation(async () => [])
   aiChatSessionMock.confirmPendingExecution.mockImplementation(async () => [])
@@ -1477,6 +1480,153 @@ describe('global search ai chat', () => {
     expect(aiChatSessionMock.confirmPendingExecution).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('已按你的确认写回原文')
     expect(wrapper.text()).not.toContain('本次操作执行结果如下：')
+
+    wrapper.unmount()
+  })
+
+  it('finalizes rewrite confirmation without re-entering the tool loop after writeback', async () => {
+    noteStoreMock.notes.value = [{
+      id: 'note-1',
+      title: '周报',
+      summary: '待整理',
+      content: '<p>原文内容</p>',
+      created: '2026-04-16 09:00:00',
+      updated: '2026-04-16 09:30:00',
+      item_type: 2,
+      parent_id: '',
+      is_deleted: 0,
+      is_locked: 0,
+      note_count: 0,
+      files: [],
+    }]
+
+    aiChatSessionMock.submitToolCalls.mockImplementationOnce(async (calls) => {
+      aiChatSessionMock.pendingExecution.value = {
+        calls,
+        createdAt: Date.now(),
+      }
+
+      const results = [{
+        ok: true,
+        code: 'confirmation_required',
+        message: null,
+        preview: {
+          title: '准备更新备忘录',
+          summary: '将更新备忘录 note-1 的标题、内容或目录信息',
+          affectedNoteIds: ['note-1'],
+        },
+        requiresConfirmation: true,
+        affectedNoteIds: ['note-1'],
+      }]
+
+      aiChatSessionMock.hasPendingConfirmation.value = true
+      aiChatSessionMock.lastResults.value = results
+      return results
+    })
+    aiChatSessionMock.confirmPendingExecution.mockImplementationOnce(async () => {
+      const results = [{
+        ok: true,
+        code: 'ok',
+        message: null,
+        preview: {
+          title: '准备更新备忘录',
+          summary: '将更新备忘录 note-1 的标题、内容或目录信息',
+          affectedNoteIds: ['note-1'],
+        },
+        data: {
+          note: {
+            ...noteStoreMock.notes.value[0],
+            content: '<p>确认后的正文。</p>',
+            updated: '2026-04-16 10:10:00',
+          },
+          source: 'store',
+        },
+        affectedNoteIds: ['note-1'],
+      }]
+
+      aiChatSessionMock.pendingExecution.value = null
+      aiChatSessionMock.hasPendingConfirmation.value = false
+      aiChatSessionMock.lastResults.value = results
+      return results
+    })
+
+    const fetchMock = vi.fn()
+      .mockImplementationOnce(async () => createSseResponse([
+        JSON.stringify({
+          choices: [{
+            delta: {
+              role: 'assistant',
+            },
+          }],
+        }),
+        JSON.stringify({
+          choices: [{
+            delta: {
+              content: JSON.stringify({
+                mode: 'tool_calls',
+                answer: '我先生成改写预览，再等你确认是否写回。',
+                toolCalls: [{
+                  tool: 'update_note',
+                  payload: {
+                    noteId: 'note-1',
+                    contentHtml: '<p>确认后的正文。</p>',
+                  },
+                }],
+              }),
+            },
+            finish_reason: 'stop',
+          }],
+        }),
+      ]))
+      .mockImplementationOnce(async () => createJsonResponse({
+        choices: [{
+          message: {
+            role: 'assistant',
+            content: JSON.stringify({
+              mode: 'tool_calls',
+              answer: '我再执行一次相同的写回。',
+              toolCalls: [{
+                tool: 'update_note',
+                payload: {
+                  noteId: 'note-1',
+                  contentHtml: '<p>确认后的正文。</p>',
+                },
+              }],
+            }),
+          },
+          finish_reason: 'stop',
+        }],
+      }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { useAiChat } = await import('@/features/ai-chat')
+    useAiChat().saveSettings({
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4.1-mini',
+    })
+
+    const wrapper = await mountGlobalSearch()
+    const input = await ensureAiMode(wrapper)
+
+    await input.setValue('帮我重写 http://localhost:8888/n/note-1')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    const confirmButton = wrapper.findAll('button').find(item => item.text() === '确认执行')
+    expect(confirmButton).toBeTruthy()
+    await confirmButton!.trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(aiChatSessionMock.submitToolCalls).toHaveBeenCalledTimes(1)
+    expect(aiChatSessionMock.confirmPendingExecution).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('本次操作执行结果如下：')
+    expect(wrapper.text()).toContain('已完成：将更新备忘录 note-1 的标题、内容或目录信息')
+    expect(wrapper.text()).not.toContain('检测到模型再次请求执行相同的本地写操作')
+    expect(wrapper.text()).not.toContain('待确认操作')
 
     wrapper.unmount()
   })
