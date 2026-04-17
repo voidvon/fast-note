@@ -32,7 +32,9 @@ describe('tool result cards', () => {
           noteId: 'note-1',
         },
         id: 'note-1',
-        meta: '根目录 · 更新于 2026-04-15 10:00:00',
+        layout: 'note-compact',
+        meta: '2026/4/15',
+        description: '本周项目推进',
         title: '周报',
       }],
     })

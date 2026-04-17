@@ -23,7 +23,7 @@ function createApi() {
     notes: ref([baseNote]),
     getNote: vi.fn(async (id: string) => id === baseNote.id ? baseNote : null),
     getFolderTreeByParentId: vi.fn(() => []),
-    searchNotesInDatabase: vi.fn(async () => [baseNote]),
+    searchNotes: vi.fn(async () => [baseNote]),
     createNote: vi.fn(),
     updateNote: vi.fn(),
     moveNote: vi.fn(async () => ({
@@ -122,6 +122,45 @@ describe('useAiNoteCommand', () => {
     })
   })
 
+  it('uses the shared note search path for search_notes', async () => {
+    const searchNotes = vi.fn(async () => [baseNote])
+    const api = useAiNoteCommand({
+      notes: ref([baseNote]),
+      getNote: vi.fn(async (id: string) => id === baseNote.id ? baseNote : null),
+      getFolderTreeByParentId: vi.fn(() => []),
+      searchNotes,
+      createNote: vi.fn(),
+      updateNote: vi.fn(),
+      moveNote: vi.fn(),
+      deleteNote: vi.fn(),
+      enableLockForNote: vi.fn(),
+      disableLockForNote: vi.fn(),
+      sync: vi.fn(async () => null),
+    })
+
+    const result = await api.executeToolCall({
+      tool: 'search_notes',
+      payload: {
+        query: '健康 皮炎',
+        folderId: 'folder-health',
+        limit: 5,
+      },
+    })
+
+    expect(searchNotes).toHaveBeenCalledWith('健康 皮炎', {
+      folderId: 'folder-health',
+      limit: 5,
+    })
+    expect(result).toMatchObject({
+      ok: true,
+      code: 'ok',
+      data: [expect.objectContaining({
+        id: 'note-1',
+        title: '周报',
+      })],
+    })
+  })
+
   it('reuses the shared note save path for update_note and syncs immediately', async () => {
     const sync = vi.fn(async () => null)
     const updateNote = vi.fn(async () => ({
@@ -140,7 +179,7 @@ describe('useAiNoteCommand', () => {
       notes: ref([baseNote]),
       getNote: vi.fn(async (id: string) => id === baseNote.id ? baseNote : null),
       getFolderTreeByParentId: vi.fn(() => []),
-      searchNotesInDatabase: vi.fn(async () => [baseNote]),
+      searchNotes: vi.fn(async () => [baseNote]),
       createNote: vi.fn(),
       updateNote,
       moveNote: vi.fn(),
@@ -192,7 +231,7 @@ describe('useAiNoteCommand', () => {
       notes: ref([baseNote]),
       getNote: vi.fn(async (id: string) => id === baseNote.id ? baseNote : null),
       getFolderTreeByParentId: vi.fn(() => []),
-      searchNotesInDatabase: vi.fn(async () => [baseNote]),
+      searchNotes: vi.fn(async () => [baseNote]),
       createNote: vi.fn(),
       updateNote,
       moveNote: vi.fn(),
@@ -241,7 +280,7 @@ describe('useAiNoteCommand', () => {
       notes: ref([baseNote]),
       getNote: vi.fn(async (id: string) => id === baseNote.id ? baseNote : null),
       getFolderTreeByParentId: vi.fn(() => []),
-      searchNotesInDatabase: vi.fn(async () => [baseNote]),
+      searchNotes: vi.fn(async () => [baseNote]),
       createNote: vi.fn(),
       updateNote,
       moveNote: vi.fn(),
@@ -283,7 +322,7 @@ describe('useAiNoteCommand', () => {
       notes: ref([baseNote]),
       getNote: vi.fn(async (id: string) => id === baseNote.id ? baseNote : null),
       getFolderTreeByParentId: vi.fn(() => []),
-      searchNotesInDatabase: vi.fn(async () => [baseNote]),
+      searchNotes: vi.fn(async () => [baseNote]),
       createNote: vi.fn(),
       updateNote,
       moveNote: vi.fn(),

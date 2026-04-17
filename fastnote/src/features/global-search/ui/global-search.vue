@@ -45,7 +45,7 @@ const {
   showGlobalSearch,
   showGlobalSearchState,
 } = useGlobalSearch()
-const { getNote, notes, searchNotesByParentId } = useNote()
+const { getNote, notes, searchNotes } = useNote()
 const { chat, currentTask, isBusy: isAiBusy, resumeInterruptedTask, sendMessage: sendAiMessage } = useAiChat()
 const { getSnapshot } = useDesktopActiveNote()
 const route = useRoute()
@@ -88,6 +88,7 @@ const searchResults = computed(() => toSearchResultNodes(state.notes))
 const hasInputValue = computed(() => currentDraft.value.trim().length > 0)
 const hasSearchKeyword = computed(() => searchKeyword.value.trim().length > 0)
 const showAiActionButton = computed(() => !isSearchMode.value && (hasInputValue.value || isAiBusy.value))
+const shouldShowCloseButton = computed(() => isSearchMode.value || !showAiActionButton.value)
 const shouldCollapseFieldIcon = computed(() => showGlobalSearchState.value !== 'hide')
 const shouldRenderPanel = computed(() => showGlobalSearchState.value !== 'hide')
 const shouldSyncWithRoute = computed(() => props.syncWithRoute)
@@ -382,7 +383,10 @@ async function runSearch(searchText: string) {
     return
   }
 
-  const matchedNotes = await searchNotesByParentId(props.puuid || '', '全部', keyword)
+  const matchedNotes = await searchNotes(keyword, {
+    parentId: props.puuid || '',
+    rootTitle: '全部',
+  })
 
   if (requestId !== searchRequestId) {
     return
@@ -750,26 +754,26 @@ onUnmounted(() => {
           >
             <IonIcon :icon="closeCircle" />
           </button>
-          <button
-            v-else-if="showAiActionButton"
-            type="button"
-            class="global-search__submit-button"
-            :aria-label="currentActionLabel"
-            @click="onAiAction"
-          >
-            <IonIcon :icon="currentActionIcon" />
-          </button>
         </div>
       </div>
 
       <button
-        v-if="showGlobalSearch"
+        v-if="showGlobalSearch && shouldShowCloseButton"
         type="button"
         class="app-glass-circle-button"
         aria-label="关闭搜索"
         @click="onCancel"
       >
         <IonIcon :icon="closeOutline" />
+      </button>
+      <button
+        v-else-if="showGlobalSearch && showAiActionButton"
+        type="button"
+        class="app-glass-circle-button"
+        :aria-label="currentActionLabel"
+        @click="onAiAction"
+      >
+        <IonIcon :icon="currentActionIcon" />
       </button>
 
       <div
@@ -969,24 +973,6 @@ onUnmounted(() => {
 
   &__clear-button ion-icon {
     font-size: 18px;
-  }
-
-  &__submit-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    flex: 0 0 24px;
-    border: 0;
-    border-radius: 999px;
-    padding: 0;
-    background: linear-gradient(135deg, rgba(56, 189, 248, 0.96), rgba(34, 197, 94, 0.96));
-    color: #04111f;
-  }
-
-  &__submit-button ion-icon {
-    font-size: 14px;
   }
 
   &__panel {

@@ -197,6 +197,7 @@ function normalizeCardItem(value: unknown): ChatMessageCardItem | null {
     action: normalizeCardAction(value.action),
     description: typeof value.description === 'string' ? value.description : undefined,
     id: value.id,
+    layout: value.layout === 'note-compact' ? 'note-compact' : 'default',
     meta: typeof value.meta === 'string' ? value.meta : undefined,
     tags: tags?.length ? tags : undefined,
     title: value.title,
@@ -705,6 +706,7 @@ function buildToolLoopPrompt(resultsSummary: string, results: AiToolResult[], re
   return [
     '以下是你刚才请求的本地工具执行结果，请继续完成用户上一条请求。',
     '如果当前信息已足够，请直接输出自然语言最终答复，不要再解释 JSON 格式。',
+    '如果用户要的是主题筛选、汇总或总结，而当前结果只有搜索列表、不足以支撑可靠结论，请继续调用 get_note_detail 读取相关备忘录正文，不要停在“已帮你筛出结果”。',
     '如果仍需进一步读取或执行其他本地工具，请继续只返回合法 JSON 工具请求。',
     contextPrompt ? `附加上下文：\n${contextPrompt}` : '',
     `工具执行摘要：\n${resultsSummary}`,

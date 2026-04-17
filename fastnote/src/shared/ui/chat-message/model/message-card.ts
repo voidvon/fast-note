@@ -17,6 +17,7 @@ export interface ChatMessageCardItem {
   action?: ChatMessageCardAction
   description?: string
   id: string
+  layout?: 'default' | 'note-compact'
   meta?: string
   tags?: string[]
   title: string

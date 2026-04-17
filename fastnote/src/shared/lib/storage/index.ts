@@ -23,7 +23,6 @@ export {
   createNotesSync,
   type NoteSyncController,
   readStoredNotes,
-  searchStoredNotesInDatabase,
 } from './notes'
 
 export {

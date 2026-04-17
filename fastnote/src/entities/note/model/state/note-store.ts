@@ -6,12 +6,11 @@ import {
   createNotesSync,
   getCurrentDatabaseName,
   readStoredNotes,
-  searchStoredNotesInDatabase,
   useDexie,
 } from '@/shared/lib/storage'
 import { normalizeNoteLockFields, NOTE_TYPE } from '@/shared/types'
 import { buildFolderTree, countNotesWithinChildren, countUnfiledNotes } from '../domain/folder-tree'
-import { isDeletedNoteRetained, matchesNoteKeyword, shouldRefreshNoteUpdated } from '../domain/note-rules'
+import { isDeletedNoteRetained, matchesFolderKeyword, matchesNoteKeyword, shouldRefreshNoteUpdated } from '../domain/note-rules'
 import { useNoteIndexState } from './note-index-state'
 
 type UpdateFn = (item: Note) => void
@@ -26,15 +25,82 @@ const onNoteUpdateArr: UpdateFn[] = []
 let notesSync: NoteSyncController | null = null
 let initializedDatabaseName = ''
 
-/**
- * 全文搜索优化：使用数据库层面搜索
- * 建议后续考虑使用 Dexie 的全文搜索插件或建立关键词索引
- */
-async function searchNotesInDatabase(keyword: string) {
-  const { db } = useDexie()
-  const result = await searchStoredNotesInDatabase(db.value, keyword)
+interface SearchNotesOptions {
+  limit?: number
+  parentId?: string
+  rootTitle?: string
+}
 
-  return result.map(note => normalizeNoteLockFields(note))
+function resolveSearchRootTitle(parentId: string, rootTitle?: string) {
+  if (rootTitle?.trim()) {
+    return rootTitle.trim()
+  }
+
+  if (!parentId) {
+    return '全部'
+  }
+
+  const parent = getIndexedNote(parentId)
+  return parent?.title || '全部'
+}
+
+function collectMatchedNotes(
+  parentId: string,
+  keyword: string,
+  currentFolderTitle: string,
+  inheritedFolderMatch: boolean,
+  results: Map<string, Note>,
+) {
+  const childItems = getIndexedNotesByParentId(parentId)
+
+  for (const item of childItems) {
+    if (item.is_deleted === 1) {
+      continue
+    }
+
+    if (item.item_type === NOTE_TYPE.FOLDER) {
+      const nextFolderMatch = inheritedFolderMatch || matchesFolderKeyword(item, keyword)
+      collectMatchedNotes(item.id!, keyword, item.title, nextFolderMatch, results)
+      continue
+    }
+
+    if (item.item_type !== NOTE_TYPE.NOTE) {
+      continue
+    }
+
+    if (!inheritedFolderMatch && !matchesNoteKeyword(item, keyword)) {
+      continue
+    }
+
+    results.set(item.id, {
+      ...item,
+      folderName: currentFolderTitle,
+    })
+  }
+}
+
+async function searchNotes(keyword: string, options: SearchNotesOptions = {}) {
+  const normalizedKeyword = keyword.trim()
+  if (!normalizedKeyword) {
+    return []
+  }
+
+  const parentId = options.parentId || ''
+  const currentFolderTitle = resolveSearchRootTitle(parentId, options.rootTitle)
+  const parentNote = parentId ? getIndexedNote(parentId) : null
+  const inheritedFolderMatch = !!parentNote
+    && parentNote.item_type === NOTE_TYPE.FOLDER
+    && matchesFolderKeyword(parentNote, normalizedKeyword)
+  const results = new Map<string, Note>()
+
+  collectMatchedNotes(parentId, normalizedKeyword, currentFolderTitle, inheritedFolderMatch, results)
+
+  const matchedNotes = [...results.values()]
+  if (typeof options.limit === 'number' && options.limit > 0) {
+    return matchedNotes.slice(0, options.limit)
+  }
+
+  return matchedNotes
 }
 
 function resetNotesState() {
@@ -304,36 +370,10 @@ export function useNote() {
   }
 
   async function searchNotesByParentId(parent_id: string, title: string, keyword: string) {
-    // 使用 Map 索引快速获取子项目
-    const childItems = getIndexedNotesByParentId(parent_id)
-
-    // 搜索当前 parent_id 下符合条件的笔记
-    const directNotes = childItems
-      .filter(note =>
-        note.item_type === NOTE_TYPE.NOTE
-        && note.is_deleted === 0
-        && matchesNoteKeyword(note, keyword),
-      )
-      .map(note => Object.assign({}, note, {
-        folderName: title,
-      }))
-
-    // 获取当前 parent_id 下的所有文件夹
-    const folders = childItems.filter(note =>
-      note.item_type === NOTE_TYPE.FOLDER
-      && note.is_deleted === 0,
-    )
-
-    // 递归搜索每个文件夹中的笔记
-    let allMatchedNotes = directNotes.slice()
-
-    for (const folder of folders) {
-      // 对每个文件夹递归调用搜索方法
-      const folderNotes = await searchNotesByParentId(folder.id!, folder.title, keyword)
-      allMatchedNotes = allMatchedNotes.concat(folderNotes)
-    }
-
-    return allMatchedNotes
+    return await searchNotes(keyword, {
+      parentId: parent_id,
+      rootTitle: title,
+    })
   }
 
   /**
@@ -393,6 +433,7 @@ export function useNote() {
     getNoteCountByParentId,
     getNotesByUpdated,
     onUpdateNote,
+    searchNotes,
     searchNotesByParentId,
     // 文件夹
     getAllFolders,
@@ -401,7 +442,5 @@ export function useNote() {
     updateParentFolderSubcount,
     // 同步相关
     getNotesSync: () => notesSync,
-    // 搜索优化
-    searchNotesInDatabase,
   }
 }

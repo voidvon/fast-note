@@ -52,4 +52,63 @@ describe('notes root search', () => {
 
     wrapper.unmount()
   })
+
+  it('uses one shared search path for multi-term and folder-semantic matches', async () => {
+    const { useNote } = await import('@/entities/note')
+    type NoteStore = ReturnType<typeof useNote>
+    let noteStore: NoteStore | null = null
+
+    const wrapper = mount(defineComponent({
+      setup() {
+        noteStore = useNote()
+        return () => null
+      },
+    }))
+
+    const { addNote, searchNotes } = noteStore!
+
+    addNote(makeNote({
+      id: 'health-folder',
+      title: '健康',
+      item_type: NOTE_TYPE.FOLDER,
+      parent_id: '',
+      content: '',
+    }))
+
+    addNote(makeNote({
+      id: 'dermatitis-note',
+      title: '皮炎诊断',
+      parent_id: 'health-folder',
+      content: '诊断结果，皮炎',
+    }))
+
+    addNote(makeNote({
+      id: 'medicine-note',
+      title: '前沿药物',
+      parent_id: 'health-folder',
+      content: '替尔泊肽与英克司兰',
+    }))
+
+    addNote(makeNote({
+      id: 'sleep-note',
+      title: '睡眠记录',
+      parent_id: '',
+      content: '最近睡眠一般',
+    }))
+
+    const results = await searchNotes('健康 睡眠')
+
+    expect(results.map(note => note.id)).toEqual([
+      'dermatitis-note',
+      'medicine-note',
+      'sleep-note',
+    ])
+    expect(results.map(note => note.folderName)).toEqual([
+      '健康',
+      '健康',
+      '全部',
+    ])
+
+    wrapper.unmount()
+  })
 })

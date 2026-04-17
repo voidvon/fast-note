@@ -1,5 +1,16 @@
 import type { ChatMessageCard, ChatMessageCardItem } from '@/shared/ui/chat-message'
 import type { AiToolResult, Note } from '@/shared/types'
+import dayjs from 'dayjs'
+import calendar from 'dayjs/plugin/calendar'
+
+dayjs.extend(calendar)
+
+const NOTE_CARD_CALENDAR_CONFIG = {
+  sameDay: 'HH:mm',
+  lastDay: '[昨天] HH:mm',
+  lastWeek: 'YYYY/M/D',
+  sameElse: 'YYYY/M/D',
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -19,6 +30,14 @@ function toStatus(result: AiToolResult): ChatMessageCard['status'] {
 
 function toTags(tags: Array<string | false | null | undefined>) {
   return tags.filter((tag): tag is string => !!tag)
+}
+
+function formatNoteCardDate(updated?: string) {
+  if (!updated) {
+    return ''
+  }
+
+  return dayjs(updated).calendar(null, NOTE_CARD_CALENDAR_CONFIG)
 }
 
 function toNoteMeta(note: Partial<Note>) {
@@ -49,6 +68,25 @@ function toNoteCardItem(note: Partial<Note> & { id: string, title?: string, summ
       isLocked ? '已加锁' : '',
       isDeleted ? '已删除' : '',
     ]),
+  }
+}
+
+function toCompactNoteCardItem(note: Partial<Note> & { id: string, title?: string, summary?: string }): ChatMessageCardItem {
+  const parentId = note.parent_id || (note as Partial<{ parentId: string }>).parentId || ''
+  const isDeleted = note.is_deleted === 1 || (note as Partial<{ isDeleted: boolean }>).isDeleted === true
+
+  return {
+    action: {
+      type: 'open-note',
+      isDeleted,
+      noteId: note.id,
+      parentId,
+    },
+    description: note.summary || '',
+    id: note.id,
+    layout: 'note-compact',
+    meta: formatNoteCardDate(note.updated),
+    title: note.title || '未命名备忘录',
   }
 }
 
@@ -121,7 +159,7 @@ function tryCreateSearchResultCard(result: AiToolResult, index: number) {
         updated?: string
       }
 
-      return toNoteCardItem({
+      return toCompactNoteCardItem({
         id: typedItem.id,
         title: typedItem.title,
         summary: typedItem.summary,
