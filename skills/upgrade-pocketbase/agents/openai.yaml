@@ -1,0 +1,4 @@
+interface:
+  display_name: "升级 PocketBase 版本"
+  short_description: "升级 fastnote 的 PocketBase Go 宿主与前端 JS SDK，并完成版本核验与构建测试。"
+  default_prompt: "使用 $upgrade-pocketbase 将 fastnote 仓库中的 PocketBase Go 宿主与前端 JS SDK 升级到最新版本，并完成兼容性检查、验证和按需提交。"
