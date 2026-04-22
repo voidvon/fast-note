@@ -293,6 +293,43 @@ function resolveDesktopFolderIdFromNote(noteId: string) {
   return targetNote.parent_id || 'allnotes'
 }
 
+function resolveDesktopFolderIdFromSnapshot(noteId: string) {
+  const snapshot = getSnapshot(currentUserId.value)
+  if (!snapshot || snapshot.noteId !== noteId) {
+    return ''
+  }
+
+  if (!isDesktopFolderAvailable(snapshot.folderId, notes.value, deletedNotes.value)) {
+    return ''
+  }
+
+  const noteExistsInSnapshotFolder = getDesktopNotesForFolder(snapshot.folderId, notes.value, deletedNotes.value)
+    .some(note => note.id === noteId)
+
+  return noteExistsInSnapshotFolder ? snapshot.folderId : ''
+}
+
+function resolveDesktopFolderIdForNoteRoute(noteId: string) {
+  const snapshotFolderId = resolveDesktopFolderIdFromSnapshot(noteId)
+  if (snapshotFolderId) {
+    return snapshotFolderId
+  }
+
+  return resolveDesktopFolderIdFromNote(noteId)
+}
+
+function persistDesktopSelectionForFolderContext(noteId: string, folderId = state.folerId) {
+  if (!isDesktop.value || !noteId || noteId === '0' || !folderId) {
+    return
+  }
+
+  saveSnapshot({
+    folderId,
+    noteId,
+    parentId: '',
+  }, currentUserId.value)
+}
+
 function resolveDesktopFolderIdFromRoutePath() {
   const { pathMatch } = desktopRouteState.value
   if (pathMatch) {
@@ -348,7 +385,7 @@ function syncDesktopSelectionFromRoute() {
 
     state.folerId = noteId === '0'
       ? (parentId && isDesktopFolderAvailable(parentId, notes.value, deletedNotes.value) ? parentId : state.folerId || 'allnotes')
-      : resolveDesktopFolderIdFromNote(noteId)
+      : resolveDesktopFolderIdForNoteRoute(noteId)
     state.noteId = noteId
     state.parentId = noteId === '0' ? parentId : ''
   })
@@ -522,6 +559,7 @@ function handleFolderSelected(id: string) {
 
 function handleNoteSelected(id: string) {
   if (isDesktop.value) {
+    persistDesktopSelectionForFolderContext(id)
     navigateDesktopToNote(id)
     return
   }
@@ -541,6 +579,7 @@ async function handleAiOpenNote(payload: { isDeleted?: boolean, noteId: string, 
     return
   }
 
+  persistDesktopSelectionForFolderContext(targetNote.id, payload.parentId || state.folerId)
   navigateDesktopToNote(targetNote.id)
 }
 
@@ -613,6 +652,7 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
       updateDesktopBrowserUrl(getDesktopNoteRoutePath(event.noteId), 'replace')
     }
     else {
+      persistDesktopSelectionForFolderContext(event.noteId)
       navigateDesktopToNote(event.noteId)
     }
   }
