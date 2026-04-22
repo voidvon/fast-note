@@ -50,7 +50,7 @@
     "ionicons": "^8.0.13",
     "nanoid": "^5.1.5",
     "photoswipe": "^5.4.4",
-    "pocketbase": "^0.26.3",
+    "pocketbase": "^0.26.8",
     "sass": "^1.85.1",
     "tiptap-extension-global-drag-handle": "^0.1.18",
     "vconsole": "^3.15.1",
