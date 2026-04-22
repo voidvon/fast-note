@@ -1,0 +1,4 @@
+interface:
+  display_name: "FastNote Release Publisher"
+  short_description: "构建、打 tag、创建并校验 fastnote 的 GitHub 预发布版本"
+  default_prompt: "Use this skill to build fastnote release artifacts, create or reuse the correct git tag, publish a GitHub prerelease, upload assets safely, and verify the final release state."
