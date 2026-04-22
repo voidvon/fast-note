@@ -46,6 +46,7 @@ function createNoteDetailStub() {
 export async function mountHomePageForDesktopRestore(options: {
   notes: Note[]
   userId?: string | null
+  currentPath?: string
   snapshot?: {
     folderId: string
     noteId: string
@@ -60,6 +61,9 @@ export async function mountHomePageForDesktopRestore(options: {
 }) {
   vi.resetModules()
   localStorage.clear()
+
+  const currentPath = options.currentPath || '/home'
+  window.history.replaceState(window.history.state, '', currentPath)
 
   const scopedSnapshots = options.snapshots ?? (options.snapshot
     ? [{
@@ -133,8 +137,8 @@ export async function mountHomePageForDesktopRestore(options: {
     return {
       ...actual,
       useRoute: () => ({
-        path: '/home',
-        fullPath: '/home',
+        path: currentPath.split('?')[0] || '/home',
+        fullPath: currentPath,
         params: {},
         query: {},
       }),
