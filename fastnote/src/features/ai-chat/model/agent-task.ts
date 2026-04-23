@@ -1,10 +1,8 @@
 import { nanoid } from 'nanoid'
 import type { AiAgentConfirmationMode, AiAgentMutationRiskLevel } from './mutation-policy'
 import type { AiAgentRouteTargetSnapshot } from './route-target-snapshot'
-import {
-  isRouteTargetSnapshotMatched,
-  readCurrentRouteTargetSnapshot,
-} from './route-target-snapshot'
+import type { AiChatRequestContext } from './request-context'
+import { normalizeAiChatRequestContext } from './request-context'
 
 export type AiAgentTaskStatus =
   | 'identifying'
@@ -56,6 +54,7 @@ export interface AiAgentTask {
   riskLevel: AiAgentMutationRiskLevel
   restoredFromReload: boolean
   routeTargetSnapshot: AiAgentRouteTargetSnapshot | null
+  taskContextSnapshot: AiChatRequestContext | null
   requiresRelocation: boolean
   status: AiAgentTaskStatus
   steps: AiAgentTaskStep[]
@@ -165,7 +164,7 @@ function createTaskStep(input: {
   }
 }
 
-export function createAgentTask(input: string): AiAgentTask {
+export function createAgentTask(input: string, taskContextSnapshot: AiChatRequestContext | null = null): AiAgentTask {
   const createdAt = Date.now()
 
   return {
@@ -179,6 +178,7 @@ export function createAgentTask(input: string): AiAgentTask {
     riskLevel: 'none',
     restoredFromReload: false,
     routeTargetSnapshot: null,
+    taskContextSnapshot,
     requiresRelocation: false,
     status: 'identifying',
     steps: [
@@ -253,6 +253,7 @@ export function normalizeAgentTask(value: unknown): AiAgentTask | null {
     riskLevel: isRiskLevel(value.riskLevel) ? value.riskLevel : 'none',
     restoredFromReload: value.restoredFromReload === true,
     routeTargetSnapshot: normalizeRouteTargetSnapshot(value.routeTargetSnapshot),
+    taskContextSnapshot: normalizeAiChatRequestContext(value.taskContextSnapshot),
     requiresRelocation: value.requiresRelocation === true,
     status: isTaskStatus(value.status) ? value.status : 'identifying',
     steps,
@@ -261,29 +262,7 @@ export function normalizeAgentTask(value: unknown): AiAgentTask | null {
   }
 }
 
-export function restoreAgentTaskAfterReload(task: AiAgentTask, currentRouteSnapshot = readCurrentRouteTargetSnapshot()): AiAgentTask {
-  const matchesCurrentRoute = isRouteTargetSnapshotMatched(task.routeTargetSnapshot, currentRouteSnapshot)
-
-  if (task.requiresRelocation && matchesCurrentRoute) {
-    return updateAgentTask(task, {
-      requiresRelocation: false,
-    })
-  }
-
-  if (!matchesCurrentRoute) {
-    return updateAgentTask(task, {
-      appendStep: {
-        kind: 'interrupted',
-        title: '当前页面对象已变化',
-        detail: '恢复任务与当前桌面路由不一致，请回到原页面对象后再继续。',
-      },
-      requiresRelocation: true,
-      restoredFromReload: true,
-      status: task.status === 'waiting_confirmation' ? 'waiting_confirmation' : 'interrupted',
-      terminationReason: task.status === 'waiting_confirmation' ? 'waiting_confirmation' : 'restored',
-    })
-  }
-
+export function restoreAgentTaskAfterReload(task: AiAgentTask): AiAgentTask {
   if (task.status === 'waiting_confirmation' || task.restoredFromReload) {
     return task
   }

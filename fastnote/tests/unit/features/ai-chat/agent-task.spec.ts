@@ -49,10 +49,21 @@ describe('agent task helpers', () => {
   })
 
   it('normalizes persisted task and exposes status labels', () => {
-    const task = createAgentTask('读取 note-1')
+    const task = createAgentTask('读取 note-1', {
+      activeNote: {
+        id: 'note-1',
+        title: '周报',
+        summary: '待整理',
+        parentId: '',
+        updated: '2026-04-23 10:00:00',
+        isDeleted: false,
+        isLocked: false,
+      },
+    })
     const persisted = normalizeAgentTask(JSON.parse(JSON.stringify(task)))
 
     expect(persisted).not.toBeNull()
+    expect(persisted?.taskContextSnapshot?.activeNote?.id).toBe('note-1')
     expect(getAgentTaskStatusLabel('identifying')).toBe('理解中')
     expect(getAgentTaskStatusLabel('waiting_confirmation')).toBe('待确认')
     expect(getAgentTaskStatusLabel('completed')).toBe('已完成')

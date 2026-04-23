@@ -52,7 +52,12 @@ import {
   createLlmContextSummarizer,
   deterministicContextSummarizer,
 } from './memory/context-summary'
-import { AI_CHAT_REQUEST_CONTEXT_BODY_KEY, buildAiChatContextSystemPrompt } from './request-context'
+import {
+  AI_CHAT_REQUEST_CONTEXT_BODY_KEY,
+  buildAiChatContextSystemPrompt,
+  normalizeAiChatRequestContext,
+  omitAiChatRequestContextRoutePath,
+} from './request-context'
 import {
   createRouteTargetSnapshot,
   isRouteTargetSnapshotMatched,
@@ -550,7 +555,7 @@ function hydrateAgentTask() {
 
   try {
     const restoredTask = normalizeAgentTask(JSON.parse(stored))
-    setCurrentTask(restoredTask ? restoreAgentTaskAfterReload(restoredTask, readCurrentRouteTargetSnapshot()) : null)
+    setCurrentTask(restoredTask ? restoreAgentTaskAfterReload(restoredTask) : null)
     if (!currentTask.value) {
       localStorage.removeItem(getAgentTaskStorageKey())
     }
@@ -834,62 +839,67 @@ async function prepareWorkingMemoryForRequest(input: {
     return null
   }
 
-  const baseMemory = createAiWorkingMemoryFromTask(currentTask.value, {
-    context: input.context === undefined ? lastRequestContext.value : input.context,
-    previous: currentWorkingMemory.value,
-    scope: getWorkingMemoryStorageKey(),
-    latestToolResultSummary: input.latestToolResultSummary,
-    lastCompressionReason: input.lastCompressionReason,
-  })
+  try {
+    const baseMemory = createAiWorkingMemoryFromTask(currentTask.value, {
+      context: input.context === undefined ? lastRequestContext.value : input.context,
+      previous: currentWorkingMemory.value,
+      scope: getWorkingMemoryStorageKey(),
+      latestToolResultSummary: input.latestToolResultSummary,
+      lastCompressionReason: input.lastCompressionReason,
+    })
 
-  if (!baseMemory) {
-    setCurrentWorkingMemory(null)
-    return null
-  }
+    if (!baseMemory) {
+      setCurrentWorkingMemory(null)
+      return null
+    }
 
-  const messages = input.pendingMessages?.length
-    ? chat.messages.concat(input.pendingMessages)
-    : chat.messages
-  const decision = await shouldPrepareConversationSummaryAsync({
-    context: input.context,
-    memory: baseMemory,
-    pendingMessages: input.pendingMessages,
-  })
-  if (!decision.shouldSummarize) {
-    setCurrentWorkingMemory(baseMemory)
-    return baseMemory
-  }
+    const messages = input.pendingMessages?.length
+      ? chat.messages.concat(input.pendingMessages)
+      : chat.messages
+    const decision = await shouldPrepareConversationSummaryAsync({
+      context: input.context,
+      memory: baseMemory,
+      pendingMessages: input.pendingMessages,
+    })
+    if (!decision.shouldSummarize) {
+      setCurrentWorkingMemory(baseMemory)
+      return baseMemory
+    }
 
-  const llmSummarizer = createLlmContextSummarizer({
-    async complete({ prompt }) {
-      return await requestOpenAiCompatibleCompletion({
-        messages: [{
-          id: nanoid(),
-          role: 'user',
-          parts: [{
-            type: 'text',
-            text: prompt,
-            state: 'done',
+    const llmSummarizer = createLlmContextSummarizer({
+      async complete({ prompt }) {
+        return await requestOpenAiCompatibleCompletion({
+          messages: [{
+            id: nanoid(),
+            role: 'user',
+            parts: [{
+              type: 'text',
+              text: prompt,
+              state: 'done',
+            }],
           }],
-        }],
-        settings: settingsState,
-        systemPrompt: CONTEXT_SUMMARIZER_SYSTEM_PROMPT,
-      })
-    },
-  })
+          settings: settingsState,
+          systemPrompt: CONTEXT_SUMMARIZER_SYSTEM_PROMPT,
+        })
+      },
+    })
 
-  const nextMemory = await applyConversationSummaryToWorkingMemoryAsync(
-    baseMemory,
-    messages,
-    {
-      fallbackSummarizer: deterministicContextSummarizer,
-      lastCompressionReason: input.lastCompressionReason || 'history_summary',
-      summarizer: llmSummarizer,
-    },
-  )
+    const nextMemory = await applyConversationSummaryToWorkingMemoryAsync(
+      baseMemory,
+      messages,
+      {
+        fallbackSummarizer: deterministicContextSummarizer,
+        lastCompressionReason: input.lastCompressionReason || 'history_summary',
+        summarizer: llmSummarizer,
+      },
+    )
 
-  setCurrentWorkingMemory(nextMemory)
-  return nextMemory
+    setCurrentWorkingMemory(nextMemory)
+    return nextMemory
+  }
+  catch {
+    return updateWorkingMemory(input)
+  }
 }
 
 function setCurrentTask(nextTask: AiAgentTask | null) {
@@ -932,13 +942,23 @@ function updateCurrentTask(
   return nextTask
 }
 
-function startAgentTaskIfNeeded(input: string) {
+function createTaskExecutionContextSnapshot(context: AiChatRequestContext | null | undefined) {
+  return omitAiChatRequestContextRoutePath(context)
+}
+
+function resolveTaskExecutionContext(task: AiAgentTask | null | undefined, fallbackContext?: AiChatRequestContext | null) {
+  return task?.taskContextSnapshot
+    || createTaskExecutionContextSnapshot(fallbackContext)
+    || null
+}
+
+function startAgentTaskIfNeeded(input: string, requestContext?: AiChatRequestContext | null) {
   if (!isLikelyAgentTaskRequest(input)) {
     setCurrentTask(null)
     return null
   }
 
-  const task = createAgentTask(input)
+  const task = createAgentTask(input, createTaskExecutionContextSnapshot(requestContext))
   setCurrentTask(task)
   return task
 }
@@ -1404,7 +1424,7 @@ async function continueAssistantAfterToolResults(
 ) {
   hydrateSettings()
   const followUpSystemMessage = createHiddenSystemMessage(buildToolLoopPrompt(resultsSummary, results, lastRequestContext.value, options))
-  const preparedWorkingMemory = await prepareWorkingMemoryForRequest({
+  const preparedWorkingMemory = updateWorkingMemory({
     context: lastRequestContext.value,
     lastCompressionReason: 'tool_results',
     latestToolResultSummary: resultsSummary,
@@ -1886,7 +1906,7 @@ const conversationProgress = computed<AiChatProgressState | null>(() => {
 })
 
 function createChatRequestBody(context?: AiChatRequestContext | null, workingMemoryOverride?: AiWorkingMemory | null) {
-  const normalizedContext = context || null
+  const normalizedContext = normalizeAiChatRequestContext(context)
   lastRequestContext.value = normalizedContext
   const workingMemory = workingMemoryOverride === undefined
     ? (currentWorkingMemory.value || updateWorkingMemory({
@@ -1923,25 +1943,29 @@ async function sendMessage(text: string, options: {
   }
 
   chat.clearError()
+  const requestContext = options.reuseCurrentTask
+    ? resolveTaskExecutionContext(currentTask.value, options.requestContext)
+    : createTaskExecutionContextSnapshot(options.requestContext)
+
   if (agentFeatureEnabled) {
     if (options.reuseCurrentTask) {
       resumeCurrentTask()
     }
     else {
-      startAgentTaskIfNeeded(content)
+      startAgentTaskIfNeeded(content, requestContext)
+      updateCurrentTask(task => updateAgentTask(task, {
+        routeTargetSnapshot: createRouteTargetSnapshot(options.requestContext || null),
+        taskContextSnapshot: requestContext,
+      }))
     }
-
-    updateCurrentTask(task => updateAgentTask(task, {
-      routeTargetSnapshot: createRouteTargetSnapshot(options.requestContext || null),
-    }))
   }
 
-  const preparedWorkingMemory = await prepareWorkingMemoryForRequest({
-    context: options.requestContext,
+  const preparedWorkingMemory = updateWorkingMemory({
+    context: requestContext,
     lastCompressionReason: 'request_prepare',
     pendingMessages: [createTextMessage('user', content)],
   })
-  const requestBody = createChatRequestBody(options.requestContext, preparedWorkingMemory)
+  const requestBody = createChatRequestBody(requestContext, preparedWorkingMemory)
   void chat.sendMessage(
     { text: content },
     requestBody
@@ -1970,21 +1994,12 @@ async function resumeInterruptedTask(options: {
     return false
   }
 
-  if (!isRouteTargetSnapshotMatched(currentTask.value.routeTargetSnapshot, readCurrentRouteTargetSnapshot())) {
-    updateCurrentTask(task => updateAgentTask(task, {
-      appendStep: {
-        kind: 'interrupted',
-        title: '当前页面对象已变化',
-        detail: '请先回到原页面对象，再继续当前任务。',
-      },
-      requiresRelocation: true,
-      terminationReason: 'restored',
-    }))
+  if (currentTask.value.requiresRelocation) {
     return false
   }
 
   return await sendMessage(currentTask.value.input, {
-    requestContext: options.requestContext,
+    requestContext: resolveTaskExecutionContext(currentTask.value, options.requestContext),
     reuseCurrentTask: true,
   })
 }
@@ -1995,7 +2010,7 @@ async function regenerate() {
   }
 
   chat.clearError()
-  const preparedWorkingMemory = await prepareWorkingMemoryForRequest({
+  const preparedWorkingMemory = updateWorkingMemory({
     context: lastRequestContext.value,
     lastCompressionReason: 'regenerate_prepare',
   })
@@ -2216,7 +2231,14 @@ export function useAiChat() {
         return false
       }
 
-      return isRouteTargetSnapshotMatched(currentTask.value.routeTargetSnapshot, readCurrentRouteTargetSnapshot())
+      return currentTask.value.requiresRelocation !== true
+    }),
+    hasTaskRouteMismatch: computed(() => {
+      if (!agentFeatureEnabled || !currentTask.value?.routeTargetSnapshot) {
+        return false
+      }
+
+      return !isRouteTargetSnapshotMatched(currentTask.value.routeTargetSnapshot, readCurrentRouteTargetSnapshot())
     }),
     currentTask,
     currentWorkingMemory,
