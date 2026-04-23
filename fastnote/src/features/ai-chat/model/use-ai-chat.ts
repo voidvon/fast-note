@@ -1805,6 +1805,22 @@ const tokenizerHint = computed(() => {
       return `当前使用默认 ${implementationLabel}：${resolved.label}`
   }
 })
+const contextRemainingPercent = computed(() => {
+  const memoryPrompt = buildAiWorkingMemorySystemPrompt(currentWorkingMemory.value)
+  const estimate = estimateContextBudget({
+    contextSystemPrompt: buildAiChatContextSystemPrompt(lastRequestContext.value),
+    contextWindowTokens: settingsState.contextWindowTokens,
+    messages: chat.messages,
+    model: settingsState.model,
+    systemPrompt: DEFAULT_SYSTEM_PROMPT,
+    workingMemory: currentWorkingMemory.value,
+    workingMemorySystemPrompt: memoryPrompt,
+  })
+  const remainingRatio = estimate.dynamicBudgetTokens > 0
+    ? Math.max(0, Math.min(1, estimate.remainingInputTokens / estimate.dynamicBudgetTokens))
+    : 0
+  return Math.round(remainingRatio * 100)
+})
 const sessionPhase = computed<AiChatSessionPhase>(() => {
   if (!hasConfiguredProvider.value) {
     return 'unconfigured'
@@ -2184,6 +2200,7 @@ export function useAiChat() {
     clearConversation,
     canRegenerate,
     cancelPendingExecution,
+    contextRemainingPercent,
     contextWindowHint,
     tokenizerHint,
     hasConfiguredProvider,
