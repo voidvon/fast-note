@@ -23,6 +23,7 @@ const {
   clearConversation,
   confirmPendingExecution,
   canResumeInterruptedTask,
+  contextRemainingPercent,
   conversationProgress,
   contextWindowHint,
   currentTask,
@@ -303,6 +304,7 @@ function handleMessageAction(action: ChatMessageCardAction) {
   <div class="ai-chat-panel">
     <AiChatToolbar
       :can-clear="hasVisibleMessages"
+      :context-remaining-percent="contextRemainingPercent"
       :provider-label="providerLabel"
       @clear="clearConversation"
       @open-settings="openSettings"
