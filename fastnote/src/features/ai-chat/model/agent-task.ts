@@ -164,6 +164,40 @@ function createTaskStep(input: {
   }
 }
 
+function isLegacyRouteMismatchStep(step: AiAgentTaskStep | undefined) {
+  if (!step) {
+    return false
+  }
+
+  if (step.title !== '当前页面对象已变化') {
+    return false
+  }
+
+  return step.detail.includes('恢复任务与当前桌面路由不一致')
+    || step.detail.includes('请先回到原页面对象')
+}
+
+function sanitizeLegacyRouteMismatchState(task: AiAgentTask) {
+  const lastStep = task.steps.at(-1)
+  const shouldDropLegacyStep = isLegacyRouteMismatchStep(lastStep)
+  const shouldResetRelocation = task.requiresRelocation && !!task.taskContextSnapshot
+
+  if (!shouldDropLegacyStep && !shouldResetRelocation) {
+    return task
+  }
+
+  const nextSteps = shouldDropLegacyStep && task.steps.length > 1
+    ? task.steps.slice(0, -1)
+    : task.steps
+
+  return {
+    ...task,
+    requiresRelocation: shouldResetRelocation ? false : task.requiresRelocation,
+    steps: nextSteps,
+    updatedAt: Date.now(),
+  }
+}
+
 export function createAgentTask(input: string, taskContextSnapshot: AiChatRequestContext | null = null): AiAgentTask {
   const createdAt = Date.now()
 
@@ -263,12 +297,14 @@ export function normalizeAgentTask(value: unknown): AiAgentTask | null {
 }
 
 export function restoreAgentTaskAfterReload(task: AiAgentTask): AiAgentTask {
-  if (task.status === 'waiting_confirmation' || task.restoredFromReload) {
-    return task
+  const sanitizedTask = sanitizeLegacyRouteMismatchState(task)
+
+  if (sanitizedTask.status === 'waiting_confirmation' || sanitizedTask.restoredFromReload) {
+    return sanitizedTask
   }
 
-  if (task.status === 'identifying' || task.status === 'executing') {
-    return updateAgentTask(task, {
+  if (sanitizedTask.status === 'identifying' || sanitizedTask.status === 'executing') {
+    return updateAgentTask(sanitizedTask, {
       appendStep: {
         kind: 'interrupted',
         title: '页面刷新后任务已中断',
@@ -280,7 +316,7 @@ export function restoreAgentTaskAfterReload(task: AiAgentTask): AiAgentTask {
     })
   }
 
-  return task
+  return sanitizedTask
 }
 
 export function getAgentTaskStatusLabel(status: AiAgentTaskStatus) {
