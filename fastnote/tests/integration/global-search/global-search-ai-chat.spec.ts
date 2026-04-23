@@ -2279,6 +2279,141 @@ describe('global search ai chat', () => {
     wrapper.unmount()
   })
 
+  it('keeps the post-read summary in later request history after a tool loop answer', async () => {
+    aiChatSessionMock.submitToolCalls.mockImplementationOnce(async () => {
+      const results = [{
+        ok: true,
+        code: 'ok',
+        message: null,
+        preview: {
+          title: '读取备忘录详情',
+          summary: '读取备忘录 gZH3JOfbVYNl 的详情',
+          affectedNoteIds: ['gZH3JOfbVYNl'],
+        },
+        data: {
+          note: {
+            id: 'gZH3JOfbVYNl',
+            title: '冰箱',
+            summary: '',
+            content: '<h1>冰箱</h1><p></p><p></p><table><tbody><tr><td></td><td></td></tr><tr><td></td><td></td></tr></tbody></table>',
+            parent_id: '',
+            updated: '2026-04-22 10:08:50',
+            is_deleted: 0,
+            is_locked: 0,
+          },
+          source: 'store',
+        },
+        affectedNoteIds: ['gZH3JOfbVYNl'],
+      }]
+
+      aiChatSessionMock.hasPendingConfirmation.value = false
+      aiChatSessionMock.lastResults.value = results
+      return results
+    })
+
+    const fetchMock = vi.fn()
+      .mockImplementationOnce(async () => createSseResponse([
+        JSON.stringify({
+          choices: [{
+            delta: {
+              role: 'assistant',
+            },
+          }],
+        }),
+        JSON.stringify({
+          choices: [{
+            delta: {
+              content: JSON.stringify({
+                mode: 'tool_calls',
+                answer: '先读取这条备忘录内容，再为你总结。',
+                toolCalls: [{
+                  tool: 'get_note_detail',
+                  payload: {
+                    noteId: 'gZH3JOfbVYNl',
+                  },
+                }],
+              }),
+            },
+            finish_reason: 'stop',
+          }],
+        }),
+      ]))
+      .mockImplementationOnce(async () => createJsonResponse({
+        choices: [{
+          message: {
+            role: 'assistant',
+            content: [
+              '这条备忘录目前内容很少，主要是一个空白模板。',
+              '',
+              '总结：',
+              '',
+              '标题：冰箱',
+              '正文基本为空',
+              '包含一个 2×2 的空表格',
+              '暂时没有记录任何食材、数量、日期或备注信息',
+              '如果你愿意，我也可以顺手帮你把它整理成一个更实用的“冰箱库存清单模板”。',
+            ].join('\n'),
+          },
+          finish_reason: 'stop',
+        }],
+      }))
+      .mockImplementationOnce(async () => createSseResponse([
+        JSON.stringify({
+          choices: [{
+            delta: {
+              role: 'assistant',
+            },
+          }],
+        }),
+        JSON.stringify({
+          choices: [{
+            delta: {
+              content: '好的，我来把它整理成模板。',
+            },
+            finish_reason: 'stop',
+          }],
+        }),
+      ]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { useAiChat } = await import('@/features/ai-chat')
+    useAiChat().saveSettings({
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4.1-mini',
+    })
+
+    const wrapper = await mountGlobalSearch()
+    const input = await ensureAiMode(wrapper)
+
+    await input.setValue('@冰箱(/n/gZH3JOfbVYNl) 总结一下这个备忘录')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.text()).toContain('这条备忘录目前内容很少')
+    expect(wrapper.text()).toContain('冰箱库存清单模板')
+
+    await input.setValue('愿意')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    const thirdRequest = fetchMock.mock.calls[2]?.[1]
+    const thirdRequestBody = JSON.parse(String(thirdRequest?.body || '{}'))
+    const assistantHistory = (thirdRequestBody.messages || [])
+      .filter((message: { role?: string }) => message.role === 'assistant')
+      .map((message: { content?: string }) => message.content || '')
+      .join('\n')
+
+    expect(assistantHistory).toContain('这条备忘录目前内容很少，主要是一个空白模板。')
+    expect(assistantHistory).toContain('如果你愿意，我也可以顺手帮你把它整理成一个更实用的“冰箱库存清单模板”。')
+    expect(assistantHistory).not.toContain('"tool":"get_note_detail"')
+
+    wrapper.unmount()
+  })
+
   it('emits open-folder when clicking a folder result card action', async () => {
     aiChatSessionMock.submitToolCalls.mockImplementationOnce(async () => {
       const results = [{

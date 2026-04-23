@@ -1293,7 +1293,9 @@ function appendTextBlockToAssistantMessage(messageId: string | null | undefined,
   }
 
   setMessageBlocks(messageId, blocks)
-  return getRenderedTextFromBlocks(blocks)
+  const renderedText = getRenderedTextFromBlocks(blocks)
+  syncAssistantMessageText(messageId, renderedText)
+  return renderedText
 }
 
 function appendCardsBlockToAssistantMessage(messageId: string | null | undefined, cards?: ChatMessageCard[]) {
@@ -1352,6 +1354,23 @@ function appendAssistantMessage(text: string, cards?: ChatMessageCard[]) {
     blocks.push(buildCardsBlock(nextCards))
   }
   setMessageBlocks(messageId, blocks)
+}
+
+function syncAssistantMessageText(messageId: string | null | undefined, text: string) {
+  if (!messageId) {
+    return
+  }
+
+  const targetMessage = chat.messages.find(message => message.id === messageId && message.role === 'assistant')
+  if (!targetMessage) {
+    return
+  }
+
+  targetMessage.parts = [{
+    type: 'text' as const,
+    text: text.trim(),
+    state: 'done' as const,
+  }]
 }
 
 function mergeCards(...groups: Array<ChatMessageCard[] | undefined>) {
