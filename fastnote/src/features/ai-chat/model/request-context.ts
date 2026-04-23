@@ -128,29 +128,63 @@ export function normalizeAiChatRequestContext(value: unknown): AiChatRequestCont
     return null
   }
 
-  const context: AiChatRequestContext = {
-    source: typeof value.source === 'string' ? value.source : '',
-    routePath: typeof value.routePath === 'string' ? value.routePath : '',
-    publicUserId: typeof value.publicUserId === 'string' ? value.publicUserId : null,
-    activeFolder: normalizeContextFolder(value.activeFolder),
-    activeNote: normalizeContextNote(value.activeNote),
-    candidateNotes: normalizeContextNoteList(value.candidateNotes),
-    recentNotes: normalizeContextNoteList(value.recentNotes),
-    resolvedTarget: normalizeResolvedTarget(value.resolvedTarget),
-  }
+  const source = typeof value.source === 'string' ? value.source.trim() : ''
+  const routePath = typeof value.routePath === 'string' ? value.routePath.trim() : ''
+  const publicUserId = typeof value.publicUserId === 'string' ? value.publicUserId : null
+  const activeFolder = normalizeContextFolder(value.activeFolder)
+  const activeNote = normalizeContextNote(value.activeNote)
+  const candidateNotes = normalizeContextNoteList(value.candidateNotes)
+  const recentNotes = normalizeContextNoteList(value.recentNotes)
+  const resolvedTarget = normalizeResolvedTarget(value.resolvedTarget)
 
-  if (!context.source
-    && !context.routePath
-    && !context.publicUserId
-    && !context.activeFolder
-    && !context.activeNote
-    && !context.candidateNotes?.length
-    && !context.recentNotes?.length
-    && !context.resolvedTarget) {
+  if (!source
+    && !routePath
+    && !publicUserId
+    && !activeFolder
+    && !activeNote
+    && !candidateNotes.length
+    && !recentNotes.length
+    && !resolvedTarget) {
     return null
   }
 
+  const context: AiChatRequestContext = {}
+  if (source) {
+    context.source = source
+  }
+  if (routePath) {
+    context.routePath = routePath
+  }
+  if (publicUserId) {
+    context.publicUserId = publicUserId
+  }
+  if (activeFolder) {
+    context.activeFolder = activeFolder
+  }
+  if (activeNote) {
+    context.activeNote = activeNote
+  }
+  if (candidateNotes.length) {
+    context.candidateNotes = candidateNotes
+  }
+  if (recentNotes.length) {
+    context.recentNotes = recentNotes
+  }
+  if (resolvedTarget) {
+    context.resolvedTarget = resolvedTarget
+  }
+
   return context
+}
+
+export function omitAiChatRequestContextRoutePath(context: AiChatRequestContext | null | undefined) {
+  const normalizedContext = normalizeAiChatRequestContext(context)
+  if (!normalizedContext) {
+    return null
+  }
+
+  const { routePath: _, ...rest } = normalizedContext
+  return normalizeAiChatRequestContext(rest)
 }
 
 function formatNoteLine(note: AiChatContextNote) {

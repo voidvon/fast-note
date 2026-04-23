@@ -610,9 +610,7 @@ function handleAiPrefill(value: string) {
 }
 
 async function handleResumeTask() {
-  const resumed = await resumeInterruptedTask({
-    requestContext: createAiRequestContext(currentTask.value?.input || ''),
-  })
+  const resumed = await resumeInterruptedTask()
 
   if (!resumed) {
     return

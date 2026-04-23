@@ -1077,10 +1077,20 @@ describe('global search ai chat', () => {
     wrapper.unmount()
   })
 
-  it('keeps the current desktop deep link and marks restored tasks for relocation when route objects mismatch', async () => {
+  it('keeps the current desktop deep link and resumes the original task context without resending routePath', async () => {
     window.history.replaceState(null, '', '/n/note-2')
 
-    const persistedTask = updateAgentTask(createAgentTask('继续处理这条笔记'), {
+    const persistedTask = updateAgentTask(createAgentTask('继续处理这条笔记', {
+      activeNote: {
+        id: 'note-1',
+        title: '周报',
+        summary: '待整理',
+        parentId: '',
+        updated: '2026-04-16 10:00:00',
+        isDeleted: false,
+        isLocked: false,
+      },
+    }), {
       routeTargetSnapshot: {
         routePath: '/n/note-1',
         noteId: 'note-1',
@@ -1088,10 +1098,29 @@ describe('global search ai chat', () => {
         parentId: '',
         overlayMode: 'ai',
       },
-      status: 'waiting_confirmation',
-      terminationReason: 'waiting_confirmation',
+      status: 'executing',
+      terminationReason: 'running',
     })
     localStorage.setItem(createScopedStorageKey('ai-chat-agent-task'), JSON.stringify(persistedTask))
+
+    const fetchMock = vi.fn(async () => createSseResponse([
+      JSON.stringify({
+        choices: [{
+          delta: {
+            role: 'assistant',
+          },
+        }],
+      }),
+      JSON.stringify({
+        choices: [{
+          delta: {
+            content: '已按原任务对象继续处理。',
+          },
+          finish_reason: 'stop',
+        }],
+      }),
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
 
     const { useAiChat } = await import('@/features/ai-chat')
     useAiChat().saveSettings({
@@ -1104,9 +1133,24 @@ describe('global search ai chat', () => {
     await ensureAiMode(wrapper)
 
     expect(window.location.pathname).toBe('/n/note-2')
-    expect(wrapper.text()).toContain('当前页面对象已变化')
-    expect(wrapper.text()).toContain('请回到原来的笔记或目录后再继续')
-    expect(wrapper.text()).not.toContain('继续任务')
+    expect(wrapper.text()).toContain('你当前浏览的是其他页面，继续任务仍会基于原任务对象执行。')
+    expect(wrapper.text()).toContain('继续任务')
+
+    const resumeButton = wrapper.findAll('button').find(item => item.text() === '继续任务')
+    expect(resumeButton).toBeTruthy()
+    await resumeButton!.trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const request = fetchMock.mock.calls[0]?.[1]
+    const body = JSON.parse(String(request?.body || '{}'))
+    const contextPrompt = body.messages.find((message: { content?: string, role?: string }) => {
+      return message.role === 'system' && typeof message.content === 'string' && message.content.includes('当前选中备忘录')
+    })?.content
+    expect(contextPrompt).toContain('note-1')
+    expect(contextPrompt).not.toContain('当前路由')
+    expect(wrapper.text()).toContain('已按原任务对象继续处理。')
 
     wrapper.unmount()
   })

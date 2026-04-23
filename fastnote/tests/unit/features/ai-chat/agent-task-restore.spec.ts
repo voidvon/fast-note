@@ -50,7 +50,7 @@ describe('restoreAgentTaskAfterReload', () => {
     expect(restored).toBe(task)
   })
 
-  it('marks route-mismatched tasks as requiring relocation', () => {
+  it('keeps route-mismatched waiting confirmation tasks resumable after reload', () => {
     const task = updateAgentTask(createAgentTask('读取 note-1'), {
       routeTargetSnapshot: {
         routePath: '/n/note-1',
@@ -63,18 +63,10 @@ describe('restoreAgentTaskAfterReload', () => {
       terminationReason: 'waiting_confirmation',
     })
 
-    const restored = restoreAgentTaskAfterReload(task, {
-      routePath: '/n/note-2',
-      noteId: 'note-2',
-      folderId: '',
-      parentId: '',
-      overlayMode: 'ai',
-    })
+    const restored = restoreAgentTaskAfterReload(task)
 
     expect(restored.status).toBe('waiting_confirmation')
-    expect(restored.requiresRelocation).toBe(true)
-    expect(restored.steps.at(-1)).toMatchObject({
-      title: '当前页面对象已变化',
-    })
+    expect(restored.requiresRelocation).toBe(false)
+    expect(restored.steps).toHaveLength(task.steps.length)
   })
 })
