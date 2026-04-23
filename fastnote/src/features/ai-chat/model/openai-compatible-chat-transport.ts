@@ -5,14 +5,21 @@ import type {
   UIMessageChunk,
 } from 'ai'
 import { nanoid } from 'nanoid'
+import { applyWorkingMemoryToMessages } from './memory/context-compression'
 import {
   buildAiChatContextSystemPrompt,
   extractAiChatRequestContext,
 } from './request-context'
+import {
+  type AiWorkingMemory,
+  buildAiWorkingMemorySystemPrompt,
+  extractAiWorkingMemory,
+} from './working-memory'
 
 export interface OpenAiCompatibleChatSettings {
   apiKey: string
   baseUrl: string
+  contextWindowTokens?: number
   model: string
 }
 
@@ -106,15 +113,17 @@ export class OpenAiCompatibleChatTransport implements ChatTransport<UIMessage> {
   } & ChatRequestOptions): Promise<ReadableStream<UIMessageChunk>> {
     const settings = this.resolveSettings()
     assertCompleteSettings(settings)
-    const { context, requestBody: extraRequestBody } = extractAiChatRequestContext(body)
+    const { context, requestBody: contextRequestBody } = extractAiChatRequestContext(body)
+    const { requestBody: extraRequestBody, workingMemory } = extractAiWorkingMemory(contextRequestBody)
     const contextSystemPrompt = buildAiChatContextSystemPrompt(context)
+    const workingMemorySystemPrompt = buildAiWorkingMemorySystemPrompt(workingMemory)
 
     const response = await requestOpenAiCompatibleResponse({
       abortSignal,
       body: {
         model: settings.model,
         stream: true,
-        messages: buildOpenAiMessages(messages, this.systemPrompt, contextSystemPrompt),
+        messages: buildOpenAiMessages(messages, this.systemPrompt, contextSystemPrompt, workingMemorySystemPrompt, workingMemory),
         ...extraRequestBody,
       },
       fetchImplementation: this.fetchImplementation,
@@ -168,7 +177,13 @@ function toRecord(headers?: Record<string, string> | Headers) {
   return headers
 }
 
-export function buildOpenAiMessages(messages: UIMessage[], systemPrompt: string, contextSystemPrompt = ''): OpenAiCompatibleMessage[] {
+export function buildOpenAiMessages(
+  messages: UIMessage[],
+  systemPrompt: string,
+  contextSystemPrompt = '',
+  workingMemorySystemPrompt = '',
+  workingMemory: AiWorkingMemory | null | undefined = null,
+): OpenAiCompatibleMessage[] {
   const requestMessages: OpenAiCompatibleMessage[] = []
 
   if (systemPrompt.trim()) {
@@ -185,7 +200,15 @@ export function buildOpenAiMessages(messages: UIMessage[], systemPrompt: string,
     })
   }
 
-  for (const message of messages) {
+  if (workingMemorySystemPrompt.trim()) {
+    requestMessages.push({
+      role: 'system',
+      content: workingMemorySystemPrompt.trim(),
+    })
+  }
+
+  const visibleMessages = applyWorkingMemoryToMessages(messages, workingMemory)
+  for (const message of visibleMessages) {
     const content = extractPlainText(message)
     if (!content) {
       continue
@@ -253,13 +276,18 @@ export async function requestOpenAiCompatibleCompletion(options: {
   settings: OpenAiCompatibleChatSettings
   systemPrompt?: string
 }) {
+  const { context, requestBody: contextRequestBody } = extractAiChatRequestContext(options.body)
+  const { requestBody: extraRequestBody, workingMemory } = extractAiWorkingMemory(contextRequestBody)
+  const contextSystemPrompt = buildAiChatContextSystemPrompt(context)
+  const workingMemorySystemPrompt = buildAiWorkingMemorySystemPrompt(workingMemory)
+
   const response = await requestOpenAiCompatibleResponse({
     abortSignal: options.abortSignal,
     body: {
       model: options.settings.model,
       stream: false,
-      messages: buildOpenAiMessages(options.messages, options.systemPrompt || DEFAULT_SYSTEM_PROMPT),
-      ...(options.body || {}),
+      messages: buildOpenAiMessages(options.messages, options.systemPrompt || DEFAULT_SYSTEM_PROMPT, contextSystemPrompt, workingMemorySystemPrompt, workingMemory),
+      ...extraRequestBody,
     },
     fetchImplementation: options.fetchImplementation,
     headers: options.headers,

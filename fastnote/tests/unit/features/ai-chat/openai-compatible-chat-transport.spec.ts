@@ -1,11 +1,13 @@
 import type { UIMessageChunk } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 import {
+  buildOpenAiMessages,
   DEFAULT_SYSTEM_PROMPT,
   OpenAiCompatibleChatTransport,
   resolveChatCompletionsEndpoint,
 } from '@/features/ai-chat/model/openai-compatible-chat-transport'
 import { AI_CHAT_REQUEST_CONTEXT_BODY_KEY } from '@/features/ai-chat/model/request-context'
+import { AI_CHAT_WORKING_MEMORY_BODY_KEY } from '@/features/ai-chat/model/working-memory'
 
 function createSseResponse(events: string[]) {
   const encoder = new TextEncoder()
@@ -122,7 +124,7 @@ describe('openAiCompatibleChatTransport', () => {
     expect(chunks.filter(chunk => chunk.type === 'text-delta').map(chunk => chunk.delta).join('')).toBe('你好，这里是流式回复。')
   })
 
-  it('injects local context as a system message and strips internal request fields', async () => {
+  it('injects local context and working memory as system messages and strips internal request fields', async () => {
     const fetchMock = vi.fn(async () => createSseResponse([
       JSON.stringify({
         choices: [{
@@ -170,6 +172,16 @@ describe('openAiCompatibleChatTransport', () => {
             },
           },
         },
+        [AI_CHAT_WORKING_MEMORY_BODY_KEY]: {
+          version: 1,
+          taskId: 'task-1',
+          scope: 'private',
+          status: 'summarized',
+          taskSummary: '读取链接里的周报并总结重点',
+          latestToolResultSummary: '已读取正文',
+          lastCompressionAt: '2026-04-23T10:00:00.000Z',
+          sourceMessageIds: ['msg-1'],
+        },
         temperature: 0.3,
       },
       chatId: 'chat-1',
@@ -190,6 +202,7 @@ describe('openAiCompatibleChatTransport', () => {
 
     expect(body.temperature).toBe(0.3)
     expect(body[AI_CHAT_REQUEST_CONTEXT_BODY_KEY]).toBeUndefined()
+    expect(body[AI_CHAT_WORKING_MEMORY_BODY_KEY]).toBeUndefined()
     expect(body.messages[0]).toMatchObject({
       role: 'system',
     })
@@ -199,8 +212,48 @@ describe('openAiCompatibleChatTransport', () => {
     expect(body.messages[1].content).toContain('当前选中备忘录')
     expect(body.messages[1].content).toContain('前端显式解析目标备忘录')
     expect(body.messages[2]).toMatchObject({
+      role: 'system',
+    })
+    expect(body.messages[2].content).toContain('任务工作记忆')
+    expect(body.messages[2].content).toContain('读取链接里的周报并总结重点')
+    expect(body.messages[3]).toMatchObject({
       role: 'user',
       content: '帮我处理当前备忘录',
     })
+  })
+
+  it('drops compressed middle messages when working memory marks them as summarized', () => {
+    const messages = buildOpenAiMessages([
+      {
+        id: 'msg-1',
+        role: 'user',
+        parts: [{ type: 'text', text: '第一条' }],
+      },
+      {
+        id: 'msg-2',
+        role: 'assistant',
+        parts: [{ type: 'text', text: '第二条' }],
+      },
+      {
+        id: 'msg-3',
+        role: 'user',
+        parts: [{ type: 'text', text: '第三条' }],
+      },
+    ], '系统提示', '', '任务工作记忆', {
+      version: 1,
+      taskId: 'task-1',
+      scope: 'private',
+      status: 'summarized',
+      taskSummary: '已压缩历史',
+      lastCompressionAt: '2026-04-23T10:00:00.000Z',
+      sourceMessageIds: ['msg-2'],
+    })
+
+    expect(messages.map(message => `${message.role}:${message.content}`)).toEqual([
+      'system:系统提示',
+      'system:任务工作记忆',
+      'user:第一条',
+      'user:第三条',
+    ])
   })
 })

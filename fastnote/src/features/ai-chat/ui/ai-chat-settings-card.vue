@@ -4,7 +4,10 @@ import { IonButton, IonInput, IonItem, IonLabel, IonList, IonNote } from '@ionic
 const props = defineProps<{
   apiKey: string
   baseUrl: string
+  contextWindowHint?: string
+  contextWindowTokens?: number | string
   model: string
+  tokenizerHint?: string
 }>()
 
 const emit = defineEmits<{
@@ -12,6 +15,7 @@ const emit = defineEmits<{
   'save': []
   'update:apiKey': [value: string]
   'update:baseUrl': [value: string]
+  'update:contextWindowTokens': [value: string]
   'update:model': [value: string]
 }>()
 </script>
@@ -20,6 +24,12 @@ const emit = defineEmits<{
   <section>
     <IonNote>
       当前是浏览器直连模式，API Key 会保存在本地浏览器，请只在受信任环境中使用。
+    </IonNote>
+    <IonNote v-if="props.contextWindowHint" class="ai-chat-settings-card__hint">
+      {{ props.contextWindowHint }}
+    </IonNote>
+    <IonNote v-if="props.tokenizerHint" class="ai-chat-settings-card__hint">
+      {{ props.tokenizerHint }}
     </IonNote>
 
     <IonList>
@@ -48,6 +58,18 @@ const emit = defineEmits<{
 
       <IonItem>
         <IonInput
+          :model-value="props.contextWindowTokens ? String(props.contextWindowTokens) : ''"
+          label="Context Window Tokens"
+          label-placement="stacked"
+          inputmode="numeric"
+          type="number"
+          placeholder="留空则按模型名推断，如 128000"
+          @update:model-value="emit('update:contextWindowTokens', String($event ?? ''))"
+        />
+      </IonItem>
+
+      <IonItem>
+        <IonInput
           :model-value="props.apiKey"
           label="API Key"
           label-placement="stacked"
@@ -68,3 +90,10 @@ const emit = defineEmits<{
     </div>
   </section>
 </template>
+
+<style scoped>
+.ai-chat-settings-card__hint {
+  display: block;
+  margin-top: 8px;
+}
+</style>
