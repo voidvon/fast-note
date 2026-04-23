@@ -2,8 +2,8 @@ import type { AiNoteToolCall, AiToolResult, Note } from '@/shared/types'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick, ref } from 'vue'
-import { createScopedStorageKey } from '@/shared/lib/user-scope'
 import { createAgentTask, updateAgentTask } from '@/features/ai-chat/model/agent-task'
+import { createScopedStorageKey } from '@/shared/lib/user-scope'
 
 const aiChatSessionMock = {
   cancelPendingExecution: vi.fn(),
@@ -17,6 +17,7 @@ const aiChatSessionMock = {
 const noteStoreMock = {
   getNote: vi.fn((_: string) => null as Note | null),
   notes: ref<Note[]>([]),
+  searchNotes: vi.fn(async () => [] as Note[]),
   searchNotesByParentId: vi.fn(async () => []),
 }
 
@@ -44,6 +45,8 @@ function resetNoteStoreMock() {
   })
   noteStoreMock.searchNotesByParentId.mockReset()
   noteStoreMock.searchNotesByParentId.mockImplementation(async () => [])
+  noteStoreMock.searchNotes.mockReset()
+  noteStoreMock.searchNotes.mockImplementation(async () => [])
 }
 
 function createIonicStub(name: string, tag = 'div') {
@@ -281,6 +284,7 @@ function setupModuleMocks() {
     useNote: () => ({
       getNote: noteStoreMock.getNote,
       notes: noteStoreMock.notes,
+      searchNotes: noteStoreMock.searchNotes,
       searchNotesByParentId: noteStoreMock.searchNotesByParentId,
     }),
   }))
@@ -597,6 +601,142 @@ describe('global search ai chat', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(contextPrompt).toContain('note-42')
     expect(contextPrompt).toContain('本地草稿')
+    expect(contextPrompt).toContain('消息中的备忘录链接')
+
+    wrapper.unmount()
+  })
+
+  it('shows note mention suggestions in ai mode using shared note search', async () => {
+    noteStoreMock.notes.value = [{
+      id: 'note-1',
+      title: '周报',
+      summary: '本周项目推进',
+      content: '<p>周报正文</p>',
+      created: '2026-04-16 09:00:00',
+      updated: '2026-04-16 10:00:00',
+      item_type: 2,
+      parent_id: 'folder-1',
+      is_deleted: 0,
+      is_locked: 0,
+      note_count: 0,
+      files: [],
+    }, {
+      id: 'folder-1',
+      title: '工作',
+      summary: '',
+      content: '',
+      created: '2026-04-16 08:00:00',
+      updated: '2026-04-16 08:00:00',
+      item_type: 1,
+      parent_id: '',
+      is_deleted: 0,
+      is_locked: 0,
+      note_count: 1,
+      files: [],
+    }]
+    noteStoreMock.searchNotes.mockImplementation(async (query: string) => {
+      return query === '周' ? [noteStoreMock.notes.value[0]] : []
+    })
+
+    const wrapper = await mountGlobalSearch()
+    const input = await ensureAiMode(wrapper)
+
+    await input.setValue('帮我总结 @周')
+    await flushPromises()
+    await nextTick()
+
+    expect(noteStoreMock.searchNotes).toHaveBeenCalledWith('周', expect.objectContaining({
+      limit: 6,
+      parentId: '',
+      rootTitle: '全部',
+    }))
+    expect(wrapper.find('[data-ion-modal="IonModal"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('备忘录建议')
+    expect(wrapper.text()).toContain('周报')
+    expect(wrapper.text()).toContain('工作')
+
+    const suggestionButton = wrapper.find('button.chat-message__card-item-button')
+    expect(suggestionButton.exists()).toBe(true)
+    await suggestionButton.trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect((input.element as HTMLTextAreaElement).value).toContain('@周报(/n/note-1)')
+    expect(wrapper.find('button.chat-message__card-item-button').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('备忘录建议')
+
+    wrapper.unmount()
+  })
+
+  it('sends inserted note mention as a resolvable ai target', async () => {
+    noteStoreMock.notes.value = [{
+      id: 'note-1',
+      title: '周报',
+      summary: '本周项目推进',
+      content: '<p>周报正文</p>',
+      created: '2026-04-16 09:00:00',
+      updated: '2026-04-16 10:00:00',
+      item_type: 2,
+      parent_id: '',
+      is_deleted: 0,
+      is_locked: 0,
+      note_count: 0,
+      files: [],
+    }]
+    noteStoreMock.searchNotes.mockImplementation(async (query: string) => {
+      return query === '周' ? [noteStoreMock.notes.value[0]] : []
+    })
+
+    const fetchMock = vi.fn(async () => createSseResponse([
+      JSON.stringify({
+        choices: [{
+          delta: {
+            role: 'assistant',
+          },
+        }],
+      }),
+      JSON.stringify({
+        choices: [{
+          delta: {
+            content: '已读取引用的备忘录。',
+          },
+          finish_reason: 'stop',
+        }],
+      }),
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { useAiChat } = await import('@/features/ai-chat')
+    useAiChat().saveSettings({
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4.1-mini',
+    })
+
+    const wrapper = await mountGlobalSearch()
+    const input = await ensureAiMode(wrapper)
+
+    await input.setValue('帮我总结 @周')
+    await flushPromises()
+    await nextTick()
+
+    const suggestionButton = wrapper.find('button.chat-message__card-item-button')
+    await suggestionButton.trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    const request = fetchMock.mock.calls[0]?.[1]
+    const body = JSON.parse(String(request?.body || '{}'))
+    const contextPrompt = body.messages.find((message: { content?: string, role?: string }) => {
+      return message.role === 'system' && typeof message.content === 'string' && message.content.includes('前端显式解析目标备忘录')
+    })?.content
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(contextPrompt).toContain('note-1')
     expect(contextPrompt).toContain('消息中的备忘录链接')
 
     wrapper.unmount()
@@ -1060,8 +1200,6 @@ describe('global search ai chat', () => {
     const wrapper = await mountGlobalSearch()
     await ensureAiMode(wrapper)
 
-    expect(wrapper.text()).toContain('已中断')
-    expect(wrapper.text()).toContain('页面刷新后任务已中断')
     expect(wrapper.text()).toContain('继续任务')
 
     const resumeButton = wrapper.findAll('button').find(item => item.text() === '继续任务')
@@ -1133,7 +1271,6 @@ describe('global search ai chat', () => {
     await ensureAiMode(wrapper)
 
     expect(window.location.pathname).toBe('/n/note-2')
-    expect(wrapper.text()).toContain('你当前浏览的是其他页面，继续任务仍会基于原任务对象执行。')
     expect(wrapper.text()).toContain('继续任务')
 
     const resumeButton = wrapper.findAll('button').find(item => item.text() === '继续任务')
@@ -1564,8 +1701,6 @@ describe('global search ai chat', () => {
     await nextTick()
 
     expect(aiChatSessionMock.submitToolCalls).toHaveBeenCalledTimes(1)
-    expect(wrapper.text()).toContain('当前任务')
-    expect(wrapper.text()).toContain('待确认')
     expect(wrapper.text()).toContain('待确认操作')
     expect(wrapper.text()).toContain('准备删除备忘录：将软删除备忘录 note-1')
     expect(wrapper.text()).toContain('我已准备删除这条备忘录。')
@@ -1709,8 +1844,6 @@ describe('global search ai chat', () => {
     await nextTick()
 
     expect(wrapper.text()).toContain('待确认操作')
-    expect(wrapper.text()).toContain('中风险')
-    expect(wrapper.text()).toContain('需确认')
 
     const confirmButton = wrapper.findAll('button').find(item => item.text() === '确认执行')
     expect(confirmButton).toBeTruthy()

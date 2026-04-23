@@ -60,8 +60,6 @@ import {
 } from './request-context'
 import {
   createRouteTargetSnapshot,
-  isRouteTargetSnapshotMatched,
-  readCurrentRouteTargetSnapshot,
 } from './route-target-snapshot'
 import { createToolResultCards } from './tool-result-cards'
 import {
@@ -2232,13 +2230,6 @@ export function useAiChat() {
       }
 
       return currentTask.value.requiresRelocation !== true
-    }),
-    hasTaskRouteMismatch: computed(() => {
-      if (!agentFeatureEnabled || !currentTask.value?.routeTargetSnapshot) {
-        return false
-      }
-
-      return !isRouteTargetSnapshotMatched(currentTask.value.routeTargetSnapshot, readCurrentRouteTargetSnapshot())
     }),
     currentTask,
     currentWorkingMemory,

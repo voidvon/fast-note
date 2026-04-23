@@ -4,6 +4,7 @@ import { computed } from 'vue'
 
 const props = defineProps<{
   item: ChatMessageCardItem
+  selected?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -28,7 +29,10 @@ function handleAction() {
 <template>
   <li
     class="chat-message__card-item"
-    :class="{ 'chat-message__card-item--actionable': !!item.action }"
+    :class="{
+      'chat-message__card-item--actionable': !!item.action,
+      'chat-message__card-item--selected': selected,
+    }"
     :role="item.action ? 'button' : undefined"
     :tabindex="item.action ? 0 : undefined"
     @click="handleAction"
@@ -71,6 +75,10 @@ function handleAction() {
 
 .chat-message__card-item--actionable {
   cursor: pointer;
+}
+
+.chat-message__card-item--selected {
+  background: rgba(125, 211, 252, 0.1);
 }
 
 .chat-message__card-item--actionable:focus-visible {

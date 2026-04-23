@@ -3,11 +3,6 @@ import type { ChatMessageCardAction } from '@/shared/ui/chat-message'
 import { IonButton, IonButtons, IonList, IonNote } from '@ionic/vue'
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import ChatMessage from '@/shared/ui/chat-message'
-import {
-  getAgentTaskConfirmationModeLabel,
-  getAgentTaskRiskLabel,
-  getAgentTaskStatusLabel,
-} from '../model/agent-task'
 import { AI_CHAT_STARTER_PROMPTS } from '../model/starter-prompts'
 import { useAiChat } from '../model/use-ai-chat'
 import AiChatEmptyState from './ai-chat-empty-state.vue'
@@ -28,15 +23,12 @@ const {
   clearConversation,
   confirmPendingExecution,
   canResumeInterruptedTask,
-  hasTaskRouteMismatch,
   contextRemainingPercent,
   conversationProgress,
   contextWindowHint,
-  currentTask,
   hasConfiguredProvider,
   hasPendingConfirmation,
   hasVisibleMessages,
-  isBusy,
   lastToolResults,
   openSettings,
   providerLabel,
@@ -92,44 +84,7 @@ const latestVisibleAssistantMessageId = computed(() => {
   return ''
 })
 const canResumeTask = computed(() => canResumeInterruptedTask.value)
-const showTaskRelocationNotice = computed(() => currentTask.value?.requiresRelocation === true)
-const showRouteMismatchNotice = computed(() => hasTaskRouteMismatch.value && !showTaskRelocationNotice.value)
-const showTaskNotice = computed(() => showTaskRelocationNotice.value || showRouteMismatchNotice.value || canResumeTask.value)
 const showConfirmationBlock = computed(() => hasPendingConfirmation.value)
-const showTaskSummary = computed(() => {
-  const status = currentTask.value?.status
-  return status === 'identifying'
-    || status === 'executing'
-    || status === 'waiting_confirmation'
-    || status === 'interrupted'
-    || status === 'failed'
-})
-const currentTaskStatusLabel = computed(() => {
-  return currentTask.value ? getAgentTaskStatusLabel(currentTask.value.status) : ''
-})
-const currentTaskMetaLabels = computed(() => {
-  if (!currentTask.value) {
-    return []
-  }
-
-  return [
-    getAgentTaskRiskLabel(currentTask.value.riskLevel),
-    getAgentTaskConfirmationModeLabel(currentTask.value.confirmationMode),
-  ].filter(Boolean)
-})
-const currentTaskDetail = computed(() => {
-  const task = currentTask.value
-  if (!task) {
-    return ''
-  }
-
-  const latestStep = task.steps.at(-1)
-  if (!latestStep) {
-    return task.input
-  }
-
-  return [latestStep.title, latestStep.detail].filter(Boolean).join('：')
-})
 const confirmationPreviewLines = computed(() => {
   return lastToolResults.value
     .map(result => result.preview)
@@ -367,23 +322,6 @@ function handleMessageAction(action: ChatMessageCardAction) {
     />
 
     <div ref="threadRef" class="ai-chat-panel__thread" @scroll.passive="syncAutoScrollState">
-      <div v-if="showTaskSummary" class="ai-chat-panel__task-summary">
-        <div class="ai-chat-panel__task-summary-header">
-          <IonNote class="ai-chat-panel__task-summary-label">
-            当前任务
-          </IonNote>
-          <span class="ai-chat-panel__task-summary-status">
-            {{ currentTaskStatusLabel }}
-          </span>
-        </div>
-        <div v-if="currentTaskMetaLabels.length" class="ai-chat-panel__task-summary-meta">
-          {{ currentTaskMetaLabels.join('｜') }}
-        </div>
-        <div class="ai-chat-panel__task-summary-content">
-          {{ currentTaskDetail }}
-        </div>
-      </div>
-
       <template v-if="hasVisibleMessages">
         <IonList lines="none" class="ai-chat-panel__message-list">
           <ChatMessage
@@ -416,19 +354,11 @@ function handleMessageAction(action: ChatMessageCardAction) {
       />
     </div>
 
-    <div v-if="showTaskNotice" class="ai-chat-panel__task-notice">
-      <div v-if="showTaskRelocationNotice" class="ai-chat-panel__task-warning">
-        当前任务对象已失效或无法定位，请重新选择目标后再继续。
-      </div>
-      <div v-else-if="showRouteMismatchNotice" class="ai-chat-panel__task-warning">
-        你当前浏览的是其他页面，继续任务仍会基于原任务对象执行。
-      </div>
-      <IonButtons v-if="canResumeTask" class="ai-chat-panel__task-actions">
-        <IonButton size="small" @click="emit('resumeTask')">
-          继续任务
-        </IonButton>
-      </IonButtons>
-    </div>
+    <IonButtons v-if="canResumeTask" class="ai-chat-panel__task-actions">
+      <IonButton size="small" @click="emit('resumeTask')">
+        继续任务
+      </IonButton>
+    </IonButtons>
 
     <div v-if="showConfirmationBlock" class="ai-chat-panel__confirmation">
       <IonNote class="ai-chat-panel__confirmation-label">
@@ -493,64 +423,9 @@ function handleMessageAction(action: ChatMessageCardAction) {
     background: transparent;
   }
 
-  &__task-summary {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-bottom: 12px;
-    padding: 12px 14px;
-    border: 1px solid rgba(148, 163, 184, 0.2);
-    border-radius: 16px;
-    background: rgba(15, 23, 42, 0.24);
-  }
-
-  &__task-summary-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  &__task-summary-label {
-    margin: 0;
-    color: #cbd5f5;
-    font-size: 12px;
-  }
-
-  &__task-summary-status {
-    color: #f8fafc;
-    font-size: 12px;
-    font-weight: 600;
-  }
-
-  &__task-summary-meta {
-    color: #fbbf24;
-    font-size: 12px;
-    line-height: 1.5;
-  }
-
-  &__task-summary-content {
-    color: #e4e4e7;
-    font-size: 13px;
-    line-height: 1.6;
-    white-space: pre-wrap;
-    word-break: break-word;
-  }
-
-  &__task-notice {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
   &__task-actions {
     gap: 8px;
-  }
-
-  &__task-warning {
-    color: #fbbf24;
-    font-size: 12px;
-    line-height: 1.6;
+    margin-top: 8px;
   }
 
   &__confirmation {

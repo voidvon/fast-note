@@ -69,4 +69,35 @@ describe('restoreAgentTaskAfterReload', () => {
     expect(restored.requiresRelocation).toBe(false)
     expect(restored.steps).toHaveLength(task.steps.length)
   })
+
+  it('strips legacy route mismatch restore steps from persisted tasks', () => {
+    const task = updateAgentTask(createAgentTask('读取 note-1', {
+      activeNote: {
+        id: 'note-1',
+        title: '周报',
+        summary: '待整理',
+        parentId: '',
+        updated: '2026-04-23 10:00:00',
+        isDeleted: false,
+        isLocked: false,
+      },
+    }), {
+      appendStep: {
+        kind: 'interrupted',
+        title: '当前页面对象已变化',
+        detail: '恢复任务与当前桌面路由不一致，请回到原页面对象后再继续。',
+      },
+      requiresRelocation: true,
+      restoredFromReload: true,
+      status: 'interrupted',
+      terminationReason: 'restored',
+    })
+
+    const restored = restoreAgentTaskAfterReload(task)
+
+    expect(restored.requiresRelocation).toBe(false)
+    expect(restored.steps.at(-1)).not.toMatchObject({
+      title: '当前页面对象已变化',
+    })
+  })
 })

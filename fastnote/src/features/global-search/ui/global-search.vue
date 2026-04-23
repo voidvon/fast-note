@@ -1,18 +1,19 @@
 <script setup lang="ts">
 import type { Note } from '@/entities/note'
 import type { AiChatRequestContext } from '@/features/ai-chat/model/request-context'
-import type { ChatMessageCardAction } from '@/shared/ui/chat-message'
+import type { ChatMessageCardAction, ChatMessageCardItem } from '@/shared/ui/chat-message'
 import { IonContent, IonIcon, IonTextarea } from '@ionic/vue'
 import { useDebounceFn } from '@vueuse/core'
 import { arrowUpOutline, closeCircle, closeOutline, searchOutline, sparklesOutline, stop } from 'ionicons/icons'
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NOTE_TYPE, useNote } from '@/entities/note'
+import AiChatPanel, { useAiChat } from '@/features/ai-chat'
 import { toAiChatContextNote } from '@/features/ai-chat/model/request-context'
 import { resolveAiChatTarget } from '@/features/ai-chat/model/target-resolution'
-import AiChatPanel, { useAiChat } from '@/features/ai-chat'
 import { useDesktopActiveNote } from '@/processes/navigation/model/use-desktop-active-note'
 import { cleanupIonicOverlayLocks } from '@/shared/lib/ionic'
+import ChatMessageCardItemView from '@/shared/ui/chat-message/ui/chat-message-card-item.vue'
 import NoteList from '@/widgets/note-list'
 import { toSearchResultNodes } from '../lib/search-results'
 import {
@@ -47,7 +48,7 @@ const {
 } = useGlobalSearch()
 const noteStore = useNote()
 const { getNote, notes } = noteStore
-const { chat, currentTask, isBusy: isAiBusy, resumeInterruptedTask, sendMessage: sendAiMessage } = useAiChat()
+const { chat, isBusy: isAiBusy, resumeInterruptedTask, sendMessage: sendAiMessage } = useAiChat()
 const { getSnapshot } = useDesktopActiveNote()
 const route = useRoute()
 const router = useRouter()
@@ -66,6 +67,7 @@ type SearchTextareaRef = SearchTextareaHost | { $el?: SearchTextareaHost }
 
 const dockRef = ref<HTMLDivElement>()
 const inputRef = ref<SearchTextareaRef | null>(null)
+const mentionListRef = ref<HTMLElement | null>(null)
 const isComposing = ref(false)
 const state = reactive({
   notes: [] as Note[],
@@ -77,6 +79,7 @@ const state = reactive({
 })
 
 let searchRequestId = 0
+let mentionRequestId = 0
 let hideTimer: ReturnType<typeof setTimeout> | null = null
 let enterFrameId: number | null = null
 
@@ -113,13 +116,17 @@ const panelIdleMessage = computed(() => {
     : '输入消息开始与 AI 对话'
 })
 const panelStyle = computed(() => ({
-  left: `${state.panelLeft}px`,
-  top: `${state.panelTop}px`,
-  width: `${state.panelWidth}px`,
-  height: `${state.panelHeight}px`,
-  minHeight: `${state.panelHeight}px`,
+  'left': `${state.panelLeft}px`,
+  'top': `${state.panelTop}px`,
+  'width': `${state.panelWidth}px`,
+  'height': `${state.panelHeight}px`,
+  'minHeight': `${state.panelHeight}px`,
   '--global-search-panel-bottom-inset': `${state.panelBottomInset}px`,
 }))
+const aiSelectionStart = ref(0)
+const mentionSuggestions = ref<Note[]>([])
+const activeMentionIndex = ref(0)
+const activeMentionRange = ref<{ end: number, start: number } | null>(null)
 const recentContextNotes = computed(() => {
   return notes.value
     .filter(note => note.item_type === NOTE_TYPE.NOTE && note.is_deleted === 0)
@@ -128,6 +135,17 @@ const recentContextNotes = computed(() => {
     .slice(0, 5)
     .map(note => toAiChatContextNote(note))
     .filter((note): note is NonNullable<ReturnType<typeof toAiChatContextNote>> => !!note)
+})
+const recentMentionNotes = computed(() => {
+  return notes.value
+    .filter(note => note.item_type === NOTE_TYPE.NOTE && note.is_deleted === 0)
+    .slice()
+    .sort((left, right) => new Date(right.updated).getTime() - new Date(left.updated).getTime())
+    .slice(0, 6)
+})
+const showMentionSuggestions = computed(() => !isSearchMode.value && !!activeMentionRange.value)
+const mentionSuggestionItems = computed<ChatMessageCardItem[]>(() => {
+  return mentionSuggestions.value.map(note => toMentionCardItem(note))
 })
 
 function resolveCurrentBrowserRoutePath() {
@@ -138,6 +156,70 @@ function resolveCurrentBrowserRoutePath() {
   const pathname = window.location.pathname || route.path || '/home'
   const normalizedPath = pathname === '/' ? '/home' : pathname
   return `${normalizedPath}${window.location.search || ''}`
+}
+
+function normalizeMentionTitle(title: string) {
+  return title.trim() || '未命名'
+}
+
+function formatMentionText(note: Note) {
+  return `@${normalizeMentionTitle(note.title)}(/n/${encodeURIComponent(note.id)}) `
+}
+
+function resolveMentionItemMeta(note: Note) {
+  if (note.parent_id) {
+    const folderTitle = getNote(note.parent_id)?.title?.trim()
+    if (folderTitle) {
+      return folderTitle
+    }
+  }
+
+  return note.updated || ''
+}
+
+function toMentionCardItem(note: Note): ChatMessageCardItem {
+  return {
+    action: {
+      type: 'open-note',
+      noteId: note.id,
+      parentId: note.parent_id || '',
+    },
+    description: note.summary || '',
+    id: note.id,
+    meta: resolveMentionItemMeta(note),
+    tags: note.is_locked === 1 ? ['已加锁'] : [],
+    title: normalizeMentionTitle(note.title),
+  }
+}
+
+function parseActiveMention(value: string, selectionStart: number) {
+  if (selectionStart < 0 || selectionStart > value.length) {
+    return null
+  }
+
+  const prefix = value.slice(0, selectionStart)
+  const mentionStart = prefix.lastIndexOf('@')
+  if (mentionStart < 0) {
+    return null
+  }
+
+  const previousChar = mentionStart > 0 ? prefix[mentionStart - 1] : ''
+  if (previousChar && !/[\s([{（【"'“‘]/.test(previousChar)) {
+    return null
+  }
+
+  const mentionText = prefix.slice(mentionStart + 1)
+  if (/\s/.test(mentionText)) {
+    return null
+  }
+
+  return {
+    query: mentionText.trim(),
+    range: {
+      start: mentionStart,
+      end: selectionStart,
+    },
+  }
 }
 
 function resolveRouteNoteId() {
@@ -330,6 +412,22 @@ function scheduleLayoutUpdate() {
   })
 }
 
+function syncActiveMentionIntoView() {
+  if (!showMentionSuggestions.value) {
+    return
+  }
+
+  const listElement = mentionListRef.value
+  const activeElement = listElement?.querySelectorAll<HTMLElement>('.chat-message__card-item')[activeMentionIndex.value]
+  if (typeof activeElement?.scrollIntoView !== 'function') {
+    return
+  }
+
+  activeElement.scrollIntoView({
+    block: 'nearest',
+  })
+}
+
 function focusInput() {
   void nextTick(() => {
     focusResolvedInput()
@@ -430,6 +528,49 @@ async function runSearch(searchText: string) {
 
 const debouncedSearch = useDebounceFn(runSearch, 300)
 
+async function searchNotesByKeyword(keyword: string, limit = 0) {
+  const matchedNotes = typeof noteStore.searchNotes === 'function'
+    ? await noteStore.searchNotes(keyword, {
+        limit,
+        parentId: props.puuid || '',
+        rootTitle: '全部',
+      })
+    : await noteStore.searchNotesByParentId?.(props.puuid || '', '全部', keyword) || []
+
+  return limit > 0 ? matchedNotes.slice(0, limit) : matchedNotes
+}
+
+function clearMentionSuggestions() {
+  mentionRequestId += 1
+  mentionSuggestions.value = []
+  activeMentionIndex.value = 0
+  activeMentionRange.value = null
+}
+
+async function updateMentionSuggestions(value: string, selectionStart: number) {
+  const mention = parseActiveMention(value, selectionStart)
+  if (!mention) {
+    clearMentionSuggestions()
+    return
+  }
+
+  activeMentionRange.value = mention.range
+  activeMentionIndex.value = 0
+
+  if (!mention.query) {
+    mentionSuggestions.value = recentMentionNotes.value
+    return
+  }
+
+  const requestId = ++mentionRequestId
+  const matchedNotes = await searchNotesByKeyword(mention.query, 6)
+  if (requestId !== mentionRequestId) {
+    return
+  }
+
+  mentionSuggestions.value = matchedNotes
+}
+
 function handleCompositionStart() {
   isComposing.value = true
 }
@@ -447,11 +588,12 @@ function applySearchKeyword(value: string) {
 
 function handleCompositionEnd(event: CompositionEvent) {
   isComposing.value = false
-  const value = (
-    event.target as HTMLIonTextareaElement | HTMLTextAreaElement | null
-  )?.value || ''
+  const target = event.target as HTMLIonTextareaElement | HTMLTextAreaElement | null
+  const value = target?.value || ''
   if (!isSearchMode.value) {
     aiDraft.value = value
+    aiSelectionStart.value = (target as HTMLTextAreaElement | null)?.selectionStart || value.length
+    void updateMentionSuggestions(value, aiSelectionStart.value)
     activateSearch()
     syncInputHeightLimits()
     return
@@ -475,6 +617,7 @@ async function submitAiDraft() {
   }
 
   aiDraft.value = ''
+  clearMentionSuggestions()
 
   const submitted = await sendAiMessage(draft, {
     requestContext: createAiRequestContext(draft),
@@ -490,6 +633,7 @@ async function submitAiDraft() {
 function startCloseAnimation() {
   blurResolvedInput()
   searchRequestId++
+  clearMentionSuggestions()
   showGlobalSearchState.value = 'leaveStart'
 
   hideTimer = setTimeout(() => {
@@ -544,6 +688,8 @@ function onCancel() {
 function onInput(event: SearchTextareaEvent) {
   const value = event.detail.value || ''
   const nativeEvent = event.detail.event
+  const target = nativeEvent?.target as HTMLTextAreaElement | null
+  const selectionStart = target?.selectionStart ?? value.length
 
   syncInputHeightLimits()
 
@@ -556,6 +702,8 @@ function onInput(event: SearchTextareaEvent) {
 
   if (!isSearchMode.value) {
     aiDraft.value = value
+    aiSelectionStart.value = selectionStart
+    void updateMentionSuggestions(value, selectionStart)
     activateSearch()
     return
   }
@@ -573,10 +721,53 @@ function onClear() {
   }
   else {
     aiDraft.value = ''
+    clearMentionSuggestions()
     activateSearch()
   }
   syncInputHeightLimits()
   focusInput()
+}
+
+async function setInputSelection(position: number) {
+  const inputHost = resolveInputHost()
+  if (!inputHost || typeof inputHost.getInputElement !== 'function') {
+    return
+  }
+
+  const nativeInput = await inputHost.getInputElement()
+  nativeInput.setSelectionRange(position, position)
+  nativeInput.focus()
+  aiSelectionStart.value = position
+}
+
+async function handleMentionSelect(note: Note) {
+  const range = activeMentionRange.value
+  if (!range) {
+    return
+  }
+
+  const mentionText = formatMentionText(note)
+  const nextDraft = `${aiDraft.value.slice(0, range.start)}${mentionText}${aiDraft.value.slice(range.end)}`
+  const nextCursor = range.start + mentionText.length
+  aiDraft.value = nextDraft
+  clearMentionSuggestions()
+  activateSearch()
+  syncInputHeightLimits()
+  await nextTick()
+  await setInputSelection(nextCursor)
+}
+
+function handleMentionCardAction(action: ChatMessageCardAction) {
+  if (action.type !== 'open-note') {
+    return
+  }
+
+  const matchedNote = mentionSuggestions.value.find(note => note.id === action.noteId)
+  if (!matchedNote) {
+    return
+  }
+
+  void handleMentionSelect(matchedNote)
 }
 
 async function onAiAction() {
@@ -590,6 +781,43 @@ async function onAiAction() {
 }
 
 function onKeydown(event: KeyboardEvent) {
+  if (!isSearchMode.value) {
+    const target = event.target as HTMLTextAreaElement | null
+    aiSelectionStart.value = target?.selectionStart ?? aiDraft.value.length
+
+    if (showMentionSuggestions.value) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        if (mentionSuggestions.value.length > 0) {
+          activeMentionIndex.value = (activeMentionIndex.value + 1) % mentionSuggestions.value.length
+        }
+        return
+      }
+
+      if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        if (mentionSuggestions.value.length > 0) {
+          activeMentionIndex.value = (activeMentionIndex.value - 1 + mentionSuggestions.value.length) % mentionSuggestions.value.length
+        }
+        return
+      }
+
+      if ((event.key === 'Enter' && !event.metaKey && !event.ctrlKey) || event.key === 'Tab') {
+        const note = mentionSuggestions.value[activeMentionIndex.value]
+        if (note) {
+          event.preventDefault()
+          void handleMentionSelect(note)
+          return
+        }
+      }
+
+      if (event.key === 'Escape') {
+        clearMentionSuggestions()
+        return
+      }
+    }
+  }
+
   if (isSearchMode.value || event.key !== 'Enter' || isComposing.value) {
     return
   }
@@ -604,6 +832,7 @@ function onKeydown(event: KeyboardEvent) {
 
 function handleAiPrefill(value: string) {
   aiDraft.value = value
+  clearMentionSuggestions()
   activateSearch()
   syncInputHeightLimits()
   focusInput()
@@ -627,6 +856,7 @@ function closeSearchImmediately() {
   }
 
   searchRequestId++
+  clearMentionSuggestions()
   state.notes = []
   resetGlobalSearch()
 }
@@ -707,7 +937,20 @@ watch(currentDraft, () => {
 })
 
 watch(isSearchMode, () => {
+  if (isSearchMode.value) {
+    clearMentionSuggestions()
+  }
   syncInputHeightLimits()
+})
+
+watch([showMentionSuggestions, activeMentionIndex, mentionSuggestions], ([visible]) => {
+  if (!visible) {
+    return
+  }
+
+  void nextTick(() => {
+    syncActiveMentionIntoView()
+  })
 })
 
 onMounted(() => {
@@ -772,8 +1015,8 @@ onUnmounted(() => {
             :rows="1"
             :spellcheck="false"
             class="global-search__input"
-            @ionFocus="onFocus"
-            @ionInput="onInput"
+            @ion-focus="onFocus"
+            @ion-input="onInput"
             @keydown="onKeydown"
             @compositionstart="handleCompositionStart"
             @compositionend="handleCompositionEnd"
@@ -863,6 +1106,28 @@ onUnmounted(() => {
             @prefill="handleAiPrefill"
             @resume-task="handleResumeTask"
           />
+          <div v-if="showMentionSuggestions" class="global-search__mention-panel">
+            <p class="global-search__mention-caption">
+              备忘录建议
+            </p>
+            <ul
+              v-if="mentionSuggestions.length"
+              ref="mentionListRef"
+              class="global-search__mention-list"
+            >
+              <ChatMessageCardItemView
+                v-for="(item, index) in mentionSuggestionItems"
+                :key="item.id"
+                :item="item"
+                :selected="index === activeMentionIndex"
+                class="global-search__mention-card-item"
+                @action="handleMentionCardAction"
+              />
+            </ul>
+            <div v-else class="global-search__mention-empty">
+              没有找到相关备忘录
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1085,6 +1350,55 @@ onUnmounted(() => {
     flex: 1;
     min-height: 0;
     overflow: hidden;
+  }
+
+  &__mention-panel {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: calc(var(--global-search-panel-bottom-inset, 0px) + 12px);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: min(320px, 42vh);
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 20px;
+    background: rgba(15, 23, 42, 0.88);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
+  }
+
+  &__mention-caption {
+    margin: 0;
+    color: #94a3b8;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  &__mention-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  &__mention-card-item {
+    flex: 0 0 auto;
+    margin: 0;
+  }
+
+  &__mention-empty {
+    color: #94a3b8;
+    font-size: 13px;
+    line-height: 1.5;
   }
 
   &__empty {

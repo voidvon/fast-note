@@ -5,6 +5,7 @@ import ChatMessageCardItem from './chat-message-card-item.vue'
 
 const props = defineProps<{
   cards: ChatMessageCard[]
+  selectedItemId?: string
 }>()
 
 const emit = defineEmits<{
@@ -53,6 +54,7 @@ function handleItemAction(action: ChatMessageCardAction) {
           v-for="item in card.items"
           :key="item.id"
           :item="item"
+          :selected="item.id === selectedItemId"
           @action="handleItemAction"
         />
       </ul>

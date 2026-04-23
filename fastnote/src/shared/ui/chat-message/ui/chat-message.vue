@@ -16,6 +16,7 @@ const props = withDefaults(defineProps<{
   pendingDescription?: string
   pendingLabel?: string
   role: 'assistant' | 'user'
+  selectedItemId?: string
   statusDescription?: string
   statusLabel?: string
   statusLoading?: boolean
@@ -153,6 +154,7 @@ function isCardsBlock(block: ChatMessageBlock): block is Extract<ChatMessageBloc
             <ChatMessageCards
               v-else-if="isCardsBlock(block) && block.cards.length"
               :cards="block.cards"
+              :selected-item-id="selectedItemId"
               @action="handleCardItemClick"
             />
           </template>
