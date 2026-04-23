@@ -16,8 +16,11 @@ defineProps<{
   apiKey: string
   baseUrl: string
   canDismiss: boolean
+  contextWindowHint?: string
+  contextWindowTokens?: number | string
   isOpen: boolean
   model: string
+  tokenizerHint?: string
 }>()
 
 const emit = defineEmits<{
@@ -26,6 +29,7 @@ const emit = defineEmits<{
   'save': []
   'update:apiKey': [value: string]
   'update:baseUrl': [value: string]
+  'update:contextWindowTokens': [value: string]
   'update:model': [value: string]
 }>()
 
@@ -55,9 +59,13 @@ function handleDidDismiss() {
       <AiChatSettingsCard
         :api-key="apiKey"
         :base-url="baseUrl"
+        :context-window-hint="contextWindowHint"
+        :context-window-tokens="contextWindowTokens"
         :model="model"
+        :tokenizer-hint="tokenizerHint"
         @update:api-key="emit('update:apiKey', $event)"
         @update:base-url="emit('update:baseUrl', $event)"
+        @update:context-window-tokens="emit('update:contextWindowTokens', $event)"
         @update:model="emit('update:model', $event)"
         @save="emit('save')"
         @reset="emit('reset')"

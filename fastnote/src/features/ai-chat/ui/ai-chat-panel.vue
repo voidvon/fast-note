@@ -24,6 +24,7 @@ const {
   confirmPendingExecution,
   canResumeInterruptedTask,
   conversationProgress,
+  contextWindowHint,
   currentTask,
   hasConfiguredProvider,
   hasPendingConfirmation,
@@ -38,6 +39,7 @@ const {
   settings,
   showSettings,
   streamingAssistantMessageId,
+  tokenizerHint,
   visibleMessages,
 } = useAiChat()
 
@@ -48,6 +50,7 @@ const shouldShowSettings = computed(() => showSettings.value || !hasConfiguredPr
 const settingsForm = reactive({
   apiKey: settings.apiKey,
   baseUrl: settings.baseUrl,
+  contextWindowTokens: settings.contextWindowTokens ? String(settings.contextWindowTokens) : '',
   model: settings.model,
 })
 const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 32
@@ -251,9 +254,10 @@ watch(latestVisibleMessage, async (message) => {
   scheduleScrollToBottom()
 })
 
-watch(() => [settings.apiKey, settings.baseUrl, settings.model], () => {
+watch(() => [settings.apiKey, settings.baseUrl, settings.contextWindowTokens, settings.model], () => {
   settingsForm.apiKey = settings.apiKey
   settingsForm.baseUrl = settings.baseUrl
+  settingsForm.contextWindowTokens = settings.contextWindowTokens ? String(settings.contextWindowTokens) : ''
   settingsForm.model = settings.model
 })
 
@@ -261,6 +265,7 @@ function handleSaveSettings() {
   saveSettings({
     apiKey: settingsForm.apiKey,
     baseUrl: settingsForm.baseUrl,
+    contextWindowTokens: settingsForm.contextWindowTokens,
     model: settingsForm.model,
   })
 }
@@ -273,6 +278,7 @@ function handleResetSettings() {
   resetSettings()
   settingsForm.apiKey = settings.apiKey
   settingsForm.baseUrl = settings.baseUrl
+  settingsForm.contextWindowTokens = settings.contextWindowTokens ? String(settings.contextWindowTokens) : ''
   settingsForm.model = settings.model
 }
 
@@ -305,9 +311,12 @@ function handleMessageAction(action: ChatMessageCardAction) {
     <AiChatSettingsModal
       v-model:api-key="settingsForm.apiKey"
       v-model:base-url="settingsForm.baseUrl"
+      v-model:context-window-tokens="settingsForm.contextWindowTokens"
       v-model:model="settingsForm.model"
+      :context-window-hint="contextWindowHint"
       :is-open="shouldShowSettings"
       :can-dismiss="hasConfiguredProvider"
+      :tokenizer-hint="tokenizerHint"
       @close="handleCloseSettings"
       @save="handleSaveSettings"
       @reset="handleResetSettings"
