@@ -297,18 +297,16 @@ describe('ai chat agent feature flag', () => {
         JSON.stringify({
           choices: [{
             delta: {
-              content: JSON.stringify({
-                mode: 'tool_calls',
-                answer: '我先按旧模式处理。',
-                toolCalls: [{
-                  tool: 'delete_note',
-                  payload: {
-                    noteId: 'note-1',
-                  },
-                }],
-              }),
+              content: '我先按旧模式处理。',
+              tool_calls: [{
+                index: 0,
+                function: {
+                  name: 'delete_note',
+                  arguments: '{"noteId":"note-1"}',
+                },
+              }],
             },
-            finish_reason: 'stop',
+            finish_reason: 'tool_calls',
           }],
         }),
       ]))

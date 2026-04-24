@@ -239,6 +239,44 @@ function createPendingSseResponse() {
   }
 }
 
+function createNativeToolCallDelta(toolCall: {
+  arguments: string
+  name: string
+}, text = '') {
+  return JSON.stringify({
+    choices: [{
+      delta: {
+        ...(text ? { content: text } : {}),
+        tool_calls: [{
+          index: 0,
+          function: toolCall,
+        }],
+      },
+      finish_reason: 'tool_calls',
+    }],
+  })
+}
+
+function createNativeToolCallResponse(toolCall: {
+  arguments: string
+  name: string
+}, text = '') {
+  return createJsonResponse({
+    choices: [{
+      message: {
+        role: 'assistant',
+        ...(text ? { content: text } : {}),
+        tool_calls: [{
+          id: 'tool-call-1',
+          type: 'function',
+          function: toolCall,
+        }],
+      },
+      finish_reason: 'tool_calls',
+    }],
+  })
+}
+
 function stubScrollableElement(element: HTMLElement, options: {
   clientHeight: number
   initialScrollTop?: number
@@ -448,7 +486,7 @@ describe('global search ai chat', () => {
     wrapper.unmount()
   })
 
-  it('hides raw tool envelope json while the assistant response is still streaming', async () => {
+  it('shows interim prose while the assistant is still preparing a tool call', async () => {
     const pendingResponse = createPendingSseResponse()
     const fetchMock = vi.fn(async () => pendingResponse.response)
     vi.stubGlobal('fetch', fetchMock)
@@ -471,7 +509,7 @@ describe('global search ai chat', () => {
       JSON.stringify({
         choices: [{
           delta: {
-            content: '{"mode":"tool_calls","answer":"已整理好润色版本，准备直接写回这篇备忘录。","toolCalls":[{"tool":"update_note"',
+            content: '已整理好润色版本，准备直接写回这篇备忘录。',
           },
         }],
       }),
@@ -482,31 +520,22 @@ describe('global search ai chat', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('已整理好润色版本，准备直接写回这篇备忘录。')
-    expect(wrapper.text()).not.toContain('"toolCalls"')
-    expect(wrapper.text()).not.toContain('update_note')
-    expect(wrapper.text()).not.toContain('"}]}')
     expect(wrapper.findAll('.chat-message__status-state')).toHaveLength(1)
 
     pendingResponse.close([
-      JSON.stringify({
-        choices: [{
-          delta: {
-            content: ',"payload":{"noteId":"note-1","content":"<p>改写后的正文</p>"}}]}',
-          },
-          finish_reason: 'stop',
-        }],
+      createNativeToolCallDelta({
+        name: 'update_note',
+        arguments: '{"noteId":"note-1","contentHtml":"<p>改写后的正文</p>"}',
       }),
     ])
 
     await flushPromises()
     await nextTick()
 
-    expect(wrapper.text()).not.toContain('"toolCalls"')
-
     wrapper.unmount()
   })
 
-  it('keeps mixed prose plus tool envelope json out of the rendered assistant message', async () => {
+  it('keeps mixed prose visible when a tool call follows later in the stream', async () => {
     const pendingResponse = createPendingSseResponse()
     const fetchMock = vi.fn(async () => pendingResponse.response)
     vi.stubGlobal('fetch', fetchMock)
@@ -529,7 +558,7 @@ describe('global search ai chat', () => {
       JSON.stringify({
         choices: [{
           delta: {
-            content: '我还不能直接知道总数，需要先读取你的备忘录列表。\n\n{"mode":"tool_calls","answer":"先帮你统计备忘录总数。","toolCalls":[{"tool":"search_notes"',
+            content: '我还不能直接知道总数，需要先读取你的备忘录列表。',
           },
         }],
       }),
@@ -539,18 +568,11 @@ describe('global search ai chat', () => {
     await nextTick()
 
     expect(wrapper.text()).toContain('我还不能直接知道总数，需要先读取你的备忘录列表。')
-    expect(wrapper.text()).not.toContain('"toolCalls"')
-    expect(wrapper.text()).not.toContain('search_notes')
-    expect(wrapper.text()).not.toContain('}]}*')
 
     pendingResponse.close([
-      JSON.stringify({
-        choices: [{
-          delta: {
-            content: ',"payload":{"query":"*"}}]}',
-          },
-          finish_reason: 'stop',
-        }],
+      createNativeToolCallDelta({
+        name: 'search_notes',
+        arguments: '{"query":"*"}',
       }),
     ])
 
@@ -953,43 +975,15 @@ describe('global search ai chat', () => {
             },
           }],
         }),
-        JSON.stringify({
-          choices: [{
-            delta: {
-              content: JSON.stringify({
-                mode: 'tool_calls',
-                answer: '我先看一下这个目录结构。',
-                toolCalls: [{
-                  tool: 'list_folders',
-                  payload: {
-                    parentId: 'folder-1',
-                  },
-                }],
-              }),
-            },
-            finish_reason: 'stop',
-          }],
-        }),
+        createNativeToolCallDelta({
+          name: 'list_folders',
+          arguments: '{"parentId":"folder-1"}',
+        }, '我先看一下这个目录结构。'),
       ]))
-      .mockImplementationOnce(async () => createJsonResponse({
-        choices: [{
-          message: {
-            role: 'assistant',
-            content: JSON.stringify({
-              mode: 'tool_calls',
-              answer: '我再在这个目录里筛一下周报相关内容。',
-              toolCalls: [{
-                tool: 'search_notes',
-                payload: {
-                  query: '周报',
-                  folderId: 'folder-1',
-                },
-              }],
-            }),
-          },
-          finish_reason: 'stop',
-        }],
-      }))
+      .mockImplementationOnce(async () => createNativeToolCallResponse({
+        name: 'search_notes',
+        arguments: '{"query":"周报","folderId":"folder-1"}',
+      }, '我再在这个目录里筛一下周报相关内容。'))
       .mockImplementationOnce(async () => createJsonResponse({
         choices: [{
           message: {
@@ -1084,26 +1078,10 @@ describe('global search ai chat', () => {
             },
           }],
         }),
-        JSON.stringify({
-          choices: [{
-            delta: {
-              content: JSON.stringify({
-                mode: 'tool_calls',
-                answer: '我会直接写回，并保留改写摘要。',
-                toolCalls: [{
-                  tool: 'update_note',
-                  confirmed: true,
-                  requireConfirmation: false,
-                  payload: {
-                    noteId: 'note-1',
-                    contentHtml: '<p>改写后的正文。</p>',
-                  },
-                }],
-              }),
-            },
-            finish_reason: 'stop',
-          }],
-        }),
+        createNativeToolCallDelta({
+          name: 'update_note',
+          arguments: '{"noteId":"note-1","contentHtml":"<p>改写后的正文。</p>","confirmed":true}',
+        }, '我会直接写回，并保留改写摘要。'),
       ]))
       .mockImplementationOnce(async () => createJsonResponse({
         choices: [{
@@ -1131,9 +1109,9 @@ describe('global search ai chat', () => {
     await flushPromises()
     await nextTick()
 
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(aiChatSessionMock.submitToolCalls).toHaveBeenCalledTimes(1)
-    expect(wrapper.text()).toContain('已直接写回这条笔记')
+    expect(wrapper.text()).toContain('我会直接写回，并保留改写摘要。')
     expect(wrapper.text()).not.toContain('待确认操作')
     expect(wrapper.text()).not.toContain('当前任务')
 
@@ -1682,23 +1660,10 @@ describe('global search ai chat', () => {
           },
         }],
       }),
-      JSON.stringify({
-        choices: [{
-          delta: {
-            content: JSON.stringify({
-              mode: 'tool_calls',
-              answer: '我找到了相关备忘录。',
-              toolCalls: [{
-                tool: 'search_notes',
-                payload: {
-                  query: '周报',
-                },
-              }],
-            }),
-          },
-          finish_reason: 'stop',
-        }],
-      }),
+      createNativeToolCallDelta({
+        name: 'search_notes',
+        arguments: '{"query":"周报"}',
+      }, '我找到了相关备忘录。'),
     ]))
     vi.stubGlobal('fetch', fetchMock)
 
@@ -2016,23 +1981,10 @@ describe('global search ai chat', () => {
           },
         }],
       }),
-      JSON.stringify({
-        choices: [{
-          delta: {
-            content: JSON.stringify({
-              mode: 'tool_calls',
-              answer: '我已准备删除这条备忘录。',
-              toolCalls: [{
-                tool: 'delete_note',
-                payload: {
-                  noteId: 'note-1',
-                },
-              }],
-            }),
-          },
-          finish_reason: 'stop',
-        }],
-      }),
+      createNativeToolCallDelta({
+        name: 'delete_note',
+        arguments: '{"noteId":"note-1"}',
+      }, '我已准备删除这条备忘录。'),
     ]))
     vi.stubGlobal('fetch', fetchMock)
 
@@ -2153,24 +2105,10 @@ describe('global search ai chat', () => {
             },
           }],
         }),
-        JSON.stringify({
-          choices: [{
-            delta: {
-              content: JSON.stringify({
-                mode: 'tool_calls',
-                answer: '我先生成改写预览，再等你确认是否写回。',
-                toolCalls: [{
-                  tool: 'update_note',
-                  payload: {
-                    noteId: 'note-1',
-                    contentHtml: '<p>确认后的正文。</p>',
-                  },
-                }],
-              }),
-            },
-            finish_reason: 'stop',
-          }],
-        }),
+        createNativeToolCallDelta({
+          name: 'update_note',
+          arguments: '{"noteId":"note-1","contentHtml":"<p>确认后的正文。</p>"}',
+        }, '我先生成改写预览，再等你确认是否写回。'),
       ]))
       .mockImplementationOnce(async () => createJsonResponse({
         choices: [{
@@ -2289,44 +2227,15 @@ describe('global search ai chat', () => {
             },
           }],
         }),
-        JSON.stringify({
-          choices: [{
-            delta: {
-              content: JSON.stringify({
-                mode: 'tool_calls',
-                answer: '我先生成改写预览，再等你确认是否写回。',
-                toolCalls: [{
-                  tool: 'update_note',
-                  payload: {
-                    noteId: 'note-1',
-                    contentHtml: '<p>确认后的正文。</p>',
-                  },
-                }],
-              }),
-            },
-            finish_reason: 'stop',
-          }],
-        }),
+        createNativeToolCallDelta({
+          name: 'update_note',
+          arguments: '{"noteId":"note-1","contentHtml":"<p>确认后的正文。</p>"}',
+        }, '我先生成改写预览，再等你确认是否写回。'),
       ]))
-      .mockImplementationOnce(async () => createJsonResponse({
-        choices: [{
-          message: {
-            role: 'assistant',
-            content: JSON.stringify({
-              mode: 'tool_calls',
-              answer: '我再执行一次相同的写回。',
-              toolCalls: [{
-                tool: 'update_note',
-                payload: {
-                  noteId: 'note-1',
-                  contentHtml: '<p>确认后的正文。</p>',
-                },
-              }],
-            }),
-          },
-          finish_reason: 'stop',
-        }],
-      }))
+      .mockImplementationOnce(async () => createNativeToolCallResponse({
+        name: 'update_note',
+        arguments: '{"noteId":"note-1","contentHtml":"<p>确认后的正文。</p>"}',
+      }, '我再执行一次相同的写回。'))
     vi.stubGlobal('fetch', fetchMock)
 
     const { useAiChat } = await import('@/features/ai-chat')
@@ -2350,7 +2259,7 @@ describe('global search ai chat', () => {
     await flushPromises()
     await nextTick()
 
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(aiChatSessionMock.submitToolCalls).toHaveBeenCalledTimes(1)
     expect(aiChatSessionMock.confirmPendingExecution).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('本次操作执行结果如下：')
@@ -2396,23 +2305,10 @@ describe('global search ai chat', () => {
           },
         }],
       }),
-      JSON.stringify({
-        choices: [{
-          delta: {
-            content: JSON.stringify({
-              mode: 'tool_calls',
-              answer: '我找到了相关备忘录。',
-              toolCalls: [{
-                tool: 'search_notes',
-                payload: {
-                  query: '周报',
-                },
-              }],
-            }),
-          },
-          finish_reason: 'stop',
-        }],
-      }),
+      createNativeToolCallDelta({
+        name: 'search_notes',
+        arguments: '{"query":"周报"}',
+      }, '我找到了相关备忘录。'),
     ]))
     vi.stubGlobal('fetch', fetchMock)
 
@@ -2485,23 +2381,10 @@ describe('global search ai chat', () => {
             },
           }],
         }),
-        JSON.stringify({
-          choices: [{
-            delta: {
-              content: JSON.stringify({
-                mode: 'tool_calls',
-                answer: '我先读取这条备忘录。',
-                toolCalls: [{
-                  tool: 'get_note_detail',
-                  payload: {
-                    noteId: 'note-1',
-                  },
-                }],
-              }),
-            },
-            finish_reason: 'stop',
-          }],
-        }),
+        createNativeToolCallDelta({
+          name: 'get_note_detail',
+          arguments: '{"noteId":"note-1"}',
+        }, '我先读取这条备忘录。'),
       ]))
       .mockImplementationOnce(async () => createJsonResponse({
         choices: [{
@@ -2620,7 +2503,6 @@ describe('global search ai chat', () => {
       apiKey: 'sk-test',
       baseUrl: 'https://api.openai.com/v1',
       model: 'gpt-4.1-mini',
-      supportsNativeTools: true,
     })
 
     const wrapper = await mountGlobalSearch()
@@ -2697,23 +2579,10 @@ describe('global search ai chat', () => {
             },
           }],
         }),
-        JSON.stringify({
-          choices: [{
-            delta: {
-              content: JSON.stringify({
-                mode: 'tool_calls',
-                answer: '我先读取这条备忘录。',
-                toolCalls: [{
-                  tool: 'get_note_detail',
-                  payload: {
-                    noteId: 'note-1',
-                  },
-                }],
-              }),
-            },
-            finish_reason: 'stop',
-          }],
-        }),
+        createNativeToolCallDelta({
+          name: 'get_note_detail',
+          arguments: '{"noteId":"note-1"}',
+        }, '我先读取这条备忘录。'),
       ]))
       .mockImplementationOnce(async () => await deferredFollowUp.response)
     vi.stubGlobal('fetch', fetchMock)
@@ -2795,23 +2664,10 @@ describe('global search ai chat', () => {
           },
         }],
       }),
-      JSON.stringify({
-        choices: [{
-          delta: {
-            content: JSON.stringify({
-              mode: 'tool_calls',
-              answer: '我找到了相关备忘录。',
-              toolCalls: [{
-                tool: 'search_notes',
-                payload: {
-                  query: '周报',
-                },
-              }],
-            }),
-          },
-          finish_reason: 'stop',
-        }],
-      }),
+      createNativeToolCallDelta({
+        name: 'search_notes',
+        arguments: '{"query":"周报"}',
+      }, '我找到了相关备忘录。'),
     ]))
     vi.stubGlobal('fetch', fetchMock)
 
@@ -2887,23 +2743,10 @@ describe('global search ai chat', () => {
             },
           }],
         }),
-        JSON.stringify({
-          choices: [{
-            delta: {
-              content: JSON.stringify({
-                mode: 'tool_calls',
-                answer: '先读取这条备忘录内容，再为你总结。',
-                toolCalls: [{
-                  tool: 'get_note_detail',
-                  payload: {
-                    noteId: 'gZH3JOfbVYNl',
-                  },
-                }],
-              }),
-            },
-            finish_reason: 'stop',
-          }],
-        }),
+        createNativeToolCallDelta({
+          name: 'get_note_detail',
+          arguments: '{"noteId":"gZH3JOfbVYNl"}',
+        }, '先读取这条备忘录内容，再为你总结。'),
       ]))
       .mockImplementationOnce(async () => createJsonResponse({
         choices: [{
@@ -3013,23 +2856,10 @@ describe('global search ai chat', () => {
           },
         }],
       }),
-      JSON.stringify({
-        choices: [{
-          delta: {
-            content: JSON.stringify({
-              mode: 'tool_calls',
-              answer: '我找到了相关目录。',
-              toolCalls: [{
-                tool: 'list_folders',
-                payload: {
-                  parentId: '',
-                },
-              }],
-            }),
-          },
-          finish_reason: 'stop',
-        }],
-      }),
+      createNativeToolCallDelta({
+        name: 'list_folders',
+        arguments: '{"parentId":""}',
+      }, '我找到了相关目录。'),
     ]))
     vi.stubGlobal('fetch', fetchMock)
 

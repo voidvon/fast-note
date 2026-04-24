@@ -34,6 +34,28 @@ interface OpenAiNativeToolDefinition {
   type: 'function'
 }
 
+function booleanProperty(description: string) {
+  return {
+    type: 'boolean',
+    description,
+  } satisfies JsonSchema
+}
+
+function enumStringProperty(values: string[], description: string) {
+  return {
+    type: 'string',
+    enum: values,
+    description,
+  } satisfies JsonSchema
+}
+
+function stringProperty(description: string) {
+  return {
+    type: 'string',
+    description,
+  } satisfies JsonSchema
+}
+
 const TOOL_NAMES = new Set<AiNoteToolName>([
   'search_notes',
   'get_note_detail',
@@ -59,11 +81,10 @@ function buildObjectSchema(input: {
   }
 }
 
-function withToolMetadata(properties: Record<string, JsonSchema>) {
+function withMutationToolMetadata(properties: Record<string, JsonSchema>) {
   return {
     ...properties,
     confirmed: NATIVE_TOOL_METADATA_PROPERTIES.confirmed,
-    dryRun: NATIVE_TOOL_METADATA_PROPERTIES.dryRun,
     requireConfirmation: NATIVE_TOOL_METADATA_PROPERTIES.requireConfirmation,
   }
 }
@@ -71,7 +92,6 @@ function withToolMetadata(properties: Record<string, JsonSchema>) {
 function normalizeToolFlags(value: Record<string, unknown>) {
   return {
     confirmed: value.confirmed === true ? true : undefined,
-    dryRun: value.dryRun === true ? true : undefined,
     requireConfirmation: value.requireConfirmation === true ? true : undefined,
   }
 }
@@ -79,7 +99,6 @@ function normalizeToolFlags(value: Record<string, unknown>) {
 function stripToolFlags(value: Record<string, unknown>) {
   const {
     confirmed: _confirmed,
-    dryRun: _dryRun,
     requireConfirmation: _requireConfirmation,
     ...payload
   } = value
@@ -92,26 +111,12 @@ export const OPENAI_NATIVE_NOTE_TOOLS: OpenAiNativeToolDefinition[] = [
     type: 'function',
     function: {
       name: 'search_notes',
-      description: 'Search notes by keywords, optionally limited to a folder.',
+      description: 'Search notes by query, optionally within one folder.',
       parameters: buildObjectSchema({
-        properties: withToolMetadata({
-          folderId: {
-            type: 'string',
-            description: 'Optional folder scope for the search.',
-          },
-          includeDeleted: {
-            type: 'boolean',
-            description: 'Whether deleted notes should be included.',
-          },
-          limit: {
-            type: 'number',
-            description: 'Maximum number of items to return.',
-          },
-          query: {
-            type: 'string',
-            description: 'Search keywords joined into one query string.',
-          },
-        }),
+        properties: {
+          folderId: stringProperty('Optional folder scope.'),
+          query: stringProperty('Search keywords joined as one query string.'),
+        },
         required: ['query'],
       }),
     },
@@ -122,12 +127,9 @@ export const OPENAI_NATIVE_NOTE_TOOLS: OpenAiNativeToolDefinition[] = [
       name: 'get_note_detail',
       description: 'Read the full content of a note by ID.',
       parameters: buildObjectSchema({
-        properties: withToolMetadata({
-          noteId: {
-            type: 'string',
-            description: 'Target note ID.',
-          },
-        }),
+        properties: {
+          noteId: stringProperty('Target note ID.'),
+        },
         required: ['noteId'],
       }),
     },
@@ -138,12 +140,9 @@ export const OPENAI_NATIVE_NOTE_TOOLS: OpenAiNativeToolDefinition[] = [
       name: 'list_folders',
       description: 'List folders, optionally under a parent folder.',
       parameters: buildObjectSchema({
-        properties: withToolMetadata({
-          parentId: {
-            type: 'string',
-            description: 'Optional parent folder ID.',
-          },
-        }),
+        properties: {
+          parentId: stringProperty('Optional parent folder ID.'),
+        },
       }),
     },
   },
@@ -153,33 +152,14 @@ export const OPENAI_NATIVE_NOTE_TOOLS: OpenAiNativeToolDefinition[] = [
       name: 'create_note',
       description: 'Create a note or folder.',
       parameters: buildObjectSchema({
-        properties: withToolMetadata({
-          contentHtml: {
-            type: 'string',
-            description: 'Initial HTML content for a new note.',
-          },
-          kind: {
-            type: 'string',
-            enum: ['note', 'folder'],
-            description: 'Whether to create a note or a folder.',
-          },
-          noteId: {
-            type: 'string',
-            description: 'Optional custom note ID.',
-          },
-          parentId: {
-            type: 'string',
-            description: 'Optional parent folder ID.',
-          },
-          summary: {
-            type: 'string',
-            description: 'Optional note summary.',
-          },
-          title: {
-            type: 'string',
-            description: 'Note or folder title.',
-          },
+        properties: withMutationToolMetadata({
+          contentHtml: stringProperty('Initial HTML content for a note.'),
+          kind: enumStringProperty(['note', 'folder'], 'Whether to create a note or a folder.'),
+          parentId: stringProperty('Optional parent folder ID.'),
+          summary: stringProperty('Optional note summary.'),
+          title: stringProperty('Note or folder title.'),
         }),
+        required: ['kind', 'title'],
       }),
     },
   },
@@ -187,41 +167,13 @@ export const OPENAI_NATIVE_NOTE_TOOLS: OpenAiNativeToolDefinition[] = [
     type: 'function',
     function: {
       name: 'update_note',
-      description: 'Update a note title, summary, content, or append content.',
+      description: 'Update a note title, summary, or content.',
       parameters: buildObjectSchema({
-        properties: withToolMetadata({
-          appendContentHtml: {
-            type: 'string',
-            description: 'HTML content to append to the note.',
-          },
-          content: {
-            type: 'string',
-            description: 'Plain text or HTML content for compatibility.',
-          },
-          contentHtml: {
-            type: 'string',
-            description: 'HTML content to replace the note body.',
-          },
-          expectedUpdated: {
-            type: 'string',
-            description: 'Expected updated timestamp for optimistic concurrency.',
-          },
-          noteId: {
-            type: 'string',
-            description: 'Target note ID.',
-          },
-          parentId: {
-            type: 'string',
-            description: 'Optional parent folder ID if the tool intends to change the folder.',
-          },
-          summary: {
-            type: 'string',
-            description: 'Updated note summary.',
-          },
-          title: {
-            type: 'string',
-            description: 'Updated note title.',
-          },
+        properties: withMutationToolMetadata({
+          contentHtml: stringProperty('HTML content that replaces the note body.'),
+          noteId: stringProperty('Target note ID.'),
+          summary: stringProperty('Updated note summary.'),
+          title: stringProperty('Updated note title.'),
         }),
         required: ['noteId'],
       }),
@@ -233,15 +185,9 @@ export const OPENAI_NATIVE_NOTE_TOOLS: OpenAiNativeToolDefinition[] = [
       name: 'move_note',
       description: 'Move a note into another folder.',
       parameters: buildObjectSchema({
-        properties: withToolMetadata({
-          noteId: {
-            type: 'string',
-            description: 'Source note ID.',
-          },
-          targetFolderId: {
-            type: 'string',
-            description: 'Destination folder ID.',
-          },
+        properties: withMutationToolMetadata({
+          noteId: stringProperty('Source note ID.'),
+          targetFolderId: stringProperty('Destination folder ID.'),
         }),
         required: ['noteId', 'targetFolderId'],
       }),
@@ -253,16 +199,8 @@ export const OPENAI_NATIVE_NOTE_TOOLS: OpenAiNativeToolDefinition[] = [
       name: 'delete_note',
       description: 'Soft-delete a note.',
       parameters: buildObjectSchema({
-        properties: withToolMetadata({
-          mode: {
-            type: 'string',
-            enum: ['soft'],
-            description: 'Deletion mode.',
-          },
-          noteId: {
-            type: 'string',
-            description: 'Target note ID.',
-          },
+        properties: withMutationToolMetadata({
+          noteId: stringProperty('Target note ID.'),
         }),
         required: ['noteId'],
       }),
@@ -274,34 +212,16 @@ export const OPENAI_NATIVE_NOTE_TOOLS: OpenAiNativeToolDefinition[] = [
       name: 'set_note_lock',
       description: 'Enable or disable note lock.',
       parameters: buildObjectSchema({
-        properties: withToolMetadata({
-          action: {
-            type: 'string',
-            enum: ['enable', 'disable'],
-            description: 'Lock action.',
-          },
-          biometricEnabled: {
-            type: 'boolean',
-            description: 'Whether biometric unlock should be enabled.',
-          },
-          noteId: {
-            type: 'string',
-            description: 'Target note ID.',
-          },
+        properties: withMutationToolMetadata({
+          action: enumStringProperty(['enable', 'disable'], 'Lock action.'),
+          biometricEnabled: booleanProperty('Whether biometric unlock should be enabled.'),
+          noteId: stringProperty('Target note ID.'),
         }),
         required: ['noteId', 'action'],
       }),
     },
   },
 ]
-
-export function buildAiAssistantToolEnvelopeText(calls: AiNoteToolCall[], answer = '') {
-  return JSON.stringify({
-    mode: 'tool_calls',
-    ...(answer.trim() ? { answer: answer.trim() } : {}),
-    toolCalls: calls,
-  })
-}
 
 export function parseOpenAiNativeToolCall(
   name: string,

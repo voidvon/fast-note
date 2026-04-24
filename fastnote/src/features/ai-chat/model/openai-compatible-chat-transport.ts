@@ -6,10 +6,10 @@ import type {
 } from 'ai'
 import { nanoid } from 'nanoid'
 import {
-  buildAiAssistantToolEnvelopeText,
   OPENAI_NATIVE_NOTE_TOOLS,
   parseOpenAiNativeToolCall,
 } from './openai-native-tools'
+import type { AiNoteToolCall } from '@/shared/types'
 import { applyWorkingMemoryToMessages } from './memory/context-compression'
 import {
   buildAiChatContextSystemPrompt,
@@ -26,7 +26,6 @@ export interface OpenAiCompatibleChatSettings {
   baseUrl: string
   contextWindowTokens?: number
   model: string
-  supportsNativeTools?: boolean
 }
 
 export interface OpenAiCompatibleChatTransportOptions {
@@ -109,11 +108,15 @@ interface OpenAiChatCompletionChunk {
 
 type UiMessageFinishReason = 'stop' | 'length' | 'content-filter' | 'error' | 'other'
 type OpenAiDeltaPayload = NonNullable<OpenAiChatCompletionChunk['choices']>[number]['delta']
-type OpenAiMessageToolCalls = NonNullable<NonNullable<OpenAiChatCompletionResponse['choices']>[number]['message']>['tool_calls']
 
 interface OpenAiStreamToolCallState {
   arguments: string
   name: string
+}
+
+export interface OpenAiCompletionResult {
+  text: string
+  toolCalls: AiNoteToolCall[]
 }
 
 const OPENAI_CHAT_COMPLETIONS_PATH = '/chat/completions'
@@ -121,7 +124,7 @@ export const DEFAULT_SYSTEM_PROMPT = [
   '你是 fastnote 首页里的 AI 助手。',
   '回答保持简洁、直接、可执行，优先帮助用户处理笔记与整理信息。',
   '当用户只是提问、改写、解释时，直接用自然语言回答。',
-  '当用户明确要求执行笔记或文件夹操作时，你可以返回一个 JSON 对象来请求本地工具执行。',
+  '当用户明确要求执行笔记或文件夹操作时，请直接调用可用工具，不要把工具请求写成 JSON 文本。',
   '当用户要求你“搜索、查找、筛选、汇总、归纳、统计、总结某类备忘录”时，这属于可直接执行的读取任务；只要你能从用户原话中提炼搜索线索，就先调用工具，不要先反问用户换个关键词。',
   '遇到“健康相关”“工作相关”“会议相关”这类主题型请求时，先根据用户原话自行提炼 2 到 5 个搜索关键词或短语，并优先把它们用空格拼成一次 search_notes.query 去搜索；只有首轮结果明显不足时，再补充新的关键词继续搜索。',
   '如果用户要的是总结、对比、归纳，而搜索结果只有标题和摘要不足以支撑回答，应继续调用 get_note_detail 读取相关备忘录正文，再输出最终结论。',
@@ -134,14 +137,13 @@ export const DEFAULT_SYSTEM_PROMPT = [
   '如果用户已经明确指向某个文件夹，并且又给出了主题词或筛选条件，优先在 search_notes 里传 folderId，把搜索范围收敛到该文件夹，不要默认全局搜索。',
   '当用户要求“读取这个链接里的备忘录并帮我改写/总结/润色”时，优先先调用 get_note_detail，再基于读取到的内容继续回答或继续请求工具。',
   '只有当用户明确要求直接写回，并且目标对象唯一时，才返回 update_note 执行写回；否则优先返回建议文本或先请求确认。',
-  '当你返回 update_note 时，正文请放在 payload.contentHtml；如果误用了 payload.content，前端也会兼容，但优先使用 contentHtml。',
-  '如果你要请求直接写回，请在对应的 update_note toolCall 上显式设置 confirmed=true，且不要把 requireConfirmation 设为 true；如果不是明确直写，就不要给出 confirmed=true。',
+  '当你调用 update_note 时，正文请放在 contentHtml；如果误用了 content，前端也会兼容，但优先使用 contentHtml。',
+  '如果你要请求直接写回，请在对应的 update_note 工具参数里显式设置 confirmed=true，且不要把 requireConfirmation 设为 true；如果不是明确直写，就不要给出 confirmed=true。',
   'update_note 只用于修改标题、摘要和正文内容，不要用它变更目录；如果需要把备忘录移动到其他文件夹，必须使用 move_note。',
-  '当你准备调用 update_note 写回改写结果时，answer 里要保留简短改写摘要或建议结果，避免写回失败后用户拿不到结果。',
-  '返回工具请求时，不要输出 Markdown，不要输出解释文字，只返回合法 JSON。',
-  '工具请求 JSON 格式如下：{"mode":"tool_calls","answer":"可选的简短说明","toolCalls":[{"tool":"search_notes","payload":{"query":"关键词1 关键词2"}}]}；优先把同一轮提炼出的关键词放进一次 search_notes.query，只有结果不足时再追加新的工具调用。',
+  '当你准备调用 update_note 写回改写结果时，请先在自然语言里保留简短改写摘要或建议结果，避免写回失败后用户拿不到结果。',
+  '调用工具时不要输出 Markdown，不要把函数调用伪装成 JSON 文本；直接使用工具调用。',
   '可用工具包括：search_notes、get_note_detail、list_folders、create_note、update_note、move_note、delete_note、set_note_lock。',
-  '只有在你能够明确构造参数时才返回工具请求；否则继续用自然语言说明你还缺少什么信息。',
+  '只有在你能够明确构造参数时才调用工具；否则继续用自然语言说明你还缺少什么信息。',
 ].join('\n')
 
 export class OpenAiCompatibleChatTransport implements ChatTransport<UIMessage> {
@@ -182,10 +184,8 @@ export class OpenAiCompatibleChatTransport implements ChatTransport<UIMessage> {
         model: settings.model,
         stream: true,
         messages: buildOpenAiMessages(messages, this.systemPrompt, contextSystemPrompt, workingMemorySystemPrompt, workingMemory),
-        ...(settings.supportsNativeTools ? {
-          tool_choice: 'auto',
-          tools: OPENAI_NATIVE_NOTE_TOOLS,
-        } : {}),
+        tool_choice: 'auto',
+        tools: OPENAI_NATIVE_NOTE_TOOLS,
         ...extraRequestBody,
       },
       fetchImplementation: this.fetchImplementation,
@@ -201,9 +201,7 @@ export class OpenAiCompatibleChatTransport implements ChatTransport<UIMessage> {
       throw new Error('AI 服务没有返回可读取的数据流')
     }
 
-    return createUiMessageChunkStream(response.body, {
-      supportsNativeTools: settings.supportsNativeTools,
-    })
+    return createUiMessageChunkStream(response.body)
   }
 
   async reconnectToStream(): Promise<ReadableStream<UIMessageChunk> | null> {
@@ -315,40 +313,50 @@ async function requestOpenAiCompatibleResponse(options: RequestOpenAiCompatibleR
   )
 }
 
-function extractCompletionMessageText(payload: OpenAiChatCompletionResponse) {
+function extractCompletionText(payload: OpenAiChatCompletionResponse) {
   const message = payload.choices?.[0]?.message
   const content = message?.content
   if (typeof content === 'string') {
-    const text = content.trim()
-    return extractCompletionToolEnvelope(message?.tool_calls, text) || text
+    return content.trim()
   }
 
   if (Array.isArray(content)) {
-    const text = content
+    return content
       .map(item => typeof item?.text === 'string' ? item.text : '')
       .join('')
       .trim()
-    return extractCompletionToolEnvelope(message?.tool_calls, text) || text
   }
 
-  return extractCompletionToolEnvelope(message?.tool_calls, '') || ''
+  return ''
+}
+
+function extractCompletionToolCalls(payload: OpenAiChatCompletionResponse): AiNoteToolCall[] {
+  const toolCalls = payload.choices?.[0]?.message?.tool_calls
+  if (!toolCalls?.length) {
+    return []
+  }
+
+  return toolCalls
+    .map(toolCall => parseOpenAiNativeToolCall(toolCall.function?.name || '', toolCall.function?.arguments))
+    .filter((toolCall): toolCall is AiNoteToolCall => !!toolCall)
 }
 
 export async function requestOpenAiCompatibleCompletion(options: {
   abortSignal?: AbortSignal
+  allowTools?: boolean
   body?: Record<string, unknown>
   fetchImplementation?: typeof fetch
   headers?: Record<string, string> | Headers
-  includeNativeTools?: boolean
   messages: UIMessage[]
   rawMessages?: OpenAiRequestMessage[]
   settings: OpenAiCompatibleChatSettings
   systemPrompt?: string
-}) {
+}): Promise<OpenAiCompletionResult> {
   const { context, requestBody: contextRequestBody } = extractAiChatRequestContext(options.body)
   const { requestBody: extraRequestBody, workingMemory } = extractAiWorkingMemory(contextRequestBody)
   const contextSystemPrompt = buildAiChatContextSystemPrompt(context)
   const workingMemorySystemPrompt = buildAiWorkingMemorySystemPrompt(workingMemory)
+  const allowTools = options.allowTools !== false
 
   const response = await requestOpenAiCompatibleResponse({
     abortSignal: options.abortSignal,
@@ -356,7 +364,7 @@ export async function requestOpenAiCompatibleCompletion(options: {
       model: options.settings.model,
       stream: false,
       messages: options.rawMessages || buildOpenAiMessages(options.messages, options.systemPrompt || DEFAULT_SYSTEM_PROMPT, contextSystemPrompt, workingMemorySystemPrompt, workingMemory),
-      ...(options.includeNativeTools ?? options.settings.supportsNativeTools ? {
+      ...(allowTools ? {
         tool_choice: 'auto',
         tools: OPENAI_NATIVE_NOTE_TOOLS,
       } : {}),
@@ -372,23 +380,10 @@ export async function requestOpenAiCompatibleCompletion(options: {
   }
 
   const payload = await response.json() as OpenAiChatCompletionResponse
-  return extractCompletionMessageText(payload)
-}
-
-function extractCompletionToolEnvelope(toolCalls: OpenAiMessageToolCalls, answer: string) {
-  if (!toolCalls?.length) {
-    return ''
+  return {
+    text: extractCompletionText(payload),
+    toolCalls: extractCompletionToolCalls(payload),
   }
-
-  const parsedToolCalls = toolCalls
-    .map(toolCall => parseOpenAiNativeToolCall(toolCall.function?.name || '', toolCall.function?.arguments))
-    .filter((toolCall): toolCall is NonNullable<ReturnType<typeof parseOpenAiNativeToolCall>> => !!toolCall)
-
-  if (!parsedToolCalls.length) {
-    return ''
-  }
-
-  return buildAiAssistantToolEnvelopeText(parsedToolCalls, answer)
 }
 
 function extractPlainText(message: UIMessage) {
@@ -419,9 +414,6 @@ async function resolveOpenAiError(response: Response) {
 
 function createUiMessageChunkStream(
   responseStream: ReadableStream<Uint8Array>,
-  options: {
-    supportsNativeTools?: boolean
-  } = {},
 ): ReadableStream<UIMessageChunk> {
   const messageId = nanoid()
   const textPartId = nanoid()
@@ -496,7 +488,7 @@ function createUiMessageChunkStream(
         }
       }
 
-      const emitPendingToolEnvelope = () => {
+      const emitPendingToolCalls = () => {
         const parsedToolCalls = Array.from(toolCalls.values())
           .map(toolCall => parseOpenAiNativeToolCall(toolCall.name, toolCall.arguments))
           .filter((toolCall): toolCall is NonNullable<ReturnType<typeof parseOpenAiNativeToolCall>> => !!toolCall)
@@ -505,20 +497,7 @@ function createUiMessageChunkStream(
           return
         }
 
-        if (options.supportsNativeTools) {
-          emitNativeToolCalls()
-          return
-        }
-
-        const envelopeText = buildAiAssistantToolEnvelopeText(parsedToolCalls, accumulatedText)
-        if (!envelopeText || envelopeText === accumulatedText) {
-          return
-        }
-
-        const delta = accumulatedText
-          ? envelopeText.slice(accumulatedText.length)
-          : envelopeText
-        emitTextDelta(delta)
+        emitNativeToolCalls()
       }
 
       const emitFinish = (finishReason: UiMessageFinishReason = 'stop') => {
@@ -527,7 +506,7 @@ function createUiMessageChunkStream(
         }
 
         emitStart()
-        emitPendingToolEnvelope()
+        emitPendingToolCalls()
 
         if (hasTextStarted) {
           controller.enqueue({

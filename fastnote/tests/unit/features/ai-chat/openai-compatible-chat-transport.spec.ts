@@ -41,7 +41,7 @@ async function readChunks(stream: ReadableStream<UIMessageChunk>) {
 }
 
 describe('openAiCompatibleChatTransport', () => {
-  it('documents fastnote note urls in the default system prompt', () => {
+  it('documents direct native tool calling in the default system prompt', () => {
     expect(DEFAULT_SYSTEM_PROMPT).toContain('/n/<noteId>')
     expect(DEFAULT_SYSTEM_PROMPT).toContain('get_note_detail')
     expect(DEFAULT_SYSTEM_PROMPT).toContain('读取这个链接里的备忘录')
@@ -51,12 +51,10 @@ describe('openAiCompatibleChatTransport', () => {
     expect(DEFAULT_SYSTEM_PROMPT).toContain('自行提炼 2 到 5 个搜索关键词或短语')
     expect(DEFAULT_SYSTEM_PROMPT).toContain('优先把它们用空格拼成一次 search_notes.query 去搜索')
     expect(DEFAULT_SYSTEM_PROMPT).toContain('如果用户要的是总结、对比、归纳')
-    expect(DEFAULT_SYSTEM_PROMPT).toContain('关键词1 关键词2')
-    expect(DEFAULT_SYSTEM_PROMPT).toContain('只有结果不足时再追加新的工具调用')
     expect(DEFAULT_SYSTEM_PROMPT).toContain('@标题(/n/...)')
-    expect(DEFAULT_SYSTEM_PROMPT).toContain('最后一个显式提及对象')
     expect(DEFAULT_SYSTEM_PROMPT).toContain('优先调用 list_folders')
-    expect(DEFAULT_SYSTEM_PROMPT).toContain('传 folderId')
+    expect(DEFAULT_SYSTEM_PROMPT).toContain('调用工具时不要输出 Markdown')
+    expect(DEFAULT_SYSTEM_PROMPT).toContain('直接使用工具调用')
   })
 
   it('normalizes chat completions endpoint', () => {
@@ -129,7 +127,7 @@ describe('openAiCompatibleChatTransport', () => {
     expect(chunks.filter(chunk => chunk.type === 'text-delta').map(chunk => chunk.delta).join('')).toBe('你好，这里是流式回复。')
   })
 
-  it('adds native tools to the request body when enabled', async () => {
+  it('always adds native tools to the request body', async () => {
     const fetchMock = vi.fn(async () => createSseResponse([
       JSON.stringify({
         choices: [{
@@ -147,7 +145,6 @@ describe('openAiCompatibleChatTransport', () => {
         apiKey: 'sk-test',
         baseUrl: 'https://api.openai.com/v1',
         model: 'gpt-4.1-mini',
-        supportsNativeTools: true,
       }),
     })
 
@@ -175,7 +172,7 @@ describe('openAiCompatibleChatTransport', () => {
     expect(body.tools.map((tool: { function?: { name?: string } }) => tool.function?.name)).toContain('search_notes')
   })
 
-  it('emits native tool chunks for streamed tool calls when enabled', async () => {
+  it('emits native tool chunks for streamed tool calls', async () => {
     const fetchMock = vi.fn(async () => createSseResponse([
       JSON.stringify({
         choices: [{
@@ -191,7 +188,7 @@ describe('openAiCompatibleChatTransport', () => {
               index: 0,
               function: {
                 name: 'search_notes',
-                arguments: '{\"query\":\"周报\"',
+                arguments: '{"query":"周报"',
               },
             }],
           },
@@ -218,7 +215,6 @@ describe('openAiCompatibleChatTransport', () => {
         apiKey: 'sk-test',
         baseUrl: 'https://api.openai.com/v1',
         model: 'gpt-4.1-mini',
-        supportsNativeTools: true,
       }),
     })
 
@@ -252,79 +248,6 @@ describe('openAiCompatibleChatTransport', () => {
         query: '周报',
       },
     })
-  })
-
-  it('keeps the legacy envelope fallback for streamed tool calls when native tools are disabled', async () => {
-    const fetchMock = vi.fn(async () => createSseResponse([
-      JSON.stringify({
-        choices: [{
-          delta: {
-            role: 'assistant',
-          },
-        }],
-      }),
-      JSON.stringify({
-        choices: [{
-          delta: {
-            tool_calls: [{
-              index: 0,
-              function: {
-                name: 'search_notes',
-                arguments: '{\"query\":\"周报\"',
-              },
-            }],
-          },
-        }],
-      }),
-      JSON.stringify({
-        choices: [{
-          delta: {
-            tool_calls: [{
-              index: 0,
-              function: {
-                arguments: '}',
-              },
-            }],
-          },
-          finish_reason: 'tool_calls',
-        }],
-      }),
-    ]))
-
-    const transport = new OpenAiCompatibleChatTransport({
-      fetch: fetchMock as typeof fetch,
-      resolveSettings: () => ({
-        apiKey: 'sk-test',
-        baseUrl: 'https://api.openai.com/v1',
-        model: 'gpt-4.1-mini',
-        supportsNativeTools: false,
-      }),
-    })
-
-    const stream = await transport.sendMessages({
-      abortSignal: undefined,
-      chatId: 'chat-1',
-      messageId: undefined,
-      messages: [{
-        id: 'user-1',
-        role: 'user',
-        parts: [{
-          type: 'text',
-          text: '帮我搜索周报',
-        }],
-      }],
-      trigger: 'submit-message',
-    })
-
-    const chunks = await readChunks(stream)
-    const text = chunks
-      .filter(chunk => chunk.type === 'text-delta')
-      .map(chunk => chunk.delta)
-      .join('')
-
-    expect(text).toContain('"mode":"tool_calls"')
-    expect(text).toContain('"tool":"search_notes"')
-    expect(text).toContain('"query":"周报"')
   })
 
   it('injects local context and working memory as system messages and strips internal request fields', async () => {
@@ -460,11 +383,12 @@ describe('openAiCompatibleChatTransport', () => {
     ])
   })
 
-  it('bridges non-stream native tool calls into the legacy envelope text', async () => {
+  it('returns structured native tool calls for non-stream completions', async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({
       choices: [{
         message: {
           role: 'assistant',
+          content: '先读取这条笔记。',
           tool_calls: [{
             type: 'function',
             function: {
@@ -484,7 +408,6 @@ describe('openAiCompatibleChatTransport', () => {
 
     const result = await requestOpenAiCompatibleCompletion({
       fetchImplementation: fetchMock as typeof fetch,
-      includeNativeTools: true,
       messages: [{
         id: 'user-1',
         role: 'user',
@@ -497,13 +420,63 @@ describe('openAiCompatibleChatTransport', () => {
         apiKey: 'sk-test',
         baseUrl: 'https://api.openai.com/v1',
         model: 'gpt-4.1-mini',
-        supportsNativeTools: true,
       },
     })
 
-    expect(result).toContain('"mode":"tool_calls"')
-    expect(result).toContain('"tool":"get_note_detail"')
-    expect(result).toContain('"noteId":"note-1"')
+    expect(result).toEqual({
+      text: '先读取这条笔记。',
+      toolCalls: [{
+        tool: 'get_note_detail',
+        payload: {
+          noteId: 'note-1',
+        },
+      }],
+    })
+  })
+
+  it('can disable tool exposure for text-only completions', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: '这是摘要结果。',
+        },
+        finish_reason: 'stop',
+      }],
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      status: 200,
+    }))
+
+    const result = await requestOpenAiCompatibleCompletion({
+      allowTools: false,
+      fetchImplementation: fetchMock as typeof fetch,
+      messages: [{
+        id: 'user-1',
+        role: 'user',
+        parts: [{
+          type: 'text',
+          text: '总结一下',
+        }],
+      }],
+      settings: {
+        apiKey: 'sk-test',
+        baseUrl: 'https://api.openai.com/v1',
+        model: 'gpt-4.1-mini',
+      },
+    })
+
+    const request = fetchMock.mock.calls[0]?.[1]
+    const body = JSON.parse(String(request?.body || '{}'))
+
+    expect(body.tools).toBeUndefined()
+    expect(body.tool_choice).toBeUndefined()
+    expect(result).toEqual({
+      text: '这是摘要结果。',
+      toolCalls: [],
+    })
   })
 
   it('uses raw OpenAI messages directly for follow-up native tool turns', async () => {
@@ -524,7 +497,6 @@ describe('openAiCompatibleChatTransport', () => {
 
     await requestOpenAiCompatibleCompletion({
       fetchImplementation: fetchMock as typeof fetch,
-      includeNativeTools: true,
       messages: [{
         id: 'user-1',
         role: 'user',
@@ -553,13 +525,13 @@ describe('openAiCompatibleChatTransport', () => {
         apiKey: 'sk-test',
         baseUrl: 'https://api.openai.com/v1',
         model: 'gpt-4.1-mini',
-        supportsNativeTools: true,
       },
     })
 
     const request = fetchMock.mock.calls[0]?.[1]
     const body = JSON.parse(String(request?.body || '{}'))
 
+    expect(body.tools).toBeDefined()
     expect(body.messages).toEqual([{
       role: 'assistant',
       content: '',
