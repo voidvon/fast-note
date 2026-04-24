@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { IonButton, IonInput, IonItem, IonLabel, IonList, IonNote } from '@ionic/vue'
+import { IonButton, IonInput, IonItem, IonList, IonNote } from '@ionic/vue'
 
 const props = defineProps<{
   apiKey: string
@@ -7,6 +7,7 @@ const props = defineProps<{
   contextWindowHint?: string
   contextWindowTokens?: number | string
   model: string
+  supportsNativeTools?: boolean
   tokenizerHint?: string
 }>()
 
@@ -17,6 +18,7 @@ const emit = defineEmits<{
   'update:baseUrl': [value: string]
   'update:contextWindowTokens': [value: string]
   'update:model': [value: string]
+  'update:supportsNativeTools': [value: boolean]
 }>()
 </script>
 
@@ -78,6 +80,17 @@ const emit = defineEmits<{
           @update:model-value="emit('update:apiKey', String($event ?? ''))"
         />
       </IonItem>
+
+      <IonItem class="ai-chat-settings-card__checkbox-item">
+        <label class="ai-chat-settings-card__checkbox">
+          <input
+            :checked="props.supportsNativeTools === true"
+            type="checkbox"
+            @change="emit('update:supportsNativeTools', ($event.target as HTMLInputElement).checked)"
+          >
+          <span>使用原生 Tools / Function Calling</span>
+        </label>
+      </IonItem>
     </IonList>
 
     <div class="ion-padding-top">
@@ -95,5 +108,17 @@ const emit = defineEmits<{
 .ai-chat-settings-card__hint {
   display: block;
   margin-top: 8px;
+}
+
+.ai-chat-settings-card__checkbox-item {
+  --inner-padding-end: 0;
+}
+
+.ai-chat-settings-card__checkbox {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  padding: 12px 0;
+  width: 100%;
 }
 </style>

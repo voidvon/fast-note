@@ -5,6 +5,11 @@ import type {
   UIMessageChunk,
 } from 'ai'
 import { nanoid } from 'nanoid'
+import {
+  buildAiAssistantToolEnvelopeText,
+  OPENAI_NATIVE_NOTE_TOOLS,
+  parseOpenAiNativeToolCall,
+} from './openai-native-tools'
 import { applyWorkingMemoryToMessages } from './memory/context-compression'
 import {
   buildAiChatContextSystemPrompt,
@@ -21,6 +26,7 @@ export interface OpenAiCompatibleChatSettings {
   baseUrl: string
   contextWindowTokens?: number
   model: string
+  supportsNativeTools?: boolean
 }
 
 export interface OpenAiCompatibleChatTransportOptions {
@@ -29,10 +35,34 @@ export interface OpenAiCompatibleChatTransportOptions {
   systemPrompt?: string
 }
 
-interface OpenAiCompatibleMessage {
+export interface OpenAiCompatibleMessage {
   content: string
   role: 'assistant' | 'system' | 'user'
 }
+
+export interface OpenAiAssistantToolCallMessage {
+  role: 'assistant'
+  content: string
+  tool_calls: Array<{
+    id: string
+    type: 'function'
+    function: {
+      arguments: string
+      name: string
+    }
+  }>
+}
+
+export interface OpenAiToolResultMessage {
+  role: 'tool'
+  content: string
+  tool_call_id: string
+}
+
+export type OpenAiRequestMessage =
+  | OpenAiCompatibleMessage
+  | OpenAiAssistantToolCallMessage
+  | OpenAiToolResultMessage
 
 interface OpenAiChatCompletionResponse {
   choices?: Array<{
@@ -40,6 +70,14 @@ interface OpenAiChatCompletionResponse {
     message?: {
       content?: string | Array<{ text?: string }>
       role?: string
+      tool_calls?: Array<{
+        function?: {
+          arguments?: string
+          name?: string
+        }
+        id?: string
+        type?: string
+      }>
     }
   }>
   error?: {
@@ -52,6 +90,15 @@ interface OpenAiChatCompletionChunk {
     delta?: {
       content?: string | Array<{ text?: string }>
       role?: string
+      tool_calls?: Array<{
+        function?: {
+          arguments?: string
+          name?: string
+        }
+        id?: string
+        index?: number
+        type?: string
+      }>
     }
     finish_reason?: string | null
   }>
@@ -62,6 +109,12 @@ interface OpenAiChatCompletionChunk {
 
 type UiMessageFinishReason = 'stop' | 'length' | 'content-filter' | 'error' | 'other'
 type OpenAiDeltaPayload = NonNullable<OpenAiChatCompletionChunk['choices']>[number]['delta']
+type OpenAiMessageToolCalls = NonNullable<NonNullable<OpenAiChatCompletionResponse['choices']>[number]['message']>['tool_calls']
+
+interface OpenAiStreamToolCallState {
+  arguments: string
+  name: string
+}
 
 const OPENAI_CHAT_COMPLETIONS_PATH = '/chat/completions'
 export const DEFAULT_SYSTEM_PROMPT = [
@@ -129,6 +182,10 @@ export class OpenAiCompatibleChatTransport implements ChatTransport<UIMessage> {
         model: settings.model,
         stream: true,
         messages: buildOpenAiMessages(messages, this.systemPrompt, contextSystemPrompt, workingMemorySystemPrompt, workingMemory),
+        ...(settings.supportsNativeTools ? {
+          tool_choice: 'auto',
+          tools: OPENAI_NATIVE_NOTE_TOOLS,
+        } : {}),
         ...extraRequestBody,
       },
       fetchImplementation: this.fetchImplementation,
@@ -144,7 +201,9 @@ export class OpenAiCompatibleChatTransport implements ChatTransport<UIMessage> {
       throw new Error('AI 服务没有返回可读取的数据流')
     }
 
-    return createUiMessageChunkStream(response.body)
+    return createUiMessageChunkStream(response.body, {
+      supportsNativeTools: settings.supportsNativeTools,
+    })
   }
 
   async reconnectToStream(): Promise<ReadableStream<UIMessageChunk> | null> {
@@ -188,8 +247,8 @@ export function buildOpenAiMessages(
   contextSystemPrompt = '',
   workingMemorySystemPrompt = '',
   workingMemory: AiWorkingMemory | null | undefined = null,
-): OpenAiCompatibleMessage[] {
-  const requestMessages: OpenAiCompatibleMessage[] = []
+): OpenAiRequestMessage[] {
+  const requestMessages: OpenAiRequestMessage[] = []
 
   if (systemPrompt.trim()) {
     requestMessages.push({
@@ -257,19 +316,22 @@ async function requestOpenAiCompatibleResponse(options: RequestOpenAiCompatibleR
 }
 
 function extractCompletionMessageText(payload: OpenAiChatCompletionResponse) {
-  const content = payload.choices?.[0]?.message?.content
+  const message = payload.choices?.[0]?.message
+  const content = message?.content
   if (typeof content === 'string') {
-    return content.trim()
+    const text = content.trim()
+    return extractCompletionToolEnvelope(message?.tool_calls, text) || text
   }
 
   if (Array.isArray(content)) {
-    return content
+    const text = content
       .map(item => typeof item?.text === 'string' ? item.text : '')
       .join('')
       .trim()
+    return extractCompletionToolEnvelope(message?.tool_calls, text) || text
   }
 
-  return ''
+  return extractCompletionToolEnvelope(message?.tool_calls, '') || ''
 }
 
 export async function requestOpenAiCompatibleCompletion(options: {
@@ -277,7 +339,9 @@ export async function requestOpenAiCompatibleCompletion(options: {
   body?: Record<string, unknown>
   fetchImplementation?: typeof fetch
   headers?: Record<string, string> | Headers
+  includeNativeTools?: boolean
   messages: UIMessage[]
+  rawMessages?: OpenAiRequestMessage[]
   settings: OpenAiCompatibleChatSettings
   systemPrompt?: string
 }) {
@@ -291,7 +355,11 @@ export async function requestOpenAiCompatibleCompletion(options: {
     body: {
       model: options.settings.model,
       stream: false,
-      messages: buildOpenAiMessages(options.messages, options.systemPrompt || DEFAULT_SYSTEM_PROMPT, contextSystemPrompt, workingMemorySystemPrompt, workingMemory),
+      messages: options.rawMessages || buildOpenAiMessages(options.messages, options.systemPrompt || DEFAULT_SYSTEM_PROMPT, contextSystemPrompt, workingMemorySystemPrompt, workingMemory),
+      ...(options.includeNativeTools ?? options.settings.supportsNativeTools ? {
+        tool_choice: 'auto',
+        tools: OPENAI_NATIVE_NOTE_TOOLS,
+      } : {}),
       ...extraRequestBody,
     },
     fetchImplementation: options.fetchImplementation,
@@ -305,6 +373,22 @@ export async function requestOpenAiCompatibleCompletion(options: {
 
   const payload = await response.json() as OpenAiChatCompletionResponse
   return extractCompletionMessageText(payload)
+}
+
+function extractCompletionToolEnvelope(toolCalls: OpenAiMessageToolCalls, answer: string) {
+  if (!toolCalls?.length) {
+    return ''
+  }
+
+  const parsedToolCalls = toolCalls
+    .map(toolCall => parseOpenAiNativeToolCall(toolCall.function?.name || '', toolCall.function?.arguments))
+    .filter((toolCall): toolCall is NonNullable<ReturnType<typeof parseOpenAiNativeToolCall>> => !!toolCall)
+
+  if (!parsedToolCalls.length) {
+    return ''
+  }
+
+  return buildAiAssistantToolEnvelopeText(parsedToolCalls, answer)
 }
 
 function extractPlainText(message: UIMessage) {
@@ -335,6 +419,9 @@ async function resolveOpenAiError(response: Response) {
 
 function createUiMessageChunkStream(
   responseStream: ReadableStream<Uint8Array>,
+  options: {
+    supportsNativeTools?: boolean
+  } = {},
 ): ReadableStream<UIMessageChunk> {
   const messageId = nanoid()
   const textPartId = nanoid()
@@ -347,6 +434,8 @@ function createUiMessageChunkStream(
       let hasStarted = false
       let hasTextStarted = false
       let hasFinished = false
+      let accumulatedText = ''
+      const toolCalls = new Map<number, OpenAiStreamToolCallState>()
 
       const emitStart = () => {
         if (hasStarted) {
@@ -373,12 +462,72 @@ function createUiMessageChunkStream(
         })
       }
 
+      const emitTextDelta = (delta: string) => {
+        if (!delta) {
+          return
+        }
+
+        emitTextStart()
+        accumulatedText += delta
+        controller.enqueue({
+          type: 'text-delta',
+          id: textPartId,
+          delta,
+        })
+      }
+
+      const emitNativeToolCalls = () => {
+        const parsedToolCalls = Array.from(toolCalls.values())
+          .map(toolCall => parseOpenAiNativeToolCall(toolCall.name, toolCall.arguments))
+          .filter((toolCall): toolCall is NonNullable<ReturnType<typeof parseOpenAiNativeToolCall>> => !!toolCall)
+
+        if (!parsedToolCalls.length) {
+          return
+        }
+
+        for (const toolCall of parsedToolCalls) {
+          controller.enqueue({
+            type: 'tool-input-available',
+            dynamic: true,
+            input: toolCall.payload,
+            toolCallId: `tool-call-${nanoid()}`,
+            toolName: toolCall.tool,
+          })
+        }
+      }
+
+      const emitPendingToolEnvelope = () => {
+        const parsedToolCalls = Array.from(toolCalls.values())
+          .map(toolCall => parseOpenAiNativeToolCall(toolCall.name, toolCall.arguments))
+          .filter((toolCall): toolCall is NonNullable<ReturnType<typeof parseOpenAiNativeToolCall>> => !!toolCall)
+
+        if (!parsedToolCalls.length) {
+          return
+        }
+
+        if (options.supportsNativeTools) {
+          emitNativeToolCalls()
+          return
+        }
+
+        const envelopeText = buildAiAssistantToolEnvelopeText(parsedToolCalls, accumulatedText)
+        if (!envelopeText || envelopeText === accumulatedText) {
+          return
+        }
+
+        const delta = accumulatedText
+          ? envelopeText.slice(accumulatedText.length)
+          : envelopeText
+        emitTextDelta(delta)
+      }
+
       const emitFinish = (finishReason: UiMessageFinishReason = 'stop') => {
         if (hasFinished) {
           return
         }
 
         emitStart()
+        emitPendingToolEnvelope()
 
         if (hasTextStarted) {
           controller.enqueue({
@@ -429,13 +578,9 @@ function createUiMessageChunkStream(
 
             const deltaText = extractDeltaText(choice.delta)
             if (deltaText) {
-              emitTextStart()
-              controller.enqueue({
-                type: 'text-delta',
-                id: textPartId,
-                delta: deltaText,
-              })
+              emitTextDelta(deltaText)
             }
+            mergeToolCallDelta(toolCalls, choice.delta)
 
             if (choice.finish_reason) {
               emitFinish(mapFinishReason(choice.finish_reason))
@@ -492,12 +637,42 @@ function extractDeltaText(delta?: OpenAiDeltaPayload) {
   return ''
 }
 
+function mergeToolCallDelta(
+  target: Map<number, OpenAiStreamToolCallState>,
+  delta?: OpenAiDeltaPayload,
+) {
+  const toolCalls = delta?.tool_calls
+  if (!toolCalls?.length) {
+    return
+  }
+
+  for (const toolCall of toolCalls) {
+    const index = typeof toolCall.index === 'number' ? toolCall.index : 0
+    const current = target.get(index) || {
+      arguments: '',
+      name: '',
+    }
+
+    if (typeof toolCall.function?.name === 'string' && toolCall.function.name.trim()) {
+      current.name = toolCall.function.name.trim()
+    }
+
+    if (typeof toolCall.function?.arguments === 'string') {
+      current.arguments += toolCall.function.arguments
+    }
+
+    target.set(index, current)
+  }
+}
+
 function mapFinishReason(reason: string): UiMessageFinishReason {
   switch (reason) {
     case 'stop':
       return 'stop'
     case 'length':
       return 'length'
+    case 'tool_calls':
+      return 'stop'
     case 'content_filter':
       return 'content-filter'
     default:

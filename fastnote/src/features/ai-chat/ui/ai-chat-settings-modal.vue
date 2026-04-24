@@ -20,6 +20,7 @@ defineProps<{
   contextWindowTokens?: number | string
   isOpen: boolean
   model: string
+  supportsNativeTools?: boolean
   tokenizerHint?: string
 }>()
 
@@ -31,6 +32,7 @@ const emit = defineEmits<{
   'update:baseUrl': [value: string]
   'update:contextWindowTokens': [value: string]
   'update:model': [value: string]
+  'update:supportsNativeTools': [value: boolean]
 }>()
 
 function handleDidDismiss() {
@@ -62,11 +64,13 @@ function handleDidDismiss() {
         :context-window-hint="contextWindowHint"
         :context-window-tokens="contextWindowTokens"
         :model="model"
+        :supports-native-tools="supportsNativeTools"
         :tokenizer-hint="tokenizerHint"
         @update:api-key="emit('update:apiKey', $event)"
         @update:base-url="emit('update:baseUrl', $event)"
         @update:context-window-tokens="emit('update:contextWindowTokens', $event)"
         @update:model="emit('update:model', $event)"
+        @update:supports-native-tools="emit('update:supportsNativeTools', $event)"
         @save="emit('save')"
         @reset="emit('reset')"
       />
