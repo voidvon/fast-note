@@ -3,9 +3,11 @@ import type {
   AiNoteToolName,
 } from '@/shared/types'
 
-type JsonSchema = Record<string, unknown>
+type JsonSchema = {
+  [key: string]: unknown
+}
 
-interface NativeToolMetadataProperty {
+type NativeToolMetadataProperty = JsonSchema & {
   type: 'boolean'
   description: string
 }

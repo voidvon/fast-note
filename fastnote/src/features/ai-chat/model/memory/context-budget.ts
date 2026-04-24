@@ -1,6 +1,9 @@
 import type { UIMessage } from 'ai'
 import type { AiWorkingMemory } from '../working-memory'
-import { buildOpenAiMessages } from '../openai-compatible-chat-transport'
+import {
+  buildOpenAiMessages,
+  type OpenAiRequestMessage,
+} from '../openai-compatible-chat-transport'
 import {
   DEFAULT_CONTEXT_WINDOW_TOKENS,
   matchModelContextProfile,
@@ -52,16 +55,43 @@ interface EstimateContextBudgetOptions {
   workingMemorySystemPrompt?: string
 }
 
-function toSyntheticUiMessages(messages: Array<{ content: string, role: 'assistant' | 'system' | 'user' }>) {
-  return messages.map(message => ({
-    id: `${message.role}:${message.content.slice(0, 24)}`,
-    role: message.role,
-    parts: [{
-      state: 'done' as const,
-      type: 'text' as const,
-      text: message.content,
-    }],
-  }))
+function normalizeRequestMessage(message: OpenAiRequestMessage): { content: string, role: 'assistant' | 'system' | 'user' } {
+  if (message.role === 'tool') {
+    return {
+      role: 'user',
+      content: message.content,
+    }
+  }
+
+  if ('tool_calls' in message) {
+    return {
+      role: 'assistant',
+      content: [
+        message.content,
+        ...message.tool_calls.map(toolCall => `${toolCall.function.name}(${toolCall.function.arguments})`),
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    }
+  }
+
+  return message
+}
+
+function toSyntheticUiMessages(messages: OpenAiRequestMessage[]) {
+  return messages.map((message) => {
+    const normalizedMessage = normalizeRequestMessage(message)
+
+    return {
+      id: `${message.role}:${message.content.slice(0, 24)}`,
+      role: normalizedMessage.role,
+      parts: [{
+        state: 'done' as const,
+        type: 'text' as const,
+        text: normalizedMessage.content,
+      }],
+    }
+  })
 }
 
 export function formatContextWindowTokens(value: number) {
