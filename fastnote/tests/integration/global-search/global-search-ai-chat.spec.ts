@@ -2548,6 +2548,113 @@ describe('global search ai chat', () => {
     wrapper.unmount()
   })
 
+  it('supports native tool chunks for the initial streamed tool call and native follow-up completion', async () => {
+    aiChatSessionMock.submitToolCalls.mockImplementationOnce(async () => {
+      const results = [{
+        ok: true,
+        code: 'ok',
+        message: null,
+        preview: {
+          title: '读取备忘录详情',
+          summary: '读取备忘录 note-1 的详情',
+          affectedNoteIds: ['note-1'],
+        },
+        data: {
+          note: {
+            id: 'note-1',
+            title: '原文',
+            summary: '原摘要',
+            content: '<p>这是一段需要重写的内容。</p>',
+            parent_id: '',
+            updated: '2026-04-16 10:00:00',
+            is_deleted: 0,
+            is_locked: 0,
+          },
+          source: 'store',
+        },
+        affectedNoteIds: ['note-1'],
+      }]
+
+      aiChatSessionMock.hasPendingConfirmation.value = false
+      aiChatSessionMock.lastResults.value = results
+      return results
+    })
+
+    const fetchMock = vi.fn()
+      .mockImplementationOnce(async () => createSseResponse([
+        JSON.stringify({
+          choices: [{
+            delta: {
+              role: 'assistant',
+            },
+          }],
+        }),
+        JSON.stringify({
+          choices: [{
+            delta: {
+              tool_calls: [{
+                index: 0,
+                function: {
+                  name: 'get_note_detail',
+                  arguments: '{"noteId":"note-1"}',
+                },
+              }],
+            },
+            finish_reason: 'tool_calls',
+          }],
+        }),
+      ]))
+      .mockImplementationOnce(async () => createJsonResponse({
+        choices: [{
+          message: {
+            role: 'assistant',
+            content: '下面是基于原文的重写版本。',
+          },
+          finish_reason: 'stop',
+        }],
+      }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { useAiChat } = await import('@/features/ai-chat')
+    useAiChat().saveSettings({
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4.1-mini',
+      supportsNativeTools: true,
+    })
+
+    const wrapper = await mountGlobalSearch()
+    const input = wrapper.get('textarea')
+
+    await input.trigger('focus')
+    await wrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
+    await nextTick()
+
+    await input.setValue('读取这条笔记并帮我重写')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(aiChatSessionMock.submitToolCalls).toHaveBeenCalledTimes(1)
+
+    const secondRequest = fetchMock.mock.calls[1]?.[1]
+    const secondRequestBody = JSON.parse(String(secondRequest?.body || '{}'))
+    expect(secondRequestBody.tool_choice).toBe('auto')
+    expect(Array.isArray(secondRequestBody.tools)).toBe(true)
+    expect(secondRequestBody.messages.some((message: { role?: string, tool_calls?: unknown[] }) => {
+      return message.role === 'assistant' && Array.isArray(message.tool_calls) && message.tool_calls.length > 0
+    })).toBe(true)
+    expect(secondRequestBody.messages.some((message: { role?: string, tool_call_id?: string, content?: string }) => {
+      return message.role === 'tool'
+        && typeof message.tool_call_id === 'string'
+        && String(message.content || '').includes('"code":"ok"')
+    })).toBe(true)
+    expect(wrapper.text()).toContain('下面是基于原文的重写版本')
+
+    wrapper.unmount()
+  })
+
   it('shows loading on the current assistant message while waiting for a tool-loop follow-up completion', async () => {
     aiChatSessionMock.submitToolCalls.mockImplementationOnce(async () => {
       const results = [{

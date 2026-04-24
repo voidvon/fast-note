@@ -1,9 +1,13 @@
 import type { UIMessage } from 'ai'
 import type { AiAgentTask } from './agent-task'
-import type { OpenAiCompatibleChatSettings } from './openai-compatible-chat-transport'
+import type {
+  OpenAiCompatibleChatSettings,
+  OpenAiRequestMessage,
+} from './openai-compatible-chat-transport'
 import type { AiChatRequestContext } from './request-context'
 import type { AiNoteToolCall, AiToolResult } from '@/shared/types'
 import type { ChatMessageBlock, ChatMessageCard, ChatMessageCardAction, ChatMessageCardItem } from '@/shared/ui/chat-message'
+import { getToolName, isToolUIPart } from 'ai'
 import { Chat } from '@ai-sdk/vue'
 import { nanoid } from 'nanoid'
 import { computed, reactive, ref, watch } from 'vue'
@@ -32,6 +36,7 @@ import {
   getHighestMutationRiskLevel,
 } from './mutation-policy'
 import {
+  buildOpenAiMessages,
   DEFAULT_SYSTEM_PROMPT,
   OpenAiCompatibleChatTransport,
   requestOpenAiCompatibleCompletion,
@@ -78,6 +83,7 @@ const DEFAULT_MODEL = 'gpt-4.1-mini'
 
 type OpenAiCompatibleChatSettingsInput = Partial<Omit<OpenAiCompatibleChatSettings, 'contextWindowTokens'>> & {
   contextWindowTokens?: number | string
+  supportsNativeTools?: boolean | string
 }
 
 function normalizeContextWindowTokens(value: unknown) {
@@ -102,11 +108,31 @@ function normalizeContextWindowTokens(value: unknown) {
   return parsed
 }
 
+function normalizeBooleanSetting(value: unknown, fallback = false) {
+  if (typeof value === 'boolean') {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (normalized === 'true') {
+      return true
+    }
+
+    if (normalized === 'false') {
+      return false
+    }
+  }
+
+  return fallback
+}
+
 const settingsState = reactive<OpenAiCompatibleChatSettings>({
   apiKey: '',
   baseUrl: '',
   contextWindowTokens: undefined,
   model: DEFAULT_MODEL,
+  supportsNativeTools: false,
 })
 const hasHydratedConversation = ref(false)
 const hasHydrated = ref(false)
@@ -196,6 +222,7 @@ function readLatestAssistantRawMessage() {
       return {
         blocks: messageBlocks.value[message.id] || [],
         id: message.id,
+        parts: message.parts,
         role: 'assistant' as const,
         text: getMessageText(message.parts),
       }
@@ -258,6 +285,7 @@ function getEnvDefaults(): OpenAiCompatibleChatSettings {
     apiKey: import.meta.env.VITE_AI_CHAT_API_KEY?.trim() || '',
     contextWindowTokens: normalizeContextWindowTokens(import.meta.env.VITE_AI_CHAT_CONTEXT_WINDOW_TOKENS),
     model: import.meta.env.VITE_AI_CHAT_MODEL?.trim() || DEFAULT_MODEL,
+    supportsNativeTools: normalizeBooleanSetting(import.meta.env.VITE_AI_CHAT_SUPPORTS_NATIVE_TOOLS),
   }
 }
 
@@ -267,6 +295,7 @@ function normalizeSettings(settings: OpenAiCompatibleChatSettingsInput): OpenAiC
     baseUrl: settings.baseUrl?.trim() || '',
     contextWindowTokens: normalizeContextWindowTokens(settings.contextWindowTokens),
     model: settings.model?.trim() || DEFAULT_MODEL,
+    supportsNativeTools: normalizeBooleanSetting(settings.supportsNativeTools),
   }
 }
 
@@ -869,6 +898,7 @@ async function prepareWorkingMemoryForRequest(input: {
     const llmSummarizer = createLlmContextSummarizer({
       async complete({ prompt }) {
         return await requestOpenAiCompatibleCompletion({
+          includeNativeTools: false,
           messages: [{
             id: nanoid(),
             role: 'user',
@@ -1435,13 +1465,72 @@ function buildToolLoopPrompt(
   ].filter(Boolean).join('\n\n')
 }
 
+function buildNativeToolCallArguments(call: AiNoteToolCall) {
+  return JSON.stringify({
+    ...call.payload,
+    ...(call.confirmed === true ? { confirmed: true } : {}),
+    ...(call.dryRun === true ? { dryRun: true } : {}),
+    ...(call.requireConfirmation === true ? { requireConfirmation: true } : {}),
+  })
+}
+
+function buildNativeToolFollowUpMessages(input: {
+  context?: AiChatRequestContext | null
+  finalAnswerOnly?: boolean
+  results: AiToolResult[]
+  toolCalls: AiNoteToolCall[]
+  workingMemory?: AiWorkingMemory | null
+}) {
+  const baseMessages = buildOpenAiMessages(
+    chat.messages,
+    DEFAULT_SYSTEM_PROMPT,
+    buildAiChatContextSystemPrompt(input.context || null),
+    buildAiWorkingMemorySystemPrompt(input.workingMemory),
+    input.workingMemory,
+  )
+
+  const assistantToolCalls = input.toolCalls.map(call => ({
+    id: `tool-call-${nanoid()}`,
+    type: 'function' as const,
+    function: {
+      arguments: buildNativeToolCallArguments(call),
+      name: call.tool,
+    },
+  }))
+
+  const toolMessages = input.results.map((result, index) => ({
+    role: 'tool' as const,
+    content: JSON.stringify(result),
+    tool_call_id: assistantToolCalls[index]?.id || `tool-call-${index}`,
+  }))
+
+  const instructionMessage = input.finalAnswerOnly
+    ? {
+        role: 'system' as const,
+        content: '相关本地写操作已经执行完成。你现在只能输出自然语言最终答复，不要再次请求任何工具，也不要再次要求用户确认。',
+      }
+    : null
+
+  return [
+    ...baseMessages,
+    {
+      role: 'assistant' as const,
+      content: '',
+      tool_calls: assistantToolCalls,
+    },
+    ...toolMessages,
+    ...(instructionMessage ? [instructionMessage] : []),
+  ] satisfies OpenAiRequestMessage[]
+}
+
 async function continueAssistantAfterToolResults(
   resultsSummary: string,
   results: AiToolResult[],
   options: {
     finalAnswerOnly?: boolean
     progressMessageId?: string | null
-  } = {},
+    toolCalls: AiNoteToolCall[]
+  },
 ) {
   hydrateSettings()
   const followUpSystemMessage = createHiddenSystemMessage(buildToolLoopPrompt(resultsSummary, results, lastRequestContext.value, options))
@@ -1459,9 +1548,20 @@ async function continueAssistantAfterToolResults(
   followUpCompletionRequestCount.value += 1
 
   try {
+    const shouldUseNativeToolFollowUp = settingsState.supportsNativeTools === true && !options.finalAnswerOnly
     return await requestOpenAiCompatibleCompletion({
       body: createChatRequestBody(lastRequestContext.value, preparedWorkingMemory),
+      includeNativeTools: shouldUseNativeToolFollowUp,
       messages: followUpMessages,
+      rawMessages: shouldUseNativeToolFollowUp
+        ? buildNativeToolFollowUpMessages({
+            context: lastRequestContext.value,
+            finalAnswerOnly: options.finalAnswerOnly,
+            results,
+            toolCalls: options.toolCalls,
+            workingMemory: preparedWorkingMemory,
+          })
+        : undefined,
       settings: settingsState,
       systemPrompt: DEFAULT_SYSTEM_PROMPT,
     })
@@ -1487,28 +1587,36 @@ function extractSafeFollowUpText(rawText: string, summary: string) {
   return summary
 }
 
-async function resolveAssistantToolLoop(
-  rawText: string,
+function extractAssistantToolCallsFromParts(parts: UIMessage['parts']) {
+  return parts
+    .filter(isToolUIPart)
+    .filter((part) => {
+      return part.state === 'input-available'
+        && part.input
+        && typeof part.input === 'object'
+        && !Array.isArray(part.input)
+    })
+    .map((part) => {
+      return {
+        tool: getToolName(part) as AiNoteToolCall['tool'],
+        payload: part.input as AiNoteToolCall['payload'],
+      } as AiNoteToolCall
+    })
+}
+
+async function resolveAssistantToolCalls(
+  toolCalls: AiNoteToolCall[],
+  answer: string,
   depth = 0,
   messageId?: string | null,
   appendEnvelopeAnswer = false,
 ): Promise<{ cards: ChatMessageCard[], text: string }> {
-  const envelope = parseAiAssistantToolEnvelope(rawText)
-  if (!envelope) {
-    const text = rawText.trim()
-    appendTextBlockToAssistantMessage(messageId, text)
-    return {
-      cards: [],
-      text: getRenderedAssistantText(messageId, text),
-    }
-  }
-
-  if (appendEnvelopeAnswer && envelope.answer?.trim()) {
-    appendTextBlockToAssistantMessage(messageId, envelope.answer)
+  if (appendEnvelopeAnswer && answer.trim()) {
+    appendTextBlockToAssistantMessage(messageId, answer)
   }
 
   const mutationPolicies = applyMutationPolicies(
-    envelope.toolCalls,
+    toolCalls,
     currentTask.value?.input || getLatestUserMessageText(),
     lastRequestContext.value,
   )
@@ -1610,6 +1718,7 @@ async function resolveAssistantToolLoop(
     const followUpText = await continueAssistantAfterToolResults(summary, results, {
       finalAnswerOnly: finalizeAfterMutation,
       progressMessageId: messageId,
+      toolCalls: mutationPolicies.toolCalls,
     })
 
     if (finalizeAfterMutation) {
@@ -1637,8 +1746,43 @@ async function resolveAssistantToolLoop(
   }
 }
 
-async function resolveAssistantMessageWithoutAgent(rawText: string): Promise<{ cards: ChatMessageCard[], text: string }> {
+async function resolveAssistantToolLoop(
+  rawText: string,
+  depth = 0,
+  messageId?: string | null,
+  appendEnvelopeAnswer = false,
+): Promise<{ cards: ChatMessageCard[], text: string }> {
   const envelope = parseAiAssistantToolEnvelope(rawText)
+  if (!envelope) {
+    const text = rawText.trim()
+    appendTextBlockToAssistantMessage(messageId, text)
+    return {
+      cards: [],
+      text: getRenderedAssistantText(messageId, text),
+    }
+  }
+
+  return await resolveAssistantToolCalls(
+    envelope.toolCalls,
+    envelope.answer || '',
+    depth,
+    messageId,
+    appendEnvelopeAnswer,
+  )
+}
+
+async function resolveAssistantMessageWithoutAgent(
+  rawText: string,
+  toolCalls?: AiNoteToolCall[],
+): Promise<{ cards: ChatMessageCard[], text: string }> {
+  const envelope = toolCalls?.length
+    ? {
+        answer: '',
+        mode: 'tool_calls' as const,
+        toolCalls,
+      }
+    : parseAiAssistantToolEnvelope(rawText)
+
   if (!envelope) {
     return {
       cards: [],
@@ -1677,7 +1821,8 @@ async function processLatestAssistantEnvelope() {
   }
 
   const envelope = parseAiAssistantToolEnvelope(message.text)
-  if (!envelope) {
+  const nativeToolCalls = envelope ? [] : extractAssistantToolCallsFromParts(message.parts)
+  if (!envelope && !nativeToolCalls.length) {
     handledAssistantEnvelopeIds.add(message.id)
     if (currentTask.value && (currentTask.value.status === 'identifying' || currentTask.value.status === 'executing')) {
       markTaskCompleted(message.text)
@@ -1688,14 +1833,18 @@ async function processLatestAssistantEnvelope() {
   handledAssistantEnvelopeIds.add(message.id)
 
   if (!agentFeatureEnabled) {
-    const resolved = await resolveAssistantMessageWithoutAgent(message.text)
+    const resolved = envelope
+      ? await resolveAssistantMessageWithoutAgent(message.text)
+      : await resolveAssistantMessageWithoutAgent(message.text, nativeToolCalls)
     appendCardsBlockToAssistantMessage(message.id, resolved.cards)
     appendTextBlockToAssistantMessage(message.id, resolved.text)
     return
   }
 
   ensureCurrentTask()
-  const resolved = await resolveAssistantToolLoop(message.text, 0, message.id)
+  const resolved = envelope
+    ? await resolveAssistantToolLoop(message.text, 0, message.id)
+    : await resolveAssistantToolCalls(nativeToolCalls, message.text, 0, message.id)
   if (currentTask.value && (currentTask.value.status === 'identifying' || currentTask.value.status === 'executing')) {
     markTaskCompleted(resolved.text)
   }
@@ -2124,6 +2273,7 @@ async function confirmPendingExecution() {
     const followUpText = await continueAssistantAfterToolResults(summary, results, {
       finalAnswerOnly: finalizeAfterMutation,
       progressMessageId: continuationMessageId,
+      toolCalls: confirmedCalls,
     })
 
     if (finalizeAfterMutation) {

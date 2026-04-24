@@ -4,6 +4,7 @@ import {
   buildOpenAiMessages,
   DEFAULT_SYSTEM_PROMPT,
   OpenAiCompatibleChatTransport,
+  requestOpenAiCompatibleCompletion,
   resolveChatCompletionsEndpoint,
 } from '@/features/ai-chat/model/openai-compatible-chat-transport'
 import { AI_CHAT_REQUEST_CONTEXT_BODY_KEY } from '@/features/ai-chat/model/request-context'
@@ -126,6 +127,204 @@ describe('openAiCompatibleChatTransport', () => {
       'finish',
     ])
     expect(chunks.filter(chunk => chunk.type === 'text-delta').map(chunk => chunk.delta).join('')).toBe('你好，这里是流式回复。')
+  })
+
+  it('adds native tools to the request body when enabled', async () => {
+    const fetchMock = vi.fn(async () => createSseResponse([
+      JSON.stringify({
+        choices: [{
+          delta: {
+            role: 'assistant',
+          },
+          finish_reason: 'stop',
+        }],
+      }),
+    ]))
+
+    const transport = new OpenAiCompatibleChatTransport({
+      fetch: fetchMock as typeof fetch,
+      resolveSettings: () => ({
+        apiKey: 'sk-test',
+        baseUrl: 'https://api.openai.com/v1',
+        model: 'gpt-4.1-mini',
+        supportsNativeTools: true,
+      }),
+    })
+
+    await transport.sendMessages({
+      abortSignal: undefined,
+      chatId: 'chat-1',
+      messageId: undefined,
+      messages: [{
+        id: 'user-1',
+        role: 'user',
+        parts: [{
+          type: 'text',
+          text: '帮我搜索周报',
+        }],
+      }],
+      trigger: 'submit-message',
+    })
+
+    const request = fetchMock.mock.calls[0]?.[1]
+    const body = JSON.parse(String(request?.body || '{}'))
+
+    expect(body.tool_choice).toBe('auto')
+    expect(Array.isArray(body.tools)).toBe(true)
+    expect(body.tools[0]?.type).toBe('function')
+    expect(body.tools.map((tool: { function?: { name?: string } }) => tool.function?.name)).toContain('search_notes')
+  })
+
+  it('emits native tool chunks for streamed tool calls when enabled', async () => {
+    const fetchMock = vi.fn(async () => createSseResponse([
+      JSON.stringify({
+        choices: [{
+          delta: {
+            role: 'assistant',
+          },
+        }],
+      }),
+      JSON.stringify({
+        choices: [{
+          delta: {
+            tool_calls: [{
+              index: 0,
+              function: {
+                name: 'search_notes',
+                arguments: '{\"query\":\"周报\"',
+              },
+            }],
+          },
+        }],
+      }),
+      JSON.stringify({
+        choices: [{
+          delta: {
+            tool_calls: [{
+              index: 0,
+              function: {
+                arguments: '}',
+              },
+            }],
+          },
+          finish_reason: 'tool_calls',
+        }],
+      }),
+    ]))
+
+    const transport = new OpenAiCompatibleChatTransport({
+      fetch: fetchMock as typeof fetch,
+      resolveSettings: () => ({
+        apiKey: 'sk-test',
+        baseUrl: 'https://api.openai.com/v1',
+        model: 'gpt-4.1-mini',
+        supportsNativeTools: true,
+      }),
+    })
+
+    const stream = await transport.sendMessages({
+      abortSignal: undefined,
+      chatId: 'chat-1',
+      messageId: undefined,
+      messages: [{
+        id: 'user-1',
+        role: 'user',
+        parts: [{
+          type: 'text',
+          text: '帮我搜索周报',
+        }],
+      }],
+      trigger: 'submit-message',
+    })
+
+    const chunks = await readChunks(stream)
+    const text = chunks
+      .filter(chunk => chunk.type === 'text-delta')
+      .map(chunk => chunk.delta)
+      .join('')
+
+    expect(text).toBe('')
+    expect(chunks.some(chunk => chunk.type === 'tool-input-available')).toBe(true)
+    expect(chunks.find(chunk => chunk.type === 'tool-input-available')).toMatchObject({
+      type: 'tool-input-available',
+      toolName: 'search_notes',
+      input: {
+        query: '周报',
+      },
+    })
+  })
+
+  it('keeps the legacy envelope fallback for streamed tool calls when native tools are disabled', async () => {
+    const fetchMock = vi.fn(async () => createSseResponse([
+      JSON.stringify({
+        choices: [{
+          delta: {
+            role: 'assistant',
+          },
+        }],
+      }),
+      JSON.stringify({
+        choices: [{
+          delta: {
+            tool_calls: [{
+              index: 0,
+              function: {
+                name: 'search_notes',
+                arguments: '{\"query\":\"周报\"',
+              },
+            }],
+          },
+        }],
+      }),
+      JSON.stringify({
+        choices: [{
+          delta: {
+            tool_calls: [{
+              index: 0,
+              function: {
+                arguments: '}',
+              },
+            }],
+          },
+          finish_reason: 'tool_calls',
+        }],
+      }),
+    ]))
+
+    const transport = new OpenAiCompatibleChatTransport({
+      fetch: fetchMock as typeof fetch,
+      resolveSettings: () => ({
+        apiKey: 'sk-test',
+        baseUrl: 'https://api.openai.com/v1',
+        model: 'gpt-4.1-mini',
+        supportsNativeTools: false,
+      }),
+    })
+
+    const stream = await transport.sendMessages({
+      abortSignal: undefined,
+      chatId: 'chat-1',
+      messageId: undefined,
+      messages: [{
+        id: 'user-1',
+        role: 'user',
+        parts: [{
+          type: 'text',
+          text: '帮我搜索周报',
+        }],
+      }],
+      trigger: 'submit-message',
+    })
+
+    const chunks = await readChunks(stream)
+    const text = chunks
+      .filter(chunk => chunk.type === 'text-delta')
+      .map(chunk => chunk.delta)
+      .join('')
+
+    expect(text).toContain('"mode":"tool_calls"')
+    expect(text).toContain('"tool":"search_notes"')
+    expect(text).toContain('"query":"周报"')
   })
 
   it('injects local context and working memory as system messages and strips internal request fields', async () => {
@@ -259,5 +458,123 @@ describe('openAiCompatibleChatTransport', () => {
       'user:第一条',
       'user:第三条',
     ])
+  })
+
+  it('bridges non-stream native tool calls into the legacy envelope text', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      choices: [{
+        message: {
+          role: 'assistant',
+          tool_calls: [{
+            type: 'function',
+            function: {
+              name: 'get_note_detail',
+              arguments: '{"noteId":"note-1"}',
+            },
+          }],
+        },
+        finish_reason: 'tool_calls',
+      }],
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      status: 200,
+    }))
+
+    const result = await requestOpenAiCompatibleCompletion({
+      fetchImplementation: fetchMock as typeof fetch,
+      includeNativeTools: true,
+      messages: [{
+        id: 'user-1',
+        role: 'user',
+        parts: [{
+          type: 'text',
+          text: '读取 note-1',
+        }],
+      }],
+      settings: {
+        apiKey: 'sk-test',
+        baseUrl: 'https://api.openai.com/v1',
+        model: 'gpt-4.1-mini',
+        supportsNativeTools: true,
+      },
+    })
+
+    expect(result).toContain('"mode":"tool_calls"')
+    expect(result).toContain('"tool":"get_note_detail"')
+    expect(result).toContain('"noteId":"note-1"')
+  })
+
+  it('uses raw OpenAI messages directly for follow-up native tool turns', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: '已基于工具结果继续回答。',
+        },
+        finish_reason: 'stop',
+      }],
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      status: 200,
+    }))
+
+    await requestOpenAiCompatibleCompletion({
+      fetchImplementation: fetchMock as typeof fetch,
+      includeNativeTools: true,
+      messages: [{
+        id: 'user-1',
+        role: 'user',
+        parts: [{
+          type: 'text',
+          text: '这条不会被发送',
+        }],
+      }],
+      rawMessages: [{
+        role: 'assistant',
+        content: '',
+        tool_calls: [{
+          id: 'tool-call-1',
+          type: 'function',
+          function: {
+            name: 'search_notes',
+            arguments: '{"query":"周报"}',
+          },
+        }],
+      }, {
+        role: 'tool',
+        tool_call_id: 'tool-call-1',
+        content: '{"ok":true,"code":"ok"}',
+      }],
+      settings: {
+        apiKey: 'sk-test',
+        baseUrl: 'https://api.openai.com/v1',
+        model: 'gpt-4.1-mini',
+        supportsNativeTools: true,
+      },
+    })
+
+    const request = fetchMock.mock.calls[0]?.[1]
+    const body = JSON.parse(String(request?.body || '{}'))
+
+    expect(body.messages).toEqual([{
+      role: 'assistant',
+      content: '',
+      tool_calls: [{
+        id: 'tool-call-1',
+        type: 'function',
+        function: {
+          name: 'search_notes',
+          arguments: '{"query":"周报"}',
+        },
+      }],
+    }, {
+      role: 'tool',
+      tool_call_id: 'tool-call-1',
+      content: '{"ok":true,"code":"ok"}',
+    }])
   })
 })
