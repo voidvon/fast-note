@@ -30,14 +30,16 @@ describe('applyAgentMutationPolicy', () => {
     expect(policy.call.requireConfirmation).toBe(true)
   })
 
-  it('allows explicit direct rewrite requests to write back immediately', () => {
+  it('allows explicit direct rewrite tool calls to write back immediately', () => {
     const policy = applyAgentMutationPolicy({
       tool: 'update_note',
+      confirmed: true,
+      requireConfirmation: false,
       payload: {
         noteId: 'note-1',
         contentHtml: '<p>这是改写后的正文。</p>',
       },
-    }, '直接重写这个链接里的笔记并写回原文', requestContext)
+    }, 'rewrite this note', requestContext)
 
     expect(policy.riskLevel).toBe('low')
     expect(policy.confirmationMode).toBe('direct')
@@ -53,7 +55,7 @@ describe('applyAgentMutationPolicy', () => {
         noteId: 'note-1',
         contentHtml: '<p>这是建议版本。</p>',
       },
-    }, '帮我重写这条笔记', requestContext)
+    }, 'rewrite this note', requestContext)
 
     expect(policy.riskLevel).toBe('medium')
     expect(policy.confirmationMode).toBe('required')

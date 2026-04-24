@@ -39,13 +39,8 @@ describe('resolveAiChatTarget', () => {
     })
   })
 
-  it('resolves active note for current-note references', () => {
-    expect(resolveAiChatTarget('读取这条笔记并帮我总结', context)).toMatchObject({
-      source: 'active_note',
-      note: {
-        id: 'note-1',
-      },
-    })
+  it('does not resolve natural-language current-note references without explicit links', () => {
+    expect(resolveAiChatTarget('读取这条笔记并帮我总结', context)).toBeNull()
   })
 
   it('resolves folder id from a fastnote folder url', () => {
@@ -68,17 +63,23 @@ describe('resolveAiChatTarget', () => {
     })
   })
 
-  it('prefers the note as primary target for move intent when note and folder coexist', () => {
+  it('keeps using the last explicit target as a weak hint for multi-target messages', () => {
     expect(resolveAiChatTarget('把 @周报(/n/note-1) 移到 @产品文档(/f/folder-1)', context)).toMatchObject({
-      source: 'message_note_url',
-      note: {
-        id: 'note-1',
-        title: '周报',
+      source: 'message_folder_url',
+      folder: {
+        id: 'folder-1',
+        title: '产品文档',
       },
     })
   })
 
-  it('does not force a single resolved target for compare intent with multiple notes', () => {
-    expect(resolveAiChatTarget('比较 @周报(/n/note-1) 和 @会议纪要(/n/note-2)', context)).toBeNull()
+  it('keeps the last explicit note target for compare messages and leaves full semantics to mentioned targets', () => {
+    expect(resolveAiChatTarget('比较 @周报(/n/note-1) 和 @会议纪要(/n/note-2)', context)).toMatchObject({
+      source: 'message_note_url',
+      note: {
+        id: 'note-2',
+        title: '会议纪要',
+      },
+    })
   })
 })

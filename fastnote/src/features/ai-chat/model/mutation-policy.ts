@@ -12,8 +12,6 @@ export interface AiAgentMutationPolicy {
   riskLevel: AiAgentMutationRiskLevel
 }
 
-const DIRECT_WRITE_PATTERN = /(直接(改写|重写|润色|覆盖|写回|更新|保存)|改好后直接(覆盖|写回|更新|保存)|覆盖原文|写回原文|替换原文|直接提交|直接同步到原文|帮我直接(改写|重写|润色|覆盖))/i
-
 function htmlToPlainText(contentHtml: string) {
   const normalized = contentHtml.trim()
   if (!normalized) {
@@ -31,10 +29,6 @@ function htmlToPlainText(contentHtml: string) {
     .replace(/<[^>]+>/g, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
-}
-
-function isExplicitDirectWriteRequest(input: string) {
-  return DIRECT_WRITE_PATTERN.test(input.trim())
 }
 
 function resolveWritableTargetNoteId(context: AiChatRequestContext | null | undefined) {
@@ -74,9 +68,13 @@ function toRewriteSuggestion(call: Extract<AiNoteToolCall, { tool: 'update_note'
   return ''
 }
 
+function isExplicitDirectWriteCall(call: Extract<AiNoteToolCall, { tool: 'update_note' }>) {
+  return call.confirmed === true && call.requireConfirmation !== true
+}
+
 export function applyAgentMutationPolicy(
   call: AiNoteToolCall,
-  taskInput: string,
+  _taskInput: string,
   context: AiChatRequestContext | null | undefined,
 ): AiAgentMutationPolicy {
   switch (call.tool) {
@@ -109,7 +107,7 @@ export function applyAgentMutationPolicy(
       const rewriteSuggestion = toRewriteSuggestion(call)
       const writableTargetNoteId = resolveWritableTargetNoteId(context)
       const matchesResolvedTarget = !!call.payload.noteId && call.payload.noteId === writableTargetNoteId
-      const hasDirectWriteIntent = isExplicitDirectWriteRequest(taskInput)
+      const hasDirectWriteIntent = isExplicitDirectWriteCall(call)
       const isRewritePayload = isContentRewritePayload(call)
 
       if (typeof call.payload.parentId === 'string' && call.payload.parentId.trim()) {
@@ -133,11 +131,11 @@ export function applyAgentMutationPolicy(
             confirmed: true,
             requireConfirmation: false,
           },
-          confirmationMode: 'direct',
-          reason: '明确直写指令且目标唯一，允许直接写回',
-          rewriteSuggestion,
-          riskLevel: 'low',
-        }
+        confirmationMode: 'direct',
+        reason: '模型已显式请求直写且目标唯一，允许直接写回',
+        rewriteSuggestion,
+        riskLevel: 'low',
+      }
       }
 
       return {
@@ -148,7 +146,7 @@ export function applyAgentMutationPolicy(
         },
         confirmationMode: 'required',
         reason: matchesResolvedTarget
-          ? '未命中明确直写指令，改写默认先确认'
+          ? '未命中显式直写标记，改写默认先确认'
           : '写操作目标未与当前唯一对象对齐，默认先确认',
         rewriteSuggestion,
         riskLevel: 'medium',

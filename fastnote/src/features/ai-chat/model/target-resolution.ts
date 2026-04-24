@@ -1,14 +1,10 @@
 import type {
-  AiChatContextFolder,
-  AiChatContextNote,
   AiChatResolvedTarget,
   AiChatRequestContext,
 } from './request-context'
 
 const NOTE_URL_PATTERN = /(?:https?:\/\/[^\s)]+)?\/n\/([^?\s/#)]+)/gi
 const FOLDER_URL_PATTERN = /(?:https?:\/\/[^\s)]+)?\/f\/([^?\s#)]+)/gi
-const MOVE_INTENT_PATTERN = /(移到|移动到|移入|放到|放进|放入|归档到|转移到)/
-const COMPARE_INTENT_PATTERN = /(对比|比较|区别|差异|不同)/
 
 interface ExplicitTargetReference {
   id: string
@@ -61,18 +57,6 @@ function collectExplicitTargetReferences(text: string): ExplicitTargetReference[
   return references.sort((left, right) => left.index - right.index)
 }
 
-function findLastExplicitTargetReference(text: string) {
-  return collectExplicitTargetReferences(text).at(-1) || null
-}
-
-function hasMoveIntent(text: string) {
-  return MOVE_INTENT_PATTERN.test(text)
-}
-
-function hasCompareIntent(text: string) {
-  return COMPARE_INTENT_PATTERN.test(text)
-}
-
 function resolveNoteTarget(noteId: string, context: AiChatRequestContext) {
   const matchedNote = [
     context.activeNote,
@@ -117,62 +101,15 @@ function resolveExplicitTargetReference(reference: ExplicitTargetReference, cont
   return resolveFolderTarget(reference.id, context)
 }
 
-function findIntentMatchedExplicitReference(
-  text: string,
-  references: ExplicitTargetReference[],
-  context: AiChatRequestContext,
-): AiChatResolvedTarget | null | undefined {
-  const noteReferences = references.filter(reference => reference.type === 'note')
-  const folderReferences = references.filter(reference => reference.type === 'folder')
-
-  if (hasCompareIntent(text) && noteReferences.length >= 2) {
-    return null
-  }
-
-  if (hasMoveIntent(text) && noteReferences.length && folderReferences.length) {
-    return resolveExplicitTargetReference(noteReferences[0], context)
-  }
-
-  return undefined
-}
-
-function refersToCurrentNote(text: string) {
-  return /(这条笔记|当前笔记|这个笔记|这篇备忘录|当前备忘录|这个备忘录)/.test(text)
-}
-
-function refersToCurrentFolder(text: string) {
-  return /(当前目录|这个目录|这个文件夹|当前文件夹|这个文件夹里|当前目录里)/.test(text)
-}
-
 export function resolveAiChatTarget(text: string, context: AiChatRequestContext | null | undefined): AiChatResolvedTarget | null {
   const normalizedText = text.trim()
   if (!normalizedText || !context) {
     return null
   }
 
-  const explicitReferences = collectExplicitTargetReferences(normalizedText)
-  const intentMatchedTarget = findIntentMatchedExplicitReference(normalizedText, explicitReferences, context)
-  if (intentMatchedTarget !== undefined) {
-    return intentMatchedTarget
-  }
-
-  const explicitReference = explicitReferences.at(-1) || null
+  const explicitReference = collectExplicitTargetReferences(normalizedText).at(-1) || null
   if (explicitReference) {
     return resolveExplicitTargetReference(explicitReference, context)
-  }
-
-  if (refersToCurrentNote(normalizedText) && context.activeNote) {
-    return {
-      note: context.activeNote,
-      source: 'active_note',
-    }
-  }
-
-  if (refersToCurrentFolder(normalizedText) && context.activeFolder) {
-    return {
-      folder: context.activeFolder,
-      source: 'active_folder',
-    }
   }
 
   return null
