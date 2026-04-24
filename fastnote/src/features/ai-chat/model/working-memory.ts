@@ -177,10 +177,28 @@ function getResolvedTargetSummary(target: AiChatResolvedTarget | null | undefine
   return ''
 }
 
+function getMentionedTargetSummary(context: AiChatRequestContext | null | undefined) {
+  const latestMentionedTarget = context?.mentionedTargets?.at(-1)
+  if (!latestMentionedTarget) {
+    return ''
+  }
+
+  if (latestMentionedTarget.type === 'folder') {
+    return `提及目录：${latestMentionedTarget.title} [${latestMentionedTarget.id}]`
+  }
+
+  return `提及备忘录：${latestMentionedTarget.title} [${latestMentionedTarget.id}]`
+}
+
 function getContextTargetSummary(context: AiChatRequestContext | null | undefined) {
   const resolvedTargetSummary = getResolvedTargetSummary(context?.resolvedTarget)
   if (resolvedTargetSummary) {
     return resolvedTargetSummary
+  }
+
+  const mentionedTargetSummary = getMentionedTargetSummary(context)
+  if (mentionedTargetSummary) {
+    return mentionedTargetSummary
   }
 
   if (context?.activeNote?.id) {

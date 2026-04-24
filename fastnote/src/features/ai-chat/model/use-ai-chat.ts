@@ -142,6 +142,7 @@ const streamActivity = reactive({
 })
 const streamActivityNow = ref(Date.now())
 const followUpCompletionRequestCount = ref(0)
+const progressAnchorAssistantMessageId = ref('')
 let streamActivityTimer: ReturnType<typeof setInterval> | null = null
 const CONTEXT_SUMMARIZER_SYSTEM_PROMPT = [
   '你是 fastnote 内部使用的上下文摘要器。',
@@ -227,6 +228,7 @@ function markRequestStarted() {
   streamActivity.requestBaselineAssistantText = latestMessage?.text || ''
   streamActivity.requestStartedAt = Date.now()
   streamActivity.responseStartedAt = 0
+  progressAnchorAssistantMessageId.value = ''
   streamActivityNow.value = Date.now()
 }
 
@@ -1120,6 +1122,7 @@ function clearConversation() {
   aiChatSession.cancelPendingExecution()
   aiChatSession.lastResults.value = []
   followUpCompletionRequestCount.value = 0
+  progressAnchorAssistantMessageId.value = ''
   handledAssistantEnvelopeIds.clear()
   lastRequestContext.value = null
   messageBlocks.value = {}
@@ -1437,6 +1440,7 @@ async function continueAssistantAfterToolResults(
   results: AiToolResult[],
   options: {
     finalAnswerOnly?: boolean
+    progressMessageId?: string | null
   } = {},
 ) {
   hydrateSettings()
@@ -1449,7 +1453,9 @@ async function continueAssistantAfterToolResults(
   })
 
   const followUpMessages = chat.messages.concat(followUpSystemMessage)
+  const progressAnchorMessageId = options.progressMessageId?.trim() || ''
 
+  progressAnchorAssistantMessageId.value = progressAnchorMessageId
   followUpCompletionRequestCount.value += 1
 
   try {
@@ -1462,6 +1468,9 @@ async function continueAssistantAfterToolResults(
   }
   finally {
     followUpCompletionRequestCount.value = Math.max(0, followUpCompletionRequestCount.value - 1)
+    if (progressAnchorAssistantMessageId.value === progressAnchorMessageId) {
+      progressAnchorAssistantMessageId.value = ''
+    }
   }
 }
 
@@ -1600,6 +1609,7 @@ async function resolveAssistantToolLoop(
   try {
     const followUpText = await continueAssistantAfterToolResults(summary, results, {
       finalAnswerOnly: finalizeAfterMutation,
+      progressMessageId: messageId,
     })
 
     if (finalizeAfterMutation) {
@@ -1886,10 +1896,6 @@ const sessionPhase = computed<AiChatSessionPhase>(() => {
   return 'ready'
 })
 const conversationProgress = computed<AiChatProgressState | null>(() => {
-  if (hasVisibleStreamingAssistantMessage.value) {
-    return null
-  }
-
   switch (sessionPhase.value) {
     case 'connecting':
       return {
@@ -1920,6 +1926,21 @@ const conversationProgress = computed<AiChatProgressState | null>(() => {
       break
   }
   return null
+})
+const progressAssistantMessageId = computed(() => {
+  if (!conversationProgress.value) {
+    return ''
+  }
+
+  if (progressAnchorAssistantMessageId.value) {
+    return progressAnchorAssistantMessageId.value
+  }
+
+  if (hasVisibleStreamingAssistantMessage.value) {
+    return streamActivity.firstAssistantMessageId || latestAssistantMessage.value?.id || ''
+  }
+
+  return ''
 })
 
 function createChatRequestBody(context?: AiChatRequestContext | null, workingMemoryOverride?: AiWorkingMemory | null) {
@@ -2102,6 +2123,7 @@ async function confirmPendingExecution() {
   try {
     const followUpText = await continueAssistantAfterToolResults(summary, results, {
       finalAnswerOnly: finalizeAfterMutation,
+      progressMessageId: continuationMessageId,
     })
 
     if (finalizeAfterMutation) {
@@ -2259,6 +2281,7 @@ export function useAiChat() {
       showSettings.value = true
     },
     providerLabel,
+    progressAssistantMessageId,
     confirmPendingExecution,
     conversationProgress,
     regenerate,

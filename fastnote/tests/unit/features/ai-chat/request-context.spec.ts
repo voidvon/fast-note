@@ -46,12 +46,31 @@ describe('ai chat request context helpers', () => {
           isLocked: false,
         },
       },
+      mentionedTargets: [{
+        id: 'note-3',
+        title: '链接里的备忘录',
+        type: 'note',
+        routePath: '/n/note-3',
+        source: 'message_mention',
+        parentId: '',
+        updated: '2026-04-15 11:00:00',
+      }, {
+        id: 'folder-9',
+        title: '相关目录',
+        type: 'folder',
+        routePath: '/f/folder-9',
+        source: 'message_mention',
+        parentId: '',
+        updated: '',
+      }],
     })
 
     expect(prompt).toContain('当前入口')
     expect(prompt).toContain('当前选中备忘录')
     expect(prompt).toContain('前端显式解析目标备忘录')
     expect(prompt).toContain('消息中的备忘录链接')
+    expect(prompt).toContain('消息中显式提及的对象')
+    expect(prompt).toContain('目录：相关目录')
     expect(prompt).toContain('最近更新的备忘录')
   })
 
@@ -71,12 +90,26 @@ describe('ai chat request context helpers', () => {
             isLocked: false,
           },
         },
+        mentionedTargets: [{
+          id: 'folder-1',
+          title: '工作',
+          type: 'folder',
+          routePath: '/f/folder-1',
+          source: 'message_mention',
+        }],
       },
       temperature: 0.2,
     })
 
     expect(result.context).toMatchObject({
       source: 'home_global_search',
+      mentionedTargets: [{
+        id: 'folder-1',
+        routePath: '/f/folder-1',
+        source: 'message_mention',
+        title: '工作',
+        type: 'folder',
+      }],
       resolvedTarget: {
         source: 'message_note_url',
       },

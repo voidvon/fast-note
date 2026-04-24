@@ -2,6 +2,7 @@ import type { Note } from '@/shared/types'
 
 export const AI_CHAT_REQUEST_CONTEXT_BODY_KEY = '_fastnoteRequestContext'
 const MAX_CONTEXT_NOTES = 5
+const MAX_MENTIONED_TARGETS = 8
 const MAX_TITLE_LENGTH = 24
 const MAX_SUMMARY_LENGTH = 48
 
@@ -27,10 +28,21 @@ export interface AiChatResolvedTarget {
   source: 'active_folder' | 'active_note' | 'message_folder_url' | 'message_note_url'
 }
 
+export interface AiChatMentionedTarget {
+  id: string
+  parentId?: string
+  routePath: string
+  source: 'message_mention'
+  title: string
+  type: 'folder' | 'note'
+  updated?: string
+}
+
 export interface AiChatRequestContext {
   activeFolder?: AiChatContextFolder | null
   activeNote?: AiChatContextNote | null
   candidateNotes?: AiChatContextNote[]
+  mentionedTargets?: AiChatMentionedTarget[]
   publicUserId?: string | null
   recentNotes?: AiChatContextNote[]
   resolvedTarget?: AiChatResolvedTarget | null
@@ -94,6 +106,33 @@ function normalizeContextNoteList(value: unknown) {
     .slice(0, MAX_CONTEXT_NOTES)
 }
 
+function normalizeMentionedTarget(value: unknown): AiChatMentionedTarget | null {
+  if (!isRecord(value) || typeof value.id !== 'string' || typeof value.title !== 'string' || typeof value.routePath !== 'string') {
+    return null
+  }
+
+  return {
+    id: value.id,
+    parentId: typeof value.parentId === 'string' ? value.parentId : '',
+    routePath: value.routePath.trim(),
+    source: value.source === 'message_mention' ? 'message_mention' : 'message_mention',
+    title: truncateText(value.title, MAX_TITLE_LENGTH) || '未命名',
+    type: value.type === 'folder' ? 'folder' : 'note',
+    updated: typeof value.updated === 'string' ? value.updated : '',
+  }
+}
+
+function normalizeMentionedTargets(value: unknown) {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value
+    .map(item => normalizeMentionedTarget(item))
+    .filter((item): item is AiChatMentionedTarget => !!item)
+    .slice(0, MAX_MENTIONED_TARGETS)
+}
+
 function normalizeResolvedTarget(value: unknown): AiChatResolvedTarget | null {
   if (!isRecord(value) || typeof value.source !== 'string') {
     return null
@@ -134,6 +173,7 @@ export function normalizeAiChatRequestContext(value: unknown): AiChatRequestCont
   const activeFolder = normalizeContextFolder(value.activeFolder)
   const activeNote = normalizeContextNote(value.activeNote)
   const candidateNotes = normalizeContextNoteList(value.candidateNotes)
+  const mentionedTargets = normalizeMentionedTargets(value.mentionedTargets)
   const recentNotes = normalizeContextNoteList(value.recentNotes)
   const resolvedTarget = normalizeResolvedTarget(value.resolvedTarget)
 
@@ -143,6 +183,7 @@ export function normalizeAiChatRequestContext(value: unknown): AiChatRequestCont
     && !activeFolder
     && !activeNote
     && !candidateNotes.length
+    && !mentionedTargets.length
     && !recentNotes.length
     && !resolvedTarget) {
     return null
@@ -166,6 +207,9 @@ export function normalizeAiChatRequestContext(value: unknown): AiChatRequestCont
   }
   if (candidateNotes.length) {
     context.candidateNotes = candidateNotes
+  }
+  if (mentionedTargets.length) {
+    context.mentionedTargets = mentionedTargets
   }
   if (recentNotes.length) {
     context.recentNotes = recentNotes
@@ -205,6 +249,27 @@ function formatNoteSection(title: string, notes: AiChatContextNote[] | undefined
   return [
     `- ${title}：`,
     ...notes.map((note, index) => `  ${index + 1}. ${formatNoteLine(note)}`),
+  ]
+}
+
+function formatMentionedTargetLine(target: AiChatMentionedTarget) {
+  const typeLabel = target.type === 'folder' ? '目录' : '备忘录'
+  const suffixParts = [
+    target.routePath,
+    target.updated ? `更新于 ${target.updated}` : '',
+  ].filter(Boolean)
+
+  return `${typeLabel}：${target.title} [${target.id}]${suffixParts.length ? `｜${suffixParts.join('｜')}` : ''}`
+}
+
+function formatMentionedTargetSection(targets: AiChatMentionedTarget[] | undefined) {
+  if (!targets?.length) {
+    return []
+  }
+
+  return [
+    '- 消息中显式提及的对象：',
+    ...targets.map((target, index) => `  ${index + 1}. ${formatMentionedTargetLine(target)}`),
   ]
 }
 
@@ -264,6 +329,7 @@ export function buildAiChatContextSystemPrompt(context: AiChatRequestContext | n
     lines.push('- 若用户本轮指令与该显式目标一致，优先围绕该对象继续读取、改写或执行后续工具，不要忽略这个对象。')
   }
 
+  lines.push(...formatMentionedTargetSection(normalizedContext.mentionedTargets))
   lines.push(...formatNoteSection('当前候选备忘录', normalizedContext.candidateNotes))
   lines.push(...formatNoteSection('最近更新的备忘录', normalizedContext.recentNotes))
 

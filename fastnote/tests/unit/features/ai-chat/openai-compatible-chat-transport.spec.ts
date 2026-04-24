@@ -52,6 +52,10 @@ describe('openAiCompatibleChatTransport', () => {
     expect(DEFAULT_SYSTEM_PROMPT).toContain('如果用户要的是总结、对比、归纳')
     expect(DEFAULT_SYSTEM_PROMPT).toContain('关键词1 关键词2')
     expect(DEFAULT_SYSTEM_PROMPT).toContain('只有结果不足时再追加新的工具调用')
+    expect(DEFAULT_SYSTEM_PROMPT).toContain('@标题(/n/...)')
+    expect(DEFAULT_SYSTEM_PROMPT).toContain('最后一个显式提及对象')
+    expect(DEFAULT_SYSTEM_PROMPT).toContain('优先调用 list_folders')
+    expect(DEFAULT_SYSTEM_PROMPT).toContain('传 folderId')
   })
 
   it('normalizes chat completions endpoint', () => {

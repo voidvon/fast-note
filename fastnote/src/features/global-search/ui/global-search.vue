@@ -9,11 +9,15 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import { useRoute, useRouter } from 'vue-router'
 import { NOTE_TYPE, useNote } from '@/entities/note'
 import AiChatPanel, { useAiChat } from '@/features/ai-chat'
+import { extractAiChatMentionedTargets } from '@/features/ai-chat/model/mentioned-targets'
 import { toAiChatContextNote } from '@/features/ai-chat/model/request-context'
 import { resolveAiChatTarget } from '@/features/ai-chat/model/target-resolution'
 import { useDesktopActiveNote } from '@/processes/navigation/model/use-desktop-active-note'
 import { cleanupIonicOverlayLocks } from '@/shared/lib/ionic'
 import ChatMessageCardItemView from '@/shared/ui/chat-message/ui/chat-message-card-item.vue'
+import { formatMentionText, toMentionCardItem } from '../model/mention-format'
+import { getMentionSuggestions, parseActiveMention } from '../model/mention-suggestions'
+import type { MentionEntity } from '../model/mention-types'
 import NoteList from '@/widgets/note-list'
 import { toSearchResultNodes } from '../lib/search-results'
 import {
@@ -124,7 +128,7 @@ const panelStyle = computed(() => ({
   '--global-search-panel-bottom-inset': `${state.panelBottomInset}px`,
 }))
 const aiSelectionStart = ref(0)
-const mentionSuggestions = ref<Note[]>([])
+const mentionSuggestions = ref<MentionEntity[]>([])
 const activeMentionIndex = ref(0)
 const activeMentionRange = ref<{ end: number, start: number } | null>(null)
 const recentContextNotes = computed(() => {
@@ -136,16 +140,9 @@ const recentContextNotes = computed(() => {
     .map(note => toAiChatContextNote(note))
     .filter((note): note is NonNullable<ReturnType<typeof toAiChatContextNote>> => !!note)
 })
-const recentMentionNotes = computed(() => {
-  return notes.value
-    .filter(note => note.item_type === NOTE_TYPE.NOTE && note.is_deleted === 0)
-    .slice()
-    .sort((left, right) => new Date(right.updated).getTime() - new Date(left.updated).getTime())
-    .slice(0, 6)
-})
 const showMentionSuggestions = computed(() => !isSearchMode.value && !!activeMentionRange.value)
 const mentionSuggestionItems = computed<ChatMessageCardItem[]>(() => {
-  return mentionSuggestions.value.map(note => toMentionCardItem(note))
+  return mentionSuggestions.value.map(entity => toMentionCardItem(entity))
 })
 
 function resolveCurrentBrowserRoutePath() {
@@ -156,70 +153,6 @@ function resolveCurrentBrowserRoutePath() {
   const pathname = window.location.pathname || route.path || '/home'
   const normalizedPath = pathname === '/' ? '/home' : pathname
   return `${normalizedPath}${window.location.search || ''}`
-}
-
-function normalizeMentionTitle(title: string) {
-  return title.trim() || '未命名'
-}
-
-function formatMentionText(note: Note) {
-  return `@${normalizeMentionTitle(note.title)}(/n/${encodeURIComponent(note.id)}) `
-}
-
-function resolveMentionItemMeta(note: Note) {
-  if (note.parent_id) {
-    const folderTitle = getNote(note.parent_id)?.title?.trim()
-    if (folderTitle) {
-      return folderTitle
-    }
-  }
-
-  return note.updated || ''
-}
-
-function toMentionCardItem(note: Note): ChatMessageCardItem {
-  return {
-    action: {
-      type: 'open-note',
-      noteId: note.id,
-      parentId: note.parent_id || '',
-    },
-    description: note.summary || '',
-    id: note.id,
-    meta: resolveMentionItemMeta(note),
-    tags: note.is_locked === 1 ? ['已加锁'] : [],
-    title: normalizeMentionTitle(note.title),
-  }
-}
-
-function parseActiveMention(value: string, selectionStart: number) {
-  if (selectionStart < 0 || selectionStart > value.length) {
-    return null
-  }
-
-  const prefix = value.slice(0, selectionStart)
-  const mentionStart = prefix.lastIndexOf('@')
-  if (mentionStart < 0) {
-    return null
-  }
-
-  const previousChar = mentionStart > 0 ? prefix[mentionStart - 1] : ''
-  if (previousChar && !/[\s([{（【"'“‘]/.test(previousChar)) {
-    return null
-  }
-
-  const mentionText = prefix.slice(mentionStart + 1)
-  if (/\s/.test(mentionText)) {
-    return null
-  }
-
-  return {
-    query: mentionText.trim(),
-    range: {
-      start: mentionStart,
-      end: selectionStart,
-    },
-  }
 }
 
 function resolveRouteNoteId() {
@@ -301,13 +234,20 @@ const baseAiRequestContext = computed<AiChatRequestContext>(() => {
 
 function createAiRequestContext(input: string): AiChatRequestContext {
   const context = baseAiRequestContext.value
+  const mentionedTargets = extractAiChatMentionedTargets(input, context)
   const resolvedTarget = resolveAiChatTarget(input, context)
   if (!resolvedTarget) {
-    return context
+    return mentionedTargets.length
+      ? {
+          ...context,
+          mentionedTargets,
+        }
+      : context
   }
 
   return {
     ...context,
+    mentionedTargets,
     resolvedTarget: {
       source: resolvedTarget.source,
       note: resolvedTarget.note?.id
@@ -557,18 +497,17 @@ async function updateMentionSuggestions(value: string, selectionStart: number) {
   activeMentionRange.value = mention.range
   activeMentionIndex.value = 0
 
-  if (!mention.query) {
-    mentionSuggestions.value = recentMentionNotes.value
-    return
-  }
-
   const requestId = ++mentionRequestId
-  const matchedNotes = await searchNotesByKeyword(mention.query, 6)
+  const matchedSuggestions = await getMentionSuggestions(mention.query, {
+    getNote,
+    notes: notes.value,
+    searchNotesByKeyword,
+  }, 6)
   if (requestId !== mentionRequestId) {
     return
   }
 
-  mentionSuggestions.value = matchedNotes
+  mentionSuggestions.value = matchedSuggestions
 }
 
 function handleCompositionStart() {
@@ -740,13 +679,13 @@ async function setInputSelection(position: number) {
   aiSelectionStart.value = position
 }
 
-async function handleMentionSelect(note: Note) {
+async function handleMentionSelect(entity: MentionEntity) {
   const range = activeMentionRange.value
   if (!range) {
     return
   }
 
-  const mentionText = formatMentionText(note)
+  const mentionText = formatMentionText(entity)
   const nextDraft = `${aiDraft.value.slice(0, range.start)}${mentionText}${aiDraft.value.slice(range.end)}`
   const nextCursor = range.start + mentionText.length
   aiDraft.value = nextDraft
@@ -758,16 +697,17 @@ async function handleMentionSelect(note: Note) {
 }
 
 function handleMentionCardAction(action: ChatMessageCardAction) {
-  if (action.type !== 'open-note') {
+  const matchedEntity = action.type === 'open-note'
+    ? mentionSuggestions.value.find(entity => entity.type === 'note' && entity.id === action.noteId)
+    : action.type === 'open-folder'
+      ? mentionSuggestions.value.find(entity => entity.type === 'folder' && entity.id === action.folderId)
+      : null
+
+  if (!matchedEntity) {
     return
   }
 
-  const matchedNote = mentionSuggestions.value.find(note => note.id === action.noteId)
-  if (!matchedNote) {
-    return
-  }
-
-  void handleMentionSelect(matchedNote)
+  void handleMentionSelect(matchedEntity)
 }
 
 async function onAiAction() {
@@ -1108,7 +1048,7 @@ onUnmounted(() => {
           />
           <div v-if="showMentionSuggestions" class="global-search__mention-panel">
             <p class="global-search__mention-caption">
-              备忘录建议
+              引用建议
             </p>
             <ul
               v-if="mentionSuggestions.length"
@@ -1354,6 +1294,7 @@ onUnmounted(() => {
 
   &__mention-panel {
     position: absolute;
+    z-index: 120;
     left: 16px;
     right: 16px;
     bottom: calc(var(--global-search-panel-bottom-inset, 0px) + 12px);
