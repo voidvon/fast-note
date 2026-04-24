@@ -1092,6 +1092,8 @@ describe('global search ai chat', () => {
                 answer: '我会直接写回，并保留改写摘要。',
                 toolCalls: [{
                   tool: 'update_note',
+                  confirmed: true,
+                  requireConfirmation: false,
                   payload: {
                     noteId: 'note-1',
                     contentHtml: '<p>改写后的正文。</p>',
