@@ -1,15 +1,7 @@
 name: CI And Dev Deploy
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - backend/**
-      - fastnote/**
-      - scripts/**
-      - package.json
-      - .github/workflows/p0-sync-integrity.yml
+  workflow_dispatch:
 
 concurrency:
   group: dev-deploy-${{ github.ref }}
