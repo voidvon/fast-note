@@ -277,18 +277,16 @@ describe('ai chat pending restore', () => {
       JSON.stringify({
         choices: [{
           delta: {
-            content: JSON.stringify({
-              mode: 'tool_calls',
-              answer: '我已准备删除这条备忘录。',
-              toolCalls: [{
-                tool: 'delete_note',
-                payload: {
-                  noteId: 'note-1',
-                },
-              }],
-            }),
+            content: '我已准备删除这条备忘录。',
+            tool_calls: [{
+              index: 0,
+              function: {
+                name: 'delete_note',
+                arguments: '{"noteId":"note-1"}',
+              },
+            }],
           },
-          finish_reason: 'stop',
+          finish_reason: 'tool_calls',
         }],
       }),
     ]))

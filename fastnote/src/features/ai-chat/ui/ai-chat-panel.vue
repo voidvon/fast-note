@@ -52,7 +52,6 @@ const settingsForm = reactive({
   baseUrl: settings.baseUrl,
   contextWindowTokens: settings.contextWindowTokens ? String(settings.contextWindowTokens) : '',
   model: settings.model,
-  supportsNativeTools: settings.supportsNativeTools === true,
 })
 const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 32
 const INITIAL_AUTO_SCROLL_RETRY_FRAMES = 4
@@ -245,12 +244,11 @@ watch(latestVisibleMessage, async (message) => {
   scheduleScrollToBottom()
 })
 
-watch(() => [settings.apiKey, settings.baseUrl, settings.contextWindowTokens, settings.model, settings.supportsNativeTools], () => {
+watch(() => [settings.apiKey, settings.baseUrl, settings.contextWindowTokens, settings.model], () => {
   settingsForm.apiKey = settings.apiKey
   settingsForm.baseUrl = settings.baseUrl
   settingsForm.contextWindowTokens = settings.contextWindowTokens ? String(settings.contextWindowTokens) : ''
   settingsForm.model = settings.model
-  settingsForm.supportsNativeTools = settings.supportsNativeTools === true
 })
 
 function handleSaveSettings() {
@@ -259,7 +257,6 @@ function handleSaveSettings() {
     baseUrl: settingsForm.baseUrl,
     contextWindowTokens: settingsForm.contextWindowTokens,
     model: settingsForm.model,
-    supportsNativeTools: settingsForm.supportsNativeTools,
   })
 }
 
@@ -273,7 +270,6 @@ function handleResetSettings() {
   settingsForm.baseUrl = settings.baseUrl
   settingsForm.contextWindowTokens = settings.contextWindowTokens ? String(settings.contextWindowTokens) : ''
   settingsForm.model = settings.model
-  settingsForm.supportsNativeTools = settings.supportsNativeTools === true
 }
 
 function handleCloseSettings() {
@@ -308,11 +304,9 @@ function handleMessageAction(action: ChatMessageCardAction) {
       v-model:base-url="settingsForm.baseUrl"
       v-model:context-window-tokens="settingsForm.contextWindowTokens"
       v-model:model="settingsForm.model"
-      v-model:supports-native-tools="settingsForm.supportsNativeTools"
       :context-window-hint="contextWindowHint"
       :is-open="shouldShowSettings"
       :can-dismiss="hasConfiguredProvider"
-      :supports-native-tools="settingsForm.supportsNativeTools"
       :tokenizer-hint="tokenizerHint"
       @close="handleCloseSettings"
       @save="handleSaveSettings"

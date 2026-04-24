@@ -1,6 +1,7 @@
 import type { UIMessage } from 'ai'
 import type { AiAgentTask } from './agent-task'
 import type {
+  OpenAiCompletionResult,
   OpenAiCompatibleChatSettings,
   OpenAiRequestMessage,
 } from './openai-compatible-chat-transport'
@@ -26,7 +27,6 @@ import {
 import {
   extractVisibleAiAssistantText,
   mergeAssistantAnswer,
-  parseAiAssistantToolEnvelope,
   summarizeExecutionResults,
   summarizePreviewResults,
 } from './assistant-envelope'
@@ -83,7 +83,6 @@ const DEFAULT_MODEL = 'gpt-4.1-mini'
 
 type OpenAiCompatibleChatSettingsInput = Partial<Omit<OpenAiCompatibleChatSettings, 'contextWindowTokens'>> & {
   contextWindowTokens?: number | string
-  supportsNativeTools?: boolean | string
 }
 
 function normalizeContextWindowTokens(value: unknown) {
@@ -108,31 +107,11 @@ function normalizeContextWindowTokens(value: unknown) {
   return parsed
 }
 
-function normalizeBooleanSetting(value: unknown, fallback = false) {
-  if (typeof value === 'boolean') {
-    return value
-  }
-
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase()
-    if (normalized === 'true') {
-      return true
-    }
-
-    if (normalized === 'false') {
-      return false
-    }
-  }
-
-  return fallback
-}
-
 const settingsState = reactive<OpenAiCompatibleChatSettings>({
   apiKey: '',
   baseUrl: '',
   contextWindowTokens: undefined,
   model: DEFAULT_MODEL,
-  supportsNativeTools: false,
 })
 const hasHydratedConversation = ref(false)
 const hasHydrated = ref(false)
@@ -285,7 +264,6 @@ function getEnvDefaults(): OpenAiCompatibleChatSettings {
     apiKey: import.meta.env.VITE_AI_CHAT_API_KEY?.trim() || '',
     contextWindowTokens: normalizeContextWindowTokens(import.meta.env.VITE_AI_CHAT_CONTEXT_WINDOW_TOKENS),
     model: import.meta.env.VITE_AI_CHAT_MODEL?.trim() || DEFAULT_MODEL,
-    supportsNativeTools: normalizeBooleanSetting(import.meta.env.VITE_AI_CHAT_SUPPORTS_NATIVE_TOOLS),
   }
 }
 
@@ -295,7 +273,6 @@ function normalizeSettings(settings: OpenAiCompatibleChatSettingsInput): OpenAiC
     baseUrl: settings.baseUrl?.trim() || '',
     contextWindowTokens: normalizeContextWindowTokens(settings.contextWindowTokens),
     model: settings.model?.trim() || DEFAULT_MODEL,
-    supportsNativeTools: normalizeBooleanSetting(settings.supportsNativeTools),
   }
 }
 
@@ -897,8 +874,8 @@ async function prepareWorkingMemoryForRequest(input: {
 
     const llmSummarizer = createLlmContextSummarizer({
       async complete({ prompt }) {
-        return await requestOpenAiCompatibleCompletion({
-          includeNativeTools: false,
+        const completion = await requestOpenAiCompatibleCompletion({
+          allowTools: false,
           messages: [{
             id: nanoid(),
             role: 'user',
@@ -911,6 +888,8 @@ async function prepareWorkingMemoryForRequest(input: {
           settings: settingsState,
           systemPrompt: CONTEXT_SUMMARIZER_SYSTEM_PROMPT,
         })
+
+        return completion.text
       },
     })
 
@@ -1443,22 +1422,12 @@ function buildToolLoopPrompt(
   resultsSummary: string,
   results: AiToolResult[],
   requestContext?: AiChatRequestContext | null,
-  options: {
-    finalAnswerOnly?: boolean
-  } = {},
 ) {
   const contextPrompt = buildAiChatContextSystemPrompt(requestContext || null)
   return [
     '以下是你刚才请求的本地工具执行结果，请继续完成用户上一条请求。',
-    options.finalAnswerOnly
-      ? '相关本地写操作已经执行完成。你现在只能输出自然语言最终答复，不要返回 JSON，不要再次请求任何工具，也不要再次要求用户确认。'
-      : '如果当前信息已足够，请直接输出自然语言最终答复，不要再解释 JSON 格式。',
-    options.finalAnswerOnly
-      ? '如果需要提及执行结果，请基于下方工具结果直接总结给用户，不要重复描述将要执行的动作。'
-      : '如果用户要的是主题筛选、汇总或总结，而当前结果只有搜索列表、不足以支撑可靠结论，请继续调用 get_note_detail 读取相关备忘录正文，不要停在“已帮你筛出结果”。',
-    options.finalAnswerOnly
-      ? ''
-      : '如果仍需进一步读取或执行其他本地工具，请继续只返回合法 JSON 工具请求。',
+    '如果当前信息已足够，请直接输出自然语言最终答复，不要再解释 JSON 格式。',
+    '如果用户要的是主题筛选、汇总或总结，而当前结果只有搜索列表、不足以支撑可靠结论，请继续调用 get_note_detail 读取相关备忘录正文，不要停在“已帮你筛出结果”。',
     contextPrompt ? `附加上下文：\n${contextPrompt}` : '',
     `工具执行摘要：\n${resultsSummary}`,
     `工具详细返回：\n${buildDetailedToolResultsPrompt(results)}`,
@@ -1476,9 +1445,9 @@ function buildNativeToolCallArguments(call: AiNoteToolCall) {
 
 function buildNativeToolFollowUpMessages(input: {
   context?: AiChatRequestContext | null
-  finalAnswerOnly?: boolean
   results: AiToolResult[]
   toolCalls: AiNoteToolCall[]
+  toolLoopPrompt?: string
   workingMemory?: AiWorkingMemory | null
 }) {
   const baseMessages = buildOpenAiMessages(
@@ -1504,22 +1473,20 @@ function buildNativeToolFollowUpMessages(input: {
     tool_call_id: assistantToolCalls[index]?.id || `tool-call-${index}`,
   }))
 
-  const instructionMessage = input.finalAnswerOnly
-    ? {
-        role: 'system' as const,
-        content: '相关本地写操作已经执行完成。你现在只能输出自然语言最终答复，不要再次请求任何工具，也不要再次要求用户确认。',
-      }
-    : null
-
   return [
     ...baseMessages,
+    ...(input.toolLoopPrompt?.trim()
+      ? [{
+          role: 'system' as const,
+          content: input.toolLoopPrompt.trim(),
+        }]
+      : []),
     {
       role: 'assistant' as const,
       content: '',
       tool_calls: assistantToolCalls,
     },
     ...toolMessages,
-    ...(instructionMessage ? [instructionMessage] : []),
   ] satisfies OpenAiRequestMessage[]
 }
 
@@ -1527,13 +1494,13 @@ async function continueAssistantAfterToolResults(
   resultsSummary: string,
   results: AiToolResult[],
   options: {
-    finalAnswerOnly?: boolean
     progressMessageId?: string | null
     toolCalls: AiNoteToolCall[]
   },
-) {
+): Promise<OpenAiCompletionResult> {
   hydrateSettings()
-  const followUpSystemMessage = createHiddenSystemMessage(buildToolLoopPrompt(resultsSummary, results, lastRequestContext.value, options))
+  const toolLoopPrompt = buildToolLoopPrompt(resultsSummary, results, lastRequestContext.value)
+  const followUpSystemMessage = createHiddenSystemMessage(toolLoopPrompt)
   const preparedWorkingMemory = updateWorkingMemory({
     context: lastRequestContext.value,
     lastCompressionReason: 'tool_results',
@@ -1548,20 +1515,16 @@ async function continueAssistantAfterToolResults(
   followUpCompletionRequestCount.value += 1
 
   try {
-    const shouldUseNativeToolFollowUp = settingsState.supportsNativeTools === true && !options.finalAnswerOnly
     return await requestOpenAiCompatibleCompletion({
       body: createChatRequestBody(lastRequestContext.value, preparedWorkingMemory),
-      includeNativeTools: shouldUseNativeToolFollowUp,
       messages: followUpMessages,
-      rawMessages: shouldUseNativeToolFollowUp
-        ? buildNativeToolFollowUpMessages({
-            context: lastRequestContext.value,
-            finalAnswerOnly: options.finalAnswerOnly,
-            results,
-            toolCalls: options.toolCalls,
-            workingMemory: preparedWorkingMemory,
-          })
-        : undefined,
+      rawMessages: buildNativeToolFollowUpMessages({
+        context: lastRequestContext.value,
+        results,
+        toolCalls: options.toolCalls,
+        toolLoopPrompt,
+        workingMemory: preparedWorkingMemory,
+      }),
       settings: settingsState,
       systemPrompt: DEFAULT_SYSTEM_PROMPT,
     })
@@ -1576,15 +1539,6 @@ async function continueAssistantAfterToolResults(
 
 function shouldFinalizeAfterToolResults(calls: AiNoteToolCall[]) {
   return calls.some(call => isMutationTool(call.tool))
-}
-
-function extractSafeFollowUpText(rawText: string, summary: string) {
-  const envelope = parseAiAssistantToolEnvelope(rawText)
-  if (!envelope) {
-    return rawText.trim()
-  }
-
-  return summary
 }
 
 function extractAssistantToolCallsFromParts(parts: UIMessage['parts']) {
@@ -1609,9 +1563,9 @@ async function resolveAssistantToolCalls(
   answer: string,
   depth = 0,
   messageId?: string | null,
-  appendEnvelopeAnswer = false,
+  appendAnswer = false,
 ): Promise<{ cards: ChatMessageCard[], text: string }> {
-  if (appendEnvelopeAnswer && answer.trim()) {
+  if (appendAnswer && answer.trim()) {
     appendTextBlockToAssistantMessage(messageId, answer)
   }
 
@@ -1713,24 +1667,21 @@ async function resolveAssistantToolCalls(
   }
 
   const finalizeAfterMutation = shouldFinalizeAfterToolResults(mutationPolicies.toolCalls)
+  if (finalizeAfterMutation) {
+    appendTextBlockToAssistantMessage(messageId, summary)
+    return {
+      cards,
+      text: getRenderedAssistantText(messageId, summary),
+    }
+  }
 
   try {
     const followUpText = await continueAssistantAfterToolResults(summary, results, {
-      finalAnswerOnly: finalizeAfterMutation,
       progressMessageId: messageId,
       toolCalls: mutationPolicies.toolCalls,
     })
 
-    if (finalizeAfterMutation) {
-      const safeFollowUpText = extractSafeFollowUpText(followUpText, summary)
-      appendTextBlockToAssistantMessage(messageId, safeFollowUpText)
-      return {
-        cards,
-        text: getRenderedAssistantText(messageId, safeFollowUpText),
-      }
-    }
-
-    const nested = await resolveAssistantToolLoop(followUpText, depth + 1, messageId, true)
+    const nested = await resolveAssistantFollowUpCompletion(followUpText, depth + 1, messageId, true)
     return {
       cards: mergeCards(cards, nested.cards),
       text: getRenderedAssistantText(messageId, nested.text),
@@ -1746,15 +1697,14 @@ async function resolveAssistantToolCalls(
   }
 }
 
-async function resolveAssistantToolLoop(
-  rawText: string,
+async function resolveAssistantFollowUpCompletion(
+  completion: OpenAiCompletionResult,
   depth = 0,
   messageId?: string | null,
-  appendEnvelopeAnswer = false,
+  appendAnswer = false,
 ): Promise<{ cards: ChatMessageCard[], text: string }> {
-  const envelope = parseAiAssistantToolEnvelope(rawText)
-  if (!envelope) {
-    const text = rawText.trim()
+  if (!completion.toolCalls.length) {
+    const text = completion.text.trim()
     appendTextBlockToAssistantMessage(messageId, text)
     return {
       cards: [],
@@ -1763,27 +1713,19 @@ async function resolveAssistantToolLoop(
   }
 
   return await resolveAssistantToolCalls(
-    envelope.toolCalls,
-    envelope.answer || '',
+    completion.toolCalls,
+    completion.text,
     depth,
     messageId,
-    appendEnvelopeAnswer,
+    appendAnswer,
   )
 }
 
 async function resolveAssistantMessageWithoutAgent(
   rawText: string,
-  toolCalls?: AiNoteToolCall[],
+  toolCalls: AiNoteToolCall[] = [],
 ): Promise<{ cards: ChatMessageCard[], text: string }> {
-  const envelope = toolCalls?.length
-    ? {
-        answer: '',
-        mode: 'tool_calls' as const,
-        toolCalls,
-      }
-    : parseAiAssistantToolEnvelope(rawText)
-
-  if (!envelope) {
+  if (!toolCalls.length) {
     return {
       cards: [],
       text: rawText.trim(),
@@ -1791,7 +1733,7 @@ async function resolveAssistantMessageWithoutAgent(
   }
 
   const mutationPolicies = applyMutationPolicies(
-    envelope.toolCalls,
+    toolCalls,
     getLatestUserMessageText(),
     lastRequestContext.value,
   )
@@ -1820,9 +1762,8 @@ async function processLatestAssistantEnvelope() {
     return
   }
 
-  const envelope = parseAiAssistantToolEnvelope(message.text)
-  const nativeToolCalls = envelope ? [] : extractAssistantToolCallsFromParts(message.parts)
-  if (!envelope && !nativeToolCalls.length) {
+  const nativeToolCalls = extractAssistantToolCallsFromParts(message.parts)
+  if (!nativeToolCalls.length) {
     handledAssistantEnvelopeIds.add(message.id)
     if (currentTask.value && (currentTask.value.status === 'identifying' || currentTask.value.status === 'executing')) {
       markTaskCompleted(message.text)
@@ -1833,18 +1774,14 @@ async function processLatestAssistantEnvelope() {
   handledAssistantEnvelopeIds.add(message.id)
 
   if (!agentFeatureEnabled) {
-    const resolved = envelope
-      ? await resolveAssistantMessageWithoutAgent(message.text)
-      : await resolveAssistantMessageWithoutAgent(message.text, nativeToolCalls)
+    const resolved = await resolveAssistantMessageWithoutAgent(message.text, nativeToolCalls)
     appendCardsBlockToAssistantMessage(message.id, resolved.cards)
     appendTextBlockToAssistantMessage(message.id, resolved.text)
     return
   }
 
   ensureCurrentTask()
-  const resolved = envelope
-    ? await resolveAssistantToolLoop(message.text, 0, message.id)
-    : await resolveAssistantToolCalls(nativeToolCalls, message.text, 0, message.id)
+  const resolved = await resolveAssistantToolCalls(nativeToolCalls, message.text, 0, message.id)
   if (currentTask.value && (currentTask.value.status === 'identifying' || currentTask.value.status === 'executing')) {
     markTaskCompleted(resolved.text)
   }
@@ -2268,24 +2205,21 @@ async function confirmPendingExecution() {
   appendCardsBlockToAssistantMessage(continuationMessageId, cards)
 
   const finalizeAfterMutation = shouldFinalizeAfterToolResults(confirmedCalls)
+  if (finalizeAfterMutation) {
+    const combinedText = appendTextBlockToAssistantMessage(continuationMessageId, summary)
+    if (currentTask.value && (currentTask.value.status === 'identifying' || currentTask.value.status === 'executing')) {
+      markTaskCompleted(combinedText)
+    }
+    return results
+  }
 
   try {
     const followUpText = await continueAssistantAfterToolResults(summary, results, {
-      finalAnswerOnly: finalizeAfterMutation,
       progressMessageId: continuationMessageId,
       toolCalls: confirmedCalls,
     })
 
-    if (finalizeAfterMutation) {
-      const safeFollowUpText = extractSafeFollowUpText(followUpText, summary)
-      const combinedText = appendTextBlockToAssistantMessage(continuationMessageId, safeFollowUpText)
-      if (currentTask.value && (currentTask.value.status === 'identifying' || currentTask.value.status === 'executing')) {
-        markTaskCompleted(combinedText)
-      }
-      return results
-    }
-
-    const resolved = await resolveAssistantToolLoop(followUpText, 1, continuationMessageId, true)
+    const resolved = await resolveAssistantFollowUpCompletion(followUpText, 1, continuationMessageId, true)
     if (currentTask.value && (currentTask.value.status === 'identifying' || currentTask.value.status === 'executing')) {
       markTaskCompleted(resolved.text)
     }
