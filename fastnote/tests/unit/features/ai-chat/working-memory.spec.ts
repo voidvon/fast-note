@@ -44,6 +44,31 @@ describe('working memory helpers', () => {
     expect(memory?.pendingMutationSummary).toContain('建议先保留标题')
   })
 
+  it('falls back to the latest mentioned target when no resolved target is present', () => {
+    const task = createAgentTask('总结这两个对象')
+
+    const memory = createAiWorkingMemoryFromTask(task, {
+      context: {
+        mentionedTargets: [{
+          id: 'note-1',
+          title: '周报',
+          type: 'note',
+          routePath: '/n/note-1',
+          source: 'message_mention',
+        }, {
+          id: 'folder-1',
+          title: '产品文档',
+          type: 'folder',
+          routePath: '/f/folder-1',
+          source: 'message_mention',
+        }],
+      },
+      scope: 'private',
+    })
+
+    expect(memory?.activeTargetSummary).toContain('提及目录：产品文档 [folder-1]')
+  })
+
   it('extracts working memory from request body and strips internal field', () => {
     const result = extractAiWorkingMemory({
       [AI_CHAT_WORKING_MEMORY_BODY_KEY]: {

@@ -180,6 +180,21 @@ function createJsonResponse(payload: unknown) {
   })
 }
 
+function createDeferredJsonResponse() {
+  let resolveResponse: ((response: Response) => void) | null = null
+  const response = new Promise<Response>((resolve) => {
+    resolveResponse = resolve
+  })
+
+  return {
+    resolve(payload: unknown) {
+      resolveResponse?.(createJsonResponse(payload))
+      resolveResponse = null
+    },
+    response,
+  }
+}
+
 function createPendingSseResponse() {
   const encoder = new TextEncoder()
   let streamController: ReadableStreamDefaultController<Uint8Array> | null = null
@@ -470,6 +485,7 @@ describe('global search ai chat', () => {
     expect(wrapper.text()).not.toContain('"toolCalls"')
     expect(wrapper.text()).not.toContain('update_note')
     expect(wrapper.text()).not.toContain('"}]}')
+    expect(wrapper.findAll('.chat-message__status-state')).toHaveLength(1)
 
     pendingResponse.close([
       JSON.stringify({
@@ -651,7 +667,7 @@ describe('global search ai chat', () => {
       rootTitle: '全部',
     }))
     expect(wrapper.find('[data-ion-modal="IonModal"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain('备忘录建议')
+    expect(wrapper.text()).toContain('引用建议')
     expect(wrapper.text()).toContain('周报')
     expect(wrapper.text()).toContain('工作')
 
@@ -663,7 +679,62 @@ describe('global search ai chat', () => {
 
     expect((input.element as HTMLTextAreaElement).value).toContain('@周报(/n/note-1)')
     expect(wrapper.find('button.chat-message__card-item-button').exists()).toBe(false)
-    expect(wrapper.text()).not.toContain('备忘录建议')
+    expect(wrapper.text()).not.toContain('引用建议')
+
+    wrapper.unmount()
+  })
+
+  it('shows folder mention suggestions and inserts folder links', async () => {
+    noteStoreMock.notes.value = [{
+      id: 'folder-1',
+      title: '工作',
+      summary: '',
+      content: '',
+      created: '2026-04-16 08:00:00',
+      updated: '2026-04-16 10:00:00',
+      item_type: 1,
+      parent_id: '',
+      is_deleted: 0,
+      is_locked: 0,
+      note_count: 2,
+      files: [],
+    }, {
+      id: 'note-1',
+      title: '工作周报',
+      summary: '本周项目推进',
+      content: '<p>周报正文</p>',
+      created: '2026-04-16 09:00:00',
+      updated: '2026-04-16 09:30:00',
+      item_type: 2,
+      parent_id: 'folder-1',
+      is_deleted: 0,
+      is_locked: 0,
+      note_count: 0,
+      files: [],
+    }]
+    noteStoreMock.searchNotes.mockImplementation(async (query: string) => {
+      return query === '工' ? [noteStoreMock.notes.value[1]] : []
+    })
+
+    const wrapper = await mountGlobalSearch()
+    const input = await ensureAiMode(wrapper)
+
+    await input.setValue('帮我总结 @工')
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.text()).toContain('引用建议')
+    expect(wrapper.text()).toContain('文件夹')
+    expect(wrapper.text()).toContain('工作')
+    expect(wrapper.text()).toContain('2 项')
+
+    const suggestionButtons = wrapper.findAll('button.chat-message__card-item-button')
+    expect(suggestionButtons).toHaveLength(2)
+    await suggestionButtons[0].trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect((input.element as HTMLTextAreaElement).value).toContain('@工作(/f/folder-1)')
 
     wrapper.unmount()
   })
@@ -738,6 +809,217 @@ describe('global search ai chat', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(contextPrompt).toContain('note-1')
     expect(contextPrompt).toContain('消息中的备忘录链接')
+    expect(contextPrompt).toContain('消息中显式提及的对象')
+    expect(contextPrompt).toContain('/n/note-1')
+
+    wrapper.unmount()
+  })
+
+  it('sends inserted folder mention as a resolvable ai target', async () => {
+    noteStoreMock.notes.value = [{
+      id: 'folder-1',
+      title: '工作',
+      summary: '',
+      content: '',
+      created: '2026-04-16 08:00:00',
+      updated: '2026-04-16 10:00:00',
+      item_type: 1,
+      parent_id: '',
+      is_deleted: 0,
+      is_locked: 0,
+      note_count: 3,
+      files: [],
+    }]
+
+    const fetchMock = vi.fn(async () => createSseResponse([
+      JSON.stringify({
+        choices: [{
+          delta: {
+            role: 'assistant',
+          },
+        }],
+      }),
+      JSON.stringify({
+        choices: [{
+          delta: {
+            content: '已读取引用的目录。',
+          },
+          finish_reason: 'stop',
+        }],
+      }),
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { useAiChat } = await import('@/features/ai-chat')
+    useAiChat().saveSettings({
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4.1-mini',
+    })
+
+    const wrapper = await mountGlobalSearch()
+    const input = await ensureAiMode(wrapper)
+
+    await input.setValue('帮我总结 @工作(/f/folder-1)')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    const request = fetchMock.mock.calls[0]?.[1]
+    const body = JSON.parse(String(request?.body || '{}'))
+    const contextPrompt = body.messages.find((message: { content?: string, role?: string }) => {
+      return message.role === 'system' && typeof message.content === 'string' && message.content.includes('消息中显式提及的对象')
+    })?.content
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(contextPrompt).toContain('前端显式解析目标目录')
+    expect(contextPrompt).toContain('消息中的目录链接')
+    expect(contextPrompt).toContain('目录：工作 [folder-1]｜/f/folder-1')
+
+    wrapper.unmount()
+  })
+
+  it('supports folder mention agent flow with list_folders and folder-scoped search', async () => {
+    aiChatSessionMock.submitToolCalls.mockImplementation(async (calls) => {
+      if (calls[0]?.tool === 'list_folders') {
+        expect(calls).toMatchObject([{
+          tool: 'list_folders',
+          payload: {
+            parentId: 'folder-1',
+          },
+        }])
+
+        const results = [{
+          ok: true,
+          code: 'ok',
+          message: null,
+          preview: {
+            title: '读取文件夹列表',
+            summary: '读取目录 folder-1 下的文件夹',
+            affectedNoteIds: [],
+          },
+          data: [{
+            id: 'folder-2',
+            title: '周报归档',
+            parentId: 'folder-1',
+            noteCount: 2,
+          }],
+        }]
+
+        aiChatSessionMock.hasPendingConfirmation.value = false
+        aiChatSessionMock.lastResults.value = results
+        return results
+      }
+
+      expect(calls).toMatchObject([{
+        tool: 'search_notes',
+        payload: {
+          query: '周报',
+          folderId: 'folder-1',
+        },
+      }])
+
+      const results = [{
+        ok: true,
+        code: 'ok',
+        message: null,
+        preview: {
+          title: '搜索备忘录',
+          summary: '搜索关键字“周报”',
+          affectedNoteIds: [],
+        },
+        data: [{
+          id: 'note-1',
+          title: '项目周报',
+          summary: '本周推进与风险',
+          parentId: 'folder-1',
+          updated: '2026-04-24 09:30:00',
+          isLocked: false,
+          isDeleted: false,
+        }],
+      }]
+
+      aiChatSessionMock.hasPendingConfirmation.value = false
+      aiChatSessionMock.lastResults.value = results
+      return results
+    })
+
+    const fetchMock = vi.fn()
+      .mockImplementationOnce(async () => createSseResponse([
+        JSON.stringify({
+          choices: [{
+            delta: {
+              role: 'assistant',
+            },
+          }],
+        }),
+        JSON.stringify({
+          choices: [{
+            delta: {
+              content: JSON.stringify({
+                mode: 'tool_calls',
+                answer: '我先看一下这个目录结构。',
+                toolCalls: [{
+                  tool: 'list_folders',
+                  payload: {
+                    parentId: 'folder-1',
+                  },
+                }],
+              }),
+            },
+            finish_reason: 'stop',
+          }],
+        }),
+      ]))
+      .mockImplementationOnce(async () => createJsonResponse({
+        choices: [{
+          message: {
+            role: 'assistant',
+            content: JSON.stringify({
+              mode: 'tool_calls',
+              answer: '我再在这个目录里筛一下周报相关内容。',
+              toolCalls: [{
+                tool: 'search_notes',
+                payload: {
+                  query: '周报',
+                  folderId: 'folder-1',
+                },
+              }],
+            }),
+          },
+          finish_reason: 'stop',
+        }],
+      }))
+      .mockImplementationOnce(async () => createJsonResponse({
+        choices: [{
+          message: {
+            role: 'assistant',
+            content: '这个目录里目前找到 1 条与周报相关的备忘录：项目周报，可继续读取正文。',
+          },
+          finish_reason: 'stop',
+        }],
+      }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { useAiChat } = await import('@/features/ai-chat')
+    useAiChat().saveSettings({
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4.1-mini',
+    })
+
+    const wrapper = await mountGlobalSearch()
+    const input = await ensureAiMode(wrapper)
+
+    await input.setValue('帮我看看 @工作(/f/folder-1) 里和周报有关的内容')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(aiChatSessionMock.submitToolCalls).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('这个目录里目前找到 1 条与周报相关的备忘录')
+    expect(wrapper.text()).toContain('项目周报')
 
     wrapper.unmount()
   })
@@ -943,6 +1225,77 @@ describe('global search ai chat', () => {
 
     await clickPromise
     await flushPromises()
+    wrapper.unmount()
+  })
+
+  it('shows a pending assistant placeholder instead of attaching loading to the previous answer', async () => {
+    const secondPendingResponse = createPendingSseResponse()
+    const fetchMock = vi.fn()
+      .mockImplementationOnce(async () => createSseResponse([
+        JSON.stringify({
+          choices: [{
+            delta: {
+              role: 'assistant',
+            },
+          }],
+        }),
+        JSON.stringify({
+          choices: [{
+            delta: {
+              content: '第一条回复。',
+            },
+            finish_reason: 'stop',
+          }],
+        }),
+      ]))
+      .mockImplementationOnce(async () => secondPendingResponse.response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { useAiChat } = await import('@/features/ai-chat')
+    useAiChat().saveSettings({
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4.1-mini',
+    })
+
+    const wrapper = await mountGlobalSearch()
+    const input = await ensureAiMode(wrapper)
+
+    await input.setValue('第一条')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.text()).toContain('第一条回复。')
+
+    await input.setValue('继续聊')
+    const clickPromise = wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await nextTick()
+    await flushPromises()
+    await nextTick()
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(wrapper.findAll('.chat-message--pending')).toHaveLength(1)
+    expect(wrapper.findAll('.chat-message__status-state')).toHaveLength(0)
+    expect(wrapper.text()).toContain('AI 思考中')
+
+    secondPendingResponse.close([
+      JSON.stringify({
+        choices: [{
+          delta: {
+            content: '第二条回复。',
+          },
+          finish_reason: 'stop',
+        }],
+      }),
+    ])
+
+    await clickPromise
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.text()).toContain('第二条回复。')
+
     wrapper.unmount()
   })
 
@@ -2189,6 +2542,111 @@ describe('global search ai chat', () => {
     expect(wrapper.text()).toContain('表达更清晰')
     expect(wrapper.text()).not.toContain('本次操作执行结果如下：')
     expect(wrapper.text()).not.toContain('当前任务')
+
+    wrapper.unmount()
+  })
+
+  it('shows loading on the current assistant message while waiting for a tool-loop follow-up completion', async () => {
+    aiChatSessionMock.submitToolCalls.mockImplementationOnce(async () => {
+      const results = [{
+        ok: true,
+        code: 'ok',
+        message: null,
+        preview: {
+          title: '读取备忘录详情',
+          summary: '读取备忘录 note-1 的详情',
+          affectedNoteIds: ['note-1'],
+        },
+        data: {
+          note: {
+            id: 'note-1',
+            title: '原文',
+            summary: '原摘要',
+            content: '<p>这是一段需要重写的内容。</p>',
+            parent_id: '',
+            updated: '2026-04-16 10:00:00',
+            is_deleted: 0,
+            is_locked: 0,
+          },
+          source: 'store',
+        },
+        affectedNoteIds: ['note-1'],
+      }]
+
+      aiChatSessionMock.hasPendingConfirmation.value = false
+      aiChatSessionMock.lastResults.value = results
+      return results
+    })
+
+    const deferredFollowUp = createDeferredJsonResponse()
+    const fetchMock = vi.fn()
+      .mockImplementationOnce(async () => createSseResponse([
+        JSON.stringify({
+          choices: [{
+            delta: {
+              role: 'assistant',
+            },
+          }],
+        }),
+        JSON.stringify({
+          choices: [{
+            delta: {
+              content: JSON.stringify({
+                mode: 'tool_calls',
+                answer: '我先读取这条备忘录。',
+                toolCalls: [{
+                  tool: 'get_note_detail',
+                  payload: {
+                    noteId: 'note-1',
+                  },
+                }],
+              }),
+            },
+            finish_reason: 'stop',
+          }],
+        }),
+      ]))
+      .mockImplementationOnce(async () => await deferredFollowUp.response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { useAiChat } = await import('@/features/ai-chat')
+    useAiChat().saveSettings({
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4.1-mini',
+    })
+
+    const wrapper = await mountGlobalSearch()
+    const input = await ensureAiMode(wrapper)
+
+    const clickPromise = input.setValue('读取这条笔记并帮我重写')
+      .then(() => wrapper.get('button[aria-label="发送消息"]').trigger('click'))
+    await nextTick()
+    await flushPromises()
+    await nextTick()
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(wrapper.findAll('.chat-message--pending')).toHaveLength(0)
+    expect(wrapper.findAll('.chat-message__status-state')).toHaveLength(1)
+    expect(wrapper.text()).toContain('AI 思考中')
+    expect(wrapper.text()).toContain('我先读取这条备忘录。')
+
+    deferredFollowUp.resolve({
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: '下面是重写后的版本：\n\n这段内容经过重组，表达更清晰，也更适合直接发送。',
+        },
+        finish_reason: 'stop',
+      }],
+    })
+
+    await clickPromise
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.text()).toContain('下面是重写后的版本')
+    expect(wrapper.findAll('.chat-message__status-state')).toHaveLength(0)
 
     wrapper.unmount()
   })

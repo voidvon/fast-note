@@ -32,6 +32,7 @@ const {
   lastToolResults,
   openSettings,
   providerLabel,
+  progressAssistantMessageId,
   regenerate,
   resetSettings,
   saveSettings,
@@ -73,16 +74,7 @@ const scrollTrackToken = computed(() => {
 const latestVisibleMessage = computed(() => {
   return visibleMessages.value.at(-1) || null
 })
-const latestVisibleAssistantMessageId = computed(() => {
-  for (let index = visibleMessages.value.length - 1; index >= 0; index -= 1) {
-    const message = visibleMessages.value[index]
-    if (message.role === 'assistant') {
-      return message.id
-    }
-  }
-
-  return ''
-})
+const progressInlineMessageId = computed(() => progressAssistantMessageId.value || '')
 const canResumeTask = computed(() => canResumeInterruptedTask.value)
 const showConfirmationBlock = computed(() => hasPendingConfirmation.value)
 const confirmationPreviewLines = computed(() => {
@@ -330,14 +322,14 @@ function handleMessageAction(action: ChatMessageCardAction) {
             :blocks="message.blocks"
             :role="message.role"
             :content="message.text"
-            :status-label="message.id === latestVisibleAssistantMessageId ? conversationProgress?.label : ''"
-            :status-description="message.id === latestVisibleAssistantMessageId ? conversationProgress?.description : ''"
-            :status-loading="message.id === latestVisibleAssistantMessageId && !!conversationProgress"
+            :status-label="message.id === progressInlineMessageId ? conversationProgress?.label : ''"
+            :status-description="message.id === progressInlineMessageId ? conversationProgress?.description : ''"
+            :status-loading="message.id === progressInlineMessageId && !!conversationProgress"
             :streaming="streamingAssistantMessageId === message.id"
             @action="handleMessageAction"
           />
           <ChatMessage
-            v-if="conversationProgress && !latestVisibleAssistantMessageId"
+            v-if="conversationProgress && !progressInlineMessageId"
             role="assistant"
             pending
             :pending-label="conversationProgress.label"
