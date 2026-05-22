@@ -80,7 +80,8 @@ describe('useDesktopActiveNote (t-fn-019 / tc-fn-013)', () => {
     const folderB = makeNote({ id: 'folder-b', item_type: NOTE_TYPE.FOLDER, parent_id: 'folder-a' })
     const folderC = makeNote({ id: 'folder-c', item_type: NOTE_TYPE.FOLDER, parent_id: 'folder-b' })
 
-    expect(getDesktopFolderRoutePath('allnotes', [folderA, folderB, folderC])).toBe('/home')
+    expect(getDesktopFolderRoutePath('allnotes', [folderA, folderB, folderC])).toBe('/f/allnotes')
+    expect(getDesktopFolderRoutePath('unfilednotes', [folderA, folderB, folderC])).toBe('/f/unfilednotes')
     expect(getDesktopFolderRoutePath('deleted', [folderA, folderB, folderC])).toBe('/deleted')
     expect(getDesktopFolderRoutePath('folder-c', [folderA, folderB, folderC])).toBe('/f/folder-a/folder-b/folder-c')
   })

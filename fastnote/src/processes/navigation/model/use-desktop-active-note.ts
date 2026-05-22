@@ -114,7 +114,7 @@ export function isDesktopFolderAvailable(
 
 export function getDesktopFolderRoutePath(folderId: string, notes: Note[]) {
   if (folderId === 'allnotes' || folderId === 'unfilednotes') {
-    return '/home'
+    return `/f/${folderId}`
   }
 
   if (folderId === 'deleted') {
