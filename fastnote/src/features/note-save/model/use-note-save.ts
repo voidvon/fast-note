@@ -129,7 +129,7 @@ export function useNoteSave(options: UseNoteSaveOptions) {
 
   function prepareSaveRequest(params: SaveNoteParams): PreparedSaveRequest | null {
     if (!params.editor) {
-      return
+      return null
     }
 
     if (params.isFormatModalOpen && !isSaveForced(params)) {
