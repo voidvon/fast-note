@@ -79,4 +79,26 @@ describe('useNoteDetailLeave', () => {
     await flow.flushNotesToLocal('view-leave')
     expect(manualSync).toHaveBeenCalledTimes(1)
   })
+
+  it('cancels pending blur save before switching to another detail target', async () => {
+    const onSave = vi.fn(async () => undefined)
+    const flow = useNoteDetailLeave({
+      getDraftId: () => 'draft-4',
+      getEffectiveUuid: () => 'note-2',
+      getNotesSync: () => null,
+      isDesktop: () => true,
+      isRouteDraftCreated: () => false,
+      onSave,
+    })
+
+    flow.debouncedSave()
+    await flow.handleRouteTransition('note-1', 'note-2')
+    vi.advanceTimersByTime(800)
+
+    expect(onSave).toHaveBeenCalledTimes(1)
+    expect(onSave).toHaveBeenCalledWith(true, null, {
+      noteId: 'note-1',
+      wasNewNote: false,
+    })
+  })
 })
