@@ -50,12 +50,12 @@ export function useNoteDetailLeave(options: UseNoteDetailLeaveOptions) {
     }
   }
 
-  async function handleRouteTransition(oldId?: string | null, nextId?: string | null) {
+  function handleRouteTransition(oldId?: string | null, nextId?: string | null) {
     clearPendingSaveTimer()
     const transition = analyzeRouteTransition(oldId, nextId)
 
     if (transition.shouldSavePreviousDesktopSelection && transition.previousEffectiveId) {
-      await options.onSave(true, null, {
+      void options.onSave(true, null, {
         noteId: transition.previousEffectiveId,
         wasNewNote: transition.previousWasNewNote,
       })

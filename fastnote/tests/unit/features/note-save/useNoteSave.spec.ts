@@ -144,4 +144,53 @@ describe('useNoteSave', () => {
     expect(onMissingPrivateNote).toHaveBeenCalledTimes(1)
     expect(presentTopError).toHaveBeenCalledWith('当前备忘录不存在或尚未同步完成')
   })
+
+  it('still saves on leave when the format modal is open', async () => {
+    const note = makeNote({
+      id: 'note-1',
+      title: '旧标题',
+      summary: '旧摘要',
+      content: '<p>旧内容</p>',
+      version: 1,
+    })
+    const updateNote = vi.fn(async () => undefined)
+    const flushNotesToLocal = vi.fn(async () => undefined)
+
+    const noteSave = useNoteSave({
+      addNote: vi.fn(async () => undefined),
+      getNote: vi.fn(async () => note),
+      updateNote,
+      updateParentFolderSubcount: vi.fn(async () => undefined),
+      sync: vi.fn(async () => undefined),
+      restoreHeight: vi.fn(),
+      presentTopError: vi.fn(async () => undefined),
+      flushNotesToLocal,
+      getCurrentNote: () => note,
+      getNow: () => '2026-03-17 12:20:00',
+    })
+
+    noteSave.lastSavedContent.value = '<p>旧内容</p>'
+
+    await noteSave.saveNote({
+      editor: createEditor({
+        getContent: () => '<p>离页前最新内容</p>',
+        getTitle: () => ({
+          title: '离页标题',
+          summary: '离页摘要',
+        }),
+      }),
+      effectiveUuid: 'note-1',
+      isNewNote: false,
+      isDesktop: false,
+      isFormatModalOpen: true,
+      leaveFlushReason: 'pagehide',
+    })
+
+    expect(updateNote).toHaveBeenCalledWith('note-1', expect.objectContaining({
+      title: '离页标题',
+      summary: '离页摘要',
+      content: '<p>离页前最新内容</p>',
+    }))
+    expect(flushNotesToLocal).toHaveBeenCalledWith('pagehide')
+  })
 })

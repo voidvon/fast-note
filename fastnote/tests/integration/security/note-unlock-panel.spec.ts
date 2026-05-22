@@ -5,7 +5,7 @@ import { mountNoteDetailForSaveTest } from '../../helpers/note-detail-save-test-
 
 describe('note unlock panel integration (t-fn-038 / tc-fn-030)', () => {
   it('shows unlock panel before rendering the editor and unlocks with a valid pin', async () => {
-    const { wrapper, mocks } = await mountNoteDetailForSaveTest({
+    const { wrapper, editorApi, mocks } = await mountNoteDetailForSaveTest({
       noteId: 'locked-note',
       isPinLockNote: true,
       lockViewState: 'locked',
@@ -40,7 +40,10 @@ describe('note unlock panel integration (t-fn-038 / tc-fn-030)', () => {
     expect(wrapper.text()).toContain('输入备忘录密码以查看')
     expect(wrapper.get('[data-testid="note-unlock-panel-pin"]').attributes('placeholder')).toBe('输入密码')
     expect(wrapper.get('[data-testid="note-unlock-panel-pin"]').attributes('type')).toBe('password')
-    expect(wrapper.find('.yy-editor-stub').exists()).toBe(false)
+    expect(wrapper.find('.yy-editor-stub').exists()).toBe(true)
+    expect(wrapper.element.innerHTML).toContain('note-detail__editor-shell--locked')
+    expect(editorApi.setContent).toHaveBeenCalledWith('')
+    expect(editorApi.setEditable).toHaveBeenCalledWith(false)
 
     await wrapper.get('[data-testid="note-unlock-panel-pin"]').setValue('123456')
     await wrapper.get('[data-testid="note-unlock-panel-submit"]').trigger('click')
@@ -51,5 +54,8 @@ describe('note unlock panel integration (t-fn-038 / tc-fn-030)', () => {
     expect(mocks.verifyPinMock).toHaveBeenCalledWith('locked-note', '123456')
     expect(wrapper.find('[data-testid="note-unlock-panel"]').exists()).toBe(false)
     expect(wrapper.find('.yy-editor-stub').exists()).toBe(true)
+    expect(wrapper.element.innerHTML).not.toContain('note-detail__editor-shell--locked')
+    expect(editorApi.setContent).toHaveBeenCalledWith('<p>锁内内容</p>')
+    expect(editorApi.setEditable).toHaveBeenCalledWith(true)
   })
 })

@@ -92,6 +92,9 @@ const {
   restoreHeight,
   presentTopError,
   flushNotesToLocal: noteDetailLeave.flushNotesToLocal,
+  getCurrentEffectiveUuid() {
+    return effectiveUuid.value
+  },
   emitNoteSaved(payload) {
     emit('noteSaved', payload)
   },
@@ -222,7 +225,7 @@ const effectiveUuid = computed(() => {
 })
 
 watch(idFromSource, async (id, oldId) => {
-  const transition = await noteDetailLeave.handleRouteTransition(oldId, id)
+  const transition = noteDetailLeave.handleRouteTransition(oldId, id)
 
   if (id) {
     retainedEffectiveUuid.value = null
@@ -399,28 +402,31 @@ async function handleNoteLockUpdated(updatedNote: Note) {
     </IonHeader>
 
     <IonContent force-overscroll>
-      <NoteUnlockPanel
-        v-if="isPinLockedForView"
-        :lock-view-state="noteLockView.state.viewState"
-        :biometric-enabled="noteLockView.state.biometricEnabled"
-        :device-supports-biometric="noteLockView.state.deviceSupportsBiometric"
-        :failed-attempts="noteLockView.state.failedAttempts"
-        :cooldown-until="noteLockView.state.cooldownUntil"
-        :error-message="noteLockView.state.errorMessage"
-        :is-submitting="noteLockView.state.isPinUnlocking"
-        @try-biometric="handleBiometricUnlock"
-        @submit-pin="handlePinUnlock"
-      />
-      <div v-else class="ion-padding">
-        <div v-if="isMissingPrivateNote" data-testid="note-detail-missing-note" class="note-detail__missing-state">
-          当前备忘录不存在或尚未同步完成
+      <div class="note-detail__content-shell">
+        <div class="ion-padding" :class="{ 'note-detail__editor-shell--locked': isPinLockedForView }">
+          <div v-if="isMissingPrivateNote" data-testid="note-detail-missing-note" class="note-detail__missing-state">
+            当前备忘录不存在或尚未同步完成
+          </div>
+          <YYEditor
+            v-if="effectiveUuid"
+            v-show="!isMissingPrivateNote"
+            ref="editorRef"
+            :note-id="effectiveUuid || ''"
+            @blur="debouncedSave"
+          />
         </div>
-        <YYEditor
-          v-if="effectiveUuid"
-          v-show="!isMissingPrivateNote"
-          ref="editorRef"
-          :note-id="effectiveUuid || ''"
-          @blur="debouncedSave"
+        <NoteUnlockPanel
+          v-if="isPinLockedForView"
+          class="note-detail__unlock-overlay"
+          :lock-view-state="noteLockView.state.viewState"
+          :biometric-enabled="noteLockView.state.biometricEnabled"
+          :device-supports-biometric="noteLockView.state.deviceSupportsBiometric"
+          :failed-attempts="noteLockView.state.failedAttempts"
+          :cooldown-until="noteLockView.state.cooldownUntil"
+          :error-message="noteLockView.state.errorMessage"
+          :is-submitting="noteLockView.state.isPinUnlocking"
+          @try-biometric="handleBiometricUnlock"
+          @submit-pin="handlePinUnlock"
         />
       </div>
       <!-- <div v-if="keyboardHeight > 0" slot="fixed" :style="{ top: `${visualHeight - 66}px` }" class="h-[66px]">
@@ -461,6 +467,22 @@ async function handleNoteLockUpdated(updatedNote: Note) {
   background: var(--ion-color-light, #f4f5f8);
   color: var(--ion-color-medium-shade, #666);
   text-align: center;
+}
+
+.note-detail__content-shell {
+  position: relative;
+  min-height: 100%;
+}
+
+.note-detail__editor-shell--locked {
+  visibility: hidden;
+}
+
+.note-detail__unlock-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--ion-background-color, var(--c-blue-gray-950));
 }
 </style>
 

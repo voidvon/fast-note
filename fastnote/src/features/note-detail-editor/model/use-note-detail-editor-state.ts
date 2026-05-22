@@ -13,6 +13,23 @@ export interface UseNoteDetailEditorStateOptions {
 }
 
 export function useNoteDetailEditorState(options: UseNoteDetailEditorStateOptions) {
+  function applyWithEditor(effect: (editor: NoteDetailEditorHost) => void) {
+    const editor = options.getEditor()
+    if (editor) {
+      effect(editor)
+      return
+    }
+
+    queueMicrotask(() => {
+      const queuedEditor = options.getEditor()
+      if (!queuedEditor) {
+        return
+      }
+
+      effect(queuedEditor)
+    })
+  }
+
   function showNewDraft() {
     const editor = options.getEditor()
     if (!editor) {
@@ -46,19 +63,17 @@ export function useNoteDetailEditorState(options: UseNoteDetailEditorStateOption
   }
 
   function showReadOnlyNote(note: Note) {
-    queueMicrotask(() => {
-      const editor = options.getEditor()
-      editor?.setEditable(false)
-      editor?.setContent(note.content || '')
+    applyWithEditor((editor) => {
+      editor.setEditable(false)
+      editor.setContent(note.content || '')
       options.setLastSavedContent(note.content || '')
     })
   }
 
   function showUnlockedNote(note: Note) {
-    queueMicrotask(() => {
-      const editor = options.getEditor()
-      editor?.setEditable(note.is_deleted !== 1)
-      editor?.setContent(note.content || '')
+    applyWithEditor((editor) => {
+      editor.setEditable(note.is_deleted !== 1)
+      editor.setContent(note.content || '')
       options.setLastSavedContent(note.content || '')
     })
   }

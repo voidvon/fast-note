@@ -21,7 +21,7 @@ export interface NoteLockViewFlowState {
 export interface UseNoteLockViewFlowOptions {
   noteLock?: Pick<ReturnType<typeof useNoteLock>, 'getLockViewState' | 'isPinLockNote' | 'tryBiometricUnlock' | 'verifyPin'>
   onLocked?: () => void
-  onUnlocked?: (note: Note) => void
+  onUnlocked?: (note: Note) => void | Promise<void>
 }
 
 function createInitialState(): NoteLockViewFlowState {
@@ -96,12 +96,9 @@ export function useNoteLockViewFlow(options: UseNoteLockViewFlowOptions = {}) {
 
     try {
       const result = await noteLock.verifyPin(note.id, pin)
-      applyUnlockResult(result, 'PIN 不正确，请重试')
+      await applyUnlockResult(result, note, 'PIN 不正确，请重试')
 
-      if (result.ok) {
-        options.onUnlocked?.(note)
-      }
-      else {
+      if (!result.ok) {
         options.onLocked?.()
       }
 
@@ -123,12 +120,9 @@ export function useNoteLockViewFlow(options: UseNoteLockViewFlowOptions = {}) {
 
     try {
       const result = await noteLock.tryBiometricUnlock(note.id, note)
-      applyUnlockResult(result, '生物识别不可用，请输入 PIN 解锁')
+      await applyUnlockResult(result, note, '生物识别不可用，请输入 PIN 解锁')
 
-      if (result.ok) {
-        options.onUnlocked?.(note)
-      }
-      else {
+      if (!result.ok) {
         options.onLocked?.()
       }
 
@@ -139,7 +133,11 @@ export function useNoteLockViewFlow(options: UseNoteLockViewFlowOptions = {}) {
     }
   }
 
-  function applyUnlockResult(result: NoteLockVerifyResult | NoteLockBiometricResult, fallbackMessage: string) {
+  async function applyUnlockResult(
+    result: NoteLockVerifyResult | NoteLockBiometricResult,
+    note: Note,
+    fallbackMessage: string,
+  ) {
     state.failedAttempts = result.failedAttempts
     state.cooldownUntil = result.cooldownUntil
 
@@ -149,6 +147,7 @@ export function useNoteLockViewFlow(options: UseNoteLockViewFlowOptions = {}) {
       return
     }
 
+    await options.onUnlocked?.(note)
     state.viewState = 'unlocked'
     state.errorMessage = ''
   }
