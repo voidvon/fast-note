@@ -5,15 +5,22 @@ import { defineComponent, h, nextTick, ref } from 'vue'
 import { NOTE_TYPE } from '@/shared/types'
 import FolderPage from '@/pages/folder/ui/folder-page.vue'
 
-const routeMock = ref({
-  params: {},
-  path: '/home',
-})
-
-const isDesktopMock = ref(true)
-const getNoteMock = vi.fn()
-const getFolderTreeByParentIdMock = vi.fn(() => [])
-const addNoteMock = vi.fn()
+const {
+  addNoteMock,
+  getFolderTreeByParentIdMock,
+  getNoteMock,
+  isDesktopMock,
+  routeMock,
+} = vi.hoisted(() => ({
+  addNoteMock: vi.fn(),
+  getFolderTreeByParentIdMock: vi.fn(() => []),
+  getNoteMock: vi.fn(),
+  isDesktopMock: { value: true },
+  routeMock: { value: {
+    params: {},
+    path: '/home',
+  } },
+}))
 
 vi.mock('vue-router', () => ({
   onBeforeRouteLeave: vi.fn(),
@@ -36,14 +43,18 @@ vi.mock('@/processes/navigation', () => ({
   }),
 }))
 
-vi.mock('@/entities/note', () => ({
-  useNote: () => ({
-    notes: ref<Note[]>([]),
-    addNote: addNoteMock,
-    getNote: getNoteMock,
-    getFolderTreeByParentId: getFolderTreeByParentIdMock,
-  }),
-}))
+vi.mock('@/entities/note', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/entities/note')>()
+  return {
+    ...actual,
+    useNote: () => ({
+      notes: ref<Note[]>([]),
+      addNote: addNoteMock,
+      getNote: getNoteMock,
+      getFolderTreeByParentId: getFolderTreeByParentIdMock,
+    }),
+  }
+})
 
 vi.mock('@/entities/public-note', () => ({
   useUserPublicNotes: () => ({

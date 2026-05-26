@@ -38,6 +38,19 @@ function createPlainStub(name: string) {
   })
 }
 
+function createGlobalSearchStub() {
+  return defineComponent({
+    name: 'GlobalSearch',
+    setup(_, { slots }) {
+      return () => h('div', { class: 'home-global-search' }, [
+        slots.leading?.({ panelVisible: false }),
+        slots.default?.(),
+        slots.trailing?.({ panelVisible: false }),
+      ])
+    },
+  })
+}
+
 function createNoteListStub() {
   return defineComponent({
     name: 'NoteList',
@@ -147,7 +160,7 @@ async function mountHomePageForFolderAlert() {
   vi.doMock('@/features/global-search', async () => {
     const { ref } = await import('vue')
     return {
-      default: genericStub,
+      default: createGlobalSearchStub(),
       useGlobalSearch: () => ({
         showGlobalSearch: ref(false),
       }),

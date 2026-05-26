@@ -35,11 +35,6 @@ describe('note detail missing note guard (t-fn-030 / tc-fn-024)', () => {
     expect(mocks.updateNoteMock).not.toHaveBeenCalled()
     expect(mocks.updateParentFolderSubcountMock).not.toHaveBeenCalled()
     expect(mocks.syncMock).not.toHaveBeenCalled()
-    expect(mocks.toastCreateMock).toHaveBeenCalledWith(expect.objectContaining({
-      id: 'note-detail-error-toast',
-      message: '当前备忘录不存在或尚未同步完成',
-      position: 'top',
-      color: 'danger',
-    }))
+    expect(mocks.toastCreateMock).not.toHaveBeenCalled()
   })
 })

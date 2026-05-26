@@ -156,6 +156,9 @@ async function mountHomePageForEmptyDetailCreate(options: {
   vi.doMock('@/processes/navigation', () => ({
     getDesktopNotesForFolder: () => options.notes,
     isDesktopFolderAvailable: () => true,
+    getDesktopNoteRoutePath: (noteId: string, parentId = '') => {
+      return parentId ? `/n/${noteId}?parent_id=${parentId}` : `/n/${noteId}`
+    },
     resolveDesktopActiveNoteSelection: () => {
       if (!options.snapshot) {
         return null

@@ -14,6 +14,7 @@ describe('global search route helpers', () => {
     expect(query).toEqual({
       foo: 'bar',
       overlay: 'search',
+      overlayMode: 'search',
     })
     expect(hasGlobalSearchOverlay(query)).toBe(true)
   })

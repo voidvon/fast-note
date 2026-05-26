@@ -51,8 +51,10 @@ async function mountAppForNoteLockSync(options: {
       isDeferredPrivateRoute: vi.fn(() => false),
       restoreDeferredLastVisitedRoute: vi.fn(async () => undefined),
       restoreImmediateLastVisitedRoute: vi.fn(async () => undefined),
+      shouldRestoreLastVisitedRouteForCurrentPath: vi.fn(() => false),
       setupAutoSave: vi.fn(),
     }),
+    shouldRestoreLastVisitedRouteForCurrentPath: vi.fn(() => false),
   }))
 
   vi.doMock('@/processes/sync-notes', () => ({

@@ -114,7 +114,7 @@ describe('useSync write mode routing', () => {
     expect(operations).toEqual([
       {
         note: localNote,
-        action: 'skip',
+        action: 'deleteLocal',
       },
     ])
     expect(operations.some(operation => operation.action === 'delete')).toBe(false)

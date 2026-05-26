@@ -61,6 +61,8 @@ describe('t-FN-002 / TC-FN-002 notes subtree delete', () => {
     vi.doMock('@/shared/lib/date', () => ({
       getTime: () => '2026-03-19 10:00:00.000Z',
     }))
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-03-19T10:00:00.000Z'))
 
     const { useNote } = await import('@/entities/note')
     type NoteStore = ReturnType<typeof useNote>
@@ -114,5 +116,6 @@ describe('t-FN-002 / TC-FN-002 notes subtree delete', () => {
     expect((await getDeletedNotes()).map(note => note.id)).toEqual(['note-older-deleted'])
 
     wrapper.unmount()
+    vi.useRealTimers()
   })
 })
