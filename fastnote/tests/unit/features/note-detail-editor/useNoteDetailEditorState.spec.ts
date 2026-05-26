@@ -57,7 +57,7 @@ describe('useNoteDetailEditorState', () => {
     expect(setLastSavedContent).toHaveBeenCalledWith('<p>public</p>')
   })
 
-  it('clears content and blocks editing for missing or locked note states', () => {
+  it('clears missing-note content and keeps locked note content while blocking editing', () => {
     const editor = {
       setContent: vi.fn(),
       setEditable: vi.fn(),
@@ -70,7 +70,8 @@ describe('useNoteDetailEditorState', () => {
     state.showMissingPrivateNote()
     state.showLockedNote()
 
-    expect(editor.setContent).toHaveBeenCalledTimes(2)
+    expect(editor.setContent).toHaveBeenCalledTimes(1)
+    expect(editor.setContent).toHaveBeenCalledWith('')
     expect(editor.setEditable).toHaveBeenNthCalledWith(1, false)
     expect(editor.setEditable).toHaveBeenNthCalledWith(2, false)
   })

@@ -71,10 +71,6 @@ export function useNoteDetailLeave(options: UseNoteDetailLeaveOptions) {
     }
 
     try {
-      console.warn('NoteDetail 离开页触发本地落盘', {
-        reason,
-        noteId: options.getEffectiveUuid(),
-      })
       await notesSync.manualSync()
     }
     catch (error) {

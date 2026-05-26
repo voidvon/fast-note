@@ -58,7 +58,6 @@ export function useNoteDetailEditorState(options: UseNoteDetailEditorStateOption
       return
     }
 
-    editor.setContent('')
     editor.setEditable(false)
   }
 

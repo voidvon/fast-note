@@ -6,6 +6,42 @@ describe('pocketbase users pin settings', () => {
     vi.resetModules()
   })
 
+  it('fetches current user pin settings in force mode without rewriting auth store', async () => {
+    const usersCollection = createPocketBaseCollectionMock()
+    const authStoreSaveMock = vi.fn()
+    usersCollection.getOne.mockResolvedValue({
+      id: 'user-a',
+      note_lock_pin_salt: 'salt-force',
+      note_lock_pin_hash: 'hash-force',
+      note_lock_pin_version: 4,
+      updated: '2026-05-26 12:10:00',
+    })
+
+    vi.doMock('@/shared/api/pocketbase/client', () => ({
+      mapErrorMessage: (error: any) => error?.message || 'error',
+      pb: {
+        authStore: {
+          token: 'token-1',
+          model: { id: 'user-a' },
+          isValid: true,
+          save: authStoreSaveMock,
+        },
+        collection: vi.fn(() => usersCollection),
+      },
+    }))
+
+    const { usersService } = await import('@/shared/api/pocketbase/users')
+    const result = await usersService.getCurrentUserPinSettings({ force: true })
+
+    expect(usersCollection.getOne).toHaveBeenCalledWith('user-a')
+    expect(result).toMatchObject({
+      note_lock_pin_salt: 'salt-force',
+      note_lock_pin_hash: 'hash-force',
+      note_lock_pin_version: 4,
+    })
+    expect(authStoreSaveMock).not.toHaveBeenCalled()
+  })
+
   it('returns immediately when update response already contains the latest pin fields', async () => {
     const usersCollection = createPocketBaseCollectionMock()
     const authStoreSaveMock = vi.fn()
@@ -43,10 +79,7 @@ describe('pocketbase users pin settings', () => {
       note_lock_pin_version: 1,
     })
     expect(usersCollection.getOne).not.toHaveBeenCalled()
-    expect(authStoreSaveMock).toHaveBeenCalledWith('token-1', expect.objectContaining({
-      id: 'user-a',
-      note_lock_pin_version: 1,
-    }))
+    expect(authStoreSaveMock).not.toHaveBeenCalled()
   })
 
   it('re-reads the user record when update response does not include the pin fields', async () => {
@@ -93,10 +126,7 @@ describe('pocketbase users pin settings', () => {
       note_lock_pin_hash: 'hash-2',
       note_lock_pin_version: 2,
     })
-    expect(authStoreSaveMock).toHaveBeenCalledWith('token-1', expect.objectContaining({
-      id: 'user-a',
-      note_lock_pin_version: 2,
-    }))
+    expect(authStoreSaveMock).not.toHaveBeenCalled()
   })
 
   it('throws an explicit error when users record still misses the three pin fields after re-read', async () => {

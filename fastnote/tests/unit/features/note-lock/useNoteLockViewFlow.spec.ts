@@ -92,7 +92,7 @@ describe('useNoteLockViewFlow', () => {
       onLocked: vi.fn(),
       onUnlocked: vi.fn(async () => {
         eventOrder.push('onUnlocked:start')
-        expect(flow.state.viewState).toBe('unlocking')
+        expect(flow.state.viewState).toBe('unlocked')
         await Promise.resolve()
         eventOrder.push('onUnlocked:end')
       }),

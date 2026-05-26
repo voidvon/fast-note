@@ -21,6 +21,12 @@ function createPlainStub(name: string) {
   })
 }
 
+const NoteMoreStub = defineComponent({
+  name: 'NoteMore',
+  emits: ['note-lock-updated', 'update:is-open'],
+  template: '<div class="NoteMore-stub" />',
+})
+
 function createButtonStub(name: string) {
   return defineComponent({
     name,
@@ -401,7 +407,7 @@ export async function mountNoteDetailForSaveTest(options: {
     default: createPlainStub('Icon'),
   }))
   vi.doMock('@/widgets/note-more', () => ({
-    default: createPlainStub('NoteMore'),
+    default: NoteMoreStub,
   }))
   vi.doMock('@/widgets/note-editor-toolbar', () => ({
     default: createPlainStub('NoteEditorToolbar'),

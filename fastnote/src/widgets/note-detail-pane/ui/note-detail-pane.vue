@@ -128,10 +128,8 @@ const noteDetailEditorState = useNoteDetailEditorState({
 })
 const noteLockView = useNoteLockViewFlow({
   noteLock,
-  onLocked() {
-    noteDetailEditorState.showLockedNote()
-  },
-  onUnlocked(note) {
+  async onUnlocked(note) {
+    await nextTick()
     noteDetailEditorState.showUnlockedNote(note)
   },
 })
@@ -325,6 +323,13 @@ async function handleNoteSaving(
   leaveFlushReason: LeaveFlushReason | null = null,
   saveTargetContext: SaveTargetContext = {},
 ) {
+  if (isPinLockedForView.value) {
+    if (leaveFlushReason) {
+      await noteDetailLeave.flushNotesToLocal(leaveFlushReason)
+    }
+    return
+  }
+
   await saveNote({
     editor: editorRef.value,
     effectiveUuid: effectiveUuid.value,
@@ -342,6 +347,11 @@ async function handleNoteSaving(
 
 // 防抖保存函数
 function debouncedSave(silent = false) {
+  if (isEditorBlocked.value) {
+    noteDetailLeave.clearPendingSaveTimer()
+    return
+  }
+
   noteDetailLeave.debouncedSave(silent)
 }
 
@@ -375,6 +385,17 @@ async function handleBiometricUnlock() {
 }
 
 async function handleNoteLockUpdated(updatedNote: Note) {
+  const shouldFlushBeforeLock =
+    data.value?.id === updatedNote.id
+    && data.value?.is_locked !== 1
+    && updatedNote.is_locked === 1
+    && !isMissingPrivateNote.value
+
+  if (shouldFlushBeforeLock) {
+    noteDetailLeave.clearPendingSaveTimer()
+    await handleNoteSaving(true)
+  }
+
   data.value = updatedNote
   state.showNoteMore = false
   await applyPrivateNoteState(updatedNote)
@@ -403,12 +424,12 @@ async function handleNoteLockUpdated(updatedNote: Note) {
 
     <IonContent force-overscroll>
       <div class="note-detail__content-shell">
-        <div class="ion-padding" :class="{ 'note-detail__editor-shell--locked': isPinLockedForView }">
+        <div class="ion-padding">
           <div v-if="isMissingPrivateNote" data-testid="note-detail-missing-note" class="note-detail__missing-state">
             当前备忘录不存在或尚未同步完成
           </div>
           <YYEditor
-            v-if="effectiveUuid"
+            v-if="effectiveUuid && !isPinLockedForView"
             v-show="!isMissingPrivateNote"
             ref="editorRef"
             :note-id="effectiveUuid || ''"
@@ -472,10 +493,6 @@ async function handleNoteLockUpdated(updatedNote: Note) {
 .note-detail__content-shell {
   position: relative;
   min-height: 100%;
-}
-
-.note-detail__editor-shell--locked {
-  visibility: hidden;
 }
 
 .note-detail__unlock-overlay {

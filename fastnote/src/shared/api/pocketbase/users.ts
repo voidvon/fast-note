@@ -63,7 +63,6 @@ export const usersService = {
       }
 
       const record = await pb.collection('users').getOne(pb.authStore.model.id)
-      pb.authStore.save(pb.authStore.token, record)
       return toPinSettings(record)
     }
     catch (error: any) {
@@ -87,13 +86,11 @@ export const usersService = {
       const recordPinSettings = toPinSettings(record)
 
       if (isPinSettingsMatched(recordPinSettings, payload)) {
-        pb.authStore.save(pb.authStore.token, record)
         return recordPinSettings
       }
 
       const latestRecord = await pb.collection('users').getOne(userId)
       const latestPinSettings = toPinSettings(latestRecord)
-      pb.authStore.save(pb.authStore.token, latestRecord)
 
       if (isPinSettingsMatched(latestPinSettings, payload)) {
         return latestPinSettings

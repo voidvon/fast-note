@@ -74,7 +74,7 @@ export function useNoteLockViewFlow(options: UseNoteLockViewFlowOptions = {}) {
       reset()
     }
 
-    options.onUnlocked?.(note)
+    await options.onUnlocked?.(note)
     return {
       biometricEnabled: state.biometricEnabled,
       cooldownUntil: state.cooldownUntil,
@@ -147,9 +147,9 @@ export function useNoteLockViewFlow(options: UseNoteLockViewFlowOptions = {}) {
       return
     }
 
-    await options.onUnlocked?.(note)
     state.viewState = 'unlocked'
     state.errorMessage = ''
+    await options.onUnlocked?.(note)
   }
 
   return {

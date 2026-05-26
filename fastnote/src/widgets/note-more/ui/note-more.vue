@@ -9,6 +9,8 @@ import { useNote } from '@/entities/note'
 import { useNoteDelete } from '@/features/note-delete'
 import { NoteLockManageModal, NoteLockSetupModal, useNoteLockModalFlow } from '@/features/note-lock'
 import { usePublicNoteShare } from '@/features/public-note-share'
+import { useSync } from '@/processes/sync-notes'
+import { cleanupIonicOverlayLocksAsync } from '@/shared/lib/ionic'
 import IconTextButton from '@/shared/ui/icon-text-button'
 
 const props = withDefaults(defineProps<{
@@ -20,6 +22,7 @@ const emit = defineEmits(['noteLockUpdated', 'update:isOpen'])
 
 const route = useRoute()
 const router = useIonRouter()
+const { sync } = useSync()
 const { updateNote, getNote, updateParentFolderSubcount } = useNote()
 const { deleteNote } = useNoteDelete({
   updateNote,
@@ -37,7 +40,6 @@ const {
   prepareLockModal,
 } = useNoteLockModalFlow()
 
-const modalRef = ref()
 const note = ref<Note | undefined>(undefined)
 const currentNoteId = computed(() => props.noteId || route.params.id as string || '')
 
@@ -45,6 +47,21 @@ async function onWillPresent() {
   const result = await getNote(currentNoteId.value)
   if (result) {
     note.value = result
+  }
+}
+
+function dismiss() {
+  emit('update:isOpen', false)
+}
+
+async function syncLockNoteChange(fallbackMessage: string) {
+  try {
+    await sync(true)
+    return null
+  }
+  catch (error) {
+    console.error('同步备忘录锁状态失败:', error)
+    return fallbackMessage
   }
 }
 
@@ -61,7 +78,7 @@ async function onShare() {
     color: feedback.color,
   })
   await toast.present()
-  emit('update:isOpen', false)
+  dismiss()
 }
 
 async function onLock() {
@@ -70,24 +87,26 @@ async function onLock() {
   }
 
   await prepareLockModal(note.value)
-  emit('update:isOpen', false)
+  dismiss()
 }
 
 function onMoreModalDidDismiss() {
   emit('update:isOpen', false)
+  cleanupIonicOverlayLocksAsync()
   openPendingLockModal()
 }
 
 async function onLockConfirmed(payload: NoteLockSetupResult & { note: Note }) {
   const feedback = buildSetupFeedback(payload)
+  const syncErrorMessage = await syncLockNoteChange('已在当前设备更新备忘录锁，但同步失败，请稍后重试')
   note.value = feedback.note
   emit('noteLockUpdated', feedback.note)
 
   const toast = await toastController.create({
-    message: feedback.message,
-    duration: feedback.duration,
+    message: syncErrorMessage || feedback.message,
+    duration: syncErrorMessage ? 2200 : feedback.duration,
     position: 'top',
-    color: feedback.color,
+    color: syncErrorMessage ? 'warning' : feedback.color,
   })
 
   await toast.present()
@@ -95,14 +114,17 @@ async function onLockConfirmed(payload: NoteLockSetupResult & { note: Note }) {
 
 async function onLockManaged(payload: NoteLockManageUpdate) {
   const feedback = buildManageFeedback(payload)
+  const syncErrorMessage = payload.action === 'disable_lock'
+    ? await syncLockNoteChange('已在当前设备更新备忘录锁，但同步失败，请稍后重试')
+    : null
   note.value = feedback.note
   emit('noteLockUpdated', feedback.note)
 
   const toast = await toastController.create({
-    message: feedback.message,
-    duration: feedback.duration,
+    message: syncErrorMessage || feedback.message,
+    duration: syncErrorMessage ? 2200 : feedback.duration,
     position: 'top',
-    color: feedback.color,
+    color: syncErrorMessage ? 'warning' : feedback.color,
   })
 
   await toast.present()
@@ -117,21 +139,21 @@ async function onDelete() {
   const result = await deleteNote(currentNote)
   note.value = result.note
   router.back()
-  emit('update:isOpen', false)
+  dismiss()
 }
 </script>
 
 <template>
   <IonModal
-    ref="modalRef"
     v-bind="$attrs"
     :is-open="isOpen"
-    :initial-breakpoint="0.5"
-    :breakpoints="[0, 0.5, 1]"
+    :initial-breakpoint="1"
+    :breakpoints="[0, 1]"
+    class="note-more-modal note-more-modal--sheet"
     @will-present="onWillPresent"
     @did-dismiss="onMoreModalDidDismiss"
   >
-    <div>
+    <div class="note-more-sheet">
       <IonGrid>
         <IonRow>
           <IonCol size="3" class="grid-item">
@@ -186,13 +208,19 @@ async function onDelete() {
 </template>
 
 <style lang="scss">
-ion-popover.note-more {
-  --background: #111;
-  --box-shadow: 0 5px 10px 0 rgba(0, 0, 0, 0.6);
-}
-.note-more {
-  .list-ios {
-    --ion-item-background: #111;
+.note-more-modal--sheet {
+  --height: fit-content;
+  --max-height: 260px;
+  --border-radius: 24px 24px 0 0;
+
+  &::part(content) {
+    max-height: 260px;
   }
+}
+
+.note-more-sheet {
+  padding: 20px 20px 24px;
+  background: var(--c-blue-gray-900);
+  color: var(--c-text-primary);
 }
 </style>

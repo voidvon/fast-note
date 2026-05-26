@@ -53,6 +53,16 @@ function createLockModalStub(name: string, testId: string) {
   })
 }
 
+function mockUseSync(syncMock = vi.fn(async () => null)) {
+  vi.doMock('@/processes/sync-notes', () => ({
+    useSync: () => ({
+      sync: syncMock,
+    }),
+  }))
+
+  return syncMock
+}
+
 function createNoteLockFlowStub(mode: 'setup' | 'manage') {
   const lockModalState = reactive({
     defaultBiometricEnabled: false,
@@ -63,8 +73,18 @@ function createNoteLockFlowStub(mode: 'setup' | 'manage') {
   let pendingModal: 'setup' | 'manage' | null = null
 
   return {
-    buildManageFeedback: vi.fn(),
-    buildSetupFeedback: vi.fn(),
+    buildManageFeedback: vi.fn((payload) => ({
+      color: payload.code === 'ok' ? 'success' : 'warning',
+      duration: 1500,
+      message: payload.message || '已更新备忘录锁',
+      note: payload.note,
+    })),
+    buildSetupFeedback: vi.fn((payload) => ({
+      color: payload.code === 'ok' ? 'success' : 'warning',
+      duration: 2200,
+      message: payload.message || '已启用备忘录锁',
+      note: payload.note,
+    })),
     isBiometricSupported: vi.fn(() => true),
     lockModalState,
     openPendingLockModal: vi.fn(() => {
@@ -89,13 +109,14 @@ describe('note more lock entry integration', () => {
     vi.clearAllMocks()
   })
 
-  it('opens the setup modal only after the more sheet is dismissed on mobile', async () => {
+  it('opens the setup modal after the more sheet dismisses on mobile', async () => {
     const getNoteMock = vi.fn(async () => ({
       id: 'note-1',
       is_locked: 0,
       is_public: 0,
     }))
     const noteLockFlow = createNoteLockFlowStub('setup')
+    mockUseSync()
 
     vi.doMock('@ionic/vue', () => ({
       IonCol: createIonicStub('IonCol'),
@@ -129,11 +150,6 @@ describe('note more lock entry integration', () => {
         }),
       }
     })
-    vi.doMock('@/shared/lib/storage', () => ({
-      useDexie: () => ({
-        db: ref({}),
-      }),
-    }))
     vi.doMock('@/features/note-lock', () => ({
       NoteLockSetupModal: createLockModalStub('NoteLockSetupModal', 'note-lock-setup-modal'),
       NoteLockManageModal: createLockModalStub('NoteLockManageModal', 'note-lock-manage-modal'),
@@ -148,6 +164,17 @@ describe('note more lock entry integration', () => {
       usePublicNoteShare: () => ({
         toggleShare: vi.fn(),
       }),
+    }))
+    vi.doMock('@/shared/lib/ionic', () => ({
+      cleanupIonicOverlayLocksAsync: vi.fn(),
+    }))
+    vi.doMock('@/shared/lib/logger', () => ({
+      logger: {
+        warn: vi.fn(),
+        info: vi.fn(),
+        error: vi.fn(),
+        debug: vi.fn(),
+      },
     }))
     vi.doMock('@/shared/ui/icon-text-button', () => ({
       default: createIconTextButtonStub(),
@@ -183,8 +210,9 @@ describe('note more lock entry integration', () => {
     expect(wrapper.get('[data-testid="note-lock-manage-modal"]').attributes('data-open')).toBe('false')
   })
 
-  it('opens the manage modal only after the more sheet is dismissed for locked notes', async () => {
+  it('opens the manage modal after the more sheet dismisses for locked notes', async () => {
     const noteLockFlow = createNoteLockFlowStub('manage')
+    mockUseSync()
 
     vi.doMock('@ionic/vue', () => ({
       IonCol: createIonicStub('IonCol'),
@@ -222,11 +250,6 @@ describe('note more lock entry integration', () => {
         }),
       }
     })
-    vi.doMock('@/shared/lib/storage', () => ({
-      useDexie: () => ({
-        db: ref({}),
-      }),
-    }))
     vi.doMock('@/features/note-lock', () => ({
       NoteLockSetupModal: createLockModalStub('NoteLockSetupModal', 'note-lock-setup-modal'),
       NoteLockManageModal: createLockModalStub('NoteLockManageModal', 'note-lock-manage-modal'),
@@ -241,6 +264,17 @@ describe('note more lock entry integration', () => {
       usePublicNoteShare: () => ({
         toggleShare: vi.fn(),
       }),
+    }))
+    vi.doMock('@/shared/lib/ionic', () => ({
+      cleanupIonicOverlayLocksAsync: vi.fn(),
+    }))
+    vi.doMock('@/shared/lib/logger', () => ({
+      logger: {
+        warn: vi.fn(),
+        info: vi.fn(),
+        error: vi.fn(),
+        debug: vi.fn(),
+      },
     }))
     vi.doMock('@/shared/ui/icon-text-button', () => ({
       default: createIconTextButtonStub(),
@@ -269,6 +303,113 @@ describe('note more lock entry integration', () => {
     expect(wrapper.get('[data-testid="note-lock-setup-modal"]').attributes('data-open')).toBe('false')
   })
 
+  it('syncs the common note pipeline after lock setup confirms', async () => {
+    const syncMock = mockUseSync()
+    const presentMock = vi.fn()
+    const toastCreateMock = vi.fn(async () => ({
+      present: presentMock,
+    }))
+    const noteLockFlow = createNoteLockFlowStub('setup')
+
+    vi.doMock('@ionic/vue', () => ({
+      IonCol: createIonicStub('IonCol'),
+      IonGrid: createIonicStub('IonGrid'),
+      IonModal: createIonicStub('IonModal', 'div', ['will-present', 'did-dismiss']),
+      IonRow: createIonicStub('IonRow'),
+      toastController: {
+        create: toastCreateMock,
+      },
+      useIonRouter: () => ({
+        back: vi.fn(),
+      }),
+    }))
+    vi.doMock('vue-router', () => ({
+      useRoute: () => ({
+        params: {
+          id: 'note-4',
+        },
+      }),
+    }))
+    vi.doMock('@/entities/note', async () => {
+      const actual = await vi.importActual<typeof import('@/entities/note')>('@/entities/note')
+      return {
+        ...actual,
+        useNote: () => ({
+          getNote: vi.fn(async () => ({
+            id: 'note-4',
+            is_locked: 0,
+            is_public: 0,
+          })),
+          updateNote: vi.fn(),
+          updateParentFolderSubcount: vi.fn(),
+        }),
+      }
+    })
+    vi.doMock('@/features/note-lock', () => ({
+      NoteLockSetupModal: createLockModalStub('NoteLockSetupModal', 'note-lock-setup-modal'),
+      NoteLockManageModal: createLockModalStub('NoteLockManageModal', 'note-lock-manage-modal'),
+      useNoteLockModalFlow: () => noteLockFlow,
+    }))
+    vi.doMock('@/features/note-delete', () => ({
+      useNoteDelete: () => ({
+        deleteNote: vi.fn(),
+      }),
+    }))
+    vi.doMock('@/features/public-note-share', () => ({
+      usePublicNoteShare: () => ({
+        toggleShare: vi.fn(),
+      }),
+    }))
+    vi.doMock('@/shared/lib/ionic', () => ({
+      cleanupIonicOverlayLocksAsync: vi.fn(),
+    }))
+    vi.doMock('@/shared/lib/logger', () => ({
+      logger: {
+        warn: vi.fn(),
+        info: vi.fn(),
+        error: vi.fn(),
+        debug: vi.fn(),
+      },
+    }))
+    vi.doMock('@/shared/ui/icon-text-button', () => ({
+      default: createIconTextButtonStub(),
+    }))
+
+    const NoteMore = (await import('@/widgets/note-more')).default
+    const wrapper = mount(NoteMore, {
+      props: {
+        isOpen: true,
+        noteId: 'note-4',
+      },
+    })
+
+    wrapper.findComponent({ name: 'IonModal' }).vm.$emit('will-present')
+    await flushPromises()
+
+    wrapper.findComponent({ name: 'NoteLockSetupModal' }).vm.$emit('confirm', {
+      ok: true,
+      code: 'ok',
+      message: null,
+      note: {
+        id: 'note-4',
+        is_locked: 1,
+        is_public: 0,
+      },
+    })
+    await flushPromises()
+
+    expect(syncMock).toHaveBeenCalledWith(true)
+    expect(wrapper.emitted('noteLockUpdated')?.[0]?.[0]).toMatchObject({
+      id: 'note-4',
+      is_locked: 1,
+    })
+    expect(toastCreateMock).toHaveBeenCalledWith(expect.objectContaining({
+      message: '已启用备忘录锁',
+      color: 'success',
+    }))
+    expect(presentMock).toHaveBeenCalledTimes(1)
+  })
+
   it('deletes the note through feature use case and then navigates back', async () => {
     const backMock = vi.fn()
     const getNoteMock = vi.fn(async () => ({
@@ -284,6 +425,7 @@ describe('note more lock entry integration', () => {
         updated: '2026-03-17 11:21:00',
       },
     }))
+    mockUseSync()
 
     vi.doMock('@ionic/vue', () => ({
       IonCol: createIonicStub('IonCol'),
@@ -331,6 +473,17 @@ describe('note more lock entry integration', () => {
       usePublicNoteShare: () => ({
         toggleShare: vi.fn(),
       }),
+    }))
+    vi.doMock('@/shared/lib/ionic', () => ({
+      cleanupIonicOverlayLocksAsync: vi.fn(),
+    }))
+    vi.doMock('@/shared/lib/logger', () => ({
+      logger: {
+        warn: vi.fn(),
+        info: vi.fn(),
+        error: vi.fn(),
+        debug: vi.fn(),
+      },
     }))
     vi.doMock('@/shared/ui/icon-text-button', () => ({
       default: createIconTextButtonStub(),

@@ -29,6 +29,46 @@ describe('note detail local flush on leave (t-fn-035 / tc-fn-026)', () => {
     expect(mocks.syncMock).not.toHaveBeenCalled()
   })
 
+  it('does not overwrite locked note content on pagehide refresh', async () => {
+    const { editorApi, mocks } = await mountNoteDetailForSaveTest({
+      notesById: {
+        'note-1': {
+          id: 'note-1',
+          title: '已锁定备忘录',
+          summary: '锁定摘要',
+          content: '<p>锁定前内容</p>',
+          created: '2026-03-11 10:00:00',
+          updated: '2026-03-11 10:00:00',
+          item_type: 2,
+          parent_id: '',
+          is_deleted: 0,
+          is_locked: 1,
+          note_count: 0,
+          version: 1,
+          files: [],
+        },
+      },
+      getLockViewStateImpl: async () => ({
+        viewState: 'locked',
+        failedAttempts: 0,
+        cooldownUntil: null,
+        biometricEnabled: false,
+        deviceSupportsBiometric: false,
+        session: null,
+      }),
+    })
+
+    editorApi.getContent.mockReturnValue('')
+
+    window.dispatchEvent(new Event('pagehide'))
+    await flushPromises()
+    await nextTick()
+
+    expect(mocks.updateNoteMock).not.toHaveBeenCalled()
+    expect(mocks.manualSyncMock).toHaveBeenCalledTimes(1)
+    expect(mocks.syncMock).not.toHaveBeenCalled()
+  })
+
   it('forces local manualSync on ion leave even when content already saved in memory', async () => {
     const { wrapper, editorApi, mocks, triggerIonViewWillLeave } = await mountNoteDetailForSaveTest()
 
