@@ -45,6 +45,7 @@ function createNoteDetailStub() {
 
 export async function mountHomePageForDesktopRestore(options: {
   notes: Note[]
+  clearStorage?: boolean
   userId?: string | null
   currentPath?: string
   snapshot?: {
@@ -60,7 +61,9 @@ export async function mountHomePageForDesktopRestore(options: {
   }>
 }) {
   vi.resetModules()
-  localStorage.clear()
+  if (options.clearStorage !== false) {
+    localStorage.clear()
+  }
 
   const currentPath = options.currentPath || '/home'
   window.history.replaceState(window.history.state, '', currentPath)

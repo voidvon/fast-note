@@ -1,6 +1,6 @@
 import type { Note } from '@/shared/types'
-import { NOTE_TYPE } from '@/shared/types'
 import { createScopedStorageKey } from '@/shared/lib/user-scope'
+import { NOTE_TYPE } from '@/shared/types'
 
 export const DESKTOP_ACTIVE_NOTE_STORAGE_PREFIX = 'flashnote_desktop_active_note_v1'
 
@@ -9,6 +9,7 @@ export function getDesktopActiveNoteStorageKey(userId?: string | null) {
 }
 
 export interface DesktopActiveNoteSelection {
+  // The visible list context; it may be allnotes instead of the note's physical parent.
   folderId: string
   noteId: string
   parentId: string

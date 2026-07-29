@@ -32,6 +32,7 @@ import {
   isDesktopFolderAvailable,
   resolveDesktopActiveNoteSelection,
   useDesktopActiveNote,
+  useLastVisitedRoute,
 } from '@/processes/navigation'
 import { useAuth } from '@/processes/session'
 import { getTime } from '@/shared/lib/date'
@@ -50,6 +51,7 @@ const { currentUser } = useAuth()
 const { showGlobalSearch } = useGlobalSearch()
 const { isExtensionEnabled, getExtensionModule } = useExtensions()
 const { getSnapshot, saveSnapshot, clearSnapshot } = useDesktopActiveNote()
+const { saveVisitedRoute } = useLastVisitedRoute()
 const router = useRouter()
 const currentUserId = computed(() => currentUser.value?.id || null)
 
@@ -262,12 +264,14 @@ function updateDesktopBrowserUrl(targetPath: string, mode: 'push' | 'replace' = 
 
   const currentUrl = window.location.pathname + window.location.search + window.location.hash
   if (currentUrl === targetPath) {
+    saveVisitedRoute(targetPath, currentUserId.value)
     refreshDesktopRouteState()
     return
   }
 
   const historyMethod = mode === 'replace' ? 'replaceState' : 'pushState'
   window.history[historyMethod](window.history.state, '', targetPath)
+  saveVisitedRoute(targetPath, currentUserId.value)
   refreshDesktopRouteState()
 }
 

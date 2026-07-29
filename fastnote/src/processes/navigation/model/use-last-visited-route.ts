@@ -8,6 +8,14 @@ export const LAST_ROUTE_STORAGE_PREFIX = 'flashnote_last_visited_route'
 
 const PRIVATE_NOTE_ROUTE_PATTERN = /^\/n\/([^/?#]+)(?:[?#].*)?$/
 const ROUTE_RESTORE_ENTRY_PATHS = new Set(['/', '/home', '/login', '/register'])
+const ROUTE_SAVE_EXCLUDED_PATHS = new Set(['/login', '/register'])
+
+function getBrowserFullPath() {
+  if (typeof window === 'undefined')
+    return ''
+
+  return `${window.location.pathname}${window.location.search}${window.location.hash}`
+}
 
 export function getLastVisitedRouteStorageKey(userId?: string | null) {
   return createScopedStorageKey(LAST_ROUTE_STORAGE_PREFIX, userId)
@@ -32,10 +40,18 @@ export function shouldRestoreLastVisitedRouteForCurrentPath(path: string) {
 }
 
 export function useLastVisitedRoute() {
+  const saveVisitedRoute = (fullPath: string, userId?: string | null) => {
+    const normalizedPath = fullPath.split('?')[0]?.split('#')[0] || ''
+    if (!fullPath || ROUTE_SAVE_EXCLUDED_PATHS.has(normalizedPath))
+      return
+
+    localStorage.setItem(getLastVisitedRouteStorageKey(userId), fullPath)
+  }
+
   const saveCurrentRoute = (router: Router, userId?: string | null) => {
     const currentRoute = router.currentRoute.value
     if (currentRoute.name !== 'Login' && currentRoute.name !== 'Register') {
-      localStorage.setItem(getLastVisitedRouteStorageKey(userId), currentRoute.fullPath)
+      saveVisitedRoute(currentRoute.fullPath, userId)
     }
   }
 
@@ -76,7 +92,7 @@ export function useLastVisitedRoute() {
     })
 
     const handleBeforeUnload = () => {
-      saveCurrentRoute(router, userId)
+      saveVisitedRoute(getBrowserFullPath() || router.currentRoute.value.fullPath, userId)
     }
     window.addEventListener('beforeunload', handleBeforeUnload)
 
@@ -95,6 +111,7 @@ export function useLastVisitedRoute() {
     restoreImmediateLastVisitedRoute,
     restoreLastVisitedRoute,
     saveCurrentRoute,
+    saveVisitedRoute,
     shouldRestoreLastVisitedRouteForCurrentPath,
     setupAutoSave,
   }

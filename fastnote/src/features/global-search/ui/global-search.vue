@@ -955,6 +955,7 @@ onUnmounted(() => {
             :rows="1"
             :spellcheck="false"
             class="global-search__input"
+            style="--padding-top: 5px; --padding-bottom: 5px;"
             @ion-focus="onFocus"
             @ion-input="onInput"
             @keydown="onKeydown"
@@ -1108,12 +1109,13 @@ onUnmounted(() => {
   &__field-shell {
     display: flex;
     align-items: center;
+    box-sizing: border-box;
     width: 100%;
     min-width: 0;
     gap: 8px;
     height: auto;
     min-height: 44px;
-    padding: 6px 12px;
+    padding: 0 12px;
     border-radius: 24px;
     border: 1px solid rgba(255, 255, 255, 0.18);
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.08)), rgba(20, 20, 24, 0.12);
@@ -1165,8 +1167,6 @@ onUnmounted(() => {
   &__input {
     --background: transparent;
     --color: #f5f5f7;
-    --padding-top: 5px;
-    --padding-bottom: 5px;
     --padding-start: 0;
     --padding-end: 0;
     --placeholder-color: #8e8e93;
@@ -1177,6 +1177,10 @@ onUnmounted(() => {
     font-size: 16px;
     line-height: 22px;
     transition: min-height 180ms ease;
+  }
+
+  &__field-shell &__input {
+    min-height: 32px;
   }
 
   &__clear-button {

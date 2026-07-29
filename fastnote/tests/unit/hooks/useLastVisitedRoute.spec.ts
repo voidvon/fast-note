@@ -1,5 +1,18 @@
-import { describe, expect, it } from 'vitest'
-import { getRouteRestoreMode, isDeferredPrivateRoute, shouldRestoreLastVisitedRouteForCurrentPath } from '@/processes/navigation'
+import { mount } from '@vue/test-utils'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { defineComponent } from 'vue'
+import {
+  getLastVisitedRouteStorageKey,
+  getRouteRestoreMode,
+  isDeferredPrivateRoute,
+  shouldRestoreLastVisitedRouteForCurrentPath,
+  useLastVisitedRoute,
+} from '@/processes/navigation'
+
+afterEach(() => {
+  localStorage.clear()
+  window.history.replaceState(null, '', '/')
+})
 
 describe('useLastVisitedRoute restore mode', () => {
   it('treats private existing note detail routes as deferred restore targets', () => {
@@ -25,5 +38,38 @@ describe('useLastVisitedRoute restore mode', () => {
     expect(shouldRestoreLastVisitedRouteForCurrentPath('/n/private-note')).toBe(false)
     expect(shouldRestoreLastVisitedRouteForCurrentPath('/f/folder-1')).toBe(false)
     expect(shouldRestoreLastVisitedRouteForCurrentPath('/alice')).toBe(false)
+  })
+
+  it('persists a desktop native-history route in the current user scope', () => {
+    const { saveVisitedRoute } = useLastVisitedRoute()
+
+    saveVisitedRoute('/n/note-b', 'user-a')
+
+    expect(localStorage.getItem(getLastVisitedRouteStorageKey('user-a'))).toBe('/n/note-b')
+  })
+
+  it('saves the browser address instead of a stale router route before window close', () => {
+    const routerAfterEach = vi.fn(() => vi.fn())
+    const router = {
+      afterEach: routerAfterEach,
+      currentRoute: {
+        value: {
+          fullPath: '/n/note-a',
+          name: undefined,
+        },
+      },
+    } as any
+    const wrapper = mount(defineComponent({
+      setup() {
+        const { setupAutoSave } = useLastVisitedRoute()
+        setupAutoSave(router, 'user-a')
+        return () => null
+      },
+    }))
+    window.history.replaceState(null, '', '/n/note-b')
+    window.dispatchEvent(new Event('beforeunload'))
+
+    expect(localStorage.getItem(getLastVisitedRouteStorageKey('user-a'))).toBe('/n/note-b')
+    wrapper.unmount()
   })
 })

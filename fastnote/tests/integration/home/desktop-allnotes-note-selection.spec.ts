@@ -1,5 +1,6 @@
-import { nextTick } from 'vue'
 import { describe, expect, it } from 'vitest'
+import { nextTick } from 'vue'
+import { getLastVisitedRouteStorageKey } from '@/processes/navigation'
 import { NOTE_TYPE } from '@/shared/types'
 import { makeNote } from '../../factories/note.factory'
 import { mountHomePageForDesktopRestore } from './home-page-test-utils'
@@ -24,5 +25,7 @@ describe('desktop allnotes note selection', () => {
     expect(getFolderPage().props('currentFolder')).toBe('allnotes')
     expect(getFolderPage().props('selectedNoteId')).toBe('note-b')
     expect(getNoteDetail().props('noteId')).toBe('note-b')
+    expect(window.location.pathname).toBe('/n/note-b')
+    expect(localStorage.getItem(getLastVisitedRouteStorageKey())).toBe('/n/note-b')
   })
 })
