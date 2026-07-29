@@ -1,9 +1,23 @@
-import { flushPromises } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import { nextTick } from 'vue'
+import { NoteUnlockPanel } from '@/features/note-lock'
 import { mountNoteDetailForSaveTest } from '../../helpers/note-detail-save-test-utils'
 
 describe('note unlock panel integration (t-fn-038 / tc-fn-030)', () => {
+  it('marks the pin as a non-login password field', () => {
+    const wrapper = mount(NoteUnlockPanel, {
+      props: {
+        lockViewState: 'locked',
+      },
+    })
+    const input = wrapper.get('[data-testid="note-unlock-panel-pin"]')
+
+    expect(input.attributes('type')).toBe('password')
+    expect(input.attributes('autocomplete')).toBe('new-password')
+    expect(input.attributes('name')).toBe('note-unlock-pin')
+  })
+
   it('shows unlock panel before rendering the editor and unlocks with a valid pin', async () => {
     const { wrapper, editorApi, mocks } = await mountNoteDetailForSaveTest({
       noteId: 'locked-note',
