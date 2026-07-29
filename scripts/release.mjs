@@ -370,6 +370,10 @@ function createReleaseReadme({ releaseVersion, target, binaryName }) {
     '',
     `  ${command}`,
     '',
+    'Update to the latest stable release:',
+    '',
+    `  ${target.goos === 'windows' ? `.\\${binaryName} update` : `./${binaryName} update`}`,
+    '',
   ].join('\n')
 }
 
@@ -421,7 +425,15 @@ function buildRelease(options) {
     writeFileSync(join(dataDir, '.gitkeep'), '')
 
     console.log(`[release] go build => ${target.id}`)
-    run('go', ['build', '-trimpath', '-o', binaryPath, '.'], {
+    run('go', [
+      'build',
+      '-trimpath',
+      '-ldflags',
+      `-X main.appVersion=${options.version}`,
+      '-o',
+      binaryPath,
+      '.',
+    ], {
       cwd: backendDir,
       env: {
         ...process.env,
@@ -445,8 +457,8 @@ function buildRelease(options) {
     let archived = false
 
     if (archiveEnabled && zipAvailable) {
-      run('zip', ['-q', '-r', archivePath, packageBaseName], {
-        cwd: options.outputDir,
+      run('zip', ['-q', '-r', archivePath, '.'], {
+        cwd: targetDir,
       })
       archived = true
     }

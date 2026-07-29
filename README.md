@@ -24,10 +24,10 @@ Fastnote 用于记录、整理和同步个人笔记内容，适合部署为自�
 
 ## 使用说明
 
-每个 release 包目录默认包含以下内容：
+每个 release 压缩包解压后默认包含以下内容：
 
 ```text
-fastnote_<version>_<target>/
+部署目录/
 ├── fastnote 或 fastnote.exe
 ├── pb_data/
 └── README.md
@@ -37,7 +37,7 @@ fastnote_<version>_<target>/
 - `pb_data/`：运行期数据目录，用于保存 PocketBase 数据、上传文件与运行状态。
 - `README.md`：当前 release 包的最小运行说明。
 
-推荐将整个 release 目录解压到目标服务器或运行目录，并始终在该目录内启动程序。
+推荐先创建独立版本目录，再将 release 压缩包解压到该目录，并始终在该目录内启动程序。
 
 ## 首次使用
 
@@ -69,7 +69,21 @@ fastnote.exe serve
 
 ## 升级方式
 
-升级时应保留原有 `pb_data/`，只替换程序文件和文档：
+从 `v0.1.1` 开始，正式版可以使用内置更新命令：
+
+```bash
+./fastnote update
+```
+
+该命令从 `voidvon/fast-note` 的最新正式 GitHub Release 下载当前平台压缩包，创建 `pb_data` 备份并替换当前二进制。更新完成后仍需通过 systemd、supervisor 或宝塔重启服务。
+
+推荐操作顺序：
+
+1. 停止旧进程。
+2. 在部署目录执行 `./fastnote update`。
+3. 通过原进程管理器重新启动服务。
+
+也可以继续手动升级。手动升级时应保留原有 `pb_data/`，只替换程序文件和文档：
 
 1. 停止旧进程。
 2. 备份当前目录，尤其是 `pb_data/`。
