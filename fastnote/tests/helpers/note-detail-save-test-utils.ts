@@ -23,6 +23,12 @@ function createPlainStub(name: string) {
 
 const NoteMoreStub = defineComponent({
   name: 'NoteMore',
+  props: {
+    prepareForLock: {
+      type: Function,
+      default: undefined,
+    },
+  },
   emits: ['note-lock-updated', 'update:is-open'],
   template: '<div class="NoteMore-stub" />',
 })

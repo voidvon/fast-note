@@ -12,6 +12,7 @@ const props = withDefaults(defineProps<{
   hasGlobalPin?: boolean
   isOpen: boolean
   noteId: string
+  prepareForLock: () => Promise<void>
 }>(), {
   defaultBiometricEnabled: false,
   hasGlobalPin: false,
@@ -78,6 +79,8 @@ async function handleSubmit() {
   form.errorMessage = ''
 
   try {
+    await props.prepareForLock()
+
     const result = props.hasGlobalPin
       ? await noteLock.enableLockForNote(props.noteId, {
           biometricEnabled: form.biometricEnabled,
@@ -93,6 +96,9 @@ async function handleSubmit() {
 
     emit('confirm', result as NoteLockSetupResult & { note: Note })
     dismiss()
+  }
+  catch (error) {
+    form.errorMessage = error instanceof Error ? error.message : '保存备忘录失败，无法锁定'
   }
   finally {
     form.isSubmitting = false

@@ -185,6 +185,7 @@ describe('note more lock entry integration', () => {
       props: {
         isOpen: true,
         noteId: 'note-1',
+        prepareForLock: vi.fn(async () => undefined),
       },
     })
 
@@ -285,6 +286,7 @@ describe('note more lock entry integration', () => {
       props: {
         isOpen: true,
         noteId: 'note-2',
+        prepareForLock: vi.fn(async () => undefined),
       },
     })
 
@@ -380,6 +382,7 @@ describe('note more lock entry integration', () => {
       props: {
         isOpen: true,
         noteId: 'note-4',
+        prepareForLock: vi.fn(async () => undefined),
       },
     })
 
@@ -408,6 +411,25 @@ describe('note more lock entry integration', () => {
       color: 'success',
     }))
     expect(presentMock).toHaveBeenCalledTimes(1)
+
+    wrapper.findComponent({ name: 'NoteLockManageModal' }).vm.$emit('updated', {
+      action: 'relock',
+      biometricEnabled: false,
+      code: 'ok',
+      message: null,
+      note: {
+        id: 'note-4',
+        is_locked: 1,
+        is_public: 0,
+      },
+    })
+    await flushPromises()
+
+    expect(syncMock).toHaveBeenCalledTimes(2)
+    expect(wrapper.emitted('noteLockUpdated')?.[1]?.[0]).toMatchObject({
+      id: 'note-4',
+      is_locked: 1,
+    })
   })
 
   it('deletes the note through feature use case and then navigates back', async () => {
@@ -494,6 +516,7 @@ describe('note more lock entry integration', () => {
       props: {
         isOpen: true,
         noteId: 'note-3',
+        prepareForLock: vi.fn(async () => undefined),
       },
     })
 

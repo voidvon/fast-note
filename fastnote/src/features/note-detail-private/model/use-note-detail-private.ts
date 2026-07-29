@@ -12,13 +12,32 @@ export interface UseNoteDetailPrivateOptions {
 
 export function useNoteDetailPrivate(options: UseNoteDetailPrivateOptions) {
   const repairingNoteId = ref<string | null>(null)
+  let activeNoteId: string | null = null
+  let requestVersion = 0
+
+  function beginRequest(noteId: string) {
+    activeNoteId = noteId
+    requestVersion += 1
+    return requestVersion
+  }
+
+  function isCurrentRequest(noteId: string, version: number) {
+    return activeNoteId === noteId && requestVersion === version
+  }
 
   function reset() {
+    activeNoteId = null
+    requestVersion += 1
     repairingNoteId.value = null
   }
 
   async function loadPrivateNote(id: string) {
+    const version = beginRequest(id)
     const note = await options.getNote(id)
+    if (!isCurrentRequest(id, version)) {
+      return null
+    }
+
     if (note) {
       repairingNoteId.value = null
       await options.onLoaded(note)
@@ -26,11 +45,20 @@ export function useNoteDetailPrivate(options: UseNoteDetailPrivateOptions) {
     }
 
     await options.onMissing()
-    void repairMissingPrivateNote(id)
+    if (isCurrentRequest(id, version)) {
+      void repairMissingPrivateNote(id, version)
+    }
     return null
   }
 
-  async function repairMissingPrivateNote(id: string) {
+  async function repairMissingPrivateNote(id: string, requestVersionOverride?: number) {
+    const version = requestVersionOverride
+      ?? (activeNoteId === id ? requestVersion : beginRequest(id))
+
+    if (!isCurrentRequest(id, version)) {
+      return null
+    }
+
     if (repairingNoteId.value === id) {
       return null
     }
@@ -39,12 +67,12 @@ export function useNoteDetailPrivate(options: UseNoteDetailPrivateOptions) {
 
     try {
       const repaired = await options.repairMissingPrivateNoteIfNeeded?.(id)
-      if (!repaired) {
+      if (!repaired || !isCurrentRequest(id, version)) {
         return null
       }
 
       const repairedNote = await options.getNote(id)
-      if (!repairedNote) {
+      if (!repairedNote || !isCurrentRequest(id, version)) {
         return null
       }
 
@@ -55,6 +83,11 @@ export function useNoteDetailPrivate(options: UseNoteDetailPrivateOptions) {
     catch (error) {
       console.error('缺失私有备忘录补齐失败:', error)
       return null
+    }
+    finally {
+      if (repairingNoteId.value === id) {
+        repairingNoteId.value = null
+      }
     }
   }
 

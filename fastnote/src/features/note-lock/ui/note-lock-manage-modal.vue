@@ -11,6 +11,7 @@ const props = withDefaults(defineProps<{
   isOpen: boolean
   note?: Note | null
   noteId: string
+  prepareForLock: () => Promise<void>
 }>(), {
   biometricEnabled: false,
   note: null,
@@ -127,8 +128,20 @@ async function handleRelock() {
   state.errorMessage = ''
 
   try {
-    await noteLock.relock(props.noteId)
-    emitUpdated('relock', props.note)
+    await props.prepareForLock()
+    const result = await noteLock.relock(props.noteId)
+    if (!result.ok || !result.note) {
+      state.errorMessage = result.message || '重新锁定失败，请重试'
+      return
+    }
+
+    emitUpdated('relock', result.note, {
+      code: result.code,
+      message: result.message,
+    })
+  }
+  catch (error) {
+    state.errorMessage = error instanceof Error ? error.message : '保存备忘录失败，无法重新锁定'
   }
   finally {
     state.isSubmitting = false

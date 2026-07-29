@@ -16,6 +16,7 @@ import IconTextButton from '@/shared/ui/icon-text-button'
 const props = withDefaults(defineProps<{
   isOpen: boolean
   noteId?: string
+  prepareForLock: () => Promise<void>
 }>(), {})
 
 const emit = defineEmits(['noteLockUpdated', 'update:isOpen'])
@@ -114,7 +115,7 @@ async function onLockConfirmed(payload: NoteLockSetupResult & { note: Note }) {
 
 async function onLockManaged(payload: NoteLockManageUpdate) {
   const feedback = buildManageFeedback(payload)
-  const syncErrorMessage = payload.action === 'disable_lock'
+  const syncErrorMessage = payload.action === 'disable_lock' || payload.action === 'relock'
     ? await syncLockNoteChange('已在当前设备更新备忘录锁，但同步失败，请稍后重试')
     : null
   note.value = feedback.note
@@ -194,6 +195,7 @@ async function onDelete() {
     :device-supports-biometric="isBiometricSupported()"
     :default-biometric-enabled="lockModalState.defaultBiometricEnabled"
     :has-global-pin="lockModalState.hasGlobalPin"
+    :prepare-for-lock="prepareForLock"
     @confirm="onLockConfirmed"
   />
   <NoteLockManageModal
@@ -203,6 +205,7 @@ async function onDelete() {
     :note="note"
     :device-supports-biometric="isBiometricSupported()"
     :biometric-enabled="lockModalState.defaultBiometricEnabled"
+    :prepare-for-lock="prepareForLock"
     @updated="onLockManaged"
   />
 </template>

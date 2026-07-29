@@ -392,7 +392,7 @@ describe('useNoteLock setup flow (t-fn-037)', () => {
     })
 
     await noteLock.verifyPin('note-session-events', '123456')
-    await noteLock.relock('note-session-events')
+    const relockResult = await noteLock.relock('note-session-events')
     unsubscribe()
 
     expect(events).toEqual([
@@ -405,6 +405,7 @@ describe('useNoteLock setup flow (t-fn-037)', () => {
         reason: 'relock',
       },
     ])
+    expect(relockResult.note).toEqual(note)
   })
 
   it('migrates legacy credential into device state and unlocks via biometric', async () => {

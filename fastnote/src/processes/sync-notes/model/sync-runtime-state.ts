@@ -13,6 +13,8 @@ const updated = ref(readSyncCursor(syncScopeUserId.value))
 const syncing = ref(false)
 const pendingCacheRepairReason = ref<CacheRepairReason | null>(null)
 const syncSyncedCallbacks: Array<(result?: any) => void> = []
+let pendingSyncCount = 0
+let syncQueue: Promise<unknown> = Promise.resolve()
 
 export function getInitialSyncCursor() {
   return JSON.parse(defaultUpdated)
@@ -83,6 +85,19 @@ function triggerSyncedCallbacks(result?: any) {
       console.error('执行同步成功回调函数失败:', error)
     }
   }
+}
+
+export function enqueueNoteSync<T>(task: () => Promise<T>): Promise<T> {
+  pendingSyncCount += 1
+  syncing.value = true
+
+  const run = syncQueue.then(task)
+  syncQueue = run.catch(() => undefined)
+
+  return run.finally(() => {
+    pendingSyncCount -= 1
+    syncing.value = pendingSyncCount > 0
+  })
 }
 
 export function useSyncRuntimeState() {

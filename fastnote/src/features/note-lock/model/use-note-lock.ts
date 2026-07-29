@@ -905,8 +905,23 @@ export function useNoteLock(options: UseNoteLockOptions = {}) {
     }
   }
 
-  async function relock(noteId: string) {
+  async function relock(noteId: string): Promise<NoteLockManageResult> {
+    const note = await resolveNote(noteId)
+    if (!note) {
+      return {
+        ok: false,
+        code: 'note_not_found',
+        message: '当前备忘录不存在',
+      }
+    }
+
     await clearSession(noteId, 'relock')
+    return {
+      ok: true,
+      code: 'ok',
+      message: null,
+      note,
+    }
   }
 
   async function setBiometricEnabled(enabled: boolean): Promise<NoteLockManageResult> {

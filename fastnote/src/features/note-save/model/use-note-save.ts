@@ -38,6 +38,7 @@ export interface SaveNoteParams {
   isMissingPrivateNote?: boolean
   leaveFlushReason?: LeaveFlushReason | null
   saveTargetContext?: SaveTargetContext
+  forceWrite?: boolean
   silent?: boolean
 }
 
@@ -75,6 +76,7 @@ function resolveParentId(isDesktop: boolean, parentId?: string, routeParentId?: 
 interface PreparedSaveRequest {
   baselineContent: string
   content: string
+  forceWrite: boolean
   hasMeaningfulContent: boolean
   isDesktop: boolean
   isMissingPrivateNote: boolean
@@ -153,6 +155,7 @@ export function useNoteSave(options: UseNoteSaveOptions) {
     return {
       baselineContent: savedContentByNoteId.get(noteId) ?? lastSavedContent.value,
       content,
+      forceWrite: !!params.forceWrite,
       hasMeaningfulContent,
       isDesktop: params.isDesktop,
       isMissingPrivateNote: !!params.isMissingPrivateNote,
@@ -171,6 +174,7 @@ export function useNoteSave(options: UseNoteSaveOptions) {
     const {
       baselineContent,
       content,
+      forceWrite,
       hasMeaningfulContent,
       isDesktop,
       isMissingPrivateNote,
@@ -192,7 +196,7 @@ export function useNoteSave(options: UseNoteSaveOptions) {
     }
 
     const savedBaseline = savedContentByNoteId.get(noteId) ?? baselineContent
-    if (content === savedBaseline) {
+    if (!forceWrite && content === savedBaseline) {
       if (isActiveTarget(noteId)) {
         lastSavedContent.value = content
       }

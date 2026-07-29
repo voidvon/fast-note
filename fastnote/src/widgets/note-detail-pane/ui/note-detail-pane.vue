@@ -61,6 +61,12 @@ const state = reactive({
 })
 const idFromRoute = computed(() => route.params.id as string || route.params.noteId as string)
 const idFromSource = computed(() => props.noteId || idFromRoute.value)
+const effectiveUuid = computed(() => {
+  if (idFromSource.value === '0')
+    return newNoteId.value
+
+  return idFromSource.value || retainedEffectiveUuid.value
+})
 const noteDetailLeave = useNoteDetailLeave({
   getDraftId() {
     return newNoteId.value
@@ -215,13 +221,6 @@ watch(isEditorBlocked, (blocked) => {
 // 智能返回按钮
 const { backButtonProps } = useNoteBackButton(route, data, username.value)
 
-const effectiveUuid = computed(() => {
-  if (idFromSource.value === '0')
-    return newNoteId.value
-
-  return idFromSource.value || retainedEffectiveUuid.value
-})
-
 watch(idFromSource, async (id, oldId) => {
   const transition = noteDetailLeave.handleRouteTransition(oldId, id)
 
@@ -322,6 +321,7 @@ async function handleNoteSaving(
   silent = false,
   leaveFlushReason: LeaveFlushReason | null = null,
   saveTargetContext: SaveTargetContext = {},
+  forceWrite = false,
 ) {
   if (isPinLockedForView.value) {
     if (leaveFlushReason) {
@@ -341,6 +341,7 @@ async function handleNoteSaving(
     isMissingPrivateNote: isMissingPrivateNote.value,
     leaveFlushReason,
     saveTargetContext,
+    forceWrite,
     silent,
   })
 }
@@ -384,18 +385,35 @@ async function handleBiometricUnlock() {
   await noteLockView.unlockWithBiometric(data.value)
 }
 
-async function handleNoteLockUpdated(updatedNote: Note) {
-  const shouldFlushBeforeLock =
-    data.value?.id === updatedNote.id
-    && data.value?.is_locked !== 1
-    && updatedNote.is_locked === 1
-    && !isMissingPrivateNote.value
+async function persistEditorBeforeLock() {
+  const noteId = effectiveUuid.value
+  const editor = editorRef.value
 
-  if (shouldFlushBeforeLock) {
-    noteDetailLeave.clearPendingSaveTimer()
-    await handleNoteSaving(true)
+  if (!noteId || !editor || data.value?.id !== noteId) {
+    throw new Error('当前备忘录尚未加载完成，无法锁定')
   }
 
+  const expectedContent = editor.getContent?.() || ''
+  noteDetailLeave.clearPendingSaveTimer()
+  await handleNoteSaving(true, null, {
+    noteId,
+    wasNewNote: false,
+  }, true)
+
+  const persistedNote = await getNote(noteId)
+  if (!persistedNote || persistedNote.content !== expectedContent) {
+    throw new Error('当前编辑内容尚未保存，无法锁定')
+  }
+
+  const notesSync = getNotesSync()
+  if (!notesSync) {
+    throw new Error('本地存储尚未就绪，无法锁定')
+  }
+
+  await notesSync.manualSync()
+}
+
+async function handleNoteLockUpdated(updatedNote: Note) {
   data.value = updatedNote
   state.showNoteMore = false
   await applyPrivateNoteState(updatedNote)
@@ -465,6 +483,7 @@ async function handleNoteLockUpdated(updatedNote: Note) {
       v-if="canShowNoteActions"
       v-model:is-open="state.showNoteMore"
       :note-id="effectiveUuid || ''"
+      :prepare-for-lock="persistEditorBeforeLock"
       @note-lock-updated="handleNoteLockUpdated"
     />
   </IonPage>

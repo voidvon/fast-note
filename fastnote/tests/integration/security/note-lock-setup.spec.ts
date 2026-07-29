@@ -67,6 +67,7 @@ describe('note lock setup modal integration (t-fn-037 / tc-fn-028)', () => {
         noteId: 'note-1',
         deviceSupportsBiometric: false,
         defaultBiometricEnabled: true,
+        prepareForLock: vi.fn(async () => undefined),
       },
     })
 
@@ -90,15 +91,22 @@ describe('note lock setup modal integration (t-fn-037 / tc-fn-028)', () => {
   })
 
   it('locks the note directly when a global pin already exists', async () => {
-    const enableLockForNoteMock = vi.fn(async () => ({
-      ok: true,
-      code: 'ok',
-      message: null,
-      note: {
-        id: 'note-1',
-        is_locked: 1,
-      },
-    }))
+    const callOrder: string[] = []
+    const prepareForLock = vi.fn(async () => {
+      callOrder.push('persist-editor')
+    })
+    const enableLockForNoteMock = vi.fn(async () => {
+      callOrder.push('enable-lock')
+      return {
+        ok: true,
+        code: 'ok',
+        message: null,
+        note: {
+          id: 'note-1',
+          is_locked: 1,
+        },
+      }
+    })
 
     vi.doMock('@/shared/lib/device', () => ({
       useDeviceType: () => ({
@@ -124,6 +132,7 @@ describe('note lock setup modal integration (t-fn-037 / tc-fn-028)', () => {
         hasGlobalPin: true,
         deviceSupportsBiometric: true,
         defaultBiometricEnabled: true,
+        prepareForLock,
       },
     })
 
@@ -136,6 +145,7 @@ describe('note lock setup modal integration (t-fn-037 / tc-fn-028)', () => {
     expect(enableLockForNoteMock).toHaveBeenCalledWith('note-1', {
       biometricEnabled: true,
     })
+    expect(callOrder).toEqual(['persist-editor', 'enable-lock'])
     expect(wrapper.emitted('confirm')?.[0]?.[0]?.note).toMatchObject({
       id: 'note-1',
       is_locked: 1,

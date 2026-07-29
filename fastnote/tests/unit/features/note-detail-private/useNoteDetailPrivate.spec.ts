@@ -79,4 +79,28 @@ describe('useNoteDetailPrivate', () => {
     await first
     await second
   })
+
+  it('ignores an older note load that finishes after the active note', async () => {
+    let resolveFirst!: (note: ReturnType<typeof makeNote>) => void
+    const firstNotePromise = new Promise<ReturnType<typeof makeNote>>((resolve) => {
+      resolveFirst = resolve
+    })
+    const firstNote = makeNote({ id: 'note-1', content: '<p>first</p>' })
+    const secondNote = makeNote({ id: 'note-2', content: '<p>second</p>' })
+    const onLoaded = vi.fn(async () => undefined)
+    const flow = useNoteDetailPrivate({
+      getNote: vi.fn(async (id: string) => id === 'note-1' ? await firstNotePromise : secondNote),
+      onLoaded,
+      onMissing: vi.fn(async () => undefined),
+      repairMissingPrivateNoteIfNeeded: vi.fn(async () => false),
+    })
+
+    const firstLoad = flow.loadPrivateNote('note-1')
+    await flow.loadPrivateNote('note-2')
+    resolveFirst(firstNote)
+    await firstLoad
+
+    expect(onLoaded).toHaveBeenCalledTimes(1)
+    expect(onLoaded).toHaveBeenCalledWith(secondNote)
+  })
 })

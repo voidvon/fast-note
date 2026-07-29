@@ -51,6 +51,9 @@ describe('note switch save regression', () => {
       noteId: 'note-1',
       isDesktop: true,
       notesById,
+      updateNoteImpl: async (id, note) => {
+        notesById[id] = note
+      },
       getLockViewStateImpl: async (noteId: string) => ({
         viewState: noteId === 'locked-note' ? 'locked' : 'unlocked',
         failedAttempts: 0,
@@ -108,15 +111,13 @@ describe('note switch save regression', () => {
         files: [],
       },
     }
-    const lockedNote = {
-      ...notesById['note-1'],
-      is_locked: 1,
-    }
-
     const { wrapper, editorApi, mocks } = await mountNoteDetailForSaveTest({
       noteId: 'note-1',
       isDesktop: true,
       notesById,
+      updateNoteImpl: async (id, note) => {
+        notesById[id] = note
+      },
       getLockViewStateImpl: async (_noteId: string, note) => ({
         viewState: note?.is_locked === 1 ? 'locked' : 'unlocked',
         failedAttempts: 0,
@@ -140,8 +141,12 @@ describe('note switch save regression', () => {
     currentContent = '<p>已编辑内容</p>'
 
     wrapper.findComponent({ name: 'YYEditor' }).vm.$emit('blur')
-    notesById['note-1'] = lockedNote
-    wrapper.findComponent({ name: 'NoteMore' }).vm.$emit('note-lock-updated', lockedNote)
+    await wrapper.findComponent({ name: 'NoteMore' }).props('prepareForLock')()
+    notesById['note-1'] = {
+      ...notesById['note-1'],
+      is_locked: 1,
+    }
+    wrapper.findComponent({ name: 'NoteMore' }).vm.$emit('note-lock-updated', notesById['note-1'])
     await flushPromises()
     await nextTick()
 
@@ -160,6 +165,70 @@ describe('note switch save regression', () => {
       content: '<p>已编辑内容</p>',
       summary: '已编辑摘要',
     }))
+    expect(wrapper.find('[data-testid="note-unlock-panel"]').exists()).toBe(true)
+  })
+
+  it('persists unlocked edits before relocking an already locked note', async () => {
+    const notesById: Record<string, Note> = {
+      'note-1': {
+        id: 'note-1',
+        title: '已锁定备忘录',
+        summary: '原摘要',
+        content: '<p>原内容</p>',
+        created: '2026-03-11 10:00:00',
+        updated: '2026-03-11 10:00:00',
+        item_type: 2,
+        parent_id: '',
+        is_deleted: 0,
+        is_locked: 1,
+        note_count: 0,
+        version: 1,
+        files: [],
+      },
+    }
+
+    let isRelocked = false
+    const { wrapper, editorApi, mocks } = await mountNoteDetailForSaveTest({
+      noteId: 'note-1',
+      isDesktop: true,
+      notesById,
+      updateNoteImpl: async (id, note) => {
+        notesById[id] = note
+      },
+      getLockViewStateImpl: async () => ({
+        viewState: isRelocked ? 'locked' : 'unlocked',
+        failedAttempts: 0,
+        cooldownUntil: null,
+        biometricEnabled: false,
+        deviceSupportsBiometric: false,
+        session: null,
+      }),
+    })
+
+    let currentContent = '<p>解锁后编辑的内容</p>'
+    editorApi.getContent.mockImplementation(() => currentContent)
+    editorApi.setContent.mockImplementation((content: string) => {
+      currentContent = content
+    })
+    editorApi.getTitle.mockReturnValue({
+      title: '已锁定备忘录',
+      summary: '解锁后编辑的摘要',
+    })
+
+    wrapper.findComponent({ name: 'YYEditor' }).vm.$emit('blur')
+    await wrapper.findComponent({ name: 'NoteMore' }).props('prepareForLock')()
+
+    expect(notesById['note-1'].content).toBe('<p>解锁后编辑的内容</p>')
+    expect(mocks.manualSyncMock).toHaveBeenCalledTimes(1)
+
+    isRelocked = true
+    wrapper.findComponent({ name: 'NoteMore' }).vm.$emit('note-lock-updated', notesById['note-1'])
+    await flushPromises()
+    await nextTick()
+    vi.advanceTimersByTime(800)
+    await flushPromises()
+
+    expect(mocks.updateNoteMock).toHaveBeenCalledTimes(1)
     expect(wrapper.find('[data-testid="note-unlock-panel"]').exists()).toBe(true)
   })
 })

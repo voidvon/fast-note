@@ -30,13 +30,29 @@ function createButtonStub(name: string) {
 describe('note lock manage modal integration (t-fn-043 / tc-fn-036)', () => {
   it('supports change pin, relock and disable lock actions', async () => {
     vi.resetModules()
+    const relockOrder: string[] = []
+    const prepareForLock = vi.fn(async () => {
+      relockOrder.push('persist-editor')
+    })
 
     const changeGlobalPinMock = vi.fn(async () => ({
       ok: true,
       code: 'ok',
       message: null,
     }))
-    const relockMock = vi.fn(async () => undefined)
+    const relockMock = vi.fn(async () => {
+      relockOrder.push('relock')
+      return {
+        ok: true,
+        code: 'ok',
+        message: null,
+        note: {
+          id: 'note-1',
+          is_locked: 1,
+          content: '<p>最新正文</p>',
+        },
+      }
+    })
     const disableLockForNoteMock = vi.fn(async () => ({
       ok: true,
       code: 'ok',
@@ -82,6 +98,7 @@ describe('note lock manage modal integration (t-fn-043 / tc-fn-036)', () => {
         },
         deviceSupportsBiometric: true,
         biometricEnabled: true,
+        prepareForLock,
       },
     })
 
@@ -106,10 +123,12 @@ describe('note lock manage modal integration (t-fn-043 / tc-fn-036)', () => {
     await flushPromises()
 
     expect(relockMock).toHaveBeenCalledWith('note-1')
+    expect(relockOrder).toEqual(['persist-editor', 'relock'])
     expect(wrapper.emitted('updated')?.[1]?.[0]).toMatchObject({
       action: 'relock',
       note: expect.objectContaining({
         id: 'note-1',
+        content: '<p>最新正文</p>',
       }),
     })
 
