@@ -1,4 +1,11 @@
 export {
+  DEFAULT_NOTE_AUTO_LOCK_IDLE_MS,
+  DEFAULT_NOTE_AUTO_LOCK_MOBILE_BACKGROUND_MS,
+  DEFAULT_NOTE_AUTO_LOCK_RENEWAL_THROTTLE_MS,
+  useNoteAutoLock,
+} from './model/use-note-auto-lock'
+export type { NoteAutoLockReason, UseNoteAutoLockOptions } from './model/use-note-auto-lock'
+export {
   createNoteUnlockSession,
   createPinSalt,
   DEFAULT_NOTE_UNLOCK_COOLDOWN_MS,

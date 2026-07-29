@@ -133,4 +133,26 @@ describe('useNoteLockViewFlow', () => {
     expect(flow.state.errorMessage).toBe('当前设备不支持生物识别，请输入 PIN 解锁')
     expect(onLocked).toHaveBeenCalledTimes(1)
   })
+
+  it('can fail closed without re-reading the persisted session', () => {
+    const onLocked = vi.fn()
+    const flow = useNoteLockViewFlow({
+      noteLock: {
+        getLockViewState: vi.fn(),
+        isPinLockNote: vi.fn(),
+        tryBiometricUnlock: vi.fn(),
+        verifyPin: vi.fn(),
+      },
+      onLocked,
+      onUnlocked: vi.fn(),
+    })
+    flow.state.viewState = 'unlocked'
+    flow.state.errorMessage = '旧错误'
+
+    flow.lock()
+
+    expect(flow.state.viewState).toBe('locked')
+    expect(flow.state.errorMessage).toBe('')
+    expect(onLocked).toHaveBeenCalledOnce()
+  })
 })

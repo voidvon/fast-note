@@ -408,6 +408,31 @@ describe('useNoteLock setup flow (t-fn-037)', () => {
     expect(relockResult.note).toEqual(note)
   })
 
+  it('renews only an active unlock session', async () => {
+    let currentTime = 1000
+    const dbTables = createMockDb()
+    await dbTables.note_unlock_sessions.put({
+      note_id: 'note-renew',
+      verified_at: currentTime,
+      expires_at: 6000,
+      failed_attempts: 0,
+      cooldown_until: null,
+      updated: '2026-07-29 12:00:00',
+    })
+    const noteLock = useNoteLock({
+      db: ref(dbTables as any),
+      getNote: async () => null,
+      now: () => currentTime,
+    })
+
+    const renewed = await noteLock.renewSession('note-renew', 10_000)
+    expect(renewed?.expires_at).toBe(11_000)
+
+    currentTime = 11_001
+    expect(await noteLock.renewSession('note-renew', 10_000)).toBeNull()
+    expect((await dbTables.note_unlock_sessions.get('note-renew'))?.expires_at).toBe(11_000)
+  })
+
   it('migrates legacy credential into device state and unlocks via biometric', async () => {
     const note = makeNote({
       id: 'note-legacy',

@@ -235,6 +235,20 @@ export async function mountNoteDetailForSaveTest(options: {
     failedAttempts: 0,
     cooldownUntil: null,
   })))
+  const renewSessionMock = vi.fn(async (lockedNoteId: string, ttl = 5 * 60 * 1000) => ({
+    note_id: lockedNoteId,
+    verified_at: Date.now(),
+    expires_at: Date.now() + ttl,
+    failed_attempts: 0,
+    cooldown_until: null,
+    updated: '2026-07-29 12:00:00',
+  }))
+  const relockMock = vi.fn(async (lockedNoteId: string) => ({
+    ok: true,
+    code: 'ok',
+    message: null,
+    note: notesById[lockedNoteId] ?? undefined,
+  }))
   let ionViewWillLeaveCallback: (() => void | Promise<void>) | null = null
   let ionViewDidLeaveCallback: (() => void | Promise<void>) | null = null
   let beforeRouteLeaveCallback: ((to: any, from: any) => void | Promise<void>) | null = null
@@ -289,8 +303,8 @@ export async function mountNoteDetailForSaveTest(options: {
       return () => h('button', {
         ...attrs,
         'data-testid': 'note-detail-back-button',
-        type: 'button',
-        onClick: async () => {
+        'type': 'button',
+        'onClick': async () => {
           const nextPath = typeof attrs.defaultHref === 'string' ? attrs.defaultHref : '/home'
           const from = {
             fullPath: currentRoutePath.value,
@@ -392,6 +406,8 @@ export async function mountNoteDetailForSaveTest(options: {
             return options.isPinLockNote
           return note?.is_locked === 1
         }),
+        relock: relockMock,
+        renewSession: renewSessionMock,
         tryBiometricUnlock: tryBiometricUnlockMock,
         verifyPin: verifyPinMock,
       }),
@@ -479,6 +495,8 @@ export async function mountNoteDetailForSaveTest(options: {
       routerReplaceMock,
       routerBackMock,
       restoreHeightMock,
+      relockMock,
+      renewSessionMock,
       manualSyncMock,
       syncMock,
       getLockViewStateMock,

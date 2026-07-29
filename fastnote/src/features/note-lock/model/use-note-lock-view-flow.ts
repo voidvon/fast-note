@@ -56,6 +56,12 @@ export function useNoteLockViewFlow(options: UseNoteLockViewFlowOptions = {}) {
     }
   }
 
+  function lock() {
+    state.viewState = 'locked'
+    state.errorMessage = ''
+    options.onLocked?.()
+  }
+
   async function refresh(note: Note) {
     const snapshot = await noteLock.getLockViewState(note.id, note)
     applySnapshot(snapshot)
@@ -154,6 +160,7 @@ export function useNoteLockViewFlow(options: UseNoteLockViewFlowOptions = {}) {
 
   return {
     applyNoteState,
+    lock,
     refresh,
     reset,
     state,

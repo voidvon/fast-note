@@ -13,7 +13,7 @@ import { useNoteDetailEntry } from '@/features/note-detail-entry'
 import { useNoteDetailLeave, useNoteDetailLeaveLifecycle } from '@/features/note-detail-leave'
 import { useNoteDetailPrivate } from '@/features/note-detail-private'
 import { useNoteDetailViewState } from '@/features/note-detail-view'
-import { NoteUnlockPanel, useNoteLock, useNoteLockViewFlow } from '@/features/note-lock'
+import { NoteUnlockPanel, useNoteAutoLock, useNoteLock, useNoteLockViewFlow } from '@/features/note-lock'
 import { useNoteSave } from '@/features/note-save'
 import { useNoteBackButton } from '@/processes/navigation'
 import { useSync } from '@/processes/sync-notes'
@@ -45,6 +45,7 @@ const syncApi = useSync()
 const { sync } = syncApi
 
 const isIos = isPlatform('ios')
+const isMobilePlatform = isPlatform('mobile')
 const pageRef = ref()
 const editorRef = ref()
 const editorToolbarRef = ref<{ closePanels: () => void } | null>(null)
@@ -132,11 +133,27 @@ const noteDetailEditorState = useNoteDetailEditorState({
     lastSavedContent.value = content
   },
 })
+const noteAutoLock = useNoteAutoLock({
+  isMobile: () => isMobilePlatform,
+  renewSession: noteLock.renewSession,
+  onAutoLock: handleAutomaticRelock,
+})
 const noteLockView = useNoteLockViewFlow({
   noteLock,
+  onLocked() {
+    noteAutoLock.deactivate()
+    noteDetailEditorState.showLockedNote()
+  },
   async onUnlocked(note) {
     await nextTick()
     noteDetailEditorState.showUnlockedNote(note)
+
+    if (noteLock.isPinLockNote(note)) {
+      noteAutoLock.activate(note.id)
+    }
+    else {
+      noteAutoLock.deactivate()
+    }
   },
 })
 const username = computed(() => route.params.username as string)
@@ -383,6 +400,32 @@ async function handleBiometricUnlock() {
   }
 
   await noteLockView.unlockWithBiometric(data.value)
+}
+
+async function handleAutomaticRelock() {
+  const note = data.value as Note | null
+  if (!note?.id || !noteLock.isPinLockNote(note)) {
+    return
+  }
+
+  noteDetailLeave.clearPendingSaveTimer()
+  await handleNoteSaving(true, 'view-leave', {
+    noteId: note.id,
+    wasNewNote: false,
+  }, true)
+
+  try {
+    const result = await noteLock.relock(note.id)
+    if (!result.ok) {
+      console.error('自动锁定备忘录失败:', result.message)
+    }
+  }
+  catch (error) {
+    console.error('自动锁定备忘录失败:', error)
+  }
+  finally {
+    noteLockView.lock()
+  }
 }
 
 async function persistEditorBeforeLock() {

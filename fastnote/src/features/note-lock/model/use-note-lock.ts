@@ -467,6 +467,22 @@ export function useNoteLock(options: UseNoteLockOptions = {}) {
     return session
   }
 
+  async function renewSession(noteId: string, ttl = sessionTtl) {
+    const currentSession = await getSession(noteId)
+    const currentTime = now()
+    if (!currentSession || !isNoteUnlockSessionValid(currentSession, currentTime)) {
+      return null
+    }
+
+    const renewedSession: NoteUnlockSession = {
+      ...currentSession,
+      expires_at: currentTime + Math.max(ttl, 0),
+      updated: getTime(),
+    }
+    await putSession(renewedSession)
+    return renewedSession
+  }
+
   async function clearSession(noteId: string, reason: NoteLockSessionChangeReason = 'session_cleared') {
     await db?.value?.note_unlock_sessions?.delete(noteId)
     emitNoteLockSessionChanged({
@@ -1093,6 +1109,7 @@ export function useNoteLock(options: UseNoteLockOptions = {}) {
     hasGlobalPin,
     isBiometricSupported,
     isPinLockNote,
+    renewSession,
     relock,
     setBiometricEnabled,
     setDeviceSecurityState,
