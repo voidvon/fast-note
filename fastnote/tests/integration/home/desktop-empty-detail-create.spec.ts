@@ -182,6 +182,9 @@ async function mountHomePageForEmptyDetailCreate(options: {
       saveSnapshot: vi.fn(),
       clearSnapshot: vi.fn(),
     }),
+    useLastVisitedRoute: () => ({
+      saveVisitedRoute: vi.fn(),
+    }),
     useNoteBackButton: () => ({ backButtonProps: {} }),
   }))
 

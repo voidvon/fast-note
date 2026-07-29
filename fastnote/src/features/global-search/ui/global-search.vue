@@ -87,6 +87,7 @@ let searchRequestId = 0
 let mentionRequestId = 0
 let hideTimer: ReturnType<typeof setTimeout> | null = null
 let enterFrameId: number | null = null
+let panelContainerResizeObserver: ResizeObserver | null = null
 
 const isSearchMode = computed(() => inputMode.value === 'search')
 const currentDraft = computed(() => isSearchMode.value ? searchKeyword.value : aiDraft.value)
@@ -411,6 +412,11 @@ function syncInputHeightLimits() {
 }
 
 function resolvePanelContainer() {
+  const explicitContainer = dockRef.value?.closest('[data-global-search-container]') as HTMLElement | null
+  if (explicitContainer) {
+    return explicitContainer
+  }
+
   const desktopSidebar = dockRef.value?.closest('.note-desktop') as HTMLElement | null
   if (desktopSidebar) {
     return desktopSidebar
@@ -943,11 +949,20 @@ watch([showMentionSuggestions, activeMentionIndex, mentionSuggestions], ([visibl
 onMounted(() => {
   updateLayout()
   syncInputHeightLimits()
+  if (typeof ResizeObserver !== 'undefined') {
+    const panelContainer = resolvePanelContainer()
+    if (panelContainer) {
+      panelContainerResizeObserver = new ResizeObserver(scheduleLayoutUpdate)
+      panelContainerResizeObserver.observe(panelContainer)
+    }
+  }
   window.addEventListener('keydown', handleGlobalKeydown)
   window.addEventListener('resize', handleViewportChange)
 })
 
 onUnmounted(() => {
+  panelContainerResizeObserver?.disconnect()
+  panelContainerResizeObserver = null
   if (hideTimer) {
     clearTimeout(hideTimer)
     hideTimer = null

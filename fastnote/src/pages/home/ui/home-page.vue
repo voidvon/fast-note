@@ -2,6 +2,7 @@
 import type {
   AlertButton,
 } from '@ionic/vue'
+import type { CSSProperties } from 'vue'
 import type { FolderTreeNode, Note } from '@/shared/types'
 import {
   IonAlert,
@@ -22,6 +23,7 @@ import { useRouter } from 'vue-router'
 // import ExtensionButton from '@/shared/ui/extension-button'
 // import ExtensionManager from '@/features/extension-manager'
 import { useNote } from '@/entities/note'
+import { useDesktopPaneLayout } from '@/features/desktop-pane-layout'
 import { useExtensions } from '@/features/extension-manager'
 import GlobalSearch, { useGlobalSearch } from '@/features/global-search'
 import DarkModeToggle from '@/features/theme-switch'
@@ -38,6 +40,7 @@ import { useAuth } from '@/processes/session'
 import { getTime } from '@/shared/lib/date'
 import { useDeviceType } from '@/shared/lib/device'
 import { NOTE_TYPE } from '@/shared/types'
+import PaneSplitter from '@/shared/ui/pane-splitter'
 import DeletedNoteList from '@/widgets/deleted-note-list'
 import ExtensionRenderer from '@/widgets/extension-renderer'
 import FolderBrowser from '@/widgets/folder-browser'
@@ -89,6 +92,15 @@ onUnmounted(() => {
 
 const page = ref()
 const folderPageRef = ref()
+let desktopResizeObserver: ResizeObserver | null = null
+const desktopContainerWidth = ref(typeof window === 'undefined' ? 0 : window.innerWidth)
+const desktopPaneLayout = useDesktopPaneLayout(desktopContainerWidth)
+const desktopLayoutStyle = computed<CSSProperties | undefined>(() => isDesktop.value
+  ? {
+      '--home-navigation-width': `${desktopPaneLayout.navigationWidth.value}px`,
+      '--home-note-list-width': `${desktopPaneLayout.noteListWidth.value}px`,
+    } as CSSProperties
+  : undefined)
 const hasAttemptedDesktopRestore = ref(false)
 const isRestoringDesktopSelection = ref(false)
 const isSyncingDesktopRoute = ref(false)
@@ -631,6 +643,16 @@ onIonViewWillEnter(() => {
 
 onMounted(() => {
   presentingElement.value = page.value.$el
+  const pageElement = page.value?.$el as HTMLElement | undefined
+  if (pageElement) {
+    desktopContainerWidth.value = pageElement.getBoundingClientRect().width || window.innerWidth
+    if (typeof ResizeObserver !== 'undefined') {
+      desktopResizeObserver = new ResizeObserver(([entry]) => {
+        desktopContainerWidth.value = entry?.contentRect.width || window.innerWidth
+      })
+      desktopResizeObserver.observe(pageElement)
+    }
+  }
   refreshDesktopRouteState()
   void init({ preferPersistedSelection: true })
 
@@ -672,6 +694,8 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
 }
 
 onUnmounted(() => {
+  desktopResizeObserver?.disconnect()
+  desktopResizeObserver = null
   if (typeof window !== 'undefined') {
     window.removeEventListener('popstate', refreshDesktopRouteState)
   }
@@ -679,101 +703,117 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <IonPage ref="page" :class="{ 'note-desktop': isDesktop }">
-    <IonHeader :translucent="true">
-      <IonToolbar />
-    </IonHeader>
-
-    <IonContent :fullscreen="true" :scroll-y="!showGlobalSearch">
-      <IonRefresher slot="fixed" :disabled="showGlobalSearch" @ion-refresh="refresh($event)">
-        <IonRefresherContent />
-      </IonRefresher>
-
-      <IonHeader collapse="condense">
-        <IonToolbar>
-          <IonTitle size="large">
-            备忘录
-          </IonTitle>
-        </IonToolbar>
-        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 16px;">
-          <div class="flex items-center">
-            <!-- 使用扩展渲染器动态渲染同步组件 -->
-            <ExtensionRenderer
-              extension-id="sync"
-              component-name="SyncState"
-              :component-props="{}"
-            />
-            <!-- 用户信息组件 - 核心组件 -->
-            <UserProfile />
-          </div>
-          <div class="flex items-center">
-            <!-- <ExtensionButton @click="showExtensionManager = true" /> -->
-            <DarkModeToggle />
-          </div>
-        </div>
+  <IonPage ref="page" :class="{ 'note-desktop': isDesktop }" :style="desktopLayoutStyle">
+    <div
+      id="home-navigation-pane"
+      class="home-navigation"
+      data-global-search-container
+    >
+      <IonHeader :translucent="true">
+        <IonToolbar />
       </IonHeader>
 
-      <NoteList
-        :note-uuid="state.folerId"
-        :data-list="sortDataList"
-        :all-notes-count
-        :unfiled-notes-count
-        :deleted-note-count="deletedNotes.length"
-        expanded-state-key="home:private"
-        :presenting-element="presentingElement"
-        :disabled-route="isDesktop"
-        show-all-notes
-        show-unfiled-notes
-        show-delete
-        @refresh="init"
-        @selected="handleFolderSelected"
-      />
-    </IonContent>
-    <GlobalSearch
-      class="home-global-search"
-      :sync-with-route="!isDesktop"
-      @open-folder="handleAiOpenFolder"
-      @open-note="handleAiOpenNote"
-    >
-      <template #leading="{ panelVisible }">
-        <button
-          v-if="!panelVisible"
-          id="add-folder"
-          type="button"
-          class="app-glass-circle-button"
-          @click="openAddFolderAlert"
-        >
-          <IonIcon :icon="addOutline" />
-        </button>
-      </template>
+      <IonContent :fullscreen="true" :scroll-y="!showGlobalSearch">
+        <IonRefresher slot="fixed" :disabled="showGlobalSearch" @ion-refresh="refresh($event)">
+          <IonRefresherContent />
+        </IonRefresher>
 
-      <template #trailing="{ panelVisible }">
-        <button
-          v-if="!panelVisible"
-          type="button"
-          class="app-glass-circle-button"
-          @click="handleFooterCreateAction"
-        >
-          <IonIcon :icon="createOutline" />
-        </button>
-      </template>
-    </GlobalSearch>
-    <IonAlert
-      :is-open="showAddFolderAlert"
-      :keyboard-close="false"
-      header="请输入文件夹名称"
-      :buttons="addButtons"
-      :inputs="[{ name: 'newFolderName', placeholder: '请输入文件夹名称' }]"
-      @did-present="focusFolderAlertInput"
-      @did-dismiss="showAddFolderAlert = false"
-    />
+        <IonHeader collapse="condense">
+          <IonToolbar>
+            <IonTitle size="large">
+              备忘录
+            </IonTitle>
+          </IonToolbar>
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 16px;">
+            <div class="flex items-center">
+              <!-- 使用扩展渲染器动态渲染同步组件 -->
+              <ExtensionRenderer
+                extension-id="sync"
+                component-name="SyncState"
+                :component-props="{}"
+              />
+              <!-- 用户信息组件 - 核心组件 -->
+              <UserProfile />
+            </div>
+            <div class="flex items-center">
+              <!-- <ExtensionButton @click="showExtensionManager = true" /> -->
+              <DarkModeToggle />
+            </div>
+          </div>
+        </IonHeader>
+
+        <NoteList
+          :note-uuid="state.folerId"
+          :data-list="sortDataList"
+          :all-notes-count
+          :unfiled-notes-count
+          :deleted-note-count="deletedNotes.length"
+          expanded-state-key="home:private"
+          :presenting-element="presentingElement"
+          :disabled-route="isDesktop"
+          show-all-notes
+          show-unfiled-notes
+          show-delete
+          @refresh="init"
+          @selected="handleFolderSelected"
+        />
+      </IonContent>
+      <GlobalSearch
+        class="home-global-search"
+        :sync-with-route="!isDesktop"
+        @open-folder="handleAiOpenFolder"
+        @open-note="handleAiOpenNote"
+      >
+        <template #leading="{ panelVisible }">
+          <button
+            v-if="!panelVisible"
+            id="add-folder"
+            type="button"
+            class="app-glass-circle-button"
+            @click="openAddFolderAlert"
+          >
+            <IonIcon :icon="addOutline" />
+          </button>
+        </template>
+
+        <template #trailing="{ panelVisible }">
+          <button
+            v-if="!panelVisible"
+            type="button"
+            class="app-glass-circle-button"
+            @click="handleFooterCreateAction"
+          >
+            <IonIcon :icon="createOutline" />
+          </button>
+        </template>
+      </GlobalSearch>
+      <IonAlert
+        :is-open="showAddFolderAlert"
+        :keyboard-close="false"
+        header="请输入文件夹名称"
+        :buttons="addButtons"
+        :inputs="[{ name: 'newFolderName', placeholder: '请输入文件夹名称' }]"
+        @did-present="focusFolderAlertInput"
+        @did-dismiss="showAddFolderAlert = false"
+      />
+    </div>
 
     <!-- 扩展管理器 -->
     <!-- <ExtensionManager
       v-model:is-open="showExtensionManager"
       :presenting-element="presentingElement"
     /> -->
-    <div v-if="isDesktop" class="home-list">
+    <PaneSplitter
+      v-if="isDesktop"
+      v-model="desktopPaneLayout.navigationWidth.value"
+      controls="home-navigation-pane home-note-list-pane"
+      label="调整文件夹导航栏宽度"
+      :min="desktopPaneLayout.navigationMin"
+      :max="desktopPaneLayout.navigationMax.value"
+      @reset="desktopPaneLayout.resetNavigationWidth"
+      @resize-end="desktopPaneLayout.persist"
+    />
+    <div v-if="isDesktop" id="home-note-list-pane" class="home-list">
       <DeletedNoteList
         v-if="isDeletedFolder"
         :selected-note-id="state.noteId"
@@ -788,7 +828,17 @@ onUnmounted(() => {
         @create-note="handleCreateNote"
       />
     </div>
-    <div v-if="isDesktop" class="home-detail">
+    <PaneSplitter
+      v-if="isDesktop"
+      v-model="desktopPaneLayout.noteListWidth.value"
+      controls="home-note-list-pane home-note-detail-pane"
+      label="调整备忘录列表栏宽度"
+      :min="desktopPaneLayout.noteListMin"
+      :max="desktopPaneLayout.noteListMax.value"
+      @reset="desktopPaneLayout.resetNoteListWidth"
+      @resize-end="desktopPaneLayout.persist"
+    />
+    <div v-if="isDesktop" id="home-note-detail-pane" class="home-detail">
       <NoteDetailPane
         :note-id="state.noteId"
         :parent-id="state.parentId"
@@ -814,26 +864,42 @@ onUnmounted(() => {
 </template>
 
 <style lang="scss">
-.ion-page {
-  .note-desktop {
-    right: initial;
-    width: 361px;
-    border-right: 1px solid #333;
-    .home-list {
-      width: 361px;
-      border-right: 1px solid #333;
-      left: 361px;
-    }
-    .home-detail {
-      width: calc(100vw - 361px * 2);
-      left: 722px;
-    }
-  }
-  .home-list,
-  .home-detail {
-    position: fixed;
-    height: 100%;
-  }
+.home-navigation {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.note-desktop {
+  display: grid;
+  width: 100%;
+  grid-template-columns:
+    minmax(0, var(--home-navigation-width, 361px))
+    1px
+    minmax(0, var(--home-note-list-width, 361px))
+    1px
+    minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.note-desktop .home-navigation,
+.note-desktop .home-list,
+.note-desktop .home-detail {
+  position: relative;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.note-desktop .home-list,
+.note-desktop .home-detail {
+  isolation: isolate;
 }
 .home-detail-empty {
   position: absolute;
@@ -871,7 +937,7 @@ onUnmounted(() => {
 }
 
 .home-global-search {
-  position: fixed;
+  position: absolute;
   right: 0;
   bottom: 0;
   left: 0;

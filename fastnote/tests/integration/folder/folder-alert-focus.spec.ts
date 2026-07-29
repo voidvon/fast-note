@@ -187,6 +187,9 @@ async function mountHomePageForFolderAlert() {
       saveSnapshot: saveSnapshotMock,
       clearSnapshot: clearSnapshotMock,
     }),
+    useLastVisitedRoute: () => ({
+      saveVisitedRoute: vi.fn(),
+    }),
   }))
 
   vi.doMock('@/entities/note', async () => {

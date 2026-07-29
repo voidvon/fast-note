@@ -46,6 +46,7 @@ function createNoteDetailStub() {
 export async function mountHomePageForDesktopRestore(options: {
   notes: Note[]
   clearStorage?: boolean
+  isDesktop?: boolean
   userId?: string | null
   currentPath?: string
   snapshot?: {
@@ -113,7 +114,7 @@ export async function mountHomePageForDesktopRestore(options: {
     const { ref } = await import('vue')
     return {
       useDeviceType: () => ({
-        isDesktop: ref(true),
+        isDesktop: ref(options.isDesktop ?? true),
       }),
     }
   })
