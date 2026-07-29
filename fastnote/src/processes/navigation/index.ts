@@ -20,6 +20,7 @@ export {
   getLastVisitedRouteStorageKey,
   getRouteRestoreMode,
   isDeferredPrivateRoute,
+  isPrivateWorkspaceRoute,
   LAST_ROUTE_STORAGE_PREFIX,
   shouldRestoreLastVisitedRouteForCurrentPath,
   useLastVisitedRoute,

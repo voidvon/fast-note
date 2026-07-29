@@ -5,6 +5,7 @@ import {
   getLastVisitedRouteStorageKey,
   getRouteRestoreMode,
   isDeferredPrivateRoute,
+  isPrivateWorkspaceRoute,
   shouldRestoreLastVisitedRouteForCurrentPath,
   useLastVisitedRoute,
 } from '@/processes/navigation'
@@ -30,6 +31,16 @@ describe('useLastVisitedRoute restore mode', () => {
     expect(getRouteRestoreMode('/alice')).toBe('immediate')
   })
 
+  it('only treats private workspace paths as restorable routes', () => {
+    expect(isPrivateWorkspaceRoute('/home')).toBe(true)
+    expect(isPrivateWorkspaceRoute('/deleted')).toBe(true)
+    expect(isPrivateWorkspaceRoute('/n/note-1?parent_id=folder-1')).toBe(true)
+    expect(isPrivateWorkspaceRoute('/f/folder-1')).toBe(true)
+    expect(isPrivateWorkspaceRoute('/alice')).toBe(false)
+    expect(isPrivateWorkspaceRoute('/alice/f/folder-1')).toBe(false)
+    expect(isPrivateWorkspaceRoute('/alice/n/note-1')).toBe(false)
+  })
+
   it('restores last visited route only from entry pages', () => {
     expect(shouldRestoreLastVisitedRouteForCurrentPath('/')).toBe(true)
     expect(shouldRestoreLastVisitedRouteForCurrentPath('/home')).toBe(true)
@@ -46,6 +57,31 @@ describe('useLastVisitedRoute restore mode', () => {
     saveVisitedRoute('/n/note-b', 'user-a')
 
     expect(localStorage.getItem(getLastVisitedRouteStorageKey('user-a'))).toBe('/n/note-b')
+  })
+
+  it('does not persist public routes as the last private workspace', () => {
+    const { saveVisitedRoute } = useLastVisitedRoute()
+
+    saveVisitedRoute('/voidvon', null)
+    saveVisitedRoute('/voidvon/n/public-note', 'user-a')
+
+    expect(localStorage.getItem(getLastVisitedRouteStorageKey(null))).toBeNull()
+    expect(localStorage.getItem(getLastVisitedRouteStorageKey('user-a'))).toBeNull()
+  })
+
+  it('clears a legacy public route instead of restoring it from an entry page', async () => {
+    const storageKey = getLastVisitedRouteStorageKey(null)
+    localStorage.setItem(storageKey, '/voidvon')
+    const router = {
+      currentRoute: { value: { fullPath: '/home' } },
+      replace: vi.fn(),
+    } as any
+
+    const restoredRoute = await useLastVisitedRoute().restoreImmediateLastVisitedRoute(router, null)
+
+    expect(restoredRoute).toBeNull()
+    expect(router.replace).not.toHaveBeenCalled()
+    expect(localStorage.getItem(storageKey)).toBeNull()
   })
 
   it('saves the browser address instead of a stale router route before window close', () => {

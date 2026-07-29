@@ -7,8 +7,9 @@ export type RouteRestoreMode = 'all' | 'deferred' | 'immediate'
 export const LAST_ROUTE_STORAGE_PREFIX = 'flashnote_last_visited_route'
 
 const PRIVATE_NOTE_ROUTE_PATTERN = /^\/n\/([^/?#]+)(?:[?#].*)?$/
+const PRIVATE_FOLDER_ROUTE_PATTERN = /^\/f(?:\/|$)/
 const ROUTE_RESTORE_ENTRY_PATHS = new Set(['/', '/home', '/login', '/register'])
-const ROUTE_SAVE_EXCLUDED_PATHS = new Set(['/login', '/register'])
+const PRIVATE_WORKSPACE_STATIC_PATHS = new Set(['/home', '/deleted'])
 
 function getBrowserFullPath() {
   if (typeof window === 'undefined')
@@ -34,6 +35,13 @@ export function getRouteRestoreMode(path: string): Exclude<RouteRestoreMode, 'al
   return isDeferredPrivateRoute(path) ? 'deferred' : 'immediate'
 }
 
+export function isPrivateWorkspaceRoute(path: string) {
+  const normalizedPath = path.split('?')[0]?.split('#')[0] || ''
+  return PRIVATE_WORKSPACE_STATIC_PATHS.has(normalizedPath)
+    || PRIVATE_NOTE_ROUTE_PATTERN.test(path)
+    || PRIVATE_FOLDER_ROUTE_PATTERN.test(normalizedPath)
+}
+
 export function shouldRestoreLastVisitedRouteForCurrentPath(path: string) {
   const normalizedPath = path.split('?')[0]?.split('#')[0] || ''
   return ROUTE_RESTORE_ENTRY_PATHS.has(normalizedPath)
@@ -41,8 +49,7 @@ export function shouldRestoreLastVisitedRouteForCurrentPath(path: string) {
 
 export function useLastVisitedRoute() {
   const saveVisitedRoute = (fullPath: string, userId?: string | null) => {
-    const normalizedPath = fullPath.split('?')[0]?.split('#')[0] || ''
-    if (!fullPath || ROUTE_SAVE_EXCLUDED_PATHS.has(normalizedPath))
+    if (!fullPath || !isPrivateWorkspaceRoute(fullPath))
       return
 
     localStorage.setItem(getLastVisitedRouteStorageKey(userId), fullPath)
@@ -67,6 +74,11 @@ export function useLastVisitedRoute() {
     const lastRoute = getLastVisitedRoute(userId)
     if (!lastRoute)
       return null
+
+    if (!isPrivateWorkspaceRoute(lastRoute)) {
+      clearLastVisitedRoute(userId)
+      return null
+    }
 
     if (mode !== 'all' && getRouteRestoreMode(lastRoute) !== mode)
       return null

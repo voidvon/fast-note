@@ -153,13 +153,15 @@ describe('global search mode toggle', () => {
   })
 
   afterEach(async () => {
+    vi.useRealTimers()
     const { useGlobalSearch } = await import('@/features/global-search')
     useGlobalSearch().resetGlobalSearch({ preserveInputMode: false })
     document.body.innerHTML = ''
     vi.restoreAllMocks()
   })
 
-  it('switches to ai mode and refocuses the input', async () => {
+  it('handles cross-platform search shortcuts and escape in both modes', async () => {
+    vi.useFakeTimers()
     const pushMock = vi.fn()
     const replaceMock = vi.fn()
 
@@ -247,7 +249,151 @@ describe('global search mode toggle', () => {
     expect(wrapper.find('.global-search__panel').exists()).toBe(true)
     expect(wrapper.text()).toContain('AI 对话')
 
+    focusSpy.mockClear()
+    const windowsShortcut = new KeyboardEvent('keydown', {
+      cancelable: true,
+      ctrlKey: true,
+      key: 'k',
+    })
+    window.dispatchEvent(windowsShortcut)
+    await nextTick()
+
+    expect(windowsShortcut.defaultPrevented).toBe(true)
+    expect(state.inputMode.value).toBe('search')
+    expect(input.attributes('placeholder')).toBe('搜索')
+    expect(focusSpy).toHaveBeenCalled()
+
+    const searchEscape = new KeyboardEvent('keydown', { cancelable: true, key: 'Escape' })
+    window.dispatchEvent(searchEscape)
+    await vi.advanceTimersByTimeAsync(320)
+    await nextTick()
+
+    expect(searchEscape.defaultPrevented).toBe(true)
+    expect(state.showGlobalSearch.value).toBe(false)
+
+    focusSpy.mockClear()
+    const macShortcut = new KeyboardEvent('keydown', {
+      cancelable: true,
+      key: 'K',
+      metaKey: true,
+    })
+    window.dispatchEvent(macShortcut)
+    await nextTick()
+
+    expect(macShortcut.defaultPrevented).toBe(true)
+    expect(state.inputMode.value).toBe('search')
+    expect(state.showGlobalSearch.value).toBe(true)
+    expect(focusSpy).toHaveBeenCalled()
+
+    await wrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
+    await nextTick()
+    expect(state.inputMode.value).toBe('ai')
+
+    const aiEscape = new KeyboardEvent('keydown', { cancelable: true, key: 'Escape' })
+    window.dispatchEvent(aiEscape)
+    await vi.advanceTimersByTimeAsync(320)
+    await nextTick()
+
+    expect(aiEscape.defaultPrevented).toBe(true)
+    expect(state.showGlobalSearch.value).toBe(false)
+
     wrapper.unmount()
+  })
+
+  it('emits the selected search result for desktop navigation', async () => {
+    vi.useFakeTimers()
+    const resultNote = {
+      id: 'note-1',
+      title: '会议纪要',
+      content: '',
+      summary: '',
+      created: '2026-07-29T00:00:00.000Z',
+      updated: '2026-07-29T00:00:00.000Z',
+      item_type: 2,
+      parent_id: 'folder-1',
+      is_deleted: 0,
+      is_locked: 0,
+    }
+
+    mockAiChatSession()
+    vi.doMock('@/entities/note', () => ({
+      NOTE_TYPE: {
+        FOLDER: 1,
+        NOTE: 2,
+      },
+      useNote: () => ({
+        getNote: vi.fn((id: string) => id === resultNote.id ? resultNote : null),
+        notes: ref([resultNote]),
+        searchNotes: vi.fn(async () => [resultNote]),
+      }),
+    }))
+
+    vi.doMock('@/widgets/note-list', () => ({
+      default: defineComponent({
+        name: 'NoteListStub',
+        emits: ['selected'],
+        template: '<button class="search-result" @click="$emit(\'selected\', \'note-1\')">result</button>',
+      }),
+    }))
+
+    vi.doMock('vue-router', async () => {
+      const actual = await vi.importActual<typeof import('vue-router')>('vue-router')
+      return {
+        ...actual,
+        useRoute: () => ({
+          path: '/home',
+          query: {},
+          hash: '',
+        }),
+        useRouter: () => ({
+          push: vi.fn(),
+          replace: vi.fn(),
+          back: vi.fn(),
+        }),
+      }
+    })
+
+    vi.doMock('@ionic/vue', () => ({
+      IonButton: createButtonStub('IonButton'),
+      IonButtons: createIonicStub('IonButtons'),
+      IonChip: createIonicStub('IonChip'),
+      IonContent: createIonicStub('IonContent'),
+      IonAlert: createModalStub('IonAlert'),
+      IonIcon: createIonicStub('IonIcon'),
+      IonInput: createInputStub('IonInput'),
+      IonTextarea: createTextareaStub('IonTextarea'),
+      IonItem: createIonicStub('IonItem'),
+      IonLabel: createIonicStub('IonLabel', 'span'),
+      IonList: createIonicStub('IonList'),
+      IonModal: createModalStub('IonModal'),
+      IonNote: createIonicStub('IonNote', 'span'),
+      IonSpinner: createIonicStub('IonSpinner', 'span'),
+      IonHeader: createIonicStub('IonHeader'),
+      IonToolbar: createIonicStub('IonToolbar'),
+      IonTitle: createIonicStub('IonTitle', 'span'),
+    }))
+
+    const GlobalSearch = (await import('@/features/global-search/ui/global-search.vue')).default
+    const { useGlobalSearch } = await import('@/features/global-search')
+    const wrapper = mount(GlobalSearch, {
+      attachTo: document.body,
+      props: { syncWithRoute: false },
+    })
+
+    await wrapper.get('textarea').setValue('会议')
+    await vi.advanceTimersByTimeAsync(300)
+    await nextTick()
+    await wrapper.get('.search-result').trigger('click')
+
+    expect(wrapper.emitted('openNote')).toEqual([[{
+      isDeleted: false,
+      noteId: 'note-1',
+      parentId: 'folder-1',
+    }]])
+    expect(useGlobalSearch().showGlobalSearch.value).toBe(false)
+
+    wrapper.unmount()
+    vi.useRealTimers()
   })
 
   it('syncs ai mode to route query when route sync is enabled', async () => {

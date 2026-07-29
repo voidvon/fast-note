@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { MentionEntity } from '../model/mention-types'
 import type { Note } from '@/entities/note'
 import type { AiChatRequestContext } from '@/features/ai-chat/model/request-context'
 import type { ChatMessageCardAction, ChatMessageCardItem } from '@/shared/ui/chat-message'
@@ -15,11 +16,11 @@ import { resolveAiChatTarget } from '@/features/ai-chat/model/target-resolution'
 import { useDesktopActiveNote } from '@/processes/navigation/model/use-desktop-active-note'
 import { cleanupIonicOverlayLocks } from '@/shared/lib/ionic'
 import ChatMessageCardItemView from '@/shared/ui/chat-message/ui/chat-message-card-item.vue'
+import NoteList from '@/widgets/note-list'
+import { isOpenGlobalSearchShortcut } from '../lib/keyboard-shortcuts'
+import { toSearchResultNodes } from '../lib/search-results'
 import { formatMentionText, toMentionCardItem } from '../model/mention-format'
 import { getMentionSuggestions, parseActiveMention } from '../model/mention-suggestions'
-import type { MentionEntity } from '../model/mention-types'
-import NoteList from '@/widgets/note-list'
-import { toSearchResultNodes } from '../lib/search-results'
 import {
   getGlobalSearchOverlayMode,
   hasGlobalSearchOverlay,
@@ -269,17 +270,18 @@ function activateSearch(options: { syncRoute?: boolean } = {}) {
 
   cleanupIonicOverlayLocks()
 
+  if (hideTimer) {
+    clearTimeout(hideTimer)
+    hideTimer = null
+  }
+
   if (showGlobalSearch.value && showGlobalSearchState.value !== 'hide') {
+    showGlobalSearchState.value = 'enterActive'
     updateLayout()
     if (syncRoute) {
       void syncSearchRoute()
     }
     return
-  }
-
-  if (hideTimer) {
-    clearTimeout(hideTimer)
-    hideTimer = null
   }
 
   if (enterFrameId !== null && typeof cancelAnimationFrame !== 'undefined') {
@@ -720,6 +722,52 @@ async function onAiAction() {
   await submitAiDraft()
 }
 
+async function selectInputMode(mode: 'search' | 'ai') {
+  inputMode.value = mode
+  searchRequestId++
+
+  if (mode === 'search') {
+    activateSearch()
+    if (searchKeyword.value.trim()) {
+      await runSearch(searchKeyword.value)
+    }
+    else {
+      state.notes = []
+    }
+  }
+  else {
+    state.notes = []
+    activateSearch()
+  }
+
+  focusInput()
+}
+
+function handleGlobalKeydown(event: KeyboardEvent) {
+  if (event.isComposing || isComposing.value) {
+    return
+  }
+
+  if (isOpenGlobalSearchShortcut(event)) {
+    event.preventDefault()
+    if (!event.repeat) {
+      void selectInputMode('search')
+    }
+    return
+  }
+
+  if (
+    event.key === 'Escape'
+    && !event.metaKey
+    && !event.ctrlKey
+    && !event.altKey
+    && showGlobalSearch.value
+  ) {
+    event.preventDefault()
+    void syncSearchCloseToRoute()
+  }
+}
+
 function onKeydown(event: KeyboardEvent) {
   if (!isSearchMode.value) {
     const target = event.target as HTMLTextAreaElement | null
@@ -801,6 +849,22 @@ function closeSearchImmediately() {
   resetGlobalSearch()
 }
 
+function handleSearchResultSelected(noteId: string) {
+  const targetNote = state.notes.find(note => note.id === noteId)
+  if (!targetNote) {
+    return
+  }
+
+  closeSearchImmediately()
+  emit('openNote', {
+    isDeleted: targetNote.is_deleted === 1,
+    noteId: targetNote.id,
+    parentId: targetNote.is_deleted === 1
+      ? 'deleted'
+      : targetNote.parent_id || 'allnotes',
+  })
+}
+
 function handleAiAction(action: ChatMessageCardAction) {
   closeSearchImmediately()
 
@@ -820,24 +884,7 @@ function handleAiAction(action: ChatMessageCardAction) {
 }
 
 async function toggleInputMode() {
-  inputMode.value = isSearchMode.value ? 'ai' : 'search'
-  searchRequestId++
-
-  if (isSearchMode.value) {
-    activateSearch()
-    if (searchKeyword.value.trim()) {
-      await runSearch(searchKeyword.value)
-    }
-    else {
-      state.notes = []
-    }
-  }
-  else {
-    state.notes = []
-    activateSearch()
-  }
-
-  focusInput()
+  await selectInputMode(isSearchMode.value ? 'ai' : 'search')
 }
 
 function handleViewportChange() {
@@ -859,7 +906,7 @@ watch(hasRouteSearchOverlay, (visible, previousVisible) => {
     return
   }
 
-  if (previousVisible && isSearchMode.value && (showGlobalSearch.value || showGlobalSearchState.value !== 'hide')) {
+  if (previousVisible && (showGlobalSearch.value || showGlobalSearchState.value !== 'hide')) {
     startCloseAnimation()
   }
 }, { immediate: true })
@@ -896,6 +943,7 @@ watch([showMentionSuggestions, activeMentionIndex, mentionSuggestions], ([visibl
 onMounted(() => {
   updateLayout()
   syncInputHeightLimits()
+  window.addEventListener('keydown', handleGlobalKeydown)
   window.addEventListener('resize', handleViewportChange)
 })
 
@@ -910,6 +958,7 @@ onUnmounted(() => {
     enterFrameId = null
   }
 
+  window.removeEventListener('keydown', handleGlobalKeydown)
   window.removeEventListener('resize', handleViewportChange)
 })
 </script>
@@ -1028,7 +1077,9 @@ onUnmounted(() => {
               <NoteList
                 :data-list="searchResults"
                 :all-notes-count="state.notes.length"
+                disabled-route
                 show-parent-folder
+                @selected="handleSearchResultSelected"
               />
             </template>
             <div v-else-if="isSearchMode && hasSearchKeyword" class="global-search__empty">

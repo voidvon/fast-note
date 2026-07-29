@@ -8,6 +8,7 @@ import { Editor } from '@tiptap/vue-3'
 import GlobalDragHandle from 'tiptap-extension-global-drag-handle'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { noteRemoteService, useNoteFiles } from '@/entities/note'
+import { handleEditableLinkClick } from '@/features/note-editor/lib/link-click'
 import { FileUpload } from '@/shared/lib/editor/extensions/FileUpload/FileUpload'
 import { TableWithWrapper } from '@/shared/lib/editor/extensions/TableWithWrapper'
 import { TaskItem } from '@/shared/lib/editor/extensions/TaskItem'
@@ -106,6 +107,7 @@ export function useNoteEditor(options: {
       attributes: {
         inputmode: inputMode.value,
       },
+      handleClick: handleEditableLinkClick,
     }
   }
 
@@ -162,7 +164,11 @@ export function useNoteEditor(options: {
       extensions: [
         Color.configure({ types: [TextStyleKit.name, ListItem.name] }),
         TextStyleKit,
-        StarterKit,
+        StarterKit.configure({
+          link: {
+            openOnClick: false,
+          },
+        }),
         TextAlign.configure({
           types: ['heading', 'paragraph'],
         }),

@@ -192,13 +192,14 @@ describe('public and home restore timing (t-fn-031 / tc-fn-027)', () => {
     expect(mocks.routerReplaceMock).toHaveBeenCalledWith('/home')
   })
 
-  it('restores public route immediately without waiting for sync', async () => {
+  it('does not restore a previously visited public space from an entry page', async () => {
     const { mocks } = await mountAppForImmediateRestore({
       initialUserId: 'user-a',
       savedRoutes: { 'user-a': '/alice' },
     })
 
-    expect(mocks.routerReplaceMock).toHaveBeenCalledWith('/alice')
+    expect(mocks.routerReplaceMock).not.toHaveBeenCalledWith('/alice')
+    expect(localStorage.getItem(getLastVisitedRouteStorageKey('user-a'))).toBeNull()
   })
 
   it('restores the switched user immediate route from that user scope', async () => {
@@ -206,13 +207,13 @@ describe('public and home restore timing (t-fn-031 / tc-fn-027)', () => {
       initialUserId: 'user-a',
       savedRoutes: {
         'user-a': '/home',
-        'user-b': '/bob',
+        'user-b': '/f/bob-notes',
       },
     })
 
     mocks.routerReplaceMock.mockClear()
     await mocks.triggerAuthChange('token-b', { id: 'user-b' })
 
-    expect(mocks.routerReplaceMock).toHaveBeenCalledWith('/bob')
+    expect(mocks.routerReplaceMock).toHaveBeenCalledWith('/f/bob-notes')
   })
 })
