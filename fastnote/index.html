@@ -24,6 +24,83 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="theme-color" content="black" />
     <script>
+      try {
+        const savedTheme = localStorage.getItem('themeMode')
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+        const useDarkTheme = savedTheme === 'dark' || (savedTheme !== 'light' && prefersDark)
+        document.documentElement.dataset.appLoadingTheme = useDarkTheme ? 'dark' : 'light'
+      } catch {
+        // The media-query fallback below still provides the correct system theme.
+      }
+    </script>
+    <style>
+      #app-loading {
+        position: fixed;
+        z-index: 2147483647;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: #f7f8fa;
+        color: #374151;
+        opacity: 1;
+        transition: opacity 160ms ease;
+      }
+
+      #app-loading::before {
+        width: 32px;
+        height: 32px;
+        box-sizing: border-box;
+        border: 3px solid #d7dce2;
+        border-top-color: currentColor;
+        border-radius: 50%;
+        content: '';
+        animation: app-loading-spin 700ms linear infinite;
+      }
+
+      html[data-app-loading-theme='dark'] #app-loading {
+        background: #111315;
+        color: #e5e7eb;
+      }
+
+      html[data-app-loading-theme='dark'] #app-loading::before {
+        border-color: #3a3f45;
+        border-top-color: currentColor;
+      }
+
+      #app-loading.app-loading--hidden {
+        pointer-events: none;
+        opacity: 0;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        html:not([data-app-loading-theme='light']) #app-loading {
+          background: #111315;
+          color: #e5e7eb;
+        }
+
+        html:not([data-app-loading-theme='light']) #app-loading::before {
+          border-color: #3a3f45;
+          border-top-color: currentColor;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #app-loading {
+          transition: none;
+        }
+
+        #app-loading::before {
+          animation-duration: 1400ms;
+        }
+      }
+
+      @keyframes app-loading-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+    <script>
       window.threshold = window.innerWidth
       window.version = '##version##'
     </script>
@@ -32,6 +109,7 @@
 
   <body>
     <div id="app"></div>
+    <div id="app-loading" role="status" aria-label="正在加载"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

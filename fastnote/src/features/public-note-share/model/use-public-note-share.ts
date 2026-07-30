@@ -6,7 +6,6 @@ import { NOTE_TYPE } from '@/shared/types'
 type NoteStoreApi = ReturnType<typeof useNote>
 
 export interface PublicNoteAccessResult {
-  color: 'success' | 'danger'
   message: string
   note: Note
   ok: boolean
@@ -127,7 +126,6 @@ export function usePublicNoteAccess(options: UsePublicNoteAccessOptions = {}) {
       }
 
       return {
-        color: 'success',
         message: isPublic ? '已设为公开' : '已设为私密',
         note,
         ok: true,
@@ -137,7 +135,6 @@ export function usePublicNoteAccess(options: UsePublicNoteAccessOptions = {}) {
       console.error('更新备忘录公开状态异常:', error)
 
       return {
-        color: 'danger',
         message: '操作失败，请重试',
         note,
         ok: false,

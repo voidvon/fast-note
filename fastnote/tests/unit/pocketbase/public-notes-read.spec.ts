@@ -33,10 +33,12 @@ describe('pocketbase public notes reads', () => {
 
     expect(notesCollection.getFullList).toHaveBeenCalledWith(expect.objectContaining({
       fields: expect.not.stringContaining('content'),
+      requestKey: 'public-folders:user-a',
       sort: '+created',
     }))
     expect(notesCollection.getList).toHaveBeenCalledWith(1, PUBLIC_NOTES_PAGE_SIZE, expect.objectContaining({
       fields: expect.not.stringContaining('content'),
+      requestKey: `public-notes:user-a:folder-1:1:${PUBLIC_NOTES_PAGE_SIZE}`,
       sort: '-updated',
     }))
     expect(result.totalPages).toBe(2)
@@ -64,7 +66,10 @@ describe('pocketbase public notes reads', () => {
     const note = await notesService.getPublicNote('user-a', 'note-1')
 
     expect(note.content).toBe('<p>detail</p>')
-    expect(notesCollection.getFirstListItem).toHaveBeenCalledWith(expect.stringContaining('id = {:noteId}'))
+    expect(notesCollection.getFirstListItem).toHaveBeenCalledWith(
+      expect.stringContaining('id = {:noteId}'),
+      { requestKey: 'public-note:user-a:note-1' },
+    )
     expect(filter).toHaveBeenCalledWith(expect.stringContaining('is_public = true'), {
       noteId: 'note-1',
       userId: 'user-a',

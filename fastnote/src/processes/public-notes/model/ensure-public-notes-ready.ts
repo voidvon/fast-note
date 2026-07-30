@@ -4,10 +4,12 @@ import { usePublicUserCache } from './use-public-user-cache'
 
 const initializedUsers = new Set<string>()
 const pendingReadyRequests = new Map<string, Promise<PublicNotesReadyResult>>()
+const unfiledNoteTotals = new Map<string, number>()
 
 export interface PublicNotesReadyResult {
   notes: ReturnType<typeof useUserPublicNotes>['publicNotes']['value']
   synced: number
+  unfiledNotesCount: number
   userInfo: PublicUserInfo | null
 }
 
@@ -41,7 +43,7 @@ export async function syncPublicNotesForUser(
   options: Pick<EnsurePublicNotesReadyOptions, 'noteId'> = {},
 ) {
   if (!username)
-    return { synced: 0, notes: [], userInfo: null }
+    return { synced: 0, notes: [], unfiledNotesCount: 0, userInfo: null }
 
   const { getPublicUserInfo } = usePublicUserCache()
   const userInfo = await getPublicUserInfo(username)
@@ -50,19 +52,27 @@ export async function syncPublicNotesForUser(
     return {
       synced: 0,
       notes: [],
+      unfiledNotesCount: 0,
       userInfo: null,
     }
   }
 
-  const folders = await publicNoteRemoteService.getPublicFolders(userInfo.id)
+  const [folders, unfiledNotesPage] = await Promise.all([
+    publicNoteRemoteService.getPublicFolders(userInfo.id),
+    publicNoteRemoteService.getPublicNotesPage(userInfo.id, 'unfilednotes', 1, 1),
+  ])
   const publicNoteStore = useUserPublicNotes(username)
   publicNoteStore.replacePublicNotes(folders)
+  publicNoteStore.mergePublicNotes(unfiledNotesPage.items)
+  unfiledNoteTotals.set(username, unfiledNotesPage.totalItems)
   const targetNote = await loadPublicNoteIfNeeded(username, userInfo, options.noteId)
   const notes = publicNoteStore.publicNotes.value ?? []
+  const previewNoteIds = new Set(unfiledNotesPage.items.map(note => note.id))
 
   return {
-    synced: folders.length + (targetNote ? 1 : 0),
+    synced: folders.length + unfiledNotesPage.items.length + (targetNote && !previewNoteIds.has(targetNote.id) ? 1 : 0),
     notes,
+    unfiledNotesCount: unfiledNotesPage.totalItems,
     userInfo,
   }
 }
@@ -72,6 +82,7 @@ export async function ensurePublicNotesReady(username: string, options: EnsurePu
     return {
       synced: 0,
       notes: [],
+      unfiledNotesCount: 0,
       userInfo: null,
     }
   }
@@ -88,6 +99,7 @@ export async function ensurePublicNotesReady(username: string, options: EnsurePu
     return {
       synced: cachedNotes.length,
       notes: cachedNotes,
+      unfiledNotesCount: unfiledNoteTotals.get(username) || 0,
       userInfo,
     }
   }
@@ -117,4 +129,5 @@ export async function ensurePublicNotesReady(username: string, options: EnsurePu
 
 export function markPublicNotesDirty(username: string) {
   initializedUsers.delete(username)
+  unfiledNoteTotals.delete(username)
 }

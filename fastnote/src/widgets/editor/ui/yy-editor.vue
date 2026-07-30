@@ -231,7 +231,7 @@ defineExpose({
     padding: 0;
 
     li {
-      align-items: center;
+      align-items: flex-start;
       display: flex;
       &[data-checked='true'] {
         label {
@@ -248,15 +248,17 @@ defineExpose({
 
       > label {
         display: inline-flex;
+        flex: 0 0 22px;
         width: 22px;
         height: 22px;
         margin-right: 0.5rem;
-        transform: translateY(-0.1em);
+        transform: translateY(0.1em);
         cursor: pointer;
       }
 
       > div {
         flex: 1 1 auto;
+        min-width: 0;
       }
     }
 

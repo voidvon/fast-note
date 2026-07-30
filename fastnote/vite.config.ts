@@ -48,6 +48,10 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
       https: isHttps,
       proxy: {
+        '^/[^/]+/n/[^/]+/?$': {
+          target: apiProxyTarget,
+          changeOrigin: true,
+        },
         '/e': {
           target: 'https://next.0122.vip',
           changeOrigin: true,

@@ -13,6 +13,10 @@ function toUserInfo(model: any): UserInfo {
   }
 }
 
+function isUnauthorizedError(error: any): boolean {
+  return error?.status === 401 || error?.response?.status === 401
+}
+
 export class PocketBaseAuthService implements IAuthService {
   async signIn(email: string, password: string): Promise<AuthResult> {
     try {
@@ -104,6 +108,10 @@ export class PocketBaseAuthService implements IAuthService {
       }
     }
     catch (error: any) {
+      if (isUnauthorizedError(error)) {
+        pb.authStore.clear()
+      }
+
       console.error('PocketBase 获取用户信息失败:', error)
       return {
         success: false,

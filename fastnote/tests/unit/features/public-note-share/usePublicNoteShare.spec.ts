@@ -62,7 +62,6 @@ describe('usePublicNoteAccess', () => {
     const result = await togglePublic(notes[1])
 
     expect(result).toMatchObject({
-      color: 'success',
       message: '已设为公开',
       ok: true,
     })

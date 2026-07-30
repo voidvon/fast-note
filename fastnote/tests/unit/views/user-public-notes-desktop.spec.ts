@@ -21,6 +21,8 @@ function createNoteListStub() {
       noteUuid: { type: String, default: '' },
       dataList: { type: Array, default: () => [] },
       expandedStateKey: { type: String, default: '' },
+      showUnfiledNotes: { type: Boolean, default: false },
+      unfiledNotesCount: { type: Number, default: 0 },
       presentingElement: { type: Object, default: undefined },
       disabledRoute: { type: Boolean, default: false },
     },
@@ -52,7 +54,7 @@ function createNoteDetailStub() {
 }
 
 describe('user public notes page', () => {
-  it('restores the desktop three-pane selection from a public note deep link', async () => {
+  it('places a root public-note deep link under the unfiled notes entry', async () => {
     vi.resetModules()
 
     const noteListStub = createNoteListStub()
@@ -81,10 +83,11 @@ describe('user public notes page', () => {
     const getPublicFolderTreeByPUuid = vi.fn(() => publicFolders)
     const getPublicNote = vi.fn(() => ({
       id: 'note-1',
-      parent_id: 'folder-1',
+      parent_id: '',
     }))
     const routerPush = vi.fn()
     const ensurePublicNotesReady = vi.fn(async () => ({
+      unfiledNotesCount: 2,
       userInfo: {
         username: 'alice',
       },
@@ -184,8 +187,10 @@ describe('user public notes page', () => {
       noteId: 'note-1',
     })
     expect(wrapper.text()).not.toContain('加载中...')
-    expect(noteList.props('noteUuid')).toBe('folder-1')
-    expect(folderPage().props('currentFolder')).toBe('folder-1')
+    expect(noteList.props('noteUuid')).toBe('unfilednotes')
+    expect(noteList.props('showUnfiledNotes')).toBe(true)
+    expect(noteList.props('unfiledNotesCount')).toBe(2)
+    expect(folderPage().props('currentFolder')).toBe('unfilednotes')
     expect(folderPage().props('selectedNoteId')).toBe('note-1')
     expect(noteDetail().props('noteId')).toBe('note-1')
     expect(wrapper.find('#public-navigation-pane').exists()).toBe(true)

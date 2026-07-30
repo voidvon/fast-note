@@ -29,12 +29,11 @@ const publicUrl = computed(() => {
   return buildPublicNoteUrl(props.note, props.username, window.location.origin)
 })
 
-async function showToast(message: string, color: 'success' | 'danger' | 'warning' = 'success') {
+async function showToast(message: string) {
   const toast = await toastController.create({
     message,
     duration: 2000,
-    position: 'bottom',
-    color,
+    position: 'top',
   })
   await toast.present()
 }
@@ -50,7 +49,7 @@ async function onPublicChange(event: CustomEvent<{ checked: boolean }>) {
     if (result.ok) {
       emit('updated', result.note)
     }
-    await showToast(result.message, result.color)
+    await showToast(result.message)
   }
   finally {
     isUpdating.value = false
@@ -59,7 +58,7 @@ async function onPublicChange(event: CustomEvent<{ checked: boolean }>) {
 
 async function copyPublicLink() {
   if (!publicUrl.value) {
-    await showToast('无法生成公开链接，请重新登录后重试', 'warning')
+    await showToast('无法生成公开链接，请重新登录后重试')
     return
   }
 
@@ -69,7 +68,7 @@ async function copyPublicLink() {
   }
   catch (error) {
     console.error('复制公开链接失败:', error)
-    await showToast('复制失败，请重试', 'danger')
+    await showToast('复制失败，请重试')
   }
 }
 </script>

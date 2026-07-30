@@ -7,6 +7,18 @@ interface BootstrapAppOptions {
   router: Router
 }
 
+function dismissAppLoading() {
+  const loading = document.getElementById('app-loading')
+  if (!loading) {
+    return
+  }
+
+  const remove = () => loading.remove()
+  loading.classList.add('app-loading--hidden')
+  loading.addEventListener('transitionend', remove, { once: true })
+  window.setTimeout(remove, 250)
+}
+
 export async function bootstrapApp({ app, router }: BootstrapAppOptions) {
   try {
     await Promise.all([
@@ -19,5 +31,6 @@ export async function bootstrapApp({ app, router }: BootstrapAppOptions) {
   }
   finally {
     app.mount('#app')
+    window.requestAnimationFrame(dismissAppLoading)
   }
 }

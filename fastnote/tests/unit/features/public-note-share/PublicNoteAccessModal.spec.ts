@@ -22,6 +22,7 @@ describe('public note access modal', () => {
   it('shows and copies the public note URL', async () => {
     const copyText = vi.fn(async () => true)
     const present = vi.fn(async () => undefined)
+    const createToast = vi.fn(async () => ({ present }))
 
     vi.doMock('@ionic/vue', () => ({
       IonButton: createIonicStub('IonButton', 'button'),
@@ -29,7 +30,7 @@ describe('public note access modal', () => {
       IonModal: createIonicStub('IonModal'),
       IonToggle: createIonicStub('IonToggle', 'input'),
       toastController: {
-        create: vi.fn(async () => ({ present })),
+        create: createToast,
       },
     }))
     vi.doMock('@/shared/lib/clipboard', () => ({ copyText }))
@@ -60,6 +61,11 @@ describe('public note access modal', () => {
     await wrapper.get('[aria-label="复制公开链接"]').trigger('click')
 
     expect(copyText).toHaveBeenCalledWith(expectedUrl)
+    expect(createToast).toHaveBeenCalledWith({
+      message: '公开链接已复制',
+      duration: 2000,
+      position: 'top',
+    })
     expect(present).toHaveBeenCalledTimes(1)
   })
 })

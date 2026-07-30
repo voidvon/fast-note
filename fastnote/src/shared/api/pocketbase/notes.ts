@@ -225,6 +225,7 @@ export const notesService = {
         'is_public = true && is_deleted = 0 && item_type = 1 && user_id = {:userId}',
         { userId },
       ),
+      requestKey: `public-folders:${userId}`,
       sort: '+created',
     })
   },
@@ -247,6 +248,7 @@ export const notesService = {
         `is_public = true && is_deleted = 0 && item_type = 2 && user_id = {:userId}${parentFilter}`,
         { parentId, userId },
       ),
+      requestKey: `public-notes:${userId}:${parentId}:${page}:${perPage}`,
       sort: '-updated',
     })
   },
@@ -257,6 +259,9 @@ export const notesService = {
         'id = {:noteId} && is_public = true && is_deleted = 0 && item_type = 2 && user_id = {:userId}',
         { noteId, userId },
       ),
+      {
+        requestKey: `public-note:${userId}:${noteId}`,
+      },
     )
   },
 }

@@ -11,13 +11,27 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-func Register(app *pocketbase.PocketBase) {
+func Register(
+	app *pocketbase.PocketBase,
+	decorate func(fs.FS, func(*core.RequestEvent) error) func(*core.RequestEvent) error,
+) {
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
 		staticFS, ok := resolveStaticFS()
+		var handler func(*core.RequestEvent) error
 		if ok {
-			se.Router.GET("/{path...}", apis.Static(staticFS, true))
+			handler = apis.Static(staticFS, true)
 		} else {
 			log.Printf("backend bootstrap: skip static file serving because no frontend dist directory was found")
+			handler = func(e *core.RequestEvent) error {
+				return e.NotFoundError("", nil)
+			}
+		}
+
+		if decorate != nil {
+			handler = decorate(staticFS, handler)
+		}
+		if ok || decorate != nil {
+			se.Router.GET("/{path...}", handler)
 		}
 
 		return se.Next()

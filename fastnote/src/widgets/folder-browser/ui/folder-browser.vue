@@ -296,9 +296,14 @@ async function init() {
   try {
     if (isUserContext.value) {
       const { getPublicNote } = useUserPublicNotes(username.value)
-      const folderInfo = getPublicNote(id)
-      if (folderInfo) {
-        data.value = folderInfo
+      if (id === 'allnotes' || id === 'unfilednotes') {
+        data.value = { id } as Note
+      }
+      else {
+        const folderInfo = getPublicNote(id)
+        if (folderInfo) {
+          data.value = folderInfo
+        }
       }
       await loadPublicPage(id !== loadedPublicFolderId)
     }

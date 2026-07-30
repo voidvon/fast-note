@@ -11,6 +11,7 @@ import (
 
 	"github.com/voidvon/fastnote/backend/internal/server/bootstrap"
 	"github.com/voidvon/fastnote/backend/internal/server/hooks"
+	"github.com/voidvon/fastnote/backend/internal/server/routes"
 	_ "github.com/voidvon/fastnote/backend/migrations"
 )
 
@@ -45,7 +46,7 @@ func main() {
 		return e.Next()
 	})
 
-	bootstrap.Register(app)
+	bootstrap.Register(app, routes.WithPublicPages)
 	hooks.Register(app)
 
 	if err := app.Start(); err != nil {

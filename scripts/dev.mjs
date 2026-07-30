@@ -9,12 +9,16 @@ let shuttingDown = false
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const backendDir = resolve(rootDir, 'backend')
 const goCacheDir = resolve(rootDir, '.tmp', 'go-build-cache')
+const localBackendOrigin = 'http://127.0.0.1:8090'
+const localFrontendIndexURL = 'http://127.0.0.1:8888/index.html'
+const useProcessGroups = process.platform !== 'win32'
 
 mkdirSync(goCacheDir, { recursive: true })
 
 function start(name, command, args, options = {}) {
   const child = spawn(command, args, {
     stdio: 'inherit',
+    detached: useProcessGroups,
     ...options,
   })
 
@@ -40,7 +44,19 @@ function shutdown(exitCode = 0) {
 
   for (const child of children) {
     if (!child.killed) {
-      child.kill('SIGTERM')
+      try {
+        if (useProcessGroups) {
+          process.kill(-child.pid, 'SIGTERM')
+        }
+        else {
+          child.kill('SIGTERM')
+        }
+      }
+      catch (error) {
+        if (error?.code !== 'ESRCH') {
+          console.error('[dev] failed to stop child process:', error)
+        }
+      }
     }
   }
 
@@ -52,11 +68,17 @@ process.on('SIGTERM', () => shutdown(0))
 
 start('frontend', 'npm', ['--prefix', 'fastnote', 'run', 'dev'], {
   cwd: rootDir,
+  env: {
+    ...process.env,
+    VITE_API_PROXY_TARGET: localBackendOrigin,
+    VITE_POCKETBASE_URL: localBackendOrigin,
+  },
 })
-start('backend', 'go', ['run', '.', 'serve'], {
+start('backend', 'go', ['run', '.', 'serve', '--http=127.0.0.1:8090'], {
   cwd: backendDir,
   env: {
     ...process.env,
+    FASTNOTE_DEV_INDEX_URL: localFrontendIndexURL,
     GOCACHE: goCacheDir,
   },
 })

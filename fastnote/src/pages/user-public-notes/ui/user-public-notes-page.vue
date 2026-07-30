@@ -16,7 +16,7 @@ import {
   IonToolbar,
   onIonViewWillEnter,
 } from '@ionic/vue'
-import { alertCircleOutline, folderOutline } from 'ionicons/icons'
+import { alertCircleOutline, documentTextOutline } from 'ionicons/icons'
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserPublicNotes } from '@/entities/public-note'
@@ -51,6 +51,7 @@ const publicFolders = computed(() => {
 const loading = ref(true)
 const error = ref('')
 const userInfo = ref<PublicUserInfo | null>(null)
+const unfiledNotesCount = ref(0)
 const presentingElement = ref()
 const page = ref()
 let desktopResizeObserver: ResizeObserver | null = null
@@ -90,7 +91,7 @@ function syncDesktopSelectionFromRoute() {
   if (noteId) {
     const targetNote = useUserPublicNotes(username.value).getPublicNote(noteId)
     state.noteUuid = noteId
-    state.folderUuid = targetNote?.parent_id || 'allnotes'
+    state.folderUuid = targetNote?.parent_id || 'unfilednotes'
     return
   }
 
@@ -126,6 +127,7 @@ async function init(force = false) {
       noteId: route.params.noteId as string | undefined,
     })
     userInfo.value = result.userInfo
+    unfiledNotesCount.value = result.unfiledNotesCount
     syncDesktopSelectionFromRoute()
   }
   catch (err) {
@@ -220,6 +222,8 @@ watch(
           <NoteList
             :note-uuid="state.folderUuid"
             :data-list="publicFolders"
+            :show-unfiled-notes="unfiledNotesCount > 0"
+            :unfiled-notes-count="unfiledNotesCount"
             :expanded-state-key="expandedStateKey"
             :presenting-element="presentingElement"
             :disabled-route="isDesktop"
@@ -227,10 +231,10 @@ watch(
             @selected="selectFolder"
           />
 
-          <div v-if="publicFolders.length === 0" class="empty-state">
-            <IonIcon :icon="folderOutline" size="large" />
-            <h2>暂无公开文件夹</h2>
-            <p>该用户还没有公开任何文件夹</p>
+          <div v-if="publicFolders.length === 0 && unfiledNotesCount === 0" class="empty-state">
+            <IonIcon :icon="documentTextOutline" size="large" />
+            <h2>暂无公开内容</h2>
+            <p>该用户还没有公开任何备忘录</p>
           </div>
         </div>
       </IonContent>
