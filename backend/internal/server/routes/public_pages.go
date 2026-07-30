@@ -12,28 +12,55 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 	"golang.org/x/net/html"
 )
 
 const (
-	defaultNoteTitle = "未命名备忘录"
-	devIndexURLEnv   = "FASTNOTE_DEV_INDEX_URL"
-	maxIndexHTMLSize = 2 << 20
-	maxTitleRunes    = 120
-	maxSummaryRunes  = 320
+	defaultNoteTitle  = "未命名备忘录"
+	devIndexURLEnv    = "FASTNOTE_DEV_INDEX_URL"
+	maxIndexHTMLSize  = 2 << 20
+	maxTitleRunes     = 120
+	maxSummaryRunes   = 320
+	publicListLimit   = 30
+	maxPublicListPage = 1000
 )
 
-var errPublicNoteNotFound = errors.New("public note not found")
+var errPublicPageNotFound = errors.New("public page not found")
 
 type publicNotePageData struct {
 	Title        string
 	Summary      string
 	CanonicalURL string
+}
+
+type publicListItem struct {
+	Title   string
+	Summary string
+	URL     string
+}
+
+type publicListPageData struct {
+	Title        string
+	Description  string
+	CanonicalURL string
+	Items        []publicListItem
+	PreviousURL  string
+	NextURL      string
+}
+
+type publicPageRoute struct {
+	Username string
+	NoteID   string
+	FolderID string
+	Path     string
+	Kind     string
 }
 
 type publicPageTemplateLoader struct {
@@ -53,21 +80,8 @@ func WithPublicPages(
 	}
 
 	return func(e *core.RequestEvent) error {
-		username, noteID, ok := matchPublicNotePath(e.Request.URL.Path)
+		route, ok := matchPublicPagePath(e.Request.URL.Path)
 		if !ok {
-			return fallback(e)
-		}
-
-		page, err := findPublicNotePage(e, username, noteID)
-		if err != nil {
-			if !errors.Is(err, errPublicNoteNotFound) {
-				e.App.Logger().Error("failed to render public note snapshot", "error", err)
-			}
-			if templates.devURL != "" {
-				if indexHTML, loadErr := templates.load(e.Request.Context()); loadErr == nil {
-					return e.HTML(http.StatusOK, string(indexHTML))
-				}
-			}
 			return fallback(e)
 		}
 
@@ -77,9 +91,30 @@ func WithPublicPages(
 			return fallback(e)
 		}
 
-		rendered, err := renderPublicNotePage(indexHTML, page)
+		var rendered string
+		if route.Kind == "note" {
+			page, findErr := findPublicNotePage(e, route.Username, route.NoteID)
+			if findErr == nil {
+				rendered, err = renderPublicNotePage(indexHTML, page)
+			} else {
+				err = findErr
+			}
+		} else {
+			page, findErr := findPublicListPage(e, route)
+			if findErr == nil {
+				rendered, err = renderPublicListPage(indexHTML, page)
+			} else {
+				err = findErr
+			}
+		}
+
 		if err != nil {
-			e.App.Logger().Error("failed to inject public note snapshot", "error", err)
+			if !errors.Is(err, errPublicPageNotFound) {
+				e.App.Logger().Error("failed to render public page snapshot", "error", err)
+			}
+			if templates.devURL != "" {
+				return e.HTML(http.StatusOK, string(indexHTML))
+			}
 			return fallback(e)
 		}
 
@@ -136,16 +171,46 @@ func (loader *publicPageTemplateLoader) load(ctx context.Context) ([]byte, error
 }
 
 func matchPublicNotePath(path string) (username string, noteID string, ok bool) {
-	segments := strings.Split(strings.Trim(path, "/"), "/")
-	if len(segments) != 3 ||
-		segments[0] == "" ||
-		segments[0] == "_" ||
-		segments[0] == "api" ||
-		segments[1] != "n" ||
-		segments[2] == "" {
+	route, ok := matchPublicPagePath(path)
+	if !ok || route.Kind != "note" {
 		return "", "", false
 	}
-	return segments[0], segments[2], true
+	return route.Username, route.NoteID, true
+}
+
+func matchPublicPagePath(path string) (publicPageRoute, bool) {
+	cleanPath := "/" + strings.Trim(path, "/")
+	segments := strings.Split(strings.Trim(cleanPath, "/"), "/")
+	if len(segments) == 0 || !isPublicUsernameSegment(segments[0]) {
+		return publicPageRoute{}, false
+	}
+
+	route := publicPageRoute{Username: segments[0], Path: cleanPath}
+	switch {
+	case len(segments) == 1:
+		route.Kind = "home"
+	case len(segments) == 3 && segments[1] == "n" && segments[2] != "":
+		route.Kind = "note"
+		route.NoteID = segments[2]
+	case len(segments) >= 3 && segments[1] == "f" && segments[len(segments)-1] != "":
+		route.Kind = "folder"
+		route.FolderID = segments[len(segments)-1]
+	default:
+		return publicPageRoute{}, false
+	}
+	return route, true
+}
+
+func isPublicUsernameSegment(value string) bool {
+	if value == "" || strings.Contains(value, ".") {
+		return false
+	}
+	switch value {
+	case "_", "api", "deleted", "f", "home", "login", "n", "register":
+		return false
+	default:
+		return true
+	}
 }
 
 func findPublicNotePage(e *core.RequestEvent, username string, noteID string) (publicNotePageData, error) {
@@ -159,7 +224,7 @@ func findPublicNotePage(e *core.RequestEvent, username string, noteID string) (p
 		return publicNotePageData{}, normalizeLookupError(err)
 	}
 	if !isPublicNoteForUser(note, user.Id) {
-		return publicNotePageData{}, errPublicNoteNotFound
+		return publicNotePageData{}, errPublicPageNotFound
 	}
 
 	title := truncateText(note.GetString("title"), maxTitleRunes)
@@ -174,11 +239,127 @@ func findPublicNotePage(e *core.RequestEvent, username string, noteID string) (p
 	}, nil
 }
 
+func findPublicListPage(e *core.RequestEvent, route publicPageRoute) (publicListPageData, error) {
+	user, err := e.App.FindFirstRecordByData("users", "username", route.Username)
+	if err != nil {
+		return publicListPageData{}, normalizeLookupError(err)
+	}
+
+	pageNumber := parsePageNumber(e.Request.URL.Query().Get("page"))
+	basePath := route.Path
+	page := publicListPageData{
+		Title:        route.Username + " 的公开备忘录",
+		Description:  route.Username + " 在 fastnote 上公开的备忘录",
+		CanonicalURL: buildPublicPageURL(e.App.Settings().Meta.AppURL, basePath, pageNumber),
+	}
+
+	filter := "is_public = true && is_deleted = 0 && user_id = {:userId}"
+	params := dbx.Params{"userId": user.Id}
+	if route.Kind == "home" {
+		filter += " && item_type = 1 && parent_id = ''"
+	} else if route.FolderID == "unfilednotes" {
+		page.Title = "备忘录 - " + route.Username
+		filter += " && item_type = 2 && parent_id = ''"
+	} else {
+		folder, findErr := e.App.FindRecordById("notes", route.FolderID)
+		if findErr != nil {
+			return publicListPageData{}, normalizeLookupError(findErr)
+		}
+		if !isPublicFolderForUser(folder, user.Id) {
+			return publicListPageData{}, errPublicPageNotFound
+		}
+		folderTitle := truncateText(folder.GetString("title"), maxTitleRunes)
+		if folderTitle == "" {
+			folderTitle = "未命名文件夹"
+		}
+		page.Title = folderTitle + " - " + route.Username
+		page.Description = route.Username + " 的公开文件夹：" + folderTitle
+		filter += " && (item_type = 1 || item_type = 2) && parent_id = {:parentId}"
+		params["parentId"] = route.FolderID
+	}
+
+	offset := (pageNumber - 1) * publicListLimit
+	records, err := e.App.FindRecordsByFilter(
+		"notes",
+		filter,
+		"+item_type,-updated",
+		publicListLimit+1,
+		offset,
+		params,
+	)
+	if err != nil {
+		return publicListPageData{}, err
+	}
+	hasNext := len(records) > publicListLimit
+	if hasNext {
+		records = records[:publicListLimit]
+	}
+
+	if route.Kind == "home" && pageNumber == 1 {
+		unfiled, findErr := e.App.FindRecordsByFilter(
+			"notes",
+			"is_public = true && is_deleted = 0 && item_type = 2 && parent_id = '' && user_id = {:userId}",
+			"-updated",
+			1,
+			0,
+			params,
+		)
+		if findErr != nil {
+			return publicListPageData{}, findErr
+		}
+		if len(unfiled) > 0 {
+			page.Items = append(page.Items, publicListItem{
+				Title: "备忘录",
+				URL:   buildPublicFolderPath(route.Username, "unfilednotes"),
+			})
+		}
+	}
+
+	for _, record := range records {
+		title := truncateText(record.GetString("title"), maxTitleRunes)
+		if title == "" {
+			if record.GetInt("item_type") == 1 {
+				title = "未命名文件夹"
+			} else {
+				title = defaultNoteTitle
+			}
+		}
+		item := publicListItem{
+			Title:   title,
+			Summary: truncateText(record.GetString("summary"), maxSummaryRunes),
+		}
+		if record.GetInt("item_type") == 1 {
+			item.URL = strings.TrimRight(basePath, "/") + "/" + url.PathEscape(record.Id)
+			if route.Kind == "home" {
+				item.URL = buildPublicFolderPath(route.Username, record.Id)
+			}
+		} else {
+			item.URL = buildPublicNotePath(route.Username, record.Id)
+		}
+		page.Items = append(page.Items, item)
+	}
+
+	if pageNumber > 1 {
+		page.PreviousURL = buildPagePath(basePath, pageNumber-1)
+	}
+	if hasNext {
+		page.NextURL = buildPagePath(basePath, pageNumber+1)
+	}
+	return page, nil
+}
+
 func normalizeLookupError(err error) error {
 	if errors.Is(err, sql.ErrNoRows) {
-		return errPublicNoteNotFound
+		return errPublicPageNotFound
 	}
 	return err
+}
+
+func isPublicFolderForUser(folder *core.Record, userID string) bool {
+	return folder.GetString("user_id") == userID &&
+		folder.GetBool("is_public") &&
+		folder.GetInt("is_deleted") == 0 &&
+		folder.GetInt("item_type") == 1
 }
 
 func isPublicNoteForUser(note *core.Record, userID string) bool {
@@ -200,6 +381,37 @@ func buildCanonicalURL(appURL string, username string, noteID string) string {
 		url.PathEscape(username),
 		url.PathEscape(noteID),
 	)
+}
+
+func buildPublicNotePath(username string, noteID string) string {
+	return "/" + url.PathEscape(username) + "/n/" + url.PathEscape(noteID)
+}
+
+func buildPublicFolderPath(username string, folderID string) string {
+	return "/" + url.PathEscape(username) + "/f/" + url.PathEscape(folderID)
+}
+
+func buildPagePath(path string, page int) string {
+	if page <= 1 {
+		return path
+	}
+	return path + "?page=" + fmt.Sprint(page)
+}
+
+func buildPublicPageURL(appURL string, path string, page int) string {
+	baseURL := strings.TrimRight(strings.TrimSpace(appURL), "/")
+	if baseURL == "" {
+		return ""
+	}
+	return baseURL + buildPagePath(path, page)
+}
+
+func parsePageNumber(value string) int {
+	page, err := strconv.Atoi(value)
+	if err != nil || page < 1 || page > maxPublicListPage {
+		return 1
+	}
+	return page
 }
 
 func truncateText(value string, maxRunes int) string {
@@ -251,6 +463,68 @@ func renderPublicNotePage(indexHTML []byte, page publicNotePageData) (string, er
 	}
 	main := element("main", html.Attribute{Key: "data-server-rendered", Val: "public-note"})
 	main.AppendChild(article)
+	replaceChildren(app, main)
+
+	var output bytes.Buffer
+	if err := html.Render(&output, document); err != nil {
+		return "", err
+	}
+	return output.String(), nil
+}
+
+func renderPublicListPage(indexHTML []byte, page publicListPageData) (string, error) {
+	document, err := html.Parse(bytes.NewReader(indexHTML))
+	if err != nil {
+		return "", err
+	}
+
+	head := findElement(document, "head", "", "")
+	app := findElement(document, "div", "id", "app")
+	if head == nil || app == nil {
+		return "", errors.New("frontend index.html is missing head or #app")
+	}
+
+	documentTitle := page.Title + " - fastnote"
+	title := findElement(head, "title", "", "")
+	if title == nil {
+		title = element("title")
+		head.AppendChild(title)
+	}
+	replaceChildren(title, text(documentTitle))
+	appendMeta(head, "name", "description", page.Description)
+	appendMeta(head, "property", "og:type", "website")
+	appendMeta(head, "property", "og:title", documentTitle)
+	appendMeta(head, "property", "og:description", page.Description)
+	if page.CanonicalURL != "" {
+		head.AppendChild(element("link",
+			html.Attribute{Key: "rel", Val: "canonical"},
+			html.Attribute{Key: "href", Val: page.CanonicalURL},
+		))
+	}
+
+	main := element("main", html.Attribute{Key: "data-server-rendered", Val: "public-list"})
+	main.AppendChild(withText(element("h1"), page.Title))
+	list := element("ul")
+	for _, item := range page.Items {
+		link := withText(element("a", html.Attribute{Key: "href", Val: item.URL}), item.Title)
+		listItem := element("li")
+		listItem.AppendChild(link)
+		if item.Summary != "" {
+			listItem.AppendChild(withText(element("p"), item.Summary))
+		}
+		list.AppendChild(listItem)
+	}
+	main.AppendChild(list)
+	if page.PreviousURL != "" || page.NextURL != "" {
+		navigation := element("nav", html.Attribute{Key: "aria-label", Val: "公开内容分页"})
+		if page.PreviousURL != "" {
+			navigation.AppendChild(withText(element("a", html.Attribute{Key: "href", Val: page.PreviousURL}), "上一页"))
+		}
+		if page.NextURL != "" {
+			navigation.AppendChild(withText(element("a", html.Attribute{Key: "href", Val: page.NextURL}), "下一页"))
+		}
+		main.AppendChild(navigation)
+	}
 	replaceChildren(app, main)
 
 	var output bytes.Buffer

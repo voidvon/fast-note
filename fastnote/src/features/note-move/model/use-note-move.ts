@@ -1,5 +1,5 @@
 import type { FolderTreeNode } from '@/entities/note'
-import { createsCircularFolderMove, NOTE_TYPE, useNote } from '@/entities/note'
+import { clearUnusedPublicAncestorFolders, createsCircularFolderMove, ensurePublicAncestorFolders, NOTE_TYPE, useNote } from '@/entities/note'
 import { getTime } from '@/shared/lib/date'
 
 function createRootFolderNode(): FolderTreeNode {
@@ -25,7 +25,7 @@ function createRootFolderNode(): FolderTreeNode {
 }
 
 export function useNoteMove() {
-  const { getFolderTreeByParentId, getNote, getNoteCountByParentId, notes, updateNote } = useNote()
+  const { getFolderTreeByParentId, getNote, getNoteCountByParentId, getNotesByParentId, notes, updateNote } = useNote()
 
   function findFoldersWithChildren(notes: FolderTreeNode[]): string[] {
     const ids: string[] = []
@@ -115,6 +115,23 @@ export function useNoteMove() {
       parent_id: newParentId,
       updated: updatedAt,
     })
+
+    if (currentNote.is_public && newParentId) {
+      const movedNote = getNote(noteId) || {
+        ...currentNote,
+        parent_id: newParentId,
+        updated: updatedAt,
+      }
+      await ensurePublicAncestorFolders(movedNote, updatedAt, { getNote, updateNote })
+    }
+
+    if (currentNote.is_public && oldParentId) {
+      await clearUnusedPublicAncestorFolders(oldParentId, updatedAt, {
+        getNote,
+        getNotesByParentId,
+        updateNote,
+      })
+    }
 
     if (oldParentId) {
       await refreshFolderBranchCounts(oldParentId)

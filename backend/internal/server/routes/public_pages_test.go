@@ -53,6 +53,42 @@ func TestRenderPublicNotePageRequiresAppMount(t *testing.T) {
 	}
 }
 
+func TestRenderPublicListPage(t *testing.T) {
+	rendered, err := renderPublicListPage([]byte(testIndexHTML), publicListPageData{
+		Title:        `voidvon <公开>`,
+		Description:  `公开列表"><script>alert(1)</script>`,
+		CanonicalURL: "https://example.com/voidvon?page=2",
+		Items: []publicListItem{
+			{Title: `文件夹 <一>`, URL: "/voidvon/f/folder", Summary: ""},
+			{Title: `笔记 "二"`, URL: "/voidvon/n/note", Summary: `<img src=x>`},
+		},
+		PreviousURL: "/voidvon",
+		NextURL:     "/voidvon?page=3",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := []string{
+		`<title>voidvon &lt;公开&gt; - fastnote</title>`,
+		`rel="canonical" href="https://example.com/voidvon?page=2"`,
+		`<main data-server-rendered="public-list">`,
+		`<a href="/voidvon/f/folder">文件夹 &lt;一&gt;</a>`,
+		`<a href="/voidvon/n/note">笔记 &#34;二&#34;</a>`,
+		`<p>&lt;img src=x&gt;</p>`,
+		`<a href="/voidvon">上一页</a>`,
+		`<a href="/voidvon?page=3">下一页</a>`,
+	}
+	for _, value := range expected {
+		if !strings.Contains(rendered, value) {
+			t.Errorf("rendered HTML does not contain %q:\n%s", value, rendered)
+		}
+	}
+	if strings.Contains(rendered, `<script>alert`) || strings.Contains(rendered, `<img src=x>`) {
+		t.Fatalf("rendered HTML contains unescaped list data:\n%s", rendered)
+	}
+}
+
 func TestPublicPageTemplateLoaderUsesDevIndex(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if request.Header.Get("Accept") != "text/html" {
@@ -152,8 +188,51 @@ func TestMatchPublicNotePath(t *testing.T) {
 	}
 }
 
+func TestMatchPublicPagePath(t *testing.T) {
+	tests := []struct {
+		path     string
+		kind     string
+		username string
+		folderID string
+	}{
+		{path: "/voidvon", kind: "home", username: "voidvon"},
+		{path: "/voidvon/", kind: "home", username: "voidvon"},
+		{path: "/voidvon/f/unfilednotes", kind: "folder", username: "voidvon", folderID: "unfilednotes"},
+		{path: "/voidvon/f/parent/child", kind: "folder", username: "voidvon", folderID: "child"},
+	}
+	for _, test := range tests {
+		route, ok := matchPublicPagePath(test.path)
+		if !ok || route.Kind != test.kind || route.Username != test.username || route.FolderID != test.folderID {
+			t.Fatalf("unexpected route for %q: %#v, ok=%v", test.path, route, ok)
+		}
+	}
+
+	for _, path := range []string{"/", "/api", "/home", "/login", "/deleted", "/_/f/folder", "/app.js", "/voidvon/f"} {
+		if route, ok := matchPublicPagePath(path); ok {
+			t.Fatalf("expected %q not to match, got %#v", path, route)
+		}
+	}
+}
+
+func TestPublicListPageHelpers(t *testing.T) {
+	if got := parsePageNumber("3"); got != 3 {
+		t.Fatalf("unexpected page number: %d", got)
+	}
+	for _, value := range []string{"", "0", "-1", "2abc", "1001", "invalid"} {
+		if got := parsePageNumber(value); got != 1 {
+			t.Fatalf("expected %q to resolve to page 1, got %d", value, got)
+		}
+	}
+	if got := buildPagePath("/voidvon", 1); got != "/voidvon" {
+		t.Fatalf("unexpected first page path: %q", got)
+	}
+	if got := buildPagePath("/voidvon", 2); got != "/voidvon?page=2" {
+		t.Fatalf("unexpected paged path: %q", got)
+	}
+}
+
 func TestNormalizeLookupError(t *testing.T) {
-	if !errors.Is(normalizeLookupError(sql.ErrNoRows), errPublicNoteNotFound) {
+	if !errors.Is(normalizeLookupError(sql.ErrNoRows), errPublicPageNotFound) {
 		t.Fatal("expected sql.ErrNoRows to become a public note miss")
 	}
 

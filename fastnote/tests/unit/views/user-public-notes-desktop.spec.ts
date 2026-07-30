@@ -86,6 +86,9 @@ describe('user public notes page', () => {
       parent_id: '',
     }))
     const routerPush = vi.fn()
+    const ionRouterBack = vi.fn()
+    const ionRouterNavigate = vi.fn()
+    const ionRouterCanGoBack = vi.fn(() => false)
     const ensurePublicNotesReady = vi.fn(async () => ({
       unfiledNotesCount: 2,
       userInfo: {
@@ -119,12 +122,6 @@ describe('user public notes page', () => {
       }),
     }))
 
-    vi.doMock('@/processes/navigation', () => ({
-      useSimpleBackButton: () => ({
-        backButtonProps: {},
-      }),
-    }))
-
     vi.doMock('@/processes/public-notes', () => ({
       ensurePublicNotesReady,
     }))
@@ -149,7 +146,6 @@ describe('user public notes page', () => {
 
     vi.doMock('@ionic/vue', () => {
       return {
-        IonBackButton: createIonicStub('IonBackButton'),
         IonButton: createIonicStub('IonButton'),
         IonButtons: createIonicStub('IonButtons'),
         IonContent: createIonicStub('IonContent'),
@@ -162,6 +158,11 @@ describe('user public notes page', () => {
         IonTitle: createIonicStub('IonTitle'),
         IonToolbar: createIonicStub('IonToolbar'),
         onIonViewWillEnter: vi.fn(),
+        useIonRouter: () => ({
+          back: ionRouterBack,
+          canGoBack: ionRouterCanGoBack,
+          navigate: ionRouterNavigate,
+        }),
       }
     })
 
@@ -196,6 +197,16 @@ describe('user public notes page', () => {
     expect(wrapper.find('#public-navigation-pane').exists()).toBe(true)
     expect(wrapper.find('#public-note-list-pane').exists()).toBe(true)
     expect(wrapper.find('#public-note-detail-pane').exists()).toBe(true)
+
+    await wrapper.get('[aria-label="返回备忘录"]').trigger('click')
+    expect(ionRouterCanGoBack).toHaveBeenCalled()
+    expect(ionRouterNavigate).toHaveBeenCalledWith('/home', 'back', 'replace')
+    expect(ionRouterBack).not.toHaveBeenCalled()
+
+    ionRouterCanGoBack.mockReturnValue(true)
+    await wrapper.get('[aria-label="返回备忘录"]').trigger('click')
+    expect(ionRouterBack).toHaveBeenCalledOnce()
+    expect(ionRouterNavigate).toHaveBeenCalledOnce()
 
     noteList.vm.$emit('selected', 'folder-1')
     await nextTick()

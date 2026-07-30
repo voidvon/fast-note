@@ -2,7 +2,6 @@
 import type { CSSProperties } from 'vue'
 import type { PublicUserInfo } from '@/shared/types/pocketbase'
 import {
-  IonBackButton,
   IonButton,
   IonButtons,
   IonContent,
@@ -15,13 +14,13 @@ import {
   IonTitle,
   IonToolbar,
   onIonViewWillEnter,
+  useIonRouter,
 } from '@ionic/vue'
-import { alertCircleOutline, documentTextOutline } from 'ionicons/icons'
+import { alertCircleOutline, chevronBack, documentTextOutline } from 'ionicons/icons'
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserPublicNotes } from '@/entities/public-note'
 import { useDesktopPaneLayout } from '@/features/desktop-pane-layout'
-import { useSimpleBackButton } from '@/processes/navigation'
 import { ensurePublicNotesReady } from '@/processes/public-notes'
 import { useDeviceType } from '@/shared/lib/device'
 import PaneSplitter from '@/shared/ui/pane-splitter'
@@ -31,13 +30,20 @@ import NoteList from '@/widgets/note-list'
 
 const route = useRoute()
 const router = useRouter()
+const ionRouter = useIonRouter()
 const { isDesktop } = useDeviceType()
 
 // 获取路由参数
 const username = computed(() => route.params.username as string)
 
-// 简单的返回按钮
-const { backButtonProps } = useSimpleBackButton('/', '返回')
+function backToHome() {
+  if (ionRouter.canGoBack()) {
+    ionRouter.back()
+    return
+  }
+
+  ionRouter.navigate('/home', 'back', 'replace')
+}
 
 const publicFolders = computed(() => {
   if (!username.value) {
@@ -186,7 +192,9 @@ watch(
         <IonToolbar>
           <IonTitle>{{ userInfo?.username }}</IonTitle>
           <IonButtons slot="start">
-            <IonBackButton v-bind="backButtonProps" />
+            <IonButton class="public-home-back-button" fill="clear" aria-label="返回备忘录" @click="backToHome">
+              <IonIcon slot="icon-only" :icon="chevronBack" />
+            </IonButton>
           </IonButtons>
         </IonToolbar>
       </IonHeader>
@@ -295,6 +303,25 @@ watch(
   height: 100%;
   min-height: 0;
   flex-direction: column;
+}
+
+.public-home-back-button {
+  --padding-top: 0;
+  --padding-end: 0;
+  --padding-bottom: 0;
+  --padding-start: 0;
+
+  min-width: auto;
+  min-height: 32px;
+  margin: 0;
+  font-size: 17px;
+
+  ion-icon {
+    margin-inline-start: -4px;
+    margin-inline-end: 1px;
+    font-size: 1.6em;
+    transform: translateX(-11px);
+  }
 }
 
 .public-note-desktop {

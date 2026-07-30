@@ -12,6 +12,7 @@ const TOP_LEVEL_RESERVED_ROUTES = new Set(['home', 'login', 'register', 'deleted
 
 type StorageType = 'localStorage' | 'sessionStorage'
 type RouteKind = 'note-detail' | 'folder-list' | 'home' | 'public-home' | 'other'
+type PublicRouteScope = `public:${string}`
 
 class NavigationHistory {
   private history = ref<HistoryItem[]>([])
@@ -97,6 +98,17 @@ class NavigationHistory {
     return 'other'
   }
 
+  private getPublicRouteScope(path: string): PublicRouteScope | null {
+    const normalizedPath = this.normalizePath(path)
+    const publicRouteMatch = normalizedPath.match(/^\/([^/]+)(?:\/(?:n\/[^/]+|f(?:\/.*)?))?$/)
+    const username = publicRouteMatch?.[1]
+
+    if (!username || TOP_LEVEL_RESERVED_ROUTES.has(username))
+      return null
+
+    return `public:${username}`
+  }
+
   private shouldReplaceOrphanDetailWithFallback(toPath: string, fromPath: string) {
     if (this.history.value.length !== 1)
       return false
@@ -145,6 +157,11 @@ class NavigationHistory {
     const previousPath = this.getPreviousRoute(route.fullPath)
 
     if (!previousPath || previousPath === route.fullPath) {
+      return fallbackPath
+    }
+
+    const currentPublicScope = this.getPublicRouteScope(route.fullPath)
+    if (currentPublicScope && this.getPublicRouteScope(previousPath) !== currentPublicScope) {
       return fallbackPath
     }
 

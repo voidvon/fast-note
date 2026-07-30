@@ -1,4 +1,4 @@
-import type { Router } from 'vue-router'
+import type { RouteLocationNormalized, Router } from 'vue-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 import { useNavigationHistory } from '@/processes/navigation'
@@ -69,5 +69,29 @@ describe('useNavigationHistory', () => {
     emitTransition('/f/folder-a', '/n/note-1')
 
     expect(navigationHistory.history.value.map(item => item.path)).toEqual(['/f/folder-a'])
+  })
+
+  it('does not use private home history as the back target for a public note', () => {
+    const navigationHistory = useNavigationHistory()
+    const { router, emitTransition } = createRouterStub()
+    navigationHistory.setRouter(router)
+
+    emitTransition('/home', '/')
+    emitTransition('/voidvon/n/note-1', '/home')
+
+    const route = { fullPath: '/voidvon/n/note-1' } as RouteLocationNormalized
+    expect(navigationHistory.getSmartBackPath(route, '/voidvon')).toBe('/voidvon')
+  })
+
+  it('keeps same-user public folder history as the back target for a public note', () => {
+    const navigationHistory = useNavigationHistory()
+    const { router, emitTransition } = createRouterStub()
+    navigationHistory.setRouter(router)
+
+    emitTransition('/voidvon/f/folder-a', '/')
+    emitTransition('/voidvon/n/note-1', '/voidvon/f/folder-a')
+
+    const route = { fullPath: '/voidvon/n/note-1' } as RouteLocationNormalized
+    expect(navigationHistory.getSmartBackPath(route, '/voidvon')).toBe('/voidvon/f/folder-a')
   })
 })

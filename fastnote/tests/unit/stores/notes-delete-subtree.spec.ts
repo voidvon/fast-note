@@ -118,4 +118,50 @@ describe('t-FN-002 / TC-FN-002 notes subtree delete', () => {
     wrapper.unmount()
     vi.useRealTimers()
   })
+
+  it('makes the old parent branch private after deleting its last public note', async () => {
+    const { useNote } = await import('@/entities/note')
+    type NoteStore = ReturnType<typeof useNote>
+    let noteStore: NoteStore | null = null
+
+    const wrapper = mount(defineComponent({
+      setup() {
+        noteStore = useNote()
+        return () => null
+      },
+    }))
+
+    const { addNote, getNote, setNoteDeletedState } = noteStore!
+
+    addNote(makeNote({
+      id: 'folder-root-public',
+      item_type: NOTE_TYPE.FOLDER,
+      parent_id: '',
+      is_public: true,
+    }))
+    addNote(makeNote({
+      id: 'folder-child-public',
+      item_type: NOTE_TYPE.FOLDER,
+      parent_id: 'folder-root-public',
+      is_public: true,
+    }))
+    addNote(makeNote({
+      id: 'note-public',
+      parent_id: 'folder-child-public',
+      is_public: true,
+    }))
+    addNote(makeNote({
+      id: 'note-private',
+      parent_id: 'folder-child-public',
+      is_public: false,
+    }))
+
+    await setNoteDeletedState(getNote('note-public')!, 1)
+
+    expect(getNote('note-public')?.is_deleted).toBe(1)
+    expect(getNote('folder-child-public')?.is_public).toBe(false)
+    expect(getNote('folder-root-public')?.is_public).toBe(false)
+
+    wrapper.unmount()
+  })
 })

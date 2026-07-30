@@ -48,7 +48,15 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
       https: isHttps,
       proxy: {
+        '^/[^/.]+/f/.+': {
+          target: apiProxyTarget,
+          changeOrigin: true,
+        },
         '^/[^/]+/n/[^/]+/?$': {
+          target: apiProxyTarget,
+          changeOrigin: true,
+        },
+        '^/(?!home/?$|login/?$|register/?$|deleted/?$|api(?:/|$)|_)[^/.]+/?$': {
           target: apiProxyTarget,
           changeOrigin: true,
         },

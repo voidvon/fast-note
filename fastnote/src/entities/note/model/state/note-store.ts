@@ -11,6 +11,7 @@ import {
 import { normalizeNoteLockFields, NOTE_TYPE } from '@/shared/types'
 import { buildFolderTree, countNotesWithinChildren, countUnfiledNotes } from '../domain/folder-tree'
 import { isDeletedNoteRetained, matchesFolderKeyword, matchesNoteKeyword, shouldRefreshNoteUpdated } from '../domain/note-rules'
+import { clearUnusedPublicAncestorFolders } from '../domain/public-access'
 import { useNoteIndexState } from './note-index-state'
 
 type UpdateFn = (item: Note) => void
@@ -334,6 +335,14 @@ export function useNote() {
       updateNote(targetNote.id, {
         is_deleted: isDeleted,
         updated: nextUpdated,
+      })
+    }
+
+    if (isDeleted === 1 && currentNote.parent_id) {
+      await clearUnusedPublicAncestorFolders(currentNote.parent_id, nextUpdated, {
+        getNote: getIndexedNote,
+        getNotesByParentId,
+        updateNote,
       })
     }
 

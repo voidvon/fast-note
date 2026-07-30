@@ -1,5 +1,5 @@
 import type { Note } from '@/shared/types'
-import { useNote } from '@/entities/note'
+import { clearUnusedPublicAncestorFolders, ensurePublicAncestorFolders, useNote } from '@/entities/note'
 import { getTime } from '@/shared/lib/date'
 import { NOTE_TYPE } from '@/shared/types'
 
@@ -32,61 +32,12 @@ export function usePublicNoteAccess(options: UsePublicNoteAccessOptions = {}) {
   const getNotesByParentId = options.getNotesByParentId || noteStore.getNotesByParentId
   const updateNote = options.updateNote || noteStore.updateNote
 
-  async function getAllChildrenNotes(noteUuid: string): Promise<Note[]> {
-    const children = await getNotesByParentId(noteUuid)
-
-    let allChildren: Note[] = [...children]
-
-    for (const child of children) {
-      if (child.id) {
-        const grandChildren = await getAllChildrenNotes(child.id)
-        allChildren = [...allChildren, ...grandChildren]
-      }
-    }
-
-    return allChildren
-  }
-
-  async function getParentNote(parentId: string | null): Promise<Note | null> {
-    if (!parentId) {
-      return null
-    }
-
-    return getNote(parentId)
-  }
-
-  async function getAllParentNotes(currentNote: Note): Promise<Note[]> {
-    const parents: Note[] = []
-    let current = currentNote
-
-    while (current.parent_id) {
-      const parent = await getParentNote(current.parent_id)
-      if (!parent) {
-        break
-      }
-
-      parents.push(parent)
-      current = parent
-    }
-
-    return parents
-  }
-
   async function makePublic(note: Note, now: string) {
     note.is_public = true
     note.updated = now
     await updateNote(note.id, note)
 
-    const parents = await getAllParentNotes(note)
-    for (const parent of parents) {
-      if (!parent.is_public) {
-        await updateNote(parent.id!, {
-          ...parent,
-          is_public: true,
-          updated: now,
-        })
-      }
-    }
+    await ensurePublicAncestorFolders(note, now, { getNote, updateNote })
   }
 
   async function makePrivate(note: Note, now: string) {
@@ -94,22 +45,12 @@ export function usePublicNoteAccess(options: UsePublicNoteAccessOptions = {}) {
     note.updated = now
     await updateNote(note.id, { ...note })
 
-    const parents = await getAllParentNotes(note)
-    for (const parent of parents) {
-      if (!parent.is_public) {
-        continue
-      }
-
-      const allChildren = await getAllChildrenNotes(parent.id!)
-      const hasPublicChildren = allChildren.some(child => child.is_public)
-
-      if (!hasPublicChildren) {
-        await updateNote(parent.id!, {
-          ...parent,
-          is_public: false,
-          updated: now,
-        })
-      }
+    if (note.parent_id) {
+      await clearUnusedPublicAncestorFolders(note.parent_id, now, {
+        getNote,
+        getNotesByParentId,
+        updateNote,
+      })
     }
   }
 

@@ -1,5 +1,7 @@
 export { buildFolderTree, countNotesWithinChildren, countUnfiledNotes, createsCircularFolderMove } from './model/domain/folder-tree'
 export { hasRemoteUserId, isDeletedNoteRetained, matchesNoteKeyword, normalizeParentIdKey, shouldRefreshNoteUpdated } from './model/domain/note-rules'
+export { clearUnusedPublicAncestorFolders, ensurePublicAncestorFolders } from './model/domain/public-access'
+export type { PublicAncestorAccess, PublicTreeAccess } from './model/domain/public-access'
 export { noteRemoteService } from './model/note-remote-service'
 export type { NoteRemoteService, NoteRemoteUpdateResult, NoteWriteMode } from './model/note-remote-service'
 export { useNoteSyncExecutorService } from './model/note-sync-executor-service'
