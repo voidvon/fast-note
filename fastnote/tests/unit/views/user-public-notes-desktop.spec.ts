@@ -179,7 +179,10 @@ describe('user public notes page', () => {
     const folderPage = () => wrapper.findComponent(folderPageStub)
     const noteDetail = () => wrapper.findComponent(noteDetailStub)
 
-    expect(ensurePublicNotesReady).toHaveBeenCalledWith('alice', { force: false })
+    expect(ensurePublicNotesReady).toHaveBeenCalledWith('alice', {
+      force: false,
+      noteId: 'note-1',
+    })
     expect(wrapper.text()).not.toContain('加载中...')
     expect(noteList.props('noteUuid')).toBe('folder-1')
     expect(folderPage().props('currentFolder')).toBe('folder-1')

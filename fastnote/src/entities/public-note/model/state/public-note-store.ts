@@ -75,6 +75,23 @@ export function getUserPublicNotesSync(username: string) {
 export function useUserPublicNotes(username: string) {
   const state = getUserState(username)
 
+  function replacePublicNotes(notes: Note[]) {
+    state.publicNotes.value = [...notes]
+  }
+
+  function mergePublicNotes(notes: Note[]) {
+    const merged = new Map((state.publicNotes.value || []).map(note => [note.id, note]))
+
+    for (const note of notes) {
+      merged.set(note.id, {
+        ...merged.get(note.id),
+        ...note,
+      })
+    }
+
+    state.publicNotes.value = [...merged.values()]
+  }
+
   function getFirstPublicNote() {
     const publicNotes = state.publicNotes.value || []
     const sortedNotes = [...publicNotes].sort((a, b) => (a.created || '').localeCompare(b.created || ''))
@@ -246,6 +263,8 @@ export function useUserPublicNotes(username: string) {
   return {
     getFirstPublicNote,
     publicNotes: state.publicNotes,
+    mergePublicNotes,
+    replacePublicNotes,
     addPublicNote,
     getPublicNote,
     deletePublicNote,

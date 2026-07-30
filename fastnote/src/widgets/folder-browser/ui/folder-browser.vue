@@ -10,7 +10,10 @@ import {
   IonFooter,
   IonHeader,
   IonIcon,
+  IonInfiniteScroll,
+  IonInfiniteScrollContent,
   IonPage,
+  IonSpinner,
   IonTitle,
   IonToolbar,
   onIonViewDidEnter,
@@ -23,6 +26,7 @@ import { onBeforeRouteLeave, useRoute } from 'vue-router'
 import { useNote } from '@/entities/note'
 import { useUserPublicNotes } from '@/entities/public-note'
 import { useFolderBackButton, useRouteStateRestore } from '@/processes/navigation'
+import { loadPublicFolderNotes } from '@/processes/public-notes'
 import { getTime } from '@/shared/lib/date'
 import { useDeviceType } from '@/shared/lib/device'
 import { useIonContentScrollMemory } from '@/shared/lib/ionic'
@@ -49,6 +53,10 @@ const { isDesktop } = useDeviceType()
 const data = ref<Note>({} as Note)
 const contentRef = ref()
 const showAddFolderAlert = ref(false)
+const publicPage = ref(0)
+const publicTotalPages = ref(0)
+const publicPageLoading = ref(false)
+let loadedPublicFolderId = ''
 
 const routeUsername = computed(() => route.params.username as string)
 const activeMobileFolderPath = ref('')
@@ -209,6 +217,10 @@ const sortedNoteList = computed(() => {
 const hasChildItems = computed(() => {
   return folders.value.length > 0 || sortedNoteList.value.length > 0
 })
+const hasMorePublicNotes = computed(() => (
+  isUserContext.value
+  && publicPage.value < publicTotalPages.value
+))
 
 const title = computed(() => {
   switch (data.value.id) {
@@ -288,6 +300,7 @@ async function init() {
       if (folderInfo) {
         data.value = folderInfo
       }
+      await loadPublicPage(id !== loadedPublicFolderId)
     }
     else {
       // 当前用户的文件夹上下文
@@ -308,6 +321,33 @@ async function init() {
   catch (error) {
     console.error('初始化文件夹数据失败:', error)
   }
+}
+
+async function loadPublicPage(reset = false) {
+  if (!isUserContext.value || !folderId.value || publicPageLoading.value) {
+    return
+  }
+
+  publicPageLoading.value = true
+  try {
+    const nextPage = reset ? 1 : publicPage.value + 1
+    const result = await loadPublicFolderNotes(username.value, folderId.value, nextPage)
+    loadedPublicFolderId = folderId.value
+    publicPage.value = result.page
+    publicTotalPages.value = result.totalPages
+  }
+  catch (error) {
+    console.error('加载公开备忘录列表失败:', error)
+  }
+  finally {
+    publicPageLoading.value = false
+  }
+}
+
+async function loadMorePublicNotes(event: CustomEvent) {
+  await loadPublicPage()
+  const target = event.target as HTMLIonInfiniteScrollElement | null
+  await target?.complete()
 }
 
 onIonViewWillEnter(() => {
@@ -367,8 +407,11 @@ defineExpose({
       </IonHeader>
 
       <div class="folder-page-content__body">
+        <div v-if="publicPageLoading && !hasChildItems" class="folder-loading-state">
+          <IonSpinner name="crescent" />
+        </div>
         <NoteList
-          v-if="hasChildItems"
+          v-else-if="hasChildItems"
           :data-list="[...folders, ...sortedNoteList]"
           :note-uuid="selectedNoteId"
           :show-parent-folder="data.id === 'allnotes'"
@@ -380,6 +423,14 @@ defineExpose({
           无备忘录
         </div>
       </div>
+      <IonInfiniteScroll
+        v-if="isUserContext"
+        :disabled="!hasMorePublicNotes || publicPageLoading"
+        threshold="100px"
+        @ion-infinite="loadMorePublicNotes"
+      >
+        <IonInfiniteScrollContent loading-spinner="crescent" />
+      </IonInfiniteScroll>
     </IonContent>
     <IonFooter v-if="!isDesktop">
       <IonToolbar>
@@ -441,12 +492,16 @@ defineExpose({
   flex-direction: column;
 }
 
-.folder-empty-state {
+.folder-empty-state,
+.folder-loading-state {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px 16px;
+}
+
+.folder-empty-state {
   color: var(--ion-color-medium);
   font-size: 16px;
   text-align: center;

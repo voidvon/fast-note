@@ -11,7 +11,35 @@ export interface PublicNotesReadyResult {
   userInfo: PublicUserInfo | null
 }
 
-export async function syncPublicNotesForUser(username: string) {
+export interface EnsurePublicNotesReadyOptions {
+  force?: boolean
+  noteId?: string
+}
+
+async function loadPublicNoteIfNeeded(
+  username: string,
+  userInfo: PublicUserInfo,
+  noteId?: string,
+) {
+  if (!noteId) {
+    return null
+  }
+
+  const publicNoteStore = useUserPublicNotes(username)
+  const cachedNote = publicNoteStore.getPublicNote(noteId)
+  if (cachedNote?.content !== undefined) {
+    return cachedNote
+  }
+
+  const note = await publicNoteRemoteService.getPublicNote(userInfo.id, noteId)
+  publicNoteStore.mergePublicNotes([note])
+  return note
+}
+
+export async function syncPublicNotesForUser(
+  username: string,
+  options: Pick<EnsurePublicNotesReadyOptions, 'noteId'> = {},
+) {
   if (!username)
     return { synced: 0, notes: [], userInfo: null }
 
@@ -26,18 +54,20 @@ export async function syncPublicNotesForUser(username: string) {
     }
   }
 
-  const notes = await publicNoteRemoteService.getPublicNotes(userInfo.id)
-  const { publicNotes } = useUserPublicNotes(username)
-  publicNotes.value = notes
+  const folders = await publicNoteRemoteService.getPublicFolders(userInfo.id)
+  const publicNoteStore = useUserPublicNotes(username)
+  publicNoteStore.replacePublicNotes(folders)
+  const targetNote = await loadPublicNoteIfNeeded(username, userInfo, options.noteId)
+  const notes = publicNoteStore.publicNotes.value ?? []
 
   return {
-    synced: notes.length,
+    synced: folders.length + (targetNote ? 1 : 0),
     notes,
     userInfo,
   }
 }
 
-export async function ensurePublicNotesReady(username: string, options: { force?: boolean } = {}) {
+export async function ensurePublicNotesReady(username: string, options: EnsurePublicNotesReadyOptions = {}) {
   if (!username) {
     return {
       synced: 0,
@@ -47,14 +77,18 @@ export async function ensurePublicNotesReady(username: string, options: { force?
   }
 
   if (!options.force && initializedUsers.has(username)) {
-    const { publicNotes } = useUserPublicNotes(username)
+    const publicNoteStore = useUserPublicNotes(username)
     const { getPublicUserInfo } = usePublicUserCache()
-    const cachedNotes = publicNotes.value ?? []
+    const userInfo = await getPublicUserInfo(username)
+    if (userInfo) {
+      await loadPublicNoteIfNeeded(username, userInfo, options.noteId)
+    }
+    const cachedNotes = publicNoteStore.publicNotes.value ?? []
 
     return {
       synced: cachedNotes.length,
       notes: cachedNotes,
-      userInfo: await getPublicUserInfo(username),
+      userInfo,
     }
   }
 
@@ -66,7 +100,7 @@ export async function ensurePublicNotesReady(username: string, options: { force?
 
   const readyPromise = (async () => {
     await initializeUserPublicNotes(username)
-    const result = await syncPublicNotesForUser(username)
+    const result = await syncPublicNotesForUser(username, options)
     initializedUsers.add(username)
     return result
   })()

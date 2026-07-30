@@ -1,5 +1,30 @@
 import { mapErrorMessage, pb } from './client'
 
+const PUBLIC_NOTE_LIST_FIELDS = [
+  'id',
+  'user_id',
+  'title',
+  'summary',
+  'parent_id',
+  'item_type',
+  'note_count',
+  'is_deleted',
+  'is_public',
+  'is_locked',
+  'created',
+  'updated',
+].join(',')
+
+export const PUBLIC_NOTES_PAGE_SIZE = 30
+
+export interface PublicNotesPage {
+  items: any[]
+  page: number
+  perPage: number
+  totalItems: number
+  totalPages: number
+}
+
 type WriteMode = 'auto' | 'create' | 'update'
 
 interface UpdateNoteResult {
@@ -193,11 +218,46 @@ export const notesService = {
     }
   },
 
-  async getPublicNotes(user_id: string): Promise<any[]> {
-    const record = await pb.collection('notes').getFullList({
-      filter: `is_public = true && user_id = "${user_id}"`,
+  async getPublicFolders(userId: string): Promise<any[]> {
+    return await pb.collection('notes').getFullList({
+      fields: PUBLIC_NOTE_LIST_FIELDS,
+      filter: pb.filter(
+        'is_public = true && is_deleted = 0 && item_type = 1 && user_id = {:userId}',
+        { userId },
+      ),
+      sort: '+created',
     })
-    return record
+  },
+
+  async getPublicNotesPage(
+    userId: string,
+    parentId: string,
+    page = 1,
+    perPage = PUBLIC_NOTES_PAGE_SIZE,
+  ): Promise<PublicNotesPage> {
+    const parentFilter = parentId === 'allnotes'
+      ? ''
+      : parentId === 'unfilednotes'
+        ? ' && parent_id = ""'
+        : ' && parent_id = {:parentId}'
+
+    return await pb.collection('notes').getList(page, perPage, {
+      fields: PUBLIC_NOTE_LIST_FIELDS,
+      filter: pb.filter(
+        `is_public = true && is_deleted = 0 && item_type = 2 && user_id = {:userId}${parentFilter}`,
+        { parentId, userId },
+      ),
+      sort: '-updated',
+    })
+  },
+
+  async getPublicNote(userId: string, noteId: string): Promise<any> {
+    return await pb.collection('notes').getFirstListItem(
+      pb.filter(
+        'id = {:noteId} && is_public = true && is_deleted = 0 && item_type = 2 && user_id = {:userId}',
+        { noteId, userId },
+      ),
+    )
   },
 }
 

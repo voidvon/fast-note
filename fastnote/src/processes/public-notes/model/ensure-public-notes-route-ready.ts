@@ -8,5 +8,7 @@ export async function ensurePublicNotesRouteReady(to: RouteLocationNormalized) {
     return
 
   const username = to.params.username as string
-  await ensurePublicNotesReady(username)
+  await ensurePublicNotesReady(username, {
+    noteId: to.params.noteId as string | undefined,
+  })
 }

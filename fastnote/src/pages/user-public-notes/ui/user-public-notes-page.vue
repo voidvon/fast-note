@@ -121,7 +121,10 @@ async function init(force = false) {
     loading.value = true
     error.value = ''
 
-    const result = await ensurePublicNotesReady(username.value, { force })
+    const result = await ensurePublicNotesReady(username.value, {
+      force,
+      noteId: route.params.noteId as string | undefined,
+    })
     userInfo.value = result.userInfo
     syncDesktopSelectionFromRoute()
   }
