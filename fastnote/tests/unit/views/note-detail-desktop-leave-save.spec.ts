@@ -2,8 +2,7 @@ import { flushPromises } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { NOTE_TYPE } from '@/shared/types'
-import { deferred } from '../../helpers/note-detail-save-test-utils'
-import { mountNoteDetailForSaveTest } from '../../helpers/note-detail-save-test-utils'
+import { deferred, mountNoteDetailForSaveTest } from '../../helpers/note-detail-save-test-utils'
 
 describe('note detail desktop leave save', () => {
   beforeEach(() => {
@@ -114,5 +113,25 @@ describe('note detail desktop leave save', () => {
 
     pendingUpdate.resolve()
     await flushPromises()
+  })
+
+  it('clears the desktop editor when selection is removed even if the route still has the old note id', async () => {
+    const { wrapper } = await mountNoteDetailForSaveTest({
+      noteId: 'note-1',
+      isDesktop: true,
+      route: {
+        params: {
+          id: 'note-1',
+        },
+      },
+    })
+
+    expect(wrapper.find('.yy-editor-stub').exists()).toBe(true)
+
+    await wrapper.setProps({ noteId: '' })
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.find('.yy-editor-stub').exists()).toBe(false)
   })
 })

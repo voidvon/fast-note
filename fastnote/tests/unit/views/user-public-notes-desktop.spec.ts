@@ -56,6 +56,7 @@ function createNoteDetailStub() {
 describe('user public notes page', () => {
   it('places a root public-note deep link under the unfiled notes entry', async () => {
     vi.resetModules()
+    window.history.replaceState(window.history.state, '', '/alice/n/note-1')
 
     const noteListStub = createNoteListStub()
     const folderPageStub = createFolderPageStub()
@@ -213,13 +214,15 @@ describe('user public notes page', () => {
 
     expect(noteList.props('noteUuid')).toBe('folder-1')
     expect(folderPage().props('currentFolder')).toBe('folder-1')
-    expect(routerPush).toHaveBeenCalledWith('/alice/f/folder-1')
+    expect(window.location.pathname).toBe('/alice/f/folder-1')
+    expect(routerPush).not.toHaveBeenCalled()
 
     folderPage().vm.$emit('selected', 'note-1')
     await nextTick()
 
     expect(folderPage().props('selectedNoteId')).toBe('note-1')
     expect(noteDetail().props('noteId')).toBe('note-1')
-    expect(routerPush).toHaveBeenCalledWith('/alice/n/note-1')
+    expect(window.location.pathname).toBe('/alice/n/note-1')
+    expect(routerPush).not.toHaveBeenCalled()
   })
 })

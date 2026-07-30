@@ -105,15 +105,42 @@ function syncDesktopSelectionFromRoute() {
   state.noteUuid = ''
 }
 
+function updateDesktopBrowserUrl(targetPath: string) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  const currentPath = window.location.pathname + window.location.search + window.location.hash
+  if (currentPath === targetPath) {
+    return
+  }
+
+  window.history.pushState(window.history.state, '', targetPath)
+}
+
 function selectFolder(id: string) {
   state.folderUuid = id
   state.noteUuid = ''
-  void router.push(`/${encodeURIComponent(username.value)}/f/${id}`)
+  const targetPath = `/${encodeURIComponent(username.value)}/f/${id}`
+
+  if (isDesktop.value) {
+    updateDesktopBrowserUrl(targetPath)
+    return
+  }
+
+  void router.push(targetPath)
 }
 
 function selectNote(id: string) {
   state.noteUuid = id
-  void router.push(`/${encodeURIComponent(username.value)}/n/${id}`)
+  const targetPath = `/${encodeURIComponent(username.value)}/n/${id}`
+
+  if (isDesktop.value) {
+    updateDesktopBrowserUrl(targetPath)
+    return
+  }
+
+  void router.push(targetPath)
 }
 
 // 初始化数据

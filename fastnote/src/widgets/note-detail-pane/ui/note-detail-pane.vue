@@ -61,7 +61,7 @@ const state = reactive({
   showNoteMore: false,
 })
 const idFromRoute = computed(() => route.params.id as string || route.params.noteId as string)
-const idFromSource = computed(() => props.noteId || idFromRoute.value)
+const idFromSource = computed(() => isDesktop.value ? props.noteId : (props.noteId || idFromRoute.value))
 const effectiveUuid = computed(() => {
   if (idFromSource.value === '0')
     return newNoteId.value
