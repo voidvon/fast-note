@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import type { NoteLockManageUpdate, NoteLockSetupResult } from '@/features/note-lock'
 import type { Note } from '@/shared/types'
-import { IonCol, IonGrid, IonModal, IonRow, toastController, useIonRouter } from '@ionic/vue'
-import { lockClosed, lockOpen, shareOutline, trashOutline } from 'ionicons/icons'
+import { alertController, IonCol, IonGrid, IonModal, IonRow, toastController, useIonRouter } from '@ionic/vue'
+import { globeOutline, lockClosed, lockOpen, trashOutline } from 'ionicons/icons'
 import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useNote } from '@/entities/note'
 import { useNoteDelete } from '@/features/note-delete'
 import { NoteLockManageModal, NoteLockSetupModal, useNoteLockModalFlow } from '@/features/note-lock'
-import { usePublicNoteShare } from '@/features/public-note-share'
+import { PublicNoteAccessModal } from '@/features/public-note-share'
+import { useAuth } from '@/processes/session'
 import { useSync } from '@/processes/sync-notes'
 import { cleanupIonicOverlayLocksAsync } from '@/shared/lib/ionic'
 import IconTextButton from '@/shared/ui/icon-text-button'
@@ -29,9 +30,7 @@ const { deleteNote } = useNoteDelete({
   updateNote,
   updateParentFolderSubcount,
 })
-const { toggleShare } = usePublicNoteShare({
-  updateNote,
-})
+const { currentUser, isLoggedIn } = useAuth()
 const {
   buildManageFeedback,
   buildSetupFeedback,
@@ -42,6 +41,8 @@ const {
 } = useNoteLockModalFlow()
 
 const note = ref<Note | undefined>(undefined)
+const publicAccessOpen = ref(false)
+const publicAccessPending = ref(false)
 const currentNoteId = computed(() => props.noteId || route.params.id as string || '')
 
 async function onWillPresent() {
@@ -66,19 +67,34 @@ async function syncLockNoteChange(fallbackMessage: string) {
   }
 }
 
-async function onShare() {
+async function onPublicAccess() {
   if (!note.value?.id) {
     return
   }
 
-  const feedback = await toggleShare(note.value)
-  const toast = await toastController.create({
-    message: feedback.message,
-    duration: 2000,
-    position: 'bottom',
-    color: feedback.color,
-  })
-  await toast.present()
+  if (!isLoggedIn.value) {
+    const alert = await alertController.create({
+      header: '请先登录',
+      message: '登录后才能公开备忘录',
+      buttons: [
+        {
+          text: '取消',
+          role: 'cancel',
+        },
+        {
+          text: '去登录',
+          handler: () => {
+            dismiss()
+            router.push('/login')
+          },
+        },
+      ],
+    })
+    await alert.present()
+    return
+  }
+
+  publicAccessPending.value = true
   dismiss()
 }
 
@@ -95,6 +111,29 @@ function onMoreModalDidDismiss() {
   emit('update:isOpen', false)
   cleanupIonicOverlayLocksAsync()
   openPendingLockModal()
+
+  if (publicAccessPending.value) {
+    publicAccessPending.value = false
+    publicAccessOpen.value = true
+  }
+}
+
+async function onPublicAccessUpdated(updatedNote: Note) {
+  note.value = updatedNote
+
+  try {
+    await sync(true)
+  }
+  catch (error) {
+    console.error('同步备忘录公开状态失败:', error)
+    const toast = await toastController.create({
+      message: '已在当前设备更新公开状态，但同步失败，请稍后重试',
+      duration: 2200,
+      position: 'top',
+      color: 'warning',
+    })
+    await toast.present()
+  }
 }
 
 async function onLockConfirmed(payload: NoteLockSetupResult & { note: Note }) {
@@ -168,11 +207,11 @@ async function onDelete() {
           </IonCol>
           <IonCol size="3" class="grid-item">
             <IconTextButton
-              :icon="shareOutline"
+              :icon="globeOutline"
               class="c-green-500"
-              :text="note?.is_public ? '取消' : '分享'"
+              text="公开"
               color="success"
-              @click="onShare"
+              @click="onPublicAccess"
             />
           </IonCol>
           <IonCol size="3" class="grid-item">
@@ -188,6 +227,13 @@ async function onDelete() {
       </IonGrid>
     </div>
   </IonModal>
+  <PublicNoteAccessModal
+    v-if="note?.id"
+    v-model:is-open="publicAccessOpen"
+    :note="note"
+    :username="currentUser?.username"
+    @updated="onPublicAccessUpdated"
+  />
   <NoteLockSetupModal
     v-if="note?.id"
     v-model:is-open="lockModalState.isOpen"

@@ -23,8 +23,8 @@ import { useSimpleBackButton } from '@/processes/navigation'
 import { ensurePublicNotesReady } from '@/processes/public-notes'
 import { useDeviceType } from '@/shared/lib/device'
 import FolderBrowser from '@/widgets/folder-browser'
-import NoteList from '@/widgets/note-list'
 import NoteDetailPane from '@/widgets/note-detail-pane'
+import NoteList from '@/widgets/note-list'
 
 const route = useRoute()
 const { isDesktop } = useDeviceType()
@@ -148,7 +148,7 @@ onIonViewWillEnter(() => {
         <div v-if="publicFolders.length === 0" class="empty-state">
           <IonIcon :icon="folderOutline" size="large" />
           <h2>暂无公开文件夹</h2>
-          <p>该用户还没有分享任何文件夹</p>
+          <p>该用户还没有公开任何文件夹</p>
         </div>
       </div>
     </IonContent>

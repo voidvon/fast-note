@@ -73,13 +73,13 @@ function createNoteLockFlowStub(mode: 'setup' | 'manage') {
   let pendingModal: 'setup' | 'manage' | null = null
 
   return {
-    buildManageFeedback: vi.fn((payload) => ({
+    buildManageFeedback: vi.fn(payload => ({
       color: payload.code === 'ok' ? 'success' : 'warning',
       duration: 1500,
       message: payload.message || '已更新备忘录锁',
       note: payload.note,
     })),
-    buildSetupFeedback: vi.fn((payload) => ({
+    buildSetupFeedback: vi.fn(payload => ({
       color: payload.code === 'ok' ? 'success' : 'warning',
       duration: 2200,
       message: payload.message || '已启用备忘录锁',
@@ -110,15 +110,33 @@ describe('note more lock entry integration', () => {
   })
 
   it('opens the setup modal after the more sheet dismisses on mobile', async () => {
+    interface AlertOptions {
+      buttons: Array<{
+        handler?: () => void
+        role?: string
+        text: string
+      }>
+      header: string
+      message: string
+    }
+
+    const currentUser = ref<{ username: string } | null>(null)
+    const isLoggedIn = ref(false)
     const getNoteMock = vi.fn(async () => ({
       id: 'note-1',
       is_locked: 0,
       is_public: 0,
     }))
     const noteLockFlow = createNoteLockFlowStub('setup')
+    const alertPresent = vi.fn(async () => undefined)
+    const alertCreate = vi.fn(async (_options: AlertOptions) => ({ present: alertPresent }))
+    const routerPush = vi.fn()
     mockUseSync()
 
     vi.doMock('@ionic/vue', () => ({
+      alertController: {
+        create: alertCreate,
+      },
       IonCol: createIonicStub('IonCol'),
       IonGrid: createIonicStub('IonGrid'),
       IonModal: createIonicStub('IonModal', 'div', ['will-present', 'did-dismiss']),
@@ -130,7 +148,11 @@ describe('note more lock entry integration', () => {
       },
       useIonRouter: () => ({
         back: vi.fn(),
+        push: routerPush,
       }),
+    }))
+    vi.doMock('@/processes/session', () => ({
+      useAuth: () => ({ currentUser, isLoggedIn }),
     }))
     vi.doMock('vue-router', () => ({
       useRoute: () => ({
@@ -161,9 +183,7 @@ describe('note more lock entry integration', () => {
       }),
     }))
     vi.doMock('@/features/public-note-share', () => ({
-      usePublicNoteShare: () => ({
-        toggleShare: vi.fn(),
-      }),
+      PublicNoteAccessModal: createLockModalStub('PublicNoteAccessModal', 'public-note-access-modal'),
     }))
     vi.doMock('@/shared/lib/ionic', () => ({
       cleanupIonicOverlayLocksAsync: vi.fn(),
@@ -209,6 +229,38 @@ describe('note more lock entry integration', () => {
     expect(noteLockFlow.openPendingLockModal).toHaveBeenCalledTimes(1)
     expect(wrapper.get('[data-testid="note-lock-setup-modal"]').attributes('data-open')).toBe('true')
     expect(wrapper.get('[data-testid="note-lock-manage-modal"]').attributes('data-open')).toBe('false')
+
+    await wrapper.setProps({ isOpen: true })
+    expect(wrapper.findAll('button')[1].text()).toBe('公开')
+    await wrapper.findAll('button')[1].trigger('click')
+    await flushPromises()
+
+    expect(alertCreate).toHaveBeenCalledWith(expect.objectContaining({
+      header: '请先登录',
+      message: '登录后才能公开备忘录',
+      buttons: [
+        expect.objectContaining({ text: '取消', role: 'cancel' }),
+        expect.objectContaining({ text: '去登录' }),
+      ],
+    }))
+    expect(alertPresent).toHaveBeenCalledTimes(1)
+    expect(wrapper.get('[data-testid="public-note-access-modal"]').attributes('data-open')).toBe('false')
+
+    const alertOptions = alertCreate.mock.calls[0][0]
+    alertOptions.buttons[1].handler?.()
+    expect(routerPush).toHaveBeenCalledWith('/login')
+
+    currentUser.value = { username: 'virjay' }
+    isLoggedIn.value = true
+    await wrapper.setProps({ isOpen: true })
+    await wrapper.findAll('button')[1].trigger('click')
+
+    expect(wrapper.get('[data-testid="public-note-access-modal"]').attributes('data-open')).toBe('false')
+
+    modal.vm.$emit('did-dismiss')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="public-note-access-modal"]').attributes('data-open')).toBe('true')
   })
 
   it('opens the manage modal after the more sheet dismisses for locked notes', async () => {
@@ -262,9 +314,7 @@ describe('note more lock entry integration', () => {
       }),
     }))
     vi.doMock('@/features/public-note-share', () => ({
-      usePublicNoteShare: () => ({
-        toggleShare: vi.fn(),
-      }),
+      PublicNoteAccessModal: createLockModalStub('PublicNoteAccessModal', 'public-note-access-modal'),
     }))
     vi.doMock('@/shared/lib/ionic', () => ({
       cleanupIonicOverlayLocksAsync: vi.fn(),
@@ -358,9 +408,7 @@ describe('note more lock entry integration', () => {
       }),
     }))
     vi.doMock('@/features/public-note-share', () => ({
-      usePublicNoteShare: () => ({
-        toggleShare: vi.fn(),
-      }),
+      PublicNoteAccessModal: createLockModalStub('PublicNoteAccessModal', 'public-note-access-modal'),
     }))
     vi.doMock('@/shared/lib/ionic', () => ({
       cleanupIonicOverlayLocksAsync: vi.fn(),
@@ -492,9 +540,7 @@ describe('note more lock entry integration', () => {
       }),
     }))
     vi.doMock('@/features/public-note-share', () => ({
-      usePublicNoteShare: () => ({
-        toggleShare: vi.fn(),
-      }),
+      PublicNoteAccessModal: createLockModalStub('PublicNoteAccessModal', 'public-note-access-modal'),
     }))
     vi.doMock('@/shared/lib/ionic', () => ({
       cleanupIonicOverlayLocksAsync: vi.fn(),

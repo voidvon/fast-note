@@ -1,23 +1,33 @@
 import type { Note } from '@/shared/types'
 import { useNote } from '@/entities/note'
 import { getTime } from '@/shared/lib/date'
+import { NOTE_TYPE } from '@/shared/types'
 
 type NoteStoreApi = ReturnType<typeof useNote>
 
-export interface PublicNoteShareResult {
+export interface PublicNoteAccessResult {
   color: 'success' | 'danger'
   message: string
   note: Note
   ok: boolean
 }
 
-export interface UsePublicNoteShareOptions {
+export interface UsePublicNoteAccessOptions {
   getNote?: NoteStoreApi['getNote']
   getNotesByParentId?: NoteStoreApi['getNotesByParentId']
   updateNote?: NoteStoreApi['updateNote']
 }
 
-export function usePublicNoteShare(options: UsePublicNoteShareOptions = {}) {
+export function buildPublicNoteUrl(note: Note, username: string, origin: string) {
+  if (!note.id || !username || !origin) {
+    return ''
+  }
+
+  const routeSegment = note.item_type === NOTE_TYPE.FOLDER ? 'f' : 'n'
+  return `${origin.replace(/\/$/, '')}/${encodeURIComponent(username)}/${routeSegment}/${note.id}`
+}
+
+export function usePublicNoteAccess(options: UsePublicNoteAccessOptions = {}) {
   const noteStore = useNote()
   const getNote = options.getNote || noteStore.getNote
   const getNotesByParentId = options.getNotesByParentId || noteStore.getNotesByParentId
@@ -63,7 +73,7 @@ export function usePublicNoteShare(options: UsePublicNoteShareOptions = {}) {
     return parents
   }
 
-  async function enableShare(note: Note, now: string) {
+  async function makePublic(note: Note, now: string) {
     note.is_public = true
     note.updated = now
     await updateNote(note.id, note)
@@ -80,7 +90,7 @@ export function usePublicNoteShare(options: UsePublicNoteShareOptions = {}) {
     }
   }
 
-  async function disableShare(note: Note, now: string) {
+  async function makePrivate(note: Note, now: string) {
     note.is_public = false
     note.updated = now
     await updateNote(note.id, { ...note })
@@ -104,27 +114,27 @@ export function usePublicNoteShare(options: UsePublicNoteShareOptions = {}) {
     }
   }
 
-  async function toggleShare(note: Note): Promise<PublicNoteShareResult> {
+  async function togglePublic(note: Note): Promise<PublicNoteAccessResult> {
     try {
       const now = getTime()
       const isPublic = !note.is_public
 
       if (isPublic) {
-        await enableShare(note, now)
+        await makePublic(note, now)
       }
       else {
-        await disableShare(note, now)
+        await makePrivate(note, now)
       }
 
       return {
         color: 'success',
-        message: isPublic ? '已启用分享' : '已取消分享',
+        message: isPublic ? '已设为公开' : '已设为私密',
         note,
         ok: true,
       }
     }
     catch (error) {
-      console.error('分享操作异常:', error)
+      console.error('更新备忘录公开状态异常:', error)
 
       return {
         color: 'danger',
@@ -136,6 +146,6 @@ export function usePublicNoteShare(options: UsePublicNoteShareOptions = {}) {
   }
 
   return {
-    toggleShare,
+    togglePublic,
   }
 }
