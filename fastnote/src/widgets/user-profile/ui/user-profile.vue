@@ -17,6 +17,7 @@ import {
   IonTitle,
   IonToolbar,
   loadingController,
+  toastController,
   useIonRouter,
 } from '@ionic/vue'
 import {
@@ -28,16 +29,17 @@ import {
   warningOutline,
 } from 'ionicons/icons'
 import { computed, onMounted, ref } from 'vue'
-import { useSync } from '@/processes/sync-notes'
 import { useAuth } from '@/processes/session'
+import { useSync } from '@/processes/sync-notes'
 import { useDeviceType } from '@/shared/lib/device'
+import { getCurrentDatabaseName } from '@/shared/lib/storage/dexie'
 
 // 获取全局版本号
 const version = (window as any).version
 
 const router = useIonRouter()
 const { isDesktop } = useDeviceType()
-const { sync, syncing, syncStatus, getLocalDataStats } = useSync()
+const { bidirectionalSync, syncing, syncStatus, getLocalDataStats } = useSync()
 const { avatarUrl, currentUser, isLoggedIn, logout } = useAuth()
 
 // 弹窗控制
@@ -122,7 +124,7 @@ async function handleSync() {
     await loading.present()
 
     // 非静默模式：未登录会抛出错误
-    const result = await sync(false)
+    const result = await bidirectionalSync(false)
 
     if (result) {
       syncResult.value = result
@@ -130,14 +132,18 @@ async function handleSync() {
 
     await loading.dismiss()
 
-    // 显示同步结果
+    // 首次附件全量落地后给一次轻提示，常规状态留在同步区域。
     if (result) {
-      const alert = await alertController.create({
-        header: '同步完成',
-        message: `上传: ${result.uploaded} 条, 下载: ${result.downloaded} 条, 删除: ${result.deleted} 条`,
-        buttons: ['确定'],
-      })
-      await alert.present()
+      const notificationKey = `fastnote:attachments-hydrated:${getCurrentDatabaseName()}`
+      if (result.attachments.total > 0 && result.attachments.hydrated && !localStorage.getItem(notificationKey)) {
+        localStorage.setItem(notificationKey, '1')
+        const toast = await toastController.create({
+          message: '附件已全部离线可用',
+          duration: 2200,
+          position: 'bottom',
+        })
+        await toast.present()
+      }
     }
 
     // 刷新本地数据统计
@@ -292,6 +298,27 @@ onMounted(() => {
                   <h3>上次同步时间</h3>
                   <p>{{ syncStatus.lastSyncTime.toLocaleString('zh-CN') }}</p>
                 </IonLabel>
+              </IonItem>
+
+              <IonItem v-if="syncStatus.attachments.total > 0">
+                <IonLabel :color="syncStatus.attachments.hydrated ? undefined : 'warning'">
+                  <h3>附件同步</h3>
+                  <p v-if="syncStatus.attachments.quotaExceeded">
+                    设备存储空间不足，笔记已同步，仍有 {{ syncStatus.attachments.total - syncStatus.attachments.ready }} 个附件未下载
+                  </p>
+                  <p v-else-if="syncStatus.attachments.hydrated">
+                    附件已全部离线可用（{{ syncStatus.attachments.ready }}/{{ syncStatus.attachments.total }}）
+                  </p>
+                  <p v-else>
+                    附件同步中 {{ syncStatus.attachments.ready }}/{{ syncStatus.attachments.total }}，失败 {{ syncStatus.attachments.failed + syncStatus.attachments.missing }}
+                  </p>
+                </IonLabel>
+                <IonIcon
+                  v-if="!syncStatus.attachments.hydrated"
+                  slot="end"
+                  :icon="warningOutline"
+                  color="warning"
+                />
               </IonItem>
 
               <IonItem v-if="syncStatus.error">

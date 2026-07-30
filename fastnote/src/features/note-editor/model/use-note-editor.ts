@@ -1,4 +1,5 @@
 import type { Content, JSONContent } from '@tiptap/core'
+import type { EditorProps } from '@tiptap/pm/view'
 import { Color } from '@tiptap/extension-color'
 import { ListItem, TaskList } from '@tiptap/extension-list'
 import TextAlign from '@tiptap/extension-text-align'
@@ -7,7 +8,14 @@ import StarterKit from '@tiptap/starter-kit'
 import { Editor } from '@tiptap/vue-3'
 import GlobalDragHandle from 'tiptap-extension-global-drag-handle'
 import { computed, onBeforeUnmount, ref } from 'vue'
+import {
+  hydrateRemoteAttachment,
+  registerActiveAttachmentHash,
+  resolveStoredRemoteAttachment,
+  unregisterActiveAttachmentHashes,
+} from '@/entities/attachment/model/attachment-lifecycle-service'
 import { noteRemoteService, useNoteFiles } from '@/entities/note'
+import { handleAttachmentDrop, handleAttachmentPaste } from '@/features/note-editor/lib/attachment-transfer'
 import { handleEditableLinkClick } from '@/features/note-editor/lib/link-click'
 import { FileUpload } from '@/shared/lib/editor/extensions/FileUpload/FileUpload'
 import { TableWithWrapper } from '@/shared/lib/editor/extensions/TableWithWrapper'
@@ -101,13 +109,16 @@ export function useNoteEditor(options: {
   const editor = ref<Editor | null>(null)
   const inputMode = ref<'text' | 'none'>('text')
   const { addNoteFile, getNoteFileByHash } = useNoteFiles()
+  const activeAttachmentHashes = new Set<string>()
 
-  function buildEditorProps() {
+  function buildEditorProps(): EditorProps {
     return {
       attributes: {
         inputmode: inputMode.value,
       },
       handleClick: handleEditableLinkClick,
+      handleDrop: (view, event) => handleAttachmentDrop(view, event, insertFiles),
+      handlePaste: (_view, event) => handleAttachmentPaste(event, insertFiles),
     }
   }
 
@@ -134,6 +145,28 @@ export function useNoteEditor(options: {
         const noteId = resolveFileOwnerNoteId(options.getCurrentNoteId?.())
 
         if (noteId) {
+          const localFile = await resolveStoredRemoteAttachment(noteId, hashOrFilename)
+          if (localFile?.file) {
+            return {
+              url: URL.createObjectURL(localFile.file),
+              type: localFile.file.type,
+            }
+          }
+
+          try {
+            await hydrateRemoteAttachment(noteId, hashOrFilename)
+            const hydratedFile = await resolveStoredRemoteAttachment(noteId, hashOrFilename)
+            if (hydratedFile?.file) {
+              return {
+                url: URL.createObjectURL(hydratedFile.file),
+                type: hydratedFile.file.type,
+              }
+            }
+          }
+          catch (error) {
+            console.warn(`附件本地化失败，回退远端读取: ${hashOrFilename}`, error)
+          }
+
           const result = await noteRemoteService.getFileByFilename(noteId, hashOrFilename)
           if (result) {
             return {
@@ -199,11 +232,12 @@ export function useNoteEditor(options: {
     })
   }
 
-  async function insertFiles(files: FileList): Promise<string[]> {
+  async function insertFiles(files: ArrayLike<File>, position?: number): Promise<string[]> {
     if (!editor.value)
       return []
 
     const insertedHashes: string[] = []
+    let nextPosition = position
 
     for (const file of Array.from(files)) {
       try {
@@ -213,8 +247,25 @@ export function useNoteEditor(options: {
           await addNoteFile(file, hash)
         }
 
-        editor.value.commands.setFileUpload({ url: hash })
+        const inserted = nextPosition === undefined
+          ? editor.value.commands.setFileUpload({ url: hash })
+          : editor.value.commands.insertContentAt(nextPosition, {
+              type: 'fileUpload',
+              attrs: { url: hash },
+            })
+
+        if (!inserted) {
+          continue
+        }
+
         insertedHashes.push(hash)
+        if (!activeAttachmentHashes.has(hash)) {
+          activeAttachmentHashes.add(hash)
+          registerActiveAttachmentHash(hash)
+        }
+        if (nextPosition !== undefined) {
+          nextPosition += 1
+        }
       }
       catch (error) {
         console.error('插入文件失败:', error, file.name)
@@ -323,6 +374,7 @@ export function useNoteEditor(options: {
   }
 
   onBeforeUnmount(() => {
+    unregisterActiveAttachmentHashes(activeAttachmentHashes)
     destroyEditor()
   })
 

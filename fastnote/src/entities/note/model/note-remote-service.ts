@@ -10,7 +10,9 @@ export interface NoteRemoteUpdateResult {
 }
 
 export interface NoteRemoteService {
+  deleteNote: (noteId: string) => Promise<void>
   getFileByFilename: (noteId: string, filename: string) => Promise<{ url: string, type: string } | null>
+  getNoteManifest: () => Promise<Array<{ id: string, updated: string }>>
   getNotesByUpdated: (lastUpdated: string) => Promise<Note[]>
   updateNote: (note: any, filesForUpload?: Array<File | string>, mode?: NoteWriteMode) => Promise<NoteRemoteUpdateResult>
 }
@@ -25,6 +27,9 @@ function normalizeRemoteNote(note: any): Note {
 }
 
 export const noteRemoteService: NoteRemoteService = {
+  async deleteNote(noteId: string) {
+    await notesService.deleteNote(noteId)
+  },
   async getFileByFilename(noteId: string, filename: string) {
     return await filesApi.getFileByFilename(noteId, filename)
   },
@@ -32,6 +37,9 @@ export const noteRemoteService: NoteRemoteService = {
     const result = await notesService.getNotesByUpdated(lastUpdated)
 
     return result.d.map(note => normalizeRemoteNote(note))
+  },
+  async getNoteManifest() {
+    return await notesService.getNoteManifest()
   },
   async updateNote(note: any, filesForUpload?: Array<File | string>, mode: NoteWriteMode = 'auto') {
     return await notesService.updateNote(note, filesForUpload, mode)

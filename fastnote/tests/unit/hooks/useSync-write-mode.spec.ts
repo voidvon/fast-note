@@ -93,11 +93,37 @@ describe('useSync write mode routing', () => {
 
     await syncNoteToRemote(localNote, 'create')
 
-    expect(remoteUpdateMock).toHaveBeenCalledWith(localNote, undefined, 'create')
+    expect(remoteUpdateMock).toHaveBeenCalledWith(localNote, [], 'create')
     expect(storeUpdateMock).toHaveBeenCalledWith(localNote.id, expect.objectContaining({
       user_id: 'user-a',
       updated: '2026-03-09 10:00:01.000Z',
     }))
+  })
+
+  it('stops remote sync when content references a missing local attachment blob', async () => {
+    const hash = 'a'.repeat(64)
+    const localNote = {
+      ...createLocalNote('note-missing-file', '2026-03-09 10:00:00.000Z'),
+      content: `<file-upload url="${hash}"></file-upload>`,
+    }
+    const remoteUpdateMock = vi.fn()
+
+    vi.doMock('@/entities/note/model/state/note-store', () => ({
+      useNote: () => ({ updateNote: vi.fn() }),
+    }))
+    vi.doMock('@/entities/note/model/note-remote-service', () => ({
+      noteRemoteService: { updateNote: remoteUpdateMock },
+    }))
+    vi.doMock('@/entities/note/model/use-note-files', () => ({
+      useNoteFiles: () => ({ getNoteFileByHash: vi.fn(async () => null) }),
+    }))
+
+    const { useNoteSyncService } = await import('@/entities/note/model/note-sync-service')
+    await expect(useNoteSyncService()
+      .syncNoteToRemote(localNote, 'update'))
+      .rejects
+      .toThrow('本地附件不存在')
+    expect(remoteUpdateMock).not.toHaveBeenCalled()
   })
 
   it('does not create cloud tombstones for deleted unsynced notes', () => {
@@ -114,7 +140,7 @@ describe('useSync write mode routing', () => {
     expect(operations).toEqual([
       {
         note: localNote,
-        action: 'deleteLocal',
+        action: 'purge',
       },
     ])
     expect(operations.some(operation => operation.action === 'delete')).toBe(false)

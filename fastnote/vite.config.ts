@@ -61,11 +61,11 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
         },
         '/e': {
-          target: 'https://next.0122.vip',
+          target: apiProxyTarget,
           changeOrigin: true,
         },
         '/d': {
-          target: 'https://next.0122.vip',
+          target: apiProxyTarget,
           changeOrigin: true,
         },
         '/api': {

@@ -33,6 +33,26 @@ describe('pocketbase notes write mode', () => {
     expect(notesCollection.getFullList).not.toHaveBeenCalled()
   })
 
+  it('submits an explicit empty files list when the last attachment is removed', async () => {
+    const notesCollection = createPocketBaseCollectionMock()
+    notesCollection.update.mockResolvedValue({ id: 'note-empty-files', files: [] })
+
+    vi.doMock('@/shared/api/pocketbase/client', () => ({
+      mapErrorMessage: (error: any) => error?.message || 'error',
+      pb: {
+        authStore: { model: { id: 'user-a' }, isValid: true },
+        collection: vi.fn(() => notesCollection),
+      },
+    }))
+
+    const { notesService } = await import('@/shared/api/pocketbase/notes')
+    await notesService.updateNote({ id: 'note-empty-files', content: '<p>no file</p>' }, [], 'update')
+
+    expect(notesCollection.update).toHaveBeenCalledWith('note-empty-files', expect.objectContaining({
+      files: [],
+    }))
+  })
+
   it('falls back to update when create mode hits validation_pk_invalid', async () => {
     const notesCollection = createPocketBaseCollectionMock()
     notesCollection.create.mockRejectedValue({

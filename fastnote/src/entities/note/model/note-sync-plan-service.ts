@@ -1,7 +1,7 @@
 import type { Note } from '@/shared/types'
 import { hasRemoteUserId, NOTE_DELETION_RETENTION_DAYS } from './domain/note-rules'
 
-export type NoteSyncAction = 'upload' | 'update' | 'download' | 'delete' | 'deleteLocal' | 'skip'
+export type NoteSyncAction = 'upload' | 'update' | 'download' | 'delete' | 'deleteLocal' | 'purge' | 'skip'
 
 export interface NoteSyncOperation {
   note: Note
@@ -36,12 +36,7 @@ export function buildNoteSyncOperations({
 
     if (note.is_deleted === 1) {
       if (now - localTime > deletionRetentionMs) {
-        operations.push({ note, action: 'deleteLocal' })
-
-        if (isSyncedNote) {
-          operations.push({ note: { ...note }, action: 'delete' })
-        }
-
+        operations.push({ note, action: 'purge' })
         continue
       }
 
@@ -86,10 +81,8 @@ export function buildNoteSyncOperations({
 
     if (note.is_deleted === 1) {
       if (now - cloudTime > deletionRetentionMs) {
-        if (localNote) {
-          operations.push({ note, action: 'deleteLocal' })
-        }
-
+        if (!localNote)
+          operations.push({ note, action: 'purge' })
         continue
       }
 

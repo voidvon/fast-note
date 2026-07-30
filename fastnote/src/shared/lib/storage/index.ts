@@ -1,7 +1,20 @@
 export {
+  deleteNotePurgeJob,
+  deleteStoredNoteFileRefs,
+  getStoredNoteFileRef,
+  listNotePurgeJobs,
+  listStoredNoteFileRefs,
+  putNotePurgeJob,
+  putStoredNoteFileRef,
+} from './attachment-files'
+
+export { preparePersistentStorage } from './capacity'
+
+export {
   getCurrentDatabaseName,
   initializeDatabase,
   type NoteDatabase,
+  openCurrentDatabaseConnection,
   openIsolatedDatabase,
   switchDatabase,
   toBool,
@@ -31,17 +44,18 @@ export {
   type UserPublicNotesDatabase,
 } from './public-notes'
 
-export {
-  useRefDBSync,
-} from './sync'
+export { useRefDBSync } from './sync'
 
 export type {
   DeviceSecurityState,
   Metadata,
   Note,
   NoteFile,
+  NoteFileRef,
+  NoteFileRefStatus,
   NoteLockFields,
   NoteLockType,
+  NotePurgeJob,
   NoteUnlockSession,
   SecuritySettings,
   SyncableItem,

@@ -103,6 +103,31 @@ export const filesService = {
       return Promise.resolve(null)
     }
   },
+
+  async downloadNoteFile(noteId: string, filename: string): Promise<File> {
+    if (!pb.authStore.isValid) {
+      throw new Error('用户未登录')
+    }
+
+    const fileInfo = await this.getFileByFilename(noteId, filename)
+    if (!fileInfo) {
+      throw new Error(`附件不存在: ${filename}`)
+    }
+
+    const response = await fetch(fileInfo.url, {
+      headers: pb.authStore.token
+        ? { Authorization: pb.authStore.token }
+        : undefined,
+    })
+    if (!response.ok) {
+      throw new Error(`附件下载失败 (${response.status}): ${filename}`)
+    }
+
+    const blob = await response.blob()
+    return new File([blob], filename, {
+      type: blob.type || fileInfo.type || 'application/octet-stream',
+    })
+  },
 }
 
 export { filesService as filesApi }

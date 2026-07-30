@@ -19,6 +19,32 @@ export interface NoteFile {
   fileType: string
   created: string
   updated: string
+  lastReferencedAt?: string
+  downloadedAt?: string
+}
+
+export type NoteFileRefStatus = 'pending_download' | 'downloading' | 'ready' | 'missing' | 'failed'
+
+export interface NoteFileRef {
+  noteId: string
+  remoteFilename: string
+  hash?: string
+  status: NoteFileRefStatus
+  attempts: number
+  nextRetryAt?: string
+  lastError?: string
+  created: string
+  updated: string
+}
+
+export interface NotePurgeJob {
+  noteId: string
+  status: 'pending' | 'running' | 'failed'
+  attempts: number
+  nextRetryAt?: string
+  lastError?: string
+  created: string
+  updated: string
 }
 
 export interface SyncableItem {

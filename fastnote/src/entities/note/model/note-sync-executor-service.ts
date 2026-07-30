@@ -1,4 +1,6 @@
 import type { NoteSyncOperation } from './note-sync-plan-service'
+import { garbageCollectAttachments, reconcileRemoteNoteAttachments } from '@/entities/attachment'
+import { useNotePurgeService } from './note-purge-service'
 import { useNoteSyncService } from './note-sync-service'
 import { useNote } from './state/note-store'
 
@@ -17,8 +19,9 @@ export interface ExecuteNoteSyncOperationsParams {
 }
 
 export function useNoteSyncExecutorService() {
-  const { getNote, addNote, deleteNote, updateNote } = useNote()
+  const { getNote, addNote, deleteNote, notes, updateNote } = useNote()
   const { syncDeletedNoteToRemote, syncNoteToRemote } = useNoteSyncService()
+  const { purgeNoteNow } = useNotePurgeService()
 
   async function executeNoteSyncOperations({
     operations,
@@ -36,10 +39,16 @@ export function useNoteSyncExecutorService() {
 
         if (action === 'upload') {
           syncedUpdatedAt = (await syncNoteToRemote(note, 'create')).syncedUpdatedAt
+          const syncedNote = await getNote(note.id)
+          if (syncedNote)
+            await reconcileRemoteNoteAttachments(syncedNote)
           uploadedCount++
         }
         else if (action === 'update') {
           syncedUpdatedAt = (await syncNoteToRemote(note, 'update')).syncedUpdatedAt
+          const syncedNote = await getNote(note.id)
+          if (syncedNote)
+            await reconcileRemoteNoteAttachments(syncedNote)
           uploadedCount++
         }
         else if (action === 'download') {
@@ -52,6 +61,8 @@ export function useNoteSyncExecutorService() {
             await addNote(note)
           }
 
+          await reconcileRemoteNoteAttachments(note)
+
           downloadedCount++
         }
         else if (action === 'deleteLocal') {
@@ -60,6 +71,10 @@ export function useNoteSyncExecutorService() {
         }
         else if (action === 'delete') {
           syncedUpdatedAt = (await syncDeletedNoteToRemote(note)).syncedUpdatedAt
+          deletedCount++
+        }
+        else if (action === 'purge') {
+          await purgeNoteNow(note)
           deletedCount++
         }
 
@@ -73,6 +88,8 @@ export function useNoteSyncExecutorService() {
         throw error
       }
     }
+
+    await garbageCollectAttachments(notes.value)
 
     return {
       uploaded: uploadedCount,

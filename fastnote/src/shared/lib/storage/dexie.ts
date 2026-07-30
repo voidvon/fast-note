@@ -1,5 +1,5 @@
 import type { Ref } from 'vue'
-import type { DeviceSecurityState, Metadata, Note, NoteFile, NoteUnlockSession, SecuritySettings, UserInfo } from './types'
+import type { DeviceSecurityState, Metadata, Note, NoteFile, NoteFileRef, NotePurgeJob, NoteUnlockSession, SecuritySettings, UserInfo } from './types'
 import Dexie from 'dexie'
 import { ref } from 'vue'
 import { getScopedDatabaseName } from '@/shared/lib/user-scope'
@@ -7,6 +7,8 @@ import { getScopedDatabaseName } from '@/shared/lib/user-scope'
 export interface NoteDatabase extends Dexie {
   notes: Dexie.Table<Note, string>
   note_files: Dexie.Table<NoteFile, string>
+  note_file_refs: Dexie.Table<NoteFileRef, [string, string]>
+  note_purge_jobs: Dexie.Table<NotePurgeJob, string>
   user_info: Dexie.Table<UserInfo, string>
   metadata: Dexie.Table<Metadata, string>
   security_settings: Dexie.Table<SecuritySettings, string>
@@ -15,7 +17,7 @@ export interface NoteDatabase extends Dexie {
   [key: string]: any
 }
 
-export const NOTE_DATABASE_VERSION = 3
+export const NOTE_DATABASE_VERSION = 4
 
 export const NOTE_DATABASE_SCHEMA_V1 = {
   notes: '&id, [item_type+parent_id+is_deleted], title, created, item_type, parent_id, content, updated, version, is_deleted, note_count, files',
@@ -39,6 +41,13 @@ export const NOTE_DATABASE_SCHEMA_V3 = {
   note_unlock_sessions: '&note_id, expires_at, updated',
 } as const
 
+export const NOTE_DATABASE_SCHEMA_V4 = {
+  ...NOTE_DATABASE_SCHEMA_V3,
+  note_files: '&hash, fileName, fileSize, fileType, created, updated, lastReferencedAt',
+  note_file_refs: '[noteId+remoteFilename], noteId, remoteFilename, hash, status, updated',
+  note_purge_jobs: '&noteId, status, nextRetryAt, updated',
+} as const
+
 const db = ref<NoteDatabase>()
 const onNoteUpdateArr: (() => void)[] = []
 let currentDatabaseName = ''
@@ -46,7 +55,12 @@ let currentDatabaseName = ''
 function applySchema(database: NoteDatabase) {
   database.version(1).stores(NOTE_DATABASE_SCHEMA_V1)
   database.version(2).stores(NOTE_DATABASE_SCHEMA_V2)
-  database.version(NOTE_DATABASE_VERSION).stores(NOTE_DATABASE_SCHEMA_V3)
+  database.version(3).stores(NOTE_DATABASE_SCHEMA_V3)
+  database.version(NOTE_DATABASE_VERSION).stores(NOTE_DATABASE_SCHEMA_V4).upgrade(async (transaction) => {
+    await transaction.table<NoteFile, string>('note_files').toCollection().modify((file) => {
+      file.lastReferencedAt = file.lastReferencedAt || file.updated || file.created
+    })
+  })
 }
 
 async function openDatabase(databaseName: string) {
@@ -59,6 +73,13 @@ async function openDatabase(databaseName: string) {
 export async function openIsolatedDatabase(userId?: string | null) {
   const databaseName = getScopedDatabaseName(userId)
   return openDatabase(databaseName)
+}
+
+export async function openCurrentDatabaseConnection() {
+  if (!currentDatabaseName)
+    throw new Error('数据库未初始化')
+
+  return openDatabase(currentDatabaseName)
 }
 
 export async function initializeDatabase(userId?: string | null) {

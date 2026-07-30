@@ -35,7 +35,7 @@ export function useSync() {
     repairMissingPrivateNoteIfNeeded: repairMissingPrivateNoteWithCacheRepair,
   } = useSyncMaintenanceService()
   const { runIncrementalNoteSync } = useSyncOrchestratorService()
-  const { markSyncFailed, markSyncSucceeded, syncStatus } = useSyncStatusState()
+  const { markSyncFailed, markSyncSucceeded, syncStatus, updateAttachmentStatus } = useSyncStatusState()
 
   /**
    * 主同步函数
@@ -69,6 +69,7 @@ export function useSync() {
 
       try {
         const result = await runIncrementalNoteSync()
+        updateAttachmentStatus(result.attachments)
         triggerSyncedCallbacks(result)
         return result
       }

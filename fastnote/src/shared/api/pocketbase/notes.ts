@@ -56,8 +56,8 @@ function isAlreadyExistsError(error: any): boolean {
 }
 
 function buildWritePayload(noteData: any, filesForUpload?: Array<File | string>) {
-  if (!filesForUpload || filesForUpload.length === 0 || !hasFileToUpload(filesForUpload)) {
-    if (filesForUpload && filesForUpload.length > 0) {
+  if (!filesForUpload || !hasFileToUpload(filesForUpload)) {
+    if (filesForUpload !== undefined) {
       return { ...noteData, files: filesForUpload }
     }
 
@@ -133,6 +133,29 @@ async function updateNoteRecord(noteData: any, filesForUpload?: Array<File | str
 }
 
 export const notesService = {
+  async getNoteManifest(): Promise<Array<{ id: string, updated: string }>> {
+    if (!pb.authStore.isValid) {
+      throw new Error('用户未登录')
+    }
+
+    const records = await pb.collection('notes').getFullList({
+      fields: 'id,updated',
+      filter: `user_id = "${pb.authStore.model?.id}"`,
+      sort: '+id',
+    })
+    return records.map(record => ({ id: record.id, updated: record.updated }))
+  },
+
+  async deleteNote(noteId: string): Promise<void> {
+    try {
+      await pb.collection('notes').delete(noteId)
+    }
+    catch (error: any) {
+      if (!isNotFoundError(error))
+        throw new Error(`删除PocketBase笔记失败: ${mapErrorMessage(error)}`)
+    }
+  },
+
   async getNotesByUpdated(lastUpdated: string): Promise<{ d: any[] }> {
     try {
       if (!pb.authStore.isValid) {

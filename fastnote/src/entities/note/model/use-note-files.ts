@@ -23,6 +23,7 @@ export function useNoteFiles() {
       fileType: file.type,
       created: getTime(),
       updated: getTime(),
+      lastReferencedAt: getTime(),
     }
 
     if (!db.value) {

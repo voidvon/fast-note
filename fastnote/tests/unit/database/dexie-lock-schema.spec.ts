@@ -3,13 +3,14 @@ import {
   NOTE_DATABASE_SCHEMA_V1,
   NOTE_DATABASE_SCHEMA_V2,
   NOTE_DATABASE_SCHEMA_V3,
+  NOTE_DATABASE_SCHEMA_V4,
   NOTE_DATABASE_VERSION,
 } from '@/shared/lib/storage/dexie'
 import { getDefaultNoteLockFields, normalizeNoteLockFields } from '@/shared/types'
 
 describe('dexie lock schema (t-fn-036)', () => {
-  it('keeps database schema on v3 and adds dedicated security tables', () => {
-    expect(NOTE_DATABASE_VERSION).toBe(3)
+  it('keeps lock tables and adds attachment lifecycle tables in v4', () => {
+    expect(NOTE_DATABASE_VERSION).toBe(4)
     expect(NOTE_DATABASE_SCHEMA_V1).not.toHaveProperty('device_security_state')
     expect(NOTE_DATABASE_SCHEMA_V2).not.toHaveProperty('security_settings')
     expect(NOTE_DATABASE_SCHEMA_V3).toMatchObject({
@@ -21,6 +22,11 @@ describe('dexie lock schema (t-fn-036)', () => {
     expect(NOTE_DATABASE_SCHEMA_V3.notes).not.toContain('lock_type')
     expect(NOTE_DATABASE_SCHEMA_V3.notes).not.toContain('lock_secret_hash')
     expect(NOTE_DATABASE_SCHEMA_V3.notes).not.toContain('lock_version')
+    expect(NOTE_DATABASE_SCHEMA_V4).toMatchObject({
+      note_file_refs: '[noteId+remoteFilename], noteId, remoteFilename, hash, status, updated',
+      note_purge_jobs: '&noteId, status, nextRetryAt, updated',
+    })
+    expect(NOTE_DATABASE_SCHEMA_V4.note_files).toContain('lastReferencedAt')
   })
 
   it('treats is_locked as the only source of note lock state', () => {

@@ -1,9 +1,9 @@
 import { useNote } from '@/entities/note'
-
-const DELETE_NOW_UPDATED_AT = new Date(0).toISOString().replace('T', ' ')
+import { useNotePurgeService } from '@/entities/note/model/note-purge-service'
 
 export function useNoteActionsMenu() {
   const { getNote, setNoteDeletedState, updateNote } = useNote()
+  const { queueNotePurge } = useNotePurgeService()
 
   function getNoteById(id: string) {
     return getNote(id)
@@ -43,7 +43,7 @@ export function useNoteActionsMenu() {
       return null
     }
 
-    await updateNote(noteId, { updated: DELETE_NOW_UPDATED_AT })
+    await queueNotePurge(noteId)
     return getNote(noteId)
   }
 

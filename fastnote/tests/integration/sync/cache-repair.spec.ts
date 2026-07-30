@@ -36,6 +36,7 @@ describe('cache repair sync (t-fn-032 / tc-fn-025)', () => {
 
     vi.doMock('@/entities/note', () => ({
       useNote: () => ({
+        notes: { value: [] },
         getNotesByUpdated: getNotesByUpdatedMock,
         getNote: getNoteMock,
         addNote: addNoteMock,
@@ -76,6 +77,28 @@ describe('cache repair sync (t-fn-032 / tc-fn-025)', () => {
           }
         }),
       }),
+      useNotePurgeService: () => ({
+        queueExpiredNotePurges: vi.fn(async () => 0),
+        runPendingNotePurges: vi.fn(async () => 0),
+      }),
+    }))
+
+    vi.doMock('@/entities/attachment', () => ({
+      getAttachmentHydrationStatus: vi.fn(async () => ({
+        total: 0,
+        ready: 0,
+        failed: 0,
+        missing: 0,
+        pending: 0,
+        hydrated: true,
+        quotaExceeded: false,
+      })),
+      reconcileRemoteNoteAttachments: vi.fn(async () => ({ ready: 0, failed: 0, total: 0 })),
+    }))
+    vi.doMock('@/processes/sync-notes/model/sync-manifest-service', () => ({
+      useSyncManifestService: () => ({
+        reconcileRemoteNoteManifest: vi.fn(async () => ({ remoteCount: 1, removedLocalCount: 0 })),
+      }),
     }))
 
     vi.doMock('@/entities/auth', () => ({
@@ -115,6 +138,16 @@ describe('cache repair sync (t-fn-032 / tc-fn-025)', () => {
       uploaded: 0,
       downloaded: 1,
       deleted: 0,
+      attachments: {
+        total: 0,
+        ready: 0,
+        failed: 0,
+        missing: 0,
+        pending: 0,
+        hydrated: true,
+        quotaExceeded: false,
+      },
+      manifest: { remoteCount: 1, removedLocalCount: 0 },
     })
   })
 
@@ -127,6 +160,7 @@ describe('cache repair sync (t-fn-032 / tc-fn-025)', () => {
 
     vi.doMock('@/entities/note', () => ({
       useNote: () => ({
+        notes: { value: [] },
         getNotesByUpdated: getNotesByUpdatedMock,
         getNote: getNoteMock,
         addNote: addNoteMock,
@@ -166,6 +200,28 @@ describe('cache repair sync (t-fn-032 / tc-fn-025)', () => {
             deleted: 0,
           }
         }),
+      }),
+      useNotePurgeService: () => ({
+        queueExpiredNotePurges: vi.fn(async () => 0),
+        runPendingNotePurges: vi.fn(async () => 0),
+      }),
+    }))
+
+    vi.doMock('@/entities/attachment', () => ({
+      getAttachmentHydrationStatus: vi.fn(async () => ({
+        total: 0,
+        ready: 0,
+        failed: 0,
+        missing: 0,
+        pending: 0,
+        hydrated: true,
+        quotaExceeded: false,
+      })),
+      reconcileRemoteNoteAttachments: vi.fn(async () => ({ ready: 0, failed: 0, total: 0 })),
+    }))
+    vi.doMock('@/processes/sync-notes/model/sync-manifest-service', () => ({
+      useSyncManifestService: () => ({
+        reconcileRemoteNoteManifest: vi.fn(async () => ({ remoteCount: 1, removedLocalCount: 0 })),
       }),
     }))
 

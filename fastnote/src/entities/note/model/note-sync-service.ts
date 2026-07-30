@@ -1,29 +1,13 @@
 import type { Note } from '@/shared/types'
+import { extractAttachmentReferences, isAttachmentHash } from '@/entities/attachment'
 import { getTime } from '@/shared/lib/date'
 import { hasRemoteUserId } from './domain/note-rules'
 import { noteRemoteService } from './note-remote-service'
-import { useNoteFiles } from './use-note-files'
 import { useNote } from './state/note-store'
+import { useNoteFiles } from './use-note-files'
 
 export interface NoteRemoteSyncResult {
   syncedUpdatedAt: string
-}
-
-function extractFileReferencesFromContent(content: string): string[] {
-  const fileRefRegex = /<file-upload[^>]+url="([^"]+)"/g
-  const fileReferences: string[] = []
-  let match = fileRefRegex.exec(content)
-
-  while (match !== null) {
-    fileReferences.push(match[1])
-    match = fileRefRegex.exec(content)
-  }
-
-  return fileReferences
-}
-
-function isHashValue(str: string): boolean {
-  return /^[a-f0-9]{64}$/i.test(str)
 }
 
 function generateTempFileId(index: number): string {
@@ -65,12 +49,13 @@ export function useNoteSyncService() {
     updatedNote: Note
     filesForUpload: Array<File | string> | undefined
   }> {
-    const fileReferences = note.content ? extractFileReferencesFromContent(note.content) : []
+    const references = extractAttachmentReferences(note.content)
+    const fileReferences = [...references.hashes, ...references.remoteFilenames]
 
     if (fileReferences.length === 0) {
       return {
         updatedNote: note,
-        filesForUpload: undefined,
+        filesForUpload: [],
       }
     }
 
@@ -82,7 +67,7 @@ export function useNoteSyncService() {
 
     for (const hashOrFilename of fileReferences) {
       try {
-        if (isHashValue(hashOrFilename)) {
+        if (isAttachmentHash(hashOrFilename)) {
           const localFile = await getNoteFileByHash(hashOrFilename)
 
           if (localFile?.file) {
@@ -104,6 +89,9 @@ export function useNoteSyncService() {
             )
             updatedContent = updatedContent.replace(hashRegex, `$1${tempId}$2`)
           }
+          else {
+            throw new Error(`本地附件不存在，停止同步: ${hashOrFilename}`)
+          }
         }
         else if (!processedFiles.has(hashOrFilename)) {
           filesForUpload.push(hashOrFilename)
@@ -112,7 +100,9 @@ export function useNoteSyncService() {
       }
       catch (error) {
         console.error(`处理文件失败: ${hashOrFilename}`, error)
-        if (!isHashValue(hashOrFilename) && !processedFiles.has(hashOrFilename)) {
+        if (isAttachmentHash(hashOrFilename))
+          throw error
+        if (!isAttachmentHash(hashOrFilename) && !processedFiles.has(hashOrFilename)) {
           filesForUpload.push(hashOrFilename)
           processedFiles.add(hashOrFilename)
         }
