@@ -1,6 +1,8 @@
 import type { RouteRecordRaw } from 'vue-router'
 import PrivateFolderRoute from './ui/private-folder-route.vue'
 import PrivateNoteRoute from './ui/private-note-route.vue'
+import PublicFolderRoute from './ui/public-folder-route.vue'
+import PublicNoteRoute from './ui/public-note-route.vue'
 
 export const appRoutes: Array<RouteRecordRaw> = [
   {
@@ -29,12 +31,12 @@ export const appRoutes: Array<RouteRecordRaw> = [
   {
     path: '/:username/f/:pathMatch(.*)*',
     name: 'UserFolder',
-    component: () => import('@/pages/folder'),
+    component: PublicFolderRoute,
   },
   {
     path: '/:username/n/:noteId',
     name: 'UserNote',
-    component: () => import('@/pages/note-detail'),
+    component: PublicNoteRoute,
   },
   {
     path: '/:username',

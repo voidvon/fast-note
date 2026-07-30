@@ -1,5 +1,5 @@
 import type { FolderTreeNode } from '@/shared/types'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick, ref } from 'vue'
 import { NOTE_TYPE } from '@/shared/types'
@@ -51,8 +51,8 @@ function createNoteDetailStub() {
   })
 }
 
-describe('UserPublicNotesPage', () => {
-  it('passes desktop public selection through FolderPage and NoteDetail with noteId contract', async () => {
+describe('user public notes page', () => {
+  it('restores the desktop three-pane selection from a public note deep link', async () => {
     vi.resetModules()
 
     const noteListStub = createNoteListStub()
@@ -79,6 +79,11 @@ describe('UserPublicNotesPage', () => {
     ]
 
     const getPublicFolderTreeByPUuid = vi.fn(() => publicFolders)
+    const getPublicNote = vi.fn(() => ({
+      id: 'note-1',
+      parent_id: 'folder-1',
+    }))
+    const routerPush = vi.fn()
     const ensurePublicNotesReady = vi.fn(async () => ({
       userInfo: {
         username: 'alice',
@@ -90,10 +95,11 @@ describe('UserPublicNotesPage', () => {
       return {
         ...actual,
         useRoute: () => ({
-          params: { username: 'alice' },
-          path: '/alice',
-          fullPath: '/alice',
+          params: { noteId: 'note-1', username: 'alice' },
+          path: '/alice/n/note-1',
+          fullPath: '/alice/n/note-1',
         }),
+        useRouter: () => ({ push: routerPush }),
       }
     })
 
@@ -105,6 +111,7 @@ describe('UserPublicNotesPage', () => {
 
     vi.doMock('@/entities/public-note', () => ({
       useUserPublicNotes: () => ({
+        getPublicNote,
         getPublicFolderTreeByPUuid,
       }),
     }))
@@ -137,8 +144,7 @@ describe('UserPublicNotesPage', () => {
       default: noteListStub,
     }))
 
-    vi.doMock('@ionic/vue', async () => {
-      const { onMounted } = await import('vue')
+    vi.doMock('@ionic/vue', () => {
       return {
         IonBackButton: createIonicStub('IonBackButton'),
         IonButton: createIonicStub('IonButton'),
@@ -152,7 +158,7 @@ describe('UserPublicNotesPage', () => {
         IonSpinner: createIonicStub('IonSpinner'),
         IonTitle: createIonicStub('IonTitle'),
         IonToolbar: createIonicStub('IonToolbar'),
-        onIonViewWillEnter: (callback: () => void) => onMounted(callback),
+        onIonViewWillEnter: vi.fn(),
       }
     })
 
@@ -167,29 +173,34 @@ describe('UserPublicNotesPage', () => {
       },
     })
 
-    await nextTick()
-    await nextTick()
+    await flushPromises()
 
     const noteList = wrapper.findComponent(noteListStub)
     const folderPage = () => wrapper.findComponent(folderPageStub)
     const noteDetail = () => wrapper.findComponent(noteDetailStub)
 
     expect(ensurePublicNotesReady).toHaveBeenCalledWith('alice', { force: false })
-    expect(noteList.props('noteUuid')).toBe('')
-    expect(folderPage().props('currentFolder')).toBe('')
-    expect(folderPage().props('selectedNoteId')).toBe('')
-    expect(noteDetail().props('noteId')).toBe('')
+    expect(wrapper.text()).not.toContain('加载中...')
+    expect(noteList.props('noteUuid')).toBe('folder-1')
+    expect(folderPage().props('currentFolder')).toBe('folder-1')
+    expect(folderPage().props('selectedNoteId')).toBe('note-1')
+    expect(noteDetail().props('noteId')).toBe('note-1')
+    expect(wrapper.find('#public-navigation-pane').exists()).toBe(true)
+    expect(wrapper.find('#public-note-list-pane').exists()).toBe(true)
+    expect(wrapper.find('#public-note-detail-pane').exists()).toBe(true)
 
     noteList.vm.$emit('selected', 'folder-1')
     await nextTick()
 
     expect(noteList.props('noteUuid')).toBe('folder-1')
     expect(folderPage().props('currentFolder')).toBe('folder-1')
+    expect(routerPush).toHaveBeenCalledWith('/alice/f/folder-1')
 
     folderPage().vm.$emit('selected', 'note-1')
     await nextTick()
 
     expect(folderPage().props('selectedNoteId')).toBe('note-1')
     expect(noteDetail().props('noteId')).toBe('note-1')
+    expect(routerPush).toHaveBeenCalledWith('/alice/n/note-1')
   })
 })

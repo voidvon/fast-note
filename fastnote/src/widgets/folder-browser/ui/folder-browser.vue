@@ -23,10 +23,10 @@ import { onBeforeRouteLeave, useRoute } from 'vue-router'
 import { useNote } from '@/entities/note'
 import { useUserPublicNotes } from '@/entities/public-note'
 import { useFolderBackButton, useRouteStateRestore } from '@/processes/navigation'
+import { getTime } from '@/shared/lib/date'
 import { useDeviceType } from '@/shared/lib/device'
 import { useIonContentScrollMemory } from '@/shared/lib/ionic'
 import { NOTE_TYPE } from '@/shared/types'
-import { getTime } from '@/shared/lib/date'
 import NoteList from '@/widgets/note-list'
 
 const props = withDefaults(
@@ -102,8 +102,12 @@ const folderId = computed(() => {
 
 // 将 folderList 和 noteList 改为计算属性，自动响应 notes 变化
 const folderList = computed(() => {
-  if (!folderId.value || isUserContext.value)
+  if (!folderId.value)
     return []
+
+  if (isUserContext.value) {
+    return useUserPublicNotes(username.value).getPublicFolderTreeByPUuid(folderId.value)
+  }
 
   if (folderId.value === 'allnotes' || folderId.value === 'unfilednotes') {
     return []
@@ -116,9 +120,13 @@ const noteList = computed(() => {
   if (!folderId.value)
     return []
 
+  const sourceNotes = isUserContext.value
+    ? (useUserPublicNotes(username.value).publicNotes.value ?? [])
+    : notes.value
+
   if (folderId.value === 'allnotes') {
-    const allNotes = notes.value.filter(d => d.item_type === NOTE_TYPE.NOTE && d.is_deleted === 0).map(d => ({ originNote: d })) as FolderTreeNode[]
-    const allFolders = notes.value.filter(d => d.item_type === NOTE_TYPE.FOLDER && d.is_deleted === 0)
+    const allNotes = sourceNotes.filter(d => d.item_type === NOTE_TYPE.NOTE && d.is_deleted === 0).map(d => ({ originNote: d })) as FolderTreeNode[]
+    const allFolders = sourceNotes.filter(d => d.item_type === NOTE_TYPE.FOLDER && d.is_deleted === 0)
     const folderMap = new Map(allFolders.map(folder => [folder.id, folder]))
 
     allNotes.forEach((note) => {
@@ -133,10 +141,10 @@ const noteList = computed(() => {
     return allNotes
   }
   else if (folderId.value === 'unfilednotes') {
-    return notes.value.filter(d => d.item_type === NOTE_TYPE.NOTE && !d.parent_id && d.is_deleted === 0).map(d => ({ originNote: d })) as FolderTreeNode[]
+    return sourceNotes.filter(d => d.item_type === NOTE_TYPE.NOTE && !d.parent_id && d.is_deleted === 0).map(d => ({ originNote: d })) as FolderTreeNode[]
   }
   else {
-    return notes.value.filter(d => d.item_type === NOTE_TYPE.NOTE && d.parent_id === folderId.value && d.is_deleted === 0).map(d => ({ originNote: d })) as FolderTreeNode[]
+    return sourceNotes.filter(d => d.item_type === NOTE_TYPE.NOTE && d.parent_id === folderId.value && d.is_deleted === 0).map(d => ({ originNote: d })) as FolderTreeNode[]
   }
 })
 
