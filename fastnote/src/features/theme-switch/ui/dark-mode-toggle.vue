@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { IonButton, IonIcon, IonItem, IonLabel, IonList, IonPopover } from '@ionic/vue'
-import { contrastOutline, moonOutline, sunnyOutline } from 'ionicons/icons'
+import { contrastOutline, moon, sunny } from 'ionicons/icons'
 import { computed, ref } from 'vue'
 import { ThemeMode, useTheme } from '../model/use-theme'
 
@@ -15,7 +15,7 @@ const currentIcon = computed(() => {
   if (currentMode.value === ThemeMode.Auto) {
     return contrastOutline
   }
-  return isDarkMode.value ? sunnyOutline : moonOutline
+  return isDarkMode.value ? sunny : moon
 })
 
 // 计算按钮标题
@@ -56,7 +56,6 @@ function togglePopover() {
       <IonIcon
         slot="icon-only"
         :icon="currentIcon"
-        :class="{ 'dark-active': isDarkMode }"
       />
     </IonButton>
 
@@ -67,11 +66,11 @@ function togglePopover() {
           <IonLabel>自动（跟随系统）</IonLabel>
         </IonItem>
         <IonItem button :detail="false" @click="handleSetThemeMode(ThemeMode.Light)">
-          <IonIcon slot="start" :icon="moonOutline" />
+          <IonIcon slot="start" :icon="moon" />
           <IonLabel>浅色模式</IonLabel>
         </IonItem>
         <IonItem button :detail="false" @click="handleSetThemeMode(ThemeMode.Dark)">
-          <IonIcon slot="start" :icon="sunnyOutline" />
+          <IonIcon slot="start" :icon="sunny" />
           <IonLabel>深色模式</IonLabel>
         </IonItem>
       </IonList>
@@ -86,11 +85,8 @@ function togglePopover() {
   margin-left: 8px;
 }
 
-.dark-active {
-  color: var(--ion-color-warning);
-}
-
 ion-button {
+  --color: var(--c-text-primary);
   --padding-start: 8px;
   --padding-end: 8px;
 }

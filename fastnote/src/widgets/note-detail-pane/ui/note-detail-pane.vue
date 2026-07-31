@@ -494,9 +494,9 @@ async function handleNoteLockUpdated(updatedNote: Note) {
 
 <template>
   <IonPage ref="pageRef">
-    <IonHeader :translucent="true">
-      <IonToolbar>
-        <IonButtons slot="start">
+    <IonHeader :translucent="!isDesktop">
+      <IonToolbar class="note-detail__toolbar">
+        <IonButtons v-if="!isDesktop" slot="start">
           <IonBackButton v-bind="backButtonProps" />
         </IonButtons>
         <IonButtons v-if="canShowNoteActions" slot="end" class="note-detail__header-buttons">
@@ -562,6 +562,19 @@ async function handleNoteLockUpdated(updatedNote: Note) {
 </template>
 
 <style lang="scss">
+:root:not(.ion-palette-dark) .note-detail__toolbar {
+  --background: var(--c-note-detail-toolbar-background);
+}
+
+.note-detail__toolbar {
+  --color: var(--c-text-primary);
+}
+
+.note-detail__toolbar ion-button,
+.note-detail__toolbar ion-back-button {
+  --color: var(--c-text-primary);
+}
+
 .note-detail__header-buttons {
   align-items: center;
   gap: 4px;

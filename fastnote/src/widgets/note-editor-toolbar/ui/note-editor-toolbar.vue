@@ -177,6 +177,7 @@ defineExpose({
   --padding-end: 0;
 
   ion-button {
+    --color: var(--c-text-primary);
     --padding-top: 0;
     --padding-bottom: 0;
     min-height: 0;

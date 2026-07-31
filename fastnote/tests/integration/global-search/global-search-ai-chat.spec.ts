@@ -433,6 +433,23 @@ describe('global search ai chat', () => {
     wrapper.unmount()
   })
 
+  it('returns to search mode when AI configuration is cancelled', async () => {
+    const wrapper = await mountGlobalSearch()
+    const input = wrapper.get('textarea')
+
+    await input.trigger('focus')
+    await nextTick()
+    await wrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
+    await nextTick()
+    await wrapper.get('button[aria-label="取消 AI 配置"]').trigger('click')
+    await nextTick()
+
+    expect(wrapper.get('textarea').attributes('placeholder')).toBe('搜索')
+    expect(wrapper.text()).not.toContain('配置直连模型')
+
+    wrapper.unmount()
+  })
+
   it('streams assistant reply in ai mode after sending a message', async () => {
     const fetchMock = vi.fn(async () => createSseResponse([
       JSON.stringify({

@@ -707,6 +707,7 @@ onUnmounted(() => {
     <div
       id="home-navigation-pane"
       class="home-navigation"
+      :class="{ 'home-navigation--search-active': showGlobalSearch }"
       data-global-search-container
     >
       <IonHeader :translucent="true">
@@ -865,6 +866,7 @@ onUnmounted(() => {
 
 <style lang="scss">
 .home-navigation {
+  --background: var(--c-page-background);
   position: relative;
   display: flex;
   width: 100%;
@@ -873,9 +875,19 @@ onUnmounted(() => {
   min-height: 0;
   flex: 1;
   flex-direction: column;
+  background: var(--background);
+}
+
+.home-navigation ion-content {
+  --background: var(--c-page-background);
+}
+
+.home-navigation--search-active ion-content {
+  --background: transparent;
 }
 
 .note-desktop {
+  background: var(--c-page-background);
   display: grid;
   width: 100%;
   grid-template-columns:

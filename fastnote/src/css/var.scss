@@ -44,6 +44,19 @@
   --c-purple-gray-850: theme('colors.purple-gray.850');
   --c-purple-gray-900: theme('colors.purple-gray.900');
 
+  --c-page-background: var(--c-blue-gray-800);
+  --c-list-background: var(--c-gray-1000);
+  --c-modal-background: #f5f5f7;
+  --c-list-hover-background: #fafafa;
+  --c-list-active-background: #f6f6f6;
+  --c-pane-divider: #dedee3;
+  --c-note-detail-toolbar-background: #f3f3f2;
+  --c-code-inline-background: #ececf0;
+  --c-code-block-background: #f3f3f2;
+  --c-code-text: var(--c-text-primary);
+  --c-global-search-panel-overlay: transparent;
+  --c-global-search-panel-active-overlay: transparent;
+
   /* 功能色定义 TODO: 暂未使用  */
   --c-bg-base: var(--c-blue-gray-950); /* 应用基础背景色 */
   --c-text-primary: var(--c-gray-0); /* 主要文本色 */
@@ -99,4 +112,17 @@
   --c-purple-gray-800: theme('colors.dark-purple-gray.800');
   --c-purple-gray-850: theme('colors.dark-purple-gray.850');
   --c-purple-gray-900: theme('colors.dark-purple-gray.900');
+
+  --c-page-background: var(--ion-background-color);
+  --c-list-background: var(--c-blue-gray-950);
+  --c-modal-background: #222;
+  --c-list-hover-background: #252527;
+  --c-list-active-background: var(--bg-active);
+  --c-pane-divider: var(--c-purple-gray-700);
+  --c-note-detail-toolbar-background: var(--ion-background-color);
+  --c-code-inline-background: #202329;
+  --c-code-block-background: #161b22;
+  --c-code-text: var(--c-text-primary);
+  --c-global-search-panel-overlay: rgba(10, 10, 12, 0.08);
+  --c-global-search-panel-active-overlay: rgba(10, 10, 12, 0.38);
 }

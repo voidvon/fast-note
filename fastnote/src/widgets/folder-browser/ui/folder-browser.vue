@@ -486,6 +486,10 @@ defineExpose({
 </template>
 
 <style lang="scss">
+.folder-page-content {
+  --background: var(--c-page-background);
+}
+
 .folder-page-content::part(scroll) {
   display: flex;
   flex-direction: column;

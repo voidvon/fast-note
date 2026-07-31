@@ -12,6 +12,7 @@ import AiChatToolbar from './ai-chat-toolbar.vue'
 
 const emit = defineEmits<{
   action: [payload: ChatMessageCardAction]
+  cancelConfiguration: []
   prefill: [value: string]
   resumeTask: []
 }>()
@@ -280,6 +281,10 @@ function handleCloseSettings() {
   showSettings.value = false
 }
 
+function handleCancelSettings() {
+  emit('cancelConfiguration')
+}
+
 async function handleConfirmPendingExecution() {
   await confirmPendingExecution()
 }
@@ -308,6 +313,7 @@ function handleMessageAction(action: ChatMessageCardAction) {
       :is-open="shouldShowSettings"
       :can-dismiss="hasConfiguredProvider"
       :tokenizer-hint="tokenizerHint"
+      @cancel="handleCancelSettings"
       @close="handleCloseSettings"
       @save="handleSaveSettings"
       @reset="handleResetSettings"

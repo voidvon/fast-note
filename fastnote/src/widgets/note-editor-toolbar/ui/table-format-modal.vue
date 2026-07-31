@@ -127,11 +127,12 @@ function onClick(type: string) {
 
 <style lang="scss">
 .table-format-modal {
-  --background: #222;
+  --background: var(--c-modal-background);
 }
 .table-format-modal-list {
   ion-item {
-    --background: var(--c-blue-gray-800);
+    --background: var(--c-list-background);
+    --color: var(--c-text-primary);
     font-size: 18px;
     ion-label {
       margin-top: 14px;

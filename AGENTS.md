@@ -20,7 +20,7 @@
 
 ## 代码风格
 
-TypeScript 使用 2 空格缩进、单引号和无分号风格，遵循现有 ESLint 配置。Vue 组件使用 `kebab-case.vue`，组合式函数以 `use` 开头，测试文件使用 `*.spec.ts`。Go 使用 `gofmt`；新增正式集合字段或索引必须放入 `backend/migrations/`。
+TypeScript 使用 2 空格缩进、单引号和无分号风格，遵循现有 ESLint 配置。Vue 组件使用 `kebab-case.vue`，组合式函数以 `use` 开头，测试文件使用 `*.spec.ts`。颜色样式优先复用 `fastnote/src/css/var.scss` 中的 token；使用颜色变量时禁止在 `var()` 中提供兜底颜色，缺少 token 时应先在 `var.scss` 中补齐浅色和深色定义。Go 使用 `gofmt`；新增正式集合字段或索引必须放入 `backend/migrations/`。
 
 ## 测试与提交
 

@@ -202,14 +202,16 @@ defineExpose({
   }
 
   code {
-    background-color: #202329;
+    background-color: var(--c-code-inline-background);
     border-radius: 0.4rem;
+    color: var(--c-code-text);
     padding: 0.25em 0.3em;
   }
 
   pre {
-    background: #161b22;
+    background: var(--c-code-block-background);
     border-radius: 0.5rem;
+    color: var(--c-code-text);
     font-family: 'JetBrainsMono', monospace;
     margin: 8px 0;
     padding: 0.75rem 1rem;

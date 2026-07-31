@@ -225,7 +225,7 @@ function onClick() {
   // TODO: 子级选中没有样式变化
   &.active {
     ion-item {
-      --background: var(--bg-active);
+      --background: var(--c-list-active-background);
     }
   }
 }
@@ -238,11 +238,13 @@ function onClick() {
 
 <style lang="scss" scoped>
 .list-item {
-  --background: var(--c-blue-gray-950);
+  --background: var(--c-list-background);
+  --background-hover: var(--c-list-hover-background);
+  --background-hover-opacity: 1;
+  --inner-box-shadow: none;
   --border-color: var(--c-blue-gray-700);
-  // --background-hover: var(--c-purple-gray-700);
   &.active {
-    --background: var(--bg-active);
+    --background: var(--c-list-active-background);
   }
 }
 

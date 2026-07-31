@@ -889,6 +889,10 @@ function handleAiAction(action: ChatMessageCardAction) {
   })
 }
 
+function handleAiConfigurationCancel() {
+  void selectInputMode('search')
+}
+
 async function toggleInputMode() {
   await selectInputMode(isSearchMode.value ? 'ai' : 'search')
 }
@@ -1110,6 +1114,7 @@ onUnmounted(() => {
             v-else
             class="global-search__ai-panel"
             @action="handleAiAction"
+            @cancel-configuration="handleAiConfigurationCancel"
             @prefill="handleAiPrefill"
             @resume-task="handleResumeTask"
           />
@@ -1142,6 +1147,28 @@ onUnmounted(() => {
 </template>
 
 <style lang="scss">
+:root:not(.ion-palette-dark) .global-search {
+  .app-glass-circle-button,
+  .global-search__field-shell {
+    border-color: var(--c-divider);
+    background: var(--c-list-background);
+    box-shadow: none;
+    color: var(--c-text-primary);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .global-search__search-icon,
+  .global-search__clear-button {
+    color: var(--c-icon);
+  }
+
+  .global-search__input {
+    --color: var(--c-text-primary);
+    --placeholder-color: var(--c-placeholder);
+  }
+}
+
 .global-search {
   display: flex;
   align-items: flex-end;
@@ -1295,7 +1322,7 @@ onUnmounted(() => {
     inset: 0;
     z-index: 0;
     pointer-events: none;
-    background: rgba(10, 10, 12, 0.08);
+    background: var(--c-global-search-panel-overlay);
     backdrop-filter: blur(0) saturate(100%);
     -webkit-backdrop-filter: blur(0) saturate(100%);
     transition:
@@ -1305,7 +1332,7 @@ onUnmounted(() => {
   }
 
   &__panel-surface--active::before {
-    background: rgba(10, 10, 12, 0.38);
+    background: var(--c-global-search-panel-active-overlay);
     backdrop-filter: blur(26px) saturate(150%);
     -webkit-backdrop-filter: blur(26px) saturate(150%);
   }
@@ -1322,13 +1349,13 @@ onUnmounted(() => {
     margin: 0;
     font-size: 15px;
     font-weight: 600;
-    color: #8e8e93;
+    color: var(--c-text-primary);
   }
 
   &__panel-meta {
     margin: 0;
     font-size: 13px;
-    color: #8e8e93;
+    color: var(--c-text-primary);
   }
 
   &__panel-body {
@@ -1339,6 +1366,7 @@ onUnmounted(() => {
     flex-direction: column;
     min-height: 0;
     box-sizing: border-box;
+    color: var(--c-text-primary);
     padding-bottom: var(--global-search-panel-bottom-inset, 0px);
     overflow: hidden;
     opacity: 0;
@@ -1414,7 +1442,7 @@ onUnmounted(() => {
 
   &__empty {
     padding: 24px 16px 12px;
-    color: #8e8e93;
+    color: var(--c-text-primary);
     line-height: 1.5;
   }
 

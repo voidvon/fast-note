@@ -362,6 +362,7 @@ watch(
 }
 
 .public-navigation {
+  --background: var(--c-page-background);
   position: relative;
   display: flex;
   width: 100%;
@@ -369,6 +370,11 @@ watch(
   height: 100%;
   min-height: 0;
   flex-direction: column;
+  background: var(--background);
+}
+
+.public-navigation ion-content {
+  --background: var(--c-page-background);
 }
 
 .public-home-back-button {

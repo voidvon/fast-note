@@ -4,6 +4,14 @@ ion-footer {
   }
 }
 
+:root:not(.ion-palette-dark) ion-list {
+  --ion-item-background: var(--c-list-background);
+}
+
+:root:not(.ion-palette-dark) ion-toolbar {
+  --background: var(--c-page-background);
+}
+
 ion-searchbar {
   &.sc-ion-searchbar-ios-h {
     --background: var(--c-blue-gray-950);

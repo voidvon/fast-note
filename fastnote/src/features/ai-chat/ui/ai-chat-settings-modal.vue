@@ -10,6 +10,7 @@ import {
   IonToolbar,
 } from '@ionic/vue'
 import { closeOutline } from 'ionicons/icons'
+import { ref } from 'vue'
 import AiChatSettingsCard from './ai-chat-settings-card.vue'
 
 defineProps<{
@@ -24,6 +25,7 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{
+  'cancel': []
   'close': []
   'reset': []
   'save': []
@@ -33,6 +35,18 @@ const emit = defineEmits<{
   'update:model': [value: string]
 }>()
 
+const modalRef = ref()
+
+function canDismissByCancelRole(_data: unknown, role?: string) {
+  return role === 'cancel'
+}
+
+async function handleCancel() {
+  const modal = modalRef.value?.$el as HTMLIonModalElement | undefined
+  await modal?.dismiss?.(undefined, 'cancel')
+  emit('cancel')
+}
+
 function handleDidDismiss() {
   emit('close')
 }
@@ -40,13 +54,19 @@ function handleDidDismiss() {
 
 <template>
   <IonModal
+    ref="modalRef"
     :is-open="isOpen"
-    :can-dismiss="canDismiss"
+    :can-dismiss="canDismiss ? true : canDismissByCancelRole"
     @did-dismiss="handleDidDismiss"
   >
     <IonHeader>
       <IonToolbar>
         <IonTitle>配置直连模型</IonTitle>
+        <IonButtons slot="start">
+          <IonButton aria-label="取消 AI 配置" @click="handleCancel">
+            取消
+          </IonButton>
+        </IonButtons>
         <IonButtons v-if="canDismiss" slot="end">
           <IonButton aria-label="关闭 AI 配置" @click="emit('close')">
             <IonIcon :icon="closeOutline" />

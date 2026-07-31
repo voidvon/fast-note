@@ -184,7 +184,7 @@ onBeforeUnmount(() => {
   width: 1px;
   height: 100%;
   outline: 0;
-  background: var(--app-pane-divider-color, #333);
+  background: var(--c-pane-divider);
   cursor: col-resize;
   touch-action: none;
 }
