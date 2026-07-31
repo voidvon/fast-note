@@ -54,6 +54,52 @@ describe('attachment lifecycle', () => {
     expect(putRef).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'ready', hash }))
   })
 
+  it('reconciles remote attachment refs without downloading their blobs', async () => {
+    const downloadNoteFile = vi.fn()
+    const putRef = vi.fn(async () => undefined)
+
+    vi.doMock('@/shared/lib/date', () => ({ getTime: () => '2026-07-30 12:00:00.000Z' }))
+    vi.doMock('@/shared/lib/file-hash', () => ({ getFileHash: vi.fn() }))
+    vi.doMock('@/shared/api/pocketbase/files', () => ({
+      filesApi: { downloadNoteFile },
+    }))
+    vi.doMock('@/shared/lib/storage/attachment-files', () => ({
+      deleteStoredNoteFileRefs: vi.fn(),
+      getStoredNoteFileRef: vi.fn(async () => undefined),
+      listStoredNoteFileRefs: vi.fn(async () => []),
+      putStoredNoteFileRef: putRef,
+    }))
+    vi.doMock('@/shared/lib/storage/dexie', () => ({
+      useDexie: () => ({ db: { value: {} } }),
+    }))
+    vi.doMock('@/shared/lib/storage/note-files', () => ({
+      deleteStoredNoteFile: vi.fn(),
+      getStoredNoteFile: vi.fn(async () => undefined),
+      listStoredNoteFiles: vi.fn(async () => []),
+      putStoredNoteFile: vi.fn(),
+    }))
+
+    const { reconcileRemoteNoteAttachmentRefs } = await import('@/entities/attachment/model/attachment-lifecycle-service')
+    const result = await reconcileRemoteNoteAttachmentRefs({
+      id: 'note-1',
+      content: '<file-upload url="remote.pdf"></file-upload><file-upload url="photo.png"></file-upload>',
+    } as any)
+
+    expect(result).toEqual({ ready: 0, remoteOnly: 2, total: 2 })
+    expect(downloadNoteFile).not.toHaveBeenCalled()
+    expect(putRef).toHaveBeenCalledTimes(2)
+    expect(putRef).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      remoteFilename: 'remote.pdf',
+      fileType: 'application/pdf',
+      status: 'remote_only',
+    }))
+    expect(putRef).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      remoteFilename: 'photo.png',
+      fileType: 'image/png',
+      status: 'remote_only',
+    }))
+  })
+
   it('garbage collects only blobs outside the global note and ref live set', async () => {
     const noteHash = 'c'.repeat(64)
     const refHash = 'd'.repeat(64)

@@ -93,7 +93,7 @@ describe('cache repair sync (t-fn-032 / tc-fn-025)', () => {
         hydrated: true,
         quotaExceeded: false,
       })),
-      reconcileRemoteNoteAttachments: vi.fn(async () => ({ ready: 0, failed: 0, total: 0 })),
+      reconcileRemoteNoteAttachmentRefs: vi.fn(async () => ({ ready: 0, remoteOnly: 0, total: 0 })),
     }))
     vi.doMock('@/processes/sync-notes/model/sync-manifest-service', () => ({
       useSyncManifestService: () => ({
@@ -217,7 +217,7 @@ describe('cache repair sync (t-fn-032 / tc-fn-025)', () => {
         hydrated: true,
         quotaExceeded: false,
       })),
-      reconcileRemoteNoteAttachments: vi.fn(async () => ({ ready: 0, failed: 0, total: 0 })),
+      reconcileRemoteNoteAttachmentRefs: vi.fn(async () => ({ ready: 0, remoteOnly: 0, total: 0 })),
     }))
     vi.doMock('@/processes/sync-notes/model/sync-manifest-service', () => ({
       useSyncManifestService: () => ({

@@ -1,7 +1,7 @@
 import type { RecordSubscription, UnsubscribeFunc } from 'pocketbase'
 import type { IRealtimeService, RealtimeConfig } from '@/shared/lib/realtime'
 import type { Note } from '@/shared/types'
-import { reconcileRemoteNoteAttachments, removeNoteAttachmentRefs } from '@/entities/attachment'
+import { reconcileRemoteNoteAttachmentRefs, removeNoteAttachmentRefs } from '@/entities/attachment'
 import { useNote } from '@/entities/note'
 import { logger } from '@/shared/lib/logger'
 import { RealtimeStatus } from '@/shared/lib/realtime'
@@ -102,7 +102,7 @@ export class PocketBaseRealtimeService implements IRealtimeService {
           const existingNote = await getNote(record.id)
           if (!existingNote) {
             await addNote(record)
-            await reconcileRemoteNoteAttachments(record)
+            await reconcileRemoteNoteAttachmentRefs(record)
             logger.debug('从云端创建笔记:', record.id)
           }
           break
@@ -116,7 +116,7 @@ export class PocketBaseRealtimeService implements IRealtimeService {
 
             if (remoteTime > localTime) {
               await updateNote(record.id, record)
-              await reconcileRemoteNoteAttachments(record)
+              await reconcileRemoteNoteAttachmentRefs(record)
               logger.debug('从云端更新笔记:', record.id)
             }
             else {
@@ -125,7 +125,7 @@ export class PocketBaseRealtimeService implements IRealtimeService {
           }
           else {
             await addNote(record)
-            await reconcileRemoteNoteAttachments(record)
+            await reconcileRemoteNoteAttachmentRefs(record)
             logger.debug('从云端添加笔记:', record.id)
           }
           break

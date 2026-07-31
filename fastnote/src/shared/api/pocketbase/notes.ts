@@ -94,15 +94,13 @@ function buildFileMapping(filesForUpload: Array<File | string> | undefined, resu
   if (!filesForUpload || !result?.files || !Array.isArray(result.files))
     return fileMapping
 
-  let fileIndex = 0
-  for (const item of filesForUpload) {
+  for (let index = 0; index < filesForUpload.length; index++) {
+    const item = filesForUpload[index]
     if (!(item instanceof File))
       continue
 
-    if (fileIndex < result.files.length) {
-      fileMapping.set(item, result.files[fileIndex])
-      fileIndex++
-    }
+    if (index < result.files.length)
+      fileMapping.set(item, result.files[index])
   }
 
   return fileMapping

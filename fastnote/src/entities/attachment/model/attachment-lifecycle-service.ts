@@ -3,6 +3,7 @@ import type { Note } from '@/shared/types'
 import { filesApi } from '@/shared/api/pocketbase/files'
 import { getTime } from '@/shared/lib/date'
 import { getFileHash } from '@/shared/lib/file-hash'
+import { getMimeTypeByFilename } from '@/shared/lib/mime-types'
 import {
   deleteStoredNoteFileRefs,
   getStoredNoteFileRef,
@@ -19,6 +20,32 @@ import {
 import { extractAttachmentReferences } from '../lib/attachment-references'
 
 const activeDraftHashes = new Map<string, number>()
+const inflightHydrations = new Map<string, Promise<NoteFileRef>>()
+const pendingHydrations: Array<() => void> = []
+const MAX_CONCURRENT_HYDRATIONS = 3
+let activeHydrations = 0
+
+async function withHydrationSlot<T>(task: () => Promise<T>): Promise<T> {
+  if (activeHydrations >= MAX_CONCURRENT_HYDRATIONS) {
+    await new Promise<void>((resolve) => {
+      pendingHydrations.push(resolve)
+    })
+  }
+  else {
+    activeHydrations++
+  }
+
+  try {
+    return await task()
+  }
+  finally {
+    const next = pendingHydrations.shift()
+    if (next)
+      next()
+    else
+      activeHydrations--
+  }
+}
 
 function requireDatabase() {
   const { db } = useDexie()
@@ -69,14 +96,20 @@ async function markRefFailed(ref: NoteFileRef, error: unknown) {
   })
 }
 
-export async function hydrateRemoteAttachment(noteId: string, remoteFilename: string) {
+async function performRemoteAttachmentHydration(
+  noteId: string,
+  remoteFilename: string,
+  options: { force?: boolean },
+) {
   const database = requireDatabase()
   const now = getTime()
   const existingRef = await getStoredNoteFileRef(database, noteId, remoteFilename)
   const ref: NoteFileRef = existingRef || {
     noteId,
     remoteFilename,
-    status: 'pending_download',
+    fileName: remoteFilename,
+    fileType: getMimeTypeByFilename(remoteFilename),
+    status: 'remote_only',
     attempts: 0,
     created: now,
     updated: now,
@@ -85,7 +118,7 @@ export async function hydrateRemoteAttachment(noteId: string, remoteFilename: st
   if (ref.status === 'ready' && ref.hash && await getStoredNoteFile(database, ref.hash))
     return ref
 
-  if (ref.nextRetryAt && new Date(ref.nextRetryAt).getTime() > Date.now())
+  if (!options.force && ref.nextRetryAt && new Date(ref.nextRetryAt).getTime() > Date.now())
     throw new Error(ref.lastError || `附件等待重试: ${remoteFilename}`)
 
   await putStoredNoteFileRef(database, { ...ref, status: 'downloading', updated: now })
@@ -113,6 +146,9 @@ export async function hydrateRemoteAttachment(noteId: string, remoteFilename: st
     const readyRef: NoteFileRef = {
       ...ref,
       hash,
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
       status: 'ready',
       attempts: ref.attempts,
       nextRetryAt: undefined,
@@ -128,7 +164,53 @@ export async function hydrateRemoteAttachment(noteId: string, remoteFilename: st
   }
 }
 
-export async function reconcileRemoteNoteAttachments(note: Note) {
+export async function hydrateRemoteAttachment(
+  noteId: string,
+  remoteFilename: string,
+  options: { force?: boolean } = {},
+) {
+  const key = `${noteId}:${remoteFilename}`
+  const inflight = inflightHydrations.get(key)
+  if (inflight)
+    return await inflight
+
+  const hydration = withHydrationSlot(() => performRemoteAttachmentHydration(noteId, remoteFilename, options))
+  inflightHydrations.set(key, hydration)
+
+  try {
+    return await hydration
+  }
+  finally {
+    if (inflightHydrations.get(key) === hydration)
+      inflightHydrations.delete(key)
+  }
+}
+
+export async function registerCachedRemoteAttachment(noteId: string, remoteFilename: string, hash: string) {
+  const database = requireDatabase()
+  const storedFile = await getStoredNoteFile(database, hash)
+  if (!storedFile)
+    throw new Error(`本地附件不存在，无法登记远程引用: ${hash}`)
+
+  const existingRef = await getStoredNoteFileRef(database, noteId, remoteFilename)
+  const now = getTime()
+  const ref: NoteFileRef = {
+    noteId,
+    remoteFilename,
+    hash,
+    fileName: storedFile.fileName,
+    fileSize: storedFile.fileSize,
+    fileType: storedFile.fileType,
+    status: 'ready',
+    attempts: existingRef?.attempts || 0,
+    created: existingRef?.created || now,
+    updated: now,
+  }
+  await putStoredNoteFileRef(database, ref)
+  return ref
+}
+
+export async function reconcileRemoteNoteAttachmentRefs(note: Note) {
   const database = requireDatabase()
   const { remoteFilenames } = extractAttachmentReferences(note.content)
   const liveRemoteNames = new Set(remoteFilenames)
@@ -138,24 +220,46 @@ export async function reconcileRemoteNoteAttachments(note: Note) {
   if (staleRefs.length > 0)
     await deleteStoredNoteFileRefs(database, note.id, staleRefs.map(ref => ref.remoteFilename))
 
-  const results: PromiseSettledResult<NoteFileRef>[] = []
-  const queue = [...remoteFilenames]
-  const workers = Array.from({ length: Math.min(3, queue.length) }, async () => {
-    while (queue.length > 0) {
-      const filename = queue.shift()!
-      try {
-        results.push({ status: 'fulfilled', value: await hydrateRemoteAttachment(note.id, filename) })
-      }
-      catch (reason) {
-        results.push({ status: 'rejected', reason })
-      }
+  let ready = 0
+  let remoteOnly = 0
+
+  for (const remoteFilename of remoteFilenames) {
+    const existingRef = await getStoredNoteFileRef(database, note.id, remoteFilename)
+    const cached = existingRef?.hash
+      ? await getStoredNoteFile(database, existingRef.hash)
+      : undefined
+
+    if (cached) {
+      ready++
+      if (existingRef?.status !== 'ready')
+        await registerCachedRemoteAttachment(note.id, remoteFilename, existingRef!.hash!)
+      continue
     }
-  })
-  await Promise.all(workers)
+
+    remoteOnly++
+    const now = getTime()
+    const status = existingRef?.status === 'failed' || existingRef?.status === 'missing'
+      ? existingRef.status
+      : 'remote_only'
+    await putStoredNoteFileRef(database, {
+      noteId: note.id,
+      remoteFilename,
+      fileName: existingRef?.fileName || remoteFilename,
+      fileSize: existingRef?.fileSize,
+      fileType: existingRef?.fileType || getMimeTypeByFilename(remoteFilename),
+      status,
+      attempts: existingRef?.attempts || 0,
+      nextRetryAt: existingRef?.nextRetryAt,
+      lastError: existingRef?.lastError,
+      created: existingRef?.created || now,
+      updated: now,
+    })
+  }
+
   return {
-    ready: results.filter(result => result.status === 'fulfilled').length,
-    failed: results.filter(result => result.status === 'rejected').length,
-    total: results.length,
+    ready,
+    remoteOnly,
+    total: remoteFilenames.length,
   }
 }
 

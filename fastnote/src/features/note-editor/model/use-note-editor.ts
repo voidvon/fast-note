@@ -126,7 +126,7 @@ export function useNoteEditor(options: {
     return /^[a-f0-9]{64}$/i.test(str)
   }
 
-  async function loadFileFromStorage(hashOrFilename: string) {
+  async function loadFileFromStorage(hashOrFilename: string, loadOptions: { force?: boolean } = {}) {
     try {
       if (isHashValue(hashOrFilename)) {
         const localFile = await getNoteFileByHash(hashOrFilename)
@@ -139,7 +139,7 @@ export function useNoteEditor(options: {
         }
 
         console.warn(`本地文件未找到: ${hashOrFilename}`)
-        return { url: hashOrFilename, type: '' }
+        throw new Error(`本地附件不存在: ${hashOrFilename}`)
       }
       else {
         const noteId = resolveFileOwnerNoteId(options.getCurrentNoteId?.())
@@ -154,7 +154,7 @@ export function useNoteEditor(options: {
           }
 
           try {
-            await hydrateRemoteAttachment(noteId, hashOrFilename)
+            await hydrateRemoteAttachment(noteId, hashOrFilename, loadOptions)
             const hydratedFile = await resolveStoredRemoteAttachment(noteId, hashOrFilename)
             if (hydratedFile?.file) {
               return {
@@ -177,15 +177,12 @@ export function useNoteEditor(options: {
         }
 
         console.warn(`PocketBase文件未找到: ${hashOrFilename}`)
-        return { url: hashOrFilename, type: '' }
+        throw new Error(`远程附件不存在: ${hashOrFilename}`)
       }
     }
     catch (error) {
       console.error('加载文件失败:', error)
-      return {
-        url: hashOrFilename,
-        type: '',
-      }
+      throw error
     }
   }
 
@@ -248,10 +245,20 @@ export function useNoteEditor(options: {
         }
 
         const inserted = nextPosition === undefined
-          ? editor.value.commands.setFileUpload({ url: hash })
+          ? editor.value.commands.setFileUpload({
+              url: hash,
+              name: file.name,
+              size: file.size,
+              type: file.type,
+            })
           : editor.value.commands.insertContentAt(nextPosition, {
               type: 'fileUpload',
-              attrs: { url: hash },
+              attrs: {
+                url: hash,
+                name: file.name,
+                size: file.size,
+                type: file.type,
+              },
             })
 
         if (!inserted) {

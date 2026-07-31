@@ -1,4 +1,4 @@
-import { getAttachmentHydrationStatus, reconcileRemoteNoteAttachments } from '@/entities/attachment'
+import { getAttachmentHydrationStatus, reconcileRemoteNoteAttachmentRefs } from '@/entities/attachment'
 import { buildNoteSyncOperations, noteRemoteService, useNote, useNotePurgeService, useNoteSyncExecutorService } from '@/entities/note'
 import { preparePersistentStorage } from '@/shared/lib/storage'
 import { useSyncManifestService } from './sync-manifest-service'
@@ -43,7 +43,7 @@ export function useSyncOrchestratorService() {
 
     const manifest = await reconcileRemoteNoteManifest()
     for (const note of notes.value)
-      await reconcileRemoteNoteAttachments(note)
+      await reconcileRemoteNoteAttachmentRefs(note)
     const attachments = await getAttachmentHydrationStatus()
 
     console.warn('PocketBase同步完成', {

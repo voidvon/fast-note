@@ -49,10 +49,10 @@ export function useSyncStatusState() {
 
   function updateAttachmentStatus(status: SyncStatusState['attachments']) {
     syncStatus.value.attachments = status
-    syncStatus.value.currentStep = status.hydrated
-      ? '附件已全部离线可用'
-      : `附件同步中 ${status.ready}/${status.total}`
-    syncStatus.value.progress = status.total === 0 ? 100 : Math.round(status.ready / status.total * 100)
+    syncStatus.value.currentStep = status.total === 0
+      ? '同步完成'
+      : `附件索引已同步，本地缓存 ${status.ready}/${status.total}`
+    syncStatus.value.progress = 100
   }
 
   return {

@@ -1,5 +1,5 @@
 import type { Note } from '@/shared/types'
-import { extractAttachmentReferences, isAttachmentHash } from '@/entities/attachment'
+import { extractAttachmentReferences, isAttachmentHash, registerCachedRemoteAttachment } from '@/entities/attachment'
 import { getTime } from '@/shared/lib/date'
 import { hasRemoteUserId } from './domain/note-rules'
 import { noteRemoteService } from './note-remote-service'
@@ -48,6 +48,7 @@ export function useNoteSyncService() {
   async function prepareNoteFilesForRemoteSync(note: Note): Promise<{
     updatedNote: Note
     filesForUpload: Array<File | string> | undefined
+    fileHashesByFile: Map<File, string>
   }> {
     const references = extractAttachmentReferences(note.content)
     const fileReferences = [...references.hashes, ...references.remoteFilenames]
@@ -56,6 +57,7 @@ export function useNoteSyncService() {
       return {
         updatedNote: note,
         filesForUpload: [],
+        fileHashesByFile: new Map(),
       }
     }
 
@@ -63,6 +65,7 @@ export function useNoteSyncService() {
     const filesForUpload: Array<File | string> = []
     const hashToTempIdMapping = new Map<string, string>()
     const processedFiles = new Set<string>()
+    const fileHashesByFile = new Map<File, string>()
     let tempFileIndex = 0
 
     for (const hashOrFilename of fileReferences) {
@@ -81,6 +84,7 @@ export function useNoteSyncService() {
               tempFileIndex++
               hashToTempIdMapping.set(hashOrFilename, tempId)
               filesForUpload.push(localFile.file)
+              fileHashesByFile.set(localFile.file, hashOrFilename)
             }
 
             const hashRegex = new RegExp(
@@ -112,6 +116,7 @@ export function useNoteSyncService() {
     return {
       updatedNote: { ...note, content: updatedContent },
       filesForUpload: filesForUpload.length > 0 ? filesForUpload : [],
+      fileHashesByFile,
     }
   }
 
@@ -148,12 +153,20 @@ export function useNoteSyncService() {
   }
 
   async function syncNoteToRemote(note: Note, mode: 'create' | 'update'): Promise<NoteRemoteSyncResult> {
-    const { updatedNote, filesForUpload } = await prepareNoteFilesForRemoteSync(note)
+    const { updatedNote, filesForUpload, fileHashesByFile } = await prepareNoteFilesForRemoteSync(note)
     const result = filesForUpload !== undefined
       ? await noteRemoteService.updateNote(updatedNote, filesForUpload, mode)
       : await noteRemoteService.updateNote(updatedNote, undefined, mode)
 
     let syncedUpdatedAt = await backfillRemoteNoteMetadata(note.id, result.record) || note.updated
+
+    if (result.success && result.fileMapping) {
+      for (const [file, remoteFilename] of result.fileMapping) {
+        const hash = fileHashesByFile.get(file)
+        if (hash)
+          await registerCachedRemoteAttachment(note.id, remoteFilename, hash)
+      }
+    }
 
     if (filesForUpload && filesForUpload.length > 0 && result.success && result.record?.files && Array.isArray(result.record.files)) {
       const finalContent = applyUploadedFilesToContent(

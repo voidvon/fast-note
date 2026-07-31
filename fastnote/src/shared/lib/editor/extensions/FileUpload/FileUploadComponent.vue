@@ -1,12 +1,17 @@
 <script setup lang="ts">
 import { NodeViewWrapper } from '@tiptap/vue-3'
-import { computed, inject, onMounted, ref, watch } from 'vue'
-import { FileCategory, getFileCategoryByMimeType, getFileIcon, isImageFile } from '@/shared/lib/mime-types'
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { FileCategory, getFileCategoryByMimeType, getFileIcon } from '@/shared/lib/mime-types'
+import {
+  getAttachmentDisplayName,
+  isLikelyImageAttachment,
+  shouldAutoLoadAttachment,
+} from './file-loading'
 
 interface Extension {
   name: string
   options: {
-    loadFile?: (url: string) => Promise<{ url: string, type: string }>
+    loadFile?: (url: string, options?: { force?: boolean }) => Promise<{ url: string, type: string }>
     onImageLoaded?: (url: string, width: number, height: number) => void
   }
 }
@@ -31,6 +36,9 @@ const props = defineProps({
 })
 
 const nodeProps = computed(() => ({
+  name: props.node.attrs.name as string | null,
+  size: props.node.attrs.size as number | null,
+  type: props.node.attrs.type as string | null,
   url: props.node.attrs.url,
 }))
 
@@ -42,22 +50,14 @@ const fileUploadExtension = computed<Extension | undefined>(() => {
   )
 })
 
-// 检查URL是否为SHA256哈希值格式
-const isSha256Hash = computed(() => {
-  const url = nodeProps.value.url
-  if (!url)
-    return false
-  // SHA256哈希通常是64个16进制字符
-  return /^[a-f0-9]{64}$/i.test(url)
-})
-
 const imageRef = ref<HTMLImageElement | null>(null)
 const containerSize = ref({ width: '88px', height: '88px' })
 const imageUrl = ref('')
-const isLoading = ref(true)
+const isLoading = ref(false)
 const hasError = ref(false)
 const fileTypeName = ref('') // 存储从loadFile返回的文件类型
 const naturalSize = ref({ width: 0, height: 0 })
+const displayName = computed(() => getAttachmentDisplayName(nodeProps.value))
 
 // 注入父组件提供的预览功能
 const openPhotoSwipe = inject<(imageUrl: string, width: number, height: number) => void>('openPhotoSwipe')
@@ -72,8 +72,7 @@ const isImage = computed(() => {
     return getFileCategoryByMimeType(fileTypeName.value) === FileCategory.IMAGE
   }
 
-  // 否则根据URL检查
-  return isImageFile(url)
+  return isLikelyImageAttachment(nodeProps.value)
 })
 
 const fileType = computed(() => {
@@ -87,7 +86,7 @@ const fileType = computed(() => {
   if (!url)
     return 'unknown'
 
-  return getFileIcon(url)
+  return getFileIcon(nodeProps.value.name || url)
 })
 
 // 从fileType派生是否是图片
@@ -169,59 +168,48 @@ function onImageError() {
 }
 
 // 使用扩展的 loadFile 方法加载文件
-async function loadFileWithExtension(url: string) {
+function replaceImageUrl(url: string) {
+  if (imageUrl.value.startsWith('blob:') && imageUrl.value !== url)
+    URL.revokeObjectURL(imageUrl.value)
+  imageUrl.value = url
+}
+
+async function loadFileWithExtension(url: string, options: { force?: boolean } = {}) {
   // 设置加载状态
   isLoading.value = true
   hasError.value = false
-  imageUrl.value = url // 默认使用原始URL
+  replaceImageUrl(url)
 
   // 使用扩展的 loadFile 方法
   const loadFile = fileUploadExtension.value?.options?.loadFile
 
   if (loadFile) {
     try {
-      const result = await loadFile(url)
+      const result = await loadFile(url, options)
       if (result && 'url' in result) {
-        imageUrl.value = result.url
+        replaceImageUrl(result.url)
         fileTypeName.value = result.type || '' // 存储文件类型
+        isLoading.value = false
+        return result
       }
     }
     catch (extensionError) {
       // 如果扩展方法抛出错误，直接使用原始 URL
       console.warn('扩展加载文件失败，使用原始URL:', extensionError)
+      hasError.value = true
     }
   }
   isLoading.value = false
+  return null
 }
 
-// 检查是否需要加载文件（hash值或可能的PocketBase文件名都需要加载）
-const needsFileLoading = computed(() => {
-  const url = nodeProps.value.url
-  if (!url)
-    return false
-
-  // hash值需要加载
-  if (isSha256Hash.value)
-    return true
-
-  // 图片类型需要加载
-  if (isImage.value)
-    return true
-
-  // 可能是PocketBase文件名，也尝试加载
-  // 如果不是明显的web URL格式，就认为可能需要从PocketBase加载
-  if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('data:') && !url.startsWith('blob:')) {
-    return true
-  }
-
-  return false
-})
+const needsAutomaticLoading = computed(() => shouldAutoLoadAttachment(nodeProps.value))
 
 // 监听URL变化，加载文件
 watch(
   () => nodeProps.value.url,
   (newUrl) => {
-    if (newUrl && needsFileLoading.value) {
+    if (newUrl && needsAutomaticLoading.value) {
       loadFileWithExtension(newUrl)
     }
     else {
@@ -255,24 +243,42 @@ function handleImageClick(event: Event) {
 }
 
 // 处理非图片文件的点击事件
-function handleFileClick(event: Event) {
+async function handleFileClick(event: Event) {
   // 阻止事件冒泡，防止聚焦编辑器
   event.preventDefault()
   event.stopPropagation()
 
-  // 这里可以添加非图片文件的处理逻辑，比如弹出菜单
-  console.warn('点击了非图片文件:', nodeProps.value.url)
+  const url = nodeProps.value.url
+  if (!url || isLoading.value)
+    return
+
+  const result = await loadFileWithExtension(url, { force: true })
+  if (!result)
+    return
+
+  const anchor = document.createElement('a')
+  anchor.href = result.url
+  anchor.download = displayName.value
+  anchor.rel = 'noopener'
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
 }
 
 // 组件挂载时加载文件
 onMounted(() => {
   // 加载文件
-  if (nodeProps.value.url && needsFileLoading.value) {
+  if (nodeProps.value.url && needsAutomaticLoading.value) {
     loadFileWithExtension(nodeProps.value.url)
   }
   else {
     isLoading.value = false
   }
+})
+
+onBeforeUnmount(() => {
+  if (imageUrl.value.startsWith('blob:'))
+    URL.revokeObjectURL(imageUrl.value)
 })
 </script>
 
@@ -300,8 +306,9 @@ onMounted(() => {
           @click="handleImageClick"
         >
       </div>
-      <div v-else class="file-preview" @click="handleFileClick">
+      <div v-else class="file-preview cursor-pointer" :title="displayName" @click="handleFileClick">
         <img :src="fileTypeIcon" :alt="fileType">
+        <span class="file-name">{{ displayName }}</span>
       </div>
     </div>
   </NodeViewWrapper>
@@ -341,9 +348,26 @@ onMounted(() => {
   }
 
   .file-preview img {
-    width: 100%;
-    height: 100%;
+    width: 52px;
+    height: 52px;
     object-fit: contain;
+  }
+
+  .file-preview {
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px;
+  }
+
+  .file-name {
+    width: 100%;
+    overflow: hidden;
+    color: var(--ion-text-color, #202124);
+    font-size: 10px;
+    line-height: 14px;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .loading-wrapper,

@@ -4,14 +4,14 @@ import FileUploadComponent from './FileUploadComponent.vue'
 
 export interface FileUploadOptions {
   HTMLAttributes: Record<string, any>
-  loadFile?: (url: string) => Promise<{ url: string, type: string }>
+  loadFile?: (url: string, options?: { force?: boolean }) => Promise<{ url: string, type: string }>
   onImageLoaded?: (url: string, width: number, height: number) => void
 }
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     fileUpload: {
-      setFileUpload: (attributes: { url?: string, id?: number, type?: string }) => ReturnType
+      setFileUpload: (attributes: { url?: string, id?: number, name?: string, size?: number, type?: string }) => ReturnType
     }
   }
 }
@@ -45,6 +45,12 @@ export const FileUpload = Node.create<FileUploadOptions>({
         default: null,
       },
       type: {
+        default: null,
+      },
+      name: {
+        default: null,
+      },
+      size: {
         default: null,
       },
     }

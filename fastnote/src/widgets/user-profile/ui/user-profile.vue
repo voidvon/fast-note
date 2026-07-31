@@ -17,7 +17,6 @@ import {
   IonTitle,
   IonToolbar,
   loadingController,
-  toastController,
   useIonRouter,
 } from '@ionic/vue'
 import {
@@ -32,7 +31,6 @@ import { computed, onMounted, ref } from 'vue'
 import { useAuth } from '@/processes/session'
 import { useSync } from '@/processes/sync-notes'
 import { useDeviceType } from '@/shared/lib/device'
-import { getCurrentDatabaseName } from '@/shared/lib/storage/dexie'
 
 // 获取全局版本号
 const version = (window as any).version
@@ -131,20 +129,6 @@ async function handleSync() {
     }
 
     await loading.dismiss()
-
-    // 首次附件全量落地后给一次轻提示，常规状态留在同步区域。
-    if (result) {
-      const notificationKey = `fastnote:attachments-hydrated:${getCurrentDatabaseName()}`
-      if (result.attachments.total > 0 && result.attachments.hydrated && !localStorage.getItem(notificationKey)) {
-        localStorage.setItem(notificationKey, '1')
-        const toast = await toastController.create({
-          message: '附件已全部离线可用',
-          duration: 2200,
-          position: 'bottom',
-        })
-        await toast.present()
-      }
-    }
 
     // 刷新本地数据统计
     await loadLocalStats()
@@ -301,20 +285,20 @@ onMounted(() => {
               </IonItem>
 
               <IonItem v-if="syncStatus.attachments.total > 0">
-                <IonLabel :color="syncStatus.attachments.hydrated ? undefined : 'warning'">
-                  <h3>附件同步</h3>
+                <IonLabel :color="syncStatus.attachments.failed + syncStatus.attachments.missing > 0 ? 'warning' : undefined">
+                  <h3>附件缓存</h3>
                   <p v-if="syncStatus.attachments.quotaExceeded">
-                    设备存储空间不足，笔记已同步，仍有 {{ syncStatus.attachments.total - syncStatus.attachments.ready }} 个附件未下载
+                    设备存储空间不足，附件可在需要时重新下载
                   </p>
-                  <p v-else-if="syncStatus.attachments.hydrated">
-                    附件已全部离线可用（{{ syncStatus.attachments.ready }}/{{ syncStatus.attachments.total }}）
+                  <p v-else-if="syncStatus.attachments.failed + syncStatus.attachments.missing > 0">
+                    已缓存 {{ syncStatus.attachments.ready }}/{{ syncStatus.attachments.total }}，失败 {{ syncStatus.attachments.failed + syncStatus.attachments.missing }}，点击附件可重试
                   </p>
                   <p v-else>
-                    附件同步中 {{ syncStatus.attachments.ready }}/{{ syncStatus.attachments.total }}，失败 {{ syncStatus.attachments.failed + syncStatus.attachments.missing }}
+                    已缓存 {{ syncStatus.attachments.ready }}/{{ syncStatus.attachments.total }}，其余附件将在查看时下载
                   </p>
                 </IonLabel>
                 <IonIcon
-                  v-if="!syncStatus.attachments.hydrated"
+                  v-if="syncStatus.attachments.failed + syncStatus.attachments.missing > 0"
                   slot="end"
                   :icon="warningOutline"
                   color="warning"

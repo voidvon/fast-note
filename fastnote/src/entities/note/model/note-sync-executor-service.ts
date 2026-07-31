@@ -1,5 +1,5 @@
 import type { NoteSyncOperation } from './note-sync-plan-service'
-import { garbageCollectAttachments, reconcileRemoteNoteAttachments } from '@/entities/attachment'
+import { garbageCollectAttachments, reconcileRemoteNoteAttachmentRefs } from '@/entities/attachment'
 import { useNotePurgeService } from './note-purge-service'
 import { useNoteSyncService } from './note-sync-service'
 import { useNote } from './state/note-store'
@@ -41,14 +41,14 @@ export function useNoteSyncExecutorService() {
           syncedUpdatedAt = (await syncNoteToRemote(note, 'create')).syncedUpdatedAt
           const syncedNote = await getNote(note.id)
           if (syncedNote)
-            await reconcileRemoteNoteAttachments(syncedNote)
+            await reconcileRemoteNoteAttachmentRefs(syncedNote)
           uploadedCount++
         }
         else if (action === 'update') {
           syncedUpdatedAt = (await syncNoteToRemote(note, 'update')).syncedUpdatedAt
           const syncedNote = await getNote(note.id)
           if (syncedNote)
-            await reconcileRemoteNoteAttachments(syncedNote)
+            await reconcileRemoteNoteAttachmentRefs(syncedNote)
           uploadedCount++
         }
         else if (action === 'download') {
@@ -61,7 +61,7 @@ export function useNoteSyncExecutorService() {
             await addNote(note)
           }
 
-          await reconcileRemoteNoteAttachments(note)
+          await reconcileRemoteNoteAttachmentRefs(note)
 
           downloadedCount++
         }

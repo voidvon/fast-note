@@ -23,12 +23,15 @@ export interface NoteFile {
   downloadedAt?: string
 }
 
-export type NoteFileRefStatus = 'pending_download' | 'downloading' | 'ready' | 'missing' | 'failed'
+export type NoteFileRefStatus = 'remote_only' | 'pending_download' | 'downloading' | 'ready' | 'missing' | 'failed'
 
 export interface NoteFileRef {
   noteId: string
   remoteFilename: string
   hash?: string
+  fileName?: string
+  fileSize?: number
+  fileType?: string
   status: NoteFileRefStatus
   attempts: number
   nextRetryAt?: string
