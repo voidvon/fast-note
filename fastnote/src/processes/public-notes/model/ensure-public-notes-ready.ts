@@ -1,10 +1,8 @@
 import type { PublicUserInfo } from '@/shared/types/pocketbase'
-import { initializeUserPublicNotes, publicNoteRemoteService, useUserPublicNotes } from '@/entities/public-note'
-import { usePublicUserCache } from './use-public-user-cache'
+import { authUsersService } from '@/entities/auth'
+import { publicNoteRemoteService, useUserPublicNotes } from '@/entities/public-note'
 
-const initializedUsers = new Set<string>()
 const pendingReadyRequests = new Map<string, Promise<PublicNotesReadyResult>>()
-const unfiledNoteTotals = new Map<string, number>()
 
 export interface PublicNotesReadyResult {
   notes: ReturnType<typeof useUserPublicNotes>['publicNotes']['value']
@@ -27,14 +25,8 @@ async function loadPublicNoteIfNeeded(
     return null
   }
 
-  const publicNoteStore = useUserPublicNotes(username)
-  const cachedNote = publicNoteStore.getPublicNote(noteId)
-  if (cachedNote?.content !== undefined) {
-    return cachedNote
-  }
-
   const note = await publicNoteRemoteService.getPublicNote(userInfo.id, noteId)
-  publicNoteStore.mergePublicNotes([note])
+  useUserPublicNotes(username).mergePublicNotes([note])
   return note
 }
 
@@ -45,8 +37,7 @@ export async function syncPublicNotesForUser(
   if (!username)
     return { synced: 0, notes: [], unfiledNotesCount: 0, userInfo: null }
 
-  const { getPublicUserInfo } = usePublicUserCache()
-  const userInfo = await getPublicUserInfo(username)
+  const userInfo = await authUsersService.getPublicUserInfo(username)
 
   if (!userInfo) {
     return {
@@ -64,7 +55,6 @@ export async function syncPublicNotesForUser(
   const publicNoteStore = useUserPublicNotes(username)
   publicNoteStore.replacePublicNotes(folders)
   publicNoteStore.mergePublicNotes(unfiledNotesPage.items)
-  unfiledNoteTotals.set(username, unfiledNotesPage.totalItems)
   const targetNote = await loadPublicNoteIfNeeded(username, userInfo, options.noteId)
   const notes = publicNoteStore.publicNotes.value ?? []
   const previewNoteIds = new Set(unfiledNotesPage.items.map(note => note.id))
@@ -87,34 +77,14 @@ export async function ensurePublicNotesReady(username: string, options: EnsurePu
     }
   }
 
-  if (!options.force && initializedUsers.has(username)) {
-    const publicNoteStore = useUserPublicNotes(username)
-    const { getPublicUserInfo } = usePublicUserCache()
-    const userInfo = await getPublicUserInfo(username)
-    if (userInfo) {
-      await loadPublicNoteIfNeeded(username, userInfo, options.noteId)
-    }
-    const cachedNotes = publicNoteStore.publicNotes.value ?? []
-
-    return {
-      synced: cachedNotes.length,
-      notes: cachedNotes,
-      unfiledNotesCount: unfiledNoteTotals.get(username) || 0,
-      userInfo,
-    }
-  }
-
-  const pendingRequestKey = `${username}:${options.force ? 'force' : 'default'}`
+  const pendingRequestKey = `${username}:${options.noteId || ''}`
   const existingPendingRequest = pendingReadyRequests.get(pendingRequestKey)
   if (existingPendingRequest) {
     return await existingPendingRequest
   }
 
   const readyPromise = (async () => {
-    await initializeUserPublicNotes(username)
-    const result = await syncPublicNotesForUser(username, options)
-    initializedUsers.add(username)
-    return result
+    return await syncPublicNotesForUser(username, options)
   })()
 
   pendingReadyRequests.set(pendingRequestKey, readyPromise)
@@ -125,9 +95,4 @@ export async function ensurePublicNotesReady(username: string, options: EnsurePu
   finally {
     pendingReadyRequests.delete(pendingRequestKey)
   }
-}
-
-export function markPublicNotesDirty(username: string) {
-  initializedUsers.delete(username)
-  unfiledNoteTotals.delete(username)
 }

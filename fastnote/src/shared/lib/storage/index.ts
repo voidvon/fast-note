@@ -38,12 +38,6 @@ export {
   readStoredNotes,
 } from './notes'
 
-export {
-  createUserPublicNotesDatabase,
-  readUserPublicNotes,
-  type UserPublicNotesDatabase,
-} from './public-notes'
-
 export { useRefDBSync } from './sync'
 
 export type {

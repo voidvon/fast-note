@@ -33,7 +33,6 @@ describe('public notes incremental loading', () => {
     }
 
     vi.doMock('@/entities/public-note', () => ({
-      initializeUserPublicNotes: vi.fn(async () => undefined),
       publicNoteRemoteService: {
         getPublicFolders,
         getPublicNote,
@@ -41,10 +40,10 @@ describe('public notes incremental loading', () => {
       },
       useUserPublicNotes: () => store,
     }))
-    vi.doMock('@/processes/public-notes/model/use-public-user-cache', () => ({
-      usePublicUserCache: () => ({
+    vi.doMock('@/entities/auth', () => ({
+      authUsersService: {
         getPublicUserInfo: vi.fn(async () => ({ id: 'user-a', username: 'alice' })),
-      }),
+      },
     }))
 
     const { ensurePublicNotesReady } = await import('@/processes/public-notes/model/ensure-public-notes-ready')
@@ -81,7 +80,6 @@ describe('public notes incremental loading', () => {
     }
 
     vi.doMock('@/entities/public-note', () => ({
-      initializeUserPublicNotes: vi.fn(async () => undefined),
       publicNoteRemoteService: {
         getPublicFolders: vi.fn(async () => []),
         getPublicNote: vi.fn(),
@@ -89,10 +87,10 @@ describe('public notes incremental loading', () => {
       },
       useUserPublicNotes: () => store,
     }))
-    vi.doMock('@/processes/public-notes/model/use-public-user-cache', () => ({
-      usePublicUserCache: () => ({
+    vi.doMock('@/entities/auth', () => ({
+      authUsersService: {
         getPublicUserInfo: vi.fn(async () => ({ id: 'user-a', username: 'alice' })),
-      }),
+      },
     }))
 
     const { ensurePublicNotesReady } = await import('@/processes/public-notes/model/ensure-public-notes-ready')
@@ -101,6 +99,49 @@ describe('public notes incremental loading', () => {
     expect(getPublicNotesPage).toHaveBeenCalledWith('user-a', 'unfilednotes', 1, 1)
     expect(result.unfiledNotesCount).toBe(42)
     expect(publicNotes.value.map(note => note.id)).toEqual(['root-note'])
+  })
+
+  it('requests fresh public data on every route entry', async () => {
+    const publicNotes = ref<any[]>([])
+    const getPublicFolders = vi.fn(async () => [makeNote({ id: 'folder-1', item_type: 1 })])
+    const getPublicNotesPage = vi.fn(async () => ({
+      items: [],
+      page: 1,
+      perPage: 1,
+      totalItems: 0,
+      totalPages: 0,
+    }))
+    const store = {
+      getPublicNote: vi.fn(),
+      mergePublicNotes: (notes: any[]) => {
+        publicNotes.value = [...publicNotes.value.filter(note => !notes.some(item => item.id === note.id)), ...notes]
+      },
+      publicNotes,
+      replacePublicNotes: (notes: any[]) => {
+        publicNotes.value = [...notes]
+      },
+    }
+
+    vi.doMock('@/entities/public-note', () => ({
+      publicNoteRemoteService: {
+        getPublicFolders,
+        getPublicNote: vi.fn(),
+        getPublicNotesPage,
+      },
+      useUserPublicNotes: () => store,
+    }))
+    vi.doMock('@/entities/auth', () => ({
+      authUsersService: {
+        getPublicUserInfo: vi.fn(async () => ({ id: 'user-a', username: 'alice' })),
+      },
+    }))
+
+    const { ensurePublicNotesReady } = await import('@/processes/public-notes/model/ensure-public-notes-ready')
+    await ensurePublicNotesReady('alice')
+    await ensurePublicNotesReady('alice')
+
+    expect(getPublicFolders).toHaveBeenCalledTimes(2)
+    expect(getPublicNotesPage).toHaveBeenCalledTimes(2)
   })
 
   it('merges one requested folder page into the public store', async () => {
@@ -117,10 +158,10 @@ describe('public notes incremental loading', () => {
       publicNoteRemoteService: { getPublicNotesPage },
       useUserPublicNotes: () => ({ mergePublicNotes }),
     }))
-    vi.doMock('@/processes/public-notes/model/use-public-user-cache', () => ({
-      usePublicUserCache: () => ({
+    vi.doMock('@/entities/auth', () => ({
+      authUsersService: {
         getPublicUserInfo: vi.fn(async () => ({ id: 'user-a', username: 'alice' })),
-      }),
+      },
     }))
 
     const { loadPublicFolderNotes } = await import('@/processes/public-notes/model/load-public-folder-notes')

@@ -1,6 +1,6 @@
 import type { PublicNotesPage } from '@/shared/api/pocketbase'
+import { authUsersService } from '@/entities/auth'
 import { publicNoteRemoteService, useUserPublicNotes } from '@/entities/public-note'
-import { usePublicUserCache } from './use-public-user-cache'
 
 const emptyPage: PublicNotesPage = {
   items: [],
@@ -19,8 +19,7 @@ export async function loadPublicFolderNotes(
     return emptyPage
   }
 
-  const { getPublicUserInfo } = usePublicUserCache()
-  const userInfo = await getPublicUserInfo(username)
+  const userInfo = await authUsersService.getPublicUserInfo(username)
   if (!userInfo) {
     return emptyPage
   }

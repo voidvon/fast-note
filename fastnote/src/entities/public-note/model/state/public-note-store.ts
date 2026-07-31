@@ -1,75 +1,25 @@
-import type { UserPublicNotesDatabase } from '@/shared/lib/storage'
 import type { FolderTreeNode, Note } from '@/shared/types'
 import { ref } from 'vue'
 import { buildFolderTree, countNotesWithinChildren, countUnfiledNotes, isDeletedNoteRetained, matchesNoteKeyword } from '@/entities/note'
 import { getTime } from '@/shared/lib/date'
-import {
-  createUserPublicNotesDatabase,
-  readUserPublicNotes,
-  useRefDBSync,
-} from '@/shared/lib/storage'
 import { NOTE_TYPE } from '@/shared/types'
 
-// 全局状态管理 - 每个用户一个独立的状态
+// 公开资料只在当前浏览会话中保留，不写入 IndexedDB。
 const userPublicNotesMap = new Map<string, {
-  db: UserPublicNotesDatabase
   publicNotes: ReturnType<typeof ref<Note[]>>
-  initializing: boolean
-  isInitialized: boolean
-  publicNotesSync: ReturnType<typeof useRefDBSync<Note>> | null
 }>()
 
-// 获取或创建用户状态
 function getUserState(username: string) {
   if (!userPublicNotesMap.has(username)) {
     userPublicNotesMap.set(username, {
-      db: createUserPublicNotesDatabase(username),
       publicNotes: ref<Note[]>([]),
-      initializing: false,
-      isInitialized: false,
-      publicNotesSync: null,
     })
   }
   return userPublicNotesMap.get(username)!
 }
 
-// 全局初始化函数
-export async function initializeUserPublicNotes(username: string) {
-  const state = getUserState(username)
-
-  if (!state.isInitialized && !state.initializing) {
-    state.initializing = true
-    try {
-      // 打开用户专用数据库
-      await state.db.open()
-
-      // 从数据库读取数据
-      const data = await readUserPublicNotes(state.db)
-      state.publicNotes.value = data
-
-      // 初始化 useRefDBSync
-      state.publicNotesSync = useRefDBSync({
-        data: state.publicNotes as any,
-        table: state.db.notes,
-        idField: 'id',
-        debounceMs: 300,
-      })
-
-      state.isInitialized = true
-    }
-    catch (error) {
-      console.error('Error initializing user public notes:', error)
-    }
-    finally {
-      state.initializing = false
-    }
-  }
-}
-
-// 导出同步控制函数
-export function getUserPublicNotesSync(username: string) {
-  const state = getUserState(username)
-  return state.publicNotesSync
+export function disposeUserPublicNotes(username: string) {
+  userPublicNotesMap.delete(username)
 }
 
 export function useUserPublicNotes(username: string) {
@@ -278,7 +228,5 @@ export function useUserPublicNotes(username: string) {
     getPublicFolderTreeByPUuid,
     getUnfiledPublicNotesCount,
     updateParentPublicFolderSubcount,
-    // 同步相关
-    getUserPublicNotesSync: () => state.publicNotesSync,
   }
 }
