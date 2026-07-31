@@ -14,19 +14,15 @@ const availableExtensions: any[] = []
 
 async function initExtensions(): Promise<void> {
   if (state.initialized) {
-    console.log('扩展系统已经初始化，跳过重复初始化')
     return
   }
 
   if (initPromise) {
-    console.log('扩展系统正在初始化，等待完成...')
     return initPromise
   }
 
   initPromise = (async () => {
     try {
-      console.log('开始初始化扩展系统')
-
       state.extensions = availableExtensions.map(ext => ({
         ...ext,
         enabled: false,
@@ -41,8 +37,6 @@ async function initExtensions(): Promise<void> {
             return savedExt ? { ...ext, enabled: savedExt.enabled } : ext
           })
 
-          console.log('已加载扩展配置:', state.extensions.filter(ext => ext.enabled).map(ext => ext.id))
-
           for (const ext of state.extensions) {
             if (ext.enabled) {
               await loadExtension(ext.id)
@@ -55,7 +49,6 @@ async function initExtensions(): Promise<void> {
       }
 
       state.initialized = true
-      console.log('扩展系统初始化完成')
     }
     finally {
       initPromise = null
@@ -68,12 +61,10 @@ async function initExtensions(): Promise<void> {
 
 async function loadExtension(id: string): Promise<boolean> {
   if (state.loadedExtensions[id]) {
-    console.log(`扩展 ${id} 已经加载，跳过重复加载`)
     return true
   }
 
   if (loadingPromises.has(id)) {
-    console.log(`扩展 ${id} 正在加载，等待完成...`)
     return loadingPromises.get(id)!
   }
 
@@ -85,7 +76,6 @@ async function loadExtension(id: string): Promise<boolean> {
         return false
       }
 
-      console.log(`开始加载扩展 ${id}`)
       console.error(`扩展系统已废弃，扩展ID ${id} 不可用`)
       return false
     }

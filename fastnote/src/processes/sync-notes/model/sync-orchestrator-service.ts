@@ -14,17 +14,12 @@ export function useSyncOrchestratorService() {
   async function runIncrementalNoteSync() {
     const currentUserId = ensureSyncScopeReady()
 
-    console.warn('PocketBase同步开始，updated:', updated.value)
-
     await queueExpiredNotePurges()
     await runPendingNotePurges()
     await preparePersistentStorage()
 
     const localNotes = await getNotesByUpdated(updated.value)
-    console.warn('本地笔记变更:', localNotes)
-
     const cloudNotes = await noteRemoteService.getNotesByUpdated(updated.value)
-    console.warn('云端笔记变更:', cloudNotes)
 
     const operations = buildNoteSyncOperations({
       localNotes,
@@ -45,14 +40,6 @@ export function useSyncOrchestratorService() {
     for (const note of notes.value)
       await reconcileRemoteNoteAttachmentRefs(note)
     const attachments = await getAttachmentHydrationStatus()
-
-    console.warn('PocketBase同步完成', {
-      uploaded: result.uploaded,
-      downloaded: result.downloaded,
-      deleted: result.deleted,
-      manifest,
-      attachments,
-    })
 
     return { ...result, attachments, manifest }
   }

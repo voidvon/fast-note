@@ -197,7 +197,7 @@ export function useNoteEditor(options: {
     editor.value = new Editor({
       extensions: [
         Color.configure({ types: [TextStyleKit.name, ListItem.name] }),
-        TextStyleKit,
+        TextStyleKit.configure({ color: false }),
         StarterKit.configure({
           link: false,
         }),
@@ -213,9 +213,6 @@ export function useNoteEditor(options: {
         TableCell,
         FileUpload.configure({
           loadFile: loadFileFromStorage,
-          onImageLoaded(url: string, width: number, height: number) {
-            console.warn('图片加载完成', url, width, height)
-          },
         }),
         GlobalDragHandle.configure({
           dragHandleWidth: 20,

@@ -1,14 +1,8 @@
 const isDev = import.meta.env.DEV
 
 export const logger = {
-  debug: (...args: any[]) => {
-    if (isDev)
-      console.warn(...args)
-  },
-  info: (...args: any[]) => {
-    if (isDev)
-      console.warn(...args)
-  },
+  debug: (..._args: any[]) => {},
+  info: (..._args: any[]) => {},
   warn: (...args: any[]) => {
     if (isDev)
       console.warn(...args)

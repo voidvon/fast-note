@@ -12,6 +12,7 @@ class RealtimeManager {
     this.status.value === Status.CONNECTING
     || this.status.value === Status.RECONNECTING,
   )
+
   readonly hasError = computed(() => this.status.value === Status.ERROR)
   readonly connectionStatus = computed(() => this.status.value)
 
@@ -45,7 +46,6 @@ class RealtimeManager {
       await this.realtimeService.connect()
       this.status.value = this.realtimeService.getStatus()
       this.lastError.value = null
-      console.log('✅ Realtime 连接已建立')
     }
     catch (error) {
       this.status.value = Status.ERROR
@@ -63,7 +63,6 @@ class RealtimeManager {
     try {
       this.realtimeService.disconnect()
       this.status.value = Status.DISCONNECTED
-      console.log('🔌 Realtime 连接已断开')
     }
     catch (error) {
       console.error('断开 Realtime 连接失败:', error)
