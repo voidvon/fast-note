@@ -53,11 +53,12 @@ const fileUploadExtension = computed<Extension | undefined>(() => {
 const imageRef = ref<HTMLImageElement | null>(null)
 const containerSize = ref({ width: '88px', height: '88px' })
 const imageUrl = ref('')
-const isLoading = ref(false)
+const isLoading = ref(shouldAutoLoadAttachment(nodeProps.value))
 const hasError = ref(false)
 const fileTypeName = ref('') // 存储从loadFile返回的文件类型
 const naturalSize = ref({ width: 0, height: 0 })
 const displayName = computed(() => getAttachmentDisplayName(nodeProps.value))
+let loadRequestId = 0
 
 // 注入父组件提供的预览功能
 const openPhotoSwipe = inject<(imageUrl: string, width: number, height: number) => void>('openPhotoSwipe')
@@ -164,6 +165,8 @@ function onImageLoad(event: Event) {
 
 // 图片加载失败
 function onImageError() {
+  if (isLoading.value || !imageUrl.value)
+    return
   hasError.value = true
 }
 
@@ -175,10 +178,10 @@ function replaceImageUrl(url: string) {
 }
 
 async function loadFileWithExtension(url: string, options: { force?: boolean } = {}) {
+  const requestId = ++loadRequestId
   // 设置加载状态
   isLoading.value = true
   hasError.value = false
-  replaceImageUrl(url)
 
   // 使用扩展的 loadFile 方法
   const loadFile = fileUploadExtension.value?.options?.loadFile
@@ -187,6 +190,11 @@ async function loadFileWithExtension(url: string, options: { force?: boolean } =
     try {
       const result = await loadFile(url, options)
       if (result && 'url' in result) {
+        if (requestId !== loadRequestId) {
+          if (result.url.startsWith('blob:'))
+            URL.revokeObjectURL(result.url)
+          return null
+        }
         replaceImageUrl(result.url)
         fileTypeName.value = result.type || '' // 存储文件类型
         isLoading.value = false
@@ -194,12 +202,15 @@ async function loadFileWithExtension(url: string, options: { force?: boolean } =
       }
     }
     catch (extensionError) {
+      if (requestId !== loadRequestId)
+        return null
       // 如果扩展方法抛出错误，直接使用原始 URL
       console.warn('扩展加载文件失败，使用原始URL:', extensionError)
       hasError.value = true
     }
   }
-  isLoading.value = false
+  if (requestId === loadRequestId)
+    isLoading.value = false
   return null
 }
 
@@ -223,9 +234,13 @@ const wrapperStyle = computed(() => {
     return {
       width: '88px',
       height: '88px',
+      verticalAlign: 'bottom',
     }
   }
-  return containerSize.value
+  return {
+    ...containerSize.value,
+    verticalAlign: 'bottom',
+  }
 })
 
 // 打开PhotoSwipe预览
@@ -277,6 +292,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  loadRequestId++
   if (imageUrl.value.startsWith('blob:'))
     URL.revokeObjectURL(imageUrl.value)
 })
@@ -325,10 +341,12 @@ onBeforeUnmount(() => {
     /* border: 1px solid #ddd; */
     box-shadow: 0 0 0 1px #ddd;
     border-radius: 4px;
+    transition: box-shadow 120ms ease;
   }
-  .file-upload-content .file-upload-wrapper.is-selected {
-    border-color: #2196f3;
-    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+  &.is-selected > .file-upload-content {
+    box-shadow:
+      0 0 0 2px var(--ion-color-primary, #3880ff),
+      0 0 0 5px rgba(56, 128, 255, 0.22);
   }
 
   .image-preview,

@@ -6,16 +6,30 @@ function getCurrentTime(): string {
   return new Date().toISOString().replace('T', ' ')
 }
 
+interface DebouncedFunction<T extends (...args: any[]) => any> {
+  (...args: Parameters<T>): void
+  cancel: () => void
+}
+
 function debounce<T extends (...args: any[]) => any>(
   func: T,
   wait: number,
-): (...args: Parameters<T>) => void {
+): DebouncedFunction<T> {
   let timeout: NodeJS.Timeout | null = null
-  return (...args: Parameters<T>) => {
+  const debounced = (...args: Parameters<T>) => {
     if (timeout)
       clearTimeout(timeout)
-    timeout = setTimeout(() => func(...args), wait)
+    timeout = setTimeout(() => {
+      timeout = null
+      func(...args)
+    }, wait)
   }
+  debounced.cancel = () => {
+    if (timeout)
+      clearTimeout(timeout)
+    timeout = null
+  }
+  return debounced
 }
 
 export function useRefDBSync<T extends SyncableItem>(
@@ -140,10 +154,24 @@ export function useRefDBSync<T extends SyncableItem>(
     }
   }
 
-  const debouncedSync = debounce(syncToDatabase, debounceMs)
+  let syncQueue = Promise.resolve()
+  let autoSyncEnabled = true
+  let initializationPromise: Promise<void> = Promise.resolve()
+
+  function enqueueSync(newData: T[]) {
+    const operation = syncQueue.then(() => syncToDatabase(newData))
+    syncQueue = operation.catch(() => undefined)
+    return operation
+  }
+
+  const debouncedSync = debounce((newData: T[]) => {
+    if (autoSyncEnabled)
+      void enqueueSync(newData)
+  }, debounceMs)
 
   async function manualSync() {
-    await syncToDatabase(data.value)
+    debouncedSync.cancel()
+    await enqueueSync(data.value)
   }
 
   async function clearDatabase() {
@@ -162,6 +190,7 @@ export function useRefDBSync<T extends SyncableItem>(
   let watchStopHandle: (() => void) | null = null
 
   function startAutoSync() {
+    autoSyncEnabled = true
     if (watchStopHandle)
       return
 
@@ -174,16 +203,23 @@ export function useRefDBSync<T extends SyncableItem>(
     )
   }
 
-  function stopAutoSync() {
+  async function stopAutoSync() {
+    autoSyncEnabled = false
+    debouncedSync.cancel()
     if (watchStopHandle) {
       watchStopHandle()
       watchStopHandle = null
     }
+    await initializationPromise
+    await syncQueue
   }
 
-  nextTick(async () => {
+  initializationPromise = nextTick().then(async () => {
+    if (!autoSyncEnabled)
+      return
     await initData()
-    startAutoSync()
+    if (autoSyncEnabled)
+      startAutoSync()
   })
 
   return {

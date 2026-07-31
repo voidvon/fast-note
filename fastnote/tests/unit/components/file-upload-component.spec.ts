@@ -5,6 +5,7 @@ import FileUploadComponent from '@/shared/lib/editor/extensions/FileUpload/FileU
 function mountAttachment(
   attrs: Record<string, unknown>,
   loadFile: (url: string, options?: { force?: boolean }) => Promise<{ url: string, type: string }>,
+  selected = false,
 ) {
   return mount(FileUploadComponent, {
     props: {
@@ -15,6 +16,7 @@ function mountAttachment(
       },
       getPos: () => 0,
       node: { attrs },
+      selected,
     },
     global: {
       provide: {
@@ -63,6 +65,28 @@ describe('file upload component lazy loading', () => {
     wrapper.unmount()
   })
 
+  it('bottom-aligns adjacent attachment nodes regardless of their internal content', () => {
+    const wrapper = mountAttachment({
+      name: '说明.pdf',
+      type: 'application/pdf',
+      url: 'remote_random.pdf',
+    }, vi.fn())
+
+    expect(wrapper.get('.file-upload-wrapper').attributes('style')).toContain('vertical-align: bottom')
+    wrapper.unmount()
+  })
+
+  it('exposes a selected class for the attachment focus ring', () => {
+    const wrapper = mountAttachment({
+      name: '说明.pdf',
+      type: 'application/pdf',
+      url: 'remote_random.pdf',
+    }, vi.fn(), true)
+
+    expect(wrapper.get('.file-upload-wrapper').classes()).toContain('is-selected')
+    wrapper.unmount()
+  })
+
   it('loads a remote image as soon as the attachment node is mounted', async () => {
     const loadFile = vi.fn(async () => ({ url: 'blob:cached-image', type: 'image/png' }))
     const wrapper = mountAttachment({
@@ -75,6 +99,29 @@ describe('file upload component lazy loading', () => {
 
     expect(loadFile).toHaveBeenCalledOnce()
     expect(loadFile).toHaveBeenCalledWith('remote_random.png', {})
+    wrapper.unmount()
+  })
+
+  it('does not render an image with an empty src while the local blob is loading', async () => {
+    let resolveFile!: (value: { url: string, type: string }) => void
+    const loadFile = vi.fn(() => new Promise<{ url: string, type: string }>((resolve) => {
+      resolveFile = resolve
+    }))
+    const wrapper = mountAttachment({
+      name: 'clipboard.png',
+      type: 'image/png',
+      url: 'a'.repeat(64),
+    }, loadFile)
+
+    expect(wrapper.find('.loading-wrapper').exists()).toBe(true)
+    expect(wrapper.find('.image-preview img').exists()).toBe(false)
+
+    resolveFile({ url: 'blob:clipboard-image', type: 'image/png' })
+    await flushPromises()
+
+    expect(wrapper.find('.loading-wrapper').exists()).toBe(false)
+    expect(wrapper.get('.image-preview img').attributes('src')).toBe('blob:clipboard-image')
+    expect(wrapper.find('.error-text').exists()).toBe(false)
     wrapper.unmount()
   })
 })

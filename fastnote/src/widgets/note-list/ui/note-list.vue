@@ -5,10 +5,10 @@ import type { NoteActionMenuItem } from '@/features/note-actions-menu'
 import { IonAccordionGroup, IonList } from '@ionic/vue'
 import { computed, onMounted, onUnmounted, ref, toRef, watch } from 'vue'
 import { NOTE_TYPE } from '@/entities/note'
+import { useGlobalSearch } from '@/features/global-search'
 import NoteActionsMenu from '@/features/note-actions-menu'
 import { useNoteLockIndicatorState } from '@/features/note-lock'
 import NoteMoveModal from '@/features/note-move/ui/note-move-modal.vue'
-import { useGlobalSearch } from '@/features/global-search'
 import { useDeviceType } from '@/shared/lib/device'
 import { useIonicLongPressList } from '@/shared/lib/ionic'
 import NoteListItem from './note-list-item.vue'
@@ -60,6 +60,8 @@ const moveNoteId = ref('')
 const expandedItems = ref<string[]>([])
 const longPressMenuRef = ref()
 const movePresentingElement = ref<HTMLElement>()
+let wheelListenerElement: HTMLElement | null = null
+let handleWheel: ((event: WheelEvent) => void) | null = null
 const { indicatorStateMap } = useNoteLockIndicatorState(toRef(props, 'dataList'))
 const longPressEnabled = computed(() => {
   return !props.disabledLongPress
@@ -204,7 +206,7 @@ onMounted(() => {
   if (!isDesktop.value || !listRef.value?.$el)
     return
 
-  const handleWheel = (e: WheelEvent) => {
+  handleWheel = (e: WheelEvent) => {
     const ionContent = (e.currentTarget as HTMLElement).closest('ion-content')
     if (!ionContent)
       return
@@ -214,11 +216,17 @@ onMounted(() => {
     e.preventDefault()
   }
 
-  listRef.value.$el.addEventListener('wheel', handleWheel, { passive: false, capture: true })
+  const element = listRef.value.$el as HTMLElement
+  wheelListenerElement = element
+  element.addEventListener('wheel', handleWheel, { passive: false, capture: true })
+})
 
-  onUnmounted(() => {
-    listRef.value?.$el?.removeEventListener('wheel', handleWheel, { capture: true })
-  })
+onUnmounted(() => {
+  if (wheelListenerElement && handleWheel) {
+    wheelListenerElement.removeEventListener('wheel', handleWheel, { capture: true })
+  }
+  wheelListenerElement = null
+  handleWheel = null
 })
 
 defineExpose({

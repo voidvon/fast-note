@@ -1,6 +1,6 @@
 import type { NoteSyncController } from '@/shared/lib/storage'
 import type { FolderTreeNode, Note } from '@/shared/types'
-import { onUnmounted, ref } from 'vue'
+import { getCurrentInstance, onUnmounted, ref } from 'vue'
 import { getTime } from '@/shared/lib/date'
 import {
   createNotesSync,
@@ -18,9 +18,9 @@ type UpdateFn = (item: Note) => void
 
 const notes = ref<Note[]>([])
 const { getIndexedNote, getIndexedNotesByParentId, rebuildNoteIndexes, updateNoteIndexes } = useNoteIndexState()
-let initializing = false
 let isInitialized = false
-const onNoteUpdateArr: UpdateFn[] = []
+let initializationPromise: Promise<void> | null = null
+const onNoteUpdateSet = new Set<UpdateFn>()
 
 // 全局同步实例
 let notesSync: NoteSyncController | null = null
@@ -104,15 +104,16 @@ async function searchNotes(keyword: string, options: SearchNotesOptions = {}) {
   return matchedNotes
 }
 
-function resetNotesState() {
+export async function disposeNotesContext() {
   if (notesSync) {
-    notesSync.stopAutoSync()
+    await notesSync.stopAutoSync()
     notesSync = null
   }
 
   notes.value = []
   rebuildNoteIndexes(notes.value)
   isInitialized = false
+  initializedDatabaseName = ''
 }
 
 export async function initializeNotes() {
@@ -124,16 +125,21 @@ export async function initializeNotes() {
   if (isInitialized && initializedDatabaseName === nextDatabaseName)
     return
 
-  if (initializing)
-    return
+  if (initializationPromise) {
+    await initializationPromise
+    if (isInitialized && initializedDatabaseName === nextDatabaseName)
+      return
+    return await initializeNotes()
+  }
 
-  initializing = true
-  try {
-    resetNotesState()
-
+  const initialization = (async () => {
+    await disposeNotesContext()
     const { db } = useDexie()
     if (!db.value) {
       throw new Error('数据库未初始化')
+    }
+    if (db.value.name !== nextDatabaseName) {
+      throw new Error(`数据库上下文已变化: expected ${nextDatabaseName}, received ${db.value.name}`)
     }
 
     const data = await readStoredNotes(db.value)
@@ -144,12 +150,19 @@ export async function initializeNotes() {
 
     initializedDatabaseName = nextDatabaseName
     isInitialized = true
+  })()
+  initializationPromise = initialization
+
+  try {
+    await initialization
   }
   catch (error) {
     console.error('Error initializing notes:', error)
+    throw error
   }
   finally {
-    initializing = false
+    if (initializationPromise === initialization)
+      initializationPromise = null
   }
 }
 
@@ -160,7 +173,12 @@ export function getNotesSync() {
 
 export function useNote() {
   const { db } = useDexie()
-  const privateNoteUpdateArr: UpdateFn[] = []
+  const privateNoteUpdateSet = new Set<UpdateFn>()
+
+  function dispose() {
+    privateNoteUpdateSet.forEach(fn => onNoteUpdateSet.delete(fn))
+    privateNoteUpdateSet.clear()
+  }
 
   function getFirstNote() {
     const sortedNotes = notes.value.slice().sort((a, b) => (a.created || '').localeCompare(b.created || ''))
@@ -362,8 +380,13 @@ export function useNote() {
   }
 
   function onUpdateNote(fn: UpdateFn) {
-    onNoteUpdateArr.push(fn)
-    privateNoteUpdateArr.push(fn)
+    onNoteUpdateSet.add(fn)
+    privateNoteUpdateSet.add(fn)
+
+    return () => {
+      onNoteUpdateSet.delete(fn)
+      privateNoteUpdateSet.delete(fn)
+    }
   }
 
   function getNotesByUpdated(updated: string) {
@@ -422,11 +445,9 @@ export function useNote() {
     }
   }
 
-  onUnmounted(() => {
-    privateNoteUpdateArr.forEach((fn) => {
-      onNoteUpdateArr.splice(onNoteUpdateArr.indexOf(fn), 1)
-    })
-  })
+  if (getCurrentInstance()) {
+    onUnmounted(dispose)
+  }
 
   return {
     getFirstNote,
@@ -449,6 +470,7 @@ export function useNote() {
     getFolderTreeByParentId,
     getUnfiledNotesCount,
     updateParentFolderSubcount,
+    dispose,
     // 同步相关
     getNotesSync: () => notesSync,
   }

@@ -51,6 +51,7 @@ export const NOTE_DATABASE_SCHEMA_V4 = {
 const db = ref<NoteDatabase>()
 const onNoteUpdateArr: (() => void)[] = []
 let currentDatabaseName = ''
+let databaseSwitchQueue = Promise.resolve()
 
 function applySchema(database: NoteDatabase) {
   database.version(1).stores(NOTE_DATABASE_SCHEMA_V1)
@@ -82,20 +83,27 @@ export async function openCurrentDatabaseConnection() {
   return openDatabase(currentDatabaseName)
 }
 
-export async function initializeDatabase(userId?: string | null) {
+export function initializeDatabase(userId?: string | null) {
   const databaseName = getScopedDatabaseName(userId)
+  const operation = databaseSwitchQueue.then(async () => {
+    if (db.value && currentDatabaseName === databaseName)
+      return db.value
 
-  if (db.value && currentDatabaseName === databaseName)
-    return db.value
+    const nextDatabase = await openDatabase(databaseName)
+    const previousDatabase = db.value
 
-  if (db.value)
-    db.value.close()
+    db.value = nextDatabase
+    currentDatabaseName = databaseName
+    if (typeof window !== 'undefined') {
+      (window as any).db = nextDatabase
+    }
 
-  db.value = await openDatabase(databaseName)
-  currentDatabaseName = databaseName
-  ;(window as any).db = db.value
+    previousDatabase?.close()
+    return nextDatabase
+  })
 
-  return db.value
+  databaseSwitchQueue = operation.then(() => undefined, () => undefined)
+  return operation
 }
 
 export async function switchDatabase(userId?: string | null) {

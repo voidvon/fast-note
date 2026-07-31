@@ -44,6 +44,19 @@ export function useSessionBootstrap() {
   let guestDecisionPromise: Promise<void> | null = null
   let guestDecisionHandled = false
   let lastKnownAuthenticated = authService.isAuthenticated()
+  let lastKnownUserId = authService.getCurrentAuthUser()?.id || null
+
+  async function settleCurrentSessionBootstrap() {
+    if (!sessionBootstrapPromise)
+      return
+
+    try {
+      await sessionBootstrapPromise
+    }
+    catch (error) {
+      logger.warn('切换会话前等待当前初始化收尾失败:', error)
+    }
+  }
 
   async function promptGuestDataDecision(): Promise<GuestDataDecision> {
     return await new Promise((resolve, reject) => {
@@ -168,7 +181,27 @@ export function useSessionBootstrap() {
     authChangeUnsubscribe = authService.onAuthChange(async (token, user) => {
       const isAuthenticated = !!token && !!user
       const shouldPromptGuestData = !lastKnownAuthenticated && isAuthenticated
+      const nextUserId = user?.id || null
+      const scopeChanged = lastKnownUserId !== nextUserId
       lastKnownAuthenticated = isAuthenticated
+      lastKnownUserId = nextUserId
+      let immediateRouteRestored = false
+
+      if (
+        scopeChanged
+        && token
+        && user
+        && shouldRestoreLastVisitedRouteForCurrentPath(router.currentRoute.value.fullPath)
+      ) {
+        await restoreImmediateLastVisitedRoute(router, user.id)
+        immediateRouteRestored = true
+      }
+
+      if (scopeChanged) {
+        isPrivateRouteLocalReady.value = false
+        realtimeManager.disconnect()
+        await settleCurrentSessionBootstrap()
+      }
 
       try {
         await prepareSessionContext(user?.id)
@@ -179,7 +212,10 @@ export function useSessionBootstrap() {
 
       if (token && user) {
         try {
-          if (shouldRestoreLastVisitedRouteForCurrentPath(router.currentRoute.value.fullPath)) {
+          if (authService.getCurrentAuthUser()?.id !== user.id)
+            return
+
+          if (!immediateRouteRestored && shouldRestoreLastVisitedRouteForCurrentPath(router.currentRoute.value.fullPath)) {
             await restoreImmediateLastVisitedRoute(router, user.id)
           }
           if (shouldPromptGuestData) {
@@ -193,7 +229,6 @@ export function useSessionBootstrap() {
       }
       else {
         isPrivateRouteLocalReady.value = true
-        realtimeManager.disconnect()
         guestDecisionHandled = false
         if (shouldRestoreLastVisitedRouteForCurrentPath(router.currentRoute.value.fullPath)) {
           await restoreImmediateLastVisitedRoute(router, null)
