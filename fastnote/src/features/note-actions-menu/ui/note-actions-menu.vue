@@ -167,13 +167,13 @@ ion-modal#long-press-menu {
   -webkit-backdrop-filter: blur(20px) saturate(160%);
 }
 
-.long-press-menu :deep(.list-ios),
-.long-press-menu :deep(.list-md) {
+.long-press-menu .list-ios,
+.long-press-menu .list-md {
   padding: 0;
   background: transparent;
 }
 
-.long-press-menu :deep(ion-item) {
+.long-press-menu ion-item {
   --background: transparent;
   --border-width: 0;
   --inner-border-width: 0;

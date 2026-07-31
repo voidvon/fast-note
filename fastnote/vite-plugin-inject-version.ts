@@ -18,7 +18,7 @@ export function injectVersion(): Plugin {
       const minutes = now.getUTCMinutes().toString().padStart(2, '0')
       const version = `${month}${day}${hours}${minutes}`
 
-      const indexPath = path.resolve(__dirname, 'dist/index.html')
+      const indexPath = path.resolve(import.meta.dirname, 'dist/index.html')
       try {
         let indexContent = fs.readFileSync(indexPath, 'utf-8')
         indexContent = indexContent.replace('##version##', version)
