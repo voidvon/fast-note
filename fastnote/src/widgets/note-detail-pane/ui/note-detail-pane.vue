@@ -38,6 +38,10 @@ const props = withDefaults(
 const emit = defineEmits(['noteSaved'])
 
 const route = useRoute()
+// Ionic keeps detail pages alive while the global route moves on. Capture the
+// ownership boundary for this pane so a public reader can never enter the
+// private-note save pipeline during leave/pagehide callbacks.
+const canPersistPrivateNote = !route.params.username
 const { addNote, getNote, notes, updateNote, updateParentFolderSubcount, getNotesSync } = useNote()
 const { isDesktop } = useDeviceType()
 const noteLock = useNoteLock()
@@ -360,6 +364,11 @@ async function handleNoteSaving(
   saveTargetContext: SaveTargetContext = {},
   forceWrite = false,
 ) {
+  if (!canPersistPrivateNote) {
+    noteDetailLeave.clearPendingSaveTimer()
+    return
+  }
+
   if (isPinLockedForView.value) {
     if (leaveFlushReason) {
       await noteDetailLeave.flushNotesToLocal(leaveFlushReason)

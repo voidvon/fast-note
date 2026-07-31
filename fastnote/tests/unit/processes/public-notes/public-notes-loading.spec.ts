@@ -171,4 +171,36 @@ describe('public notes incremental loading', () => {
     expect(mergePublicNotes).toHaveBeenCalledWith(result.items)
     expect(result.totalPages).toBe(2)
   })
+
+  it('loads and merges a complete note without replacing the public list', async () => {
+    const folder = makeNote({ id: 'folder-1', item_type: 1 })
+    const preview = makeNote({ id: 'note-1', content: undefined })
+    const detail = makeNote({ id: 'note-1', content: '<p>完整正文</p>' })
+    const publicNotes = ref<any[]>([folder, preview])
+    const getPublicNote = vi.fn(async () => detail)
+
+    vi.doMock('@/entities/public-note', () => ({
+      publicNoteRemoteService: { getPublicNote },
+      useUserPublicNotes: () => ({
+        mergePublicNotes: (notes: any[]) => {
+          const merged = new Map(publicNotes.value.map(note => [note.id, note]))
+          notes.forEach(note => merged.set(note.id, { ...merged.get(note.id), ...note }))
+          publicNotes.value = [...merged.values()]
+        },
+      }),
+    }))
+    vi.doMock('@/entities/auth', () => ({
+      authUsersService: {
+        getPublicUserInfo: vi.fn(async () => ({ id: 'user-a', username: 'alice' })),
+      },
+    }))
+
+    const { loadPublicNote } = await import('@/processes/public-notes/model/ensure-public-notes-ready')
+    const result = await loadPublicNote('alice', 'note-1')
+
+    expect(getPublicNote).toHaveBeenCalledWith('user-a', 'note-1')
+    expect(result?.content).toBe('<p>完整正文</p>')
+    expect(publicNotes.value.map(note => note.id)).toEqual(['folder-1', 'note-1'])
+    expect(publicNotes.value.find(note => note.id === 'note-1')?.content).toBe('<p>完整正文</p>')
+  })
 })

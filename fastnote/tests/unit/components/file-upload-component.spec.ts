@@ -6,6 +6,7 @@ function mountAttachment(
   attrs: Record<string, unknown>,
   loadFile: (url: string, options?: { force?: boolean }) => Promise<{ url: string, type: string }>,
   selected = false,
+  updateAttributes = vi.fn(),
 ) {
   return mount(FileUploadComponent, {
     props: {
@@ -17,6 +18,7 @@ function mountAttachment(
       getPos: () => 0,
       node: { attrs },
       selected,
+      updateAttributes,
     },
     global: {
       provide: {
@@ -122,6 +124,42 @@ describe('file upload component lazy loading', () => {
     expect(wrapper.find('.loading-wrapper').exists()).toBe(false)
     expect(wrapper.get('.image-preview img').attributes('src')).toBe('blob:clipboard-image')
     expect(wrapper.find('.error-text').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('reserves the stored image dimensions while its local blob is loading', () => {
+    const wrapper = mountAttachment({
+      name: 'portrait.png',
+      type: 'image/png',
+      url: 'a'.repeat(64),
+      width: 52,
+      height: 208,
+    }, vi.fn(() => new Promise(() => {})))
+
+    expect(wrapper.find('.loading-wrapper').exists()).toBe(true)
+    expect(wrapper.get('.file-upload-content').classes()).toEqual(expect.arrayContaining(['relative', 'overflow-hidden']))
+    expect(wrapper.get('.file-upload-wrapper').attributes('style')).toContain('width: 52px')
+    expect(wrapper.get('.file-upload-wrapper').attributes('style')).toContain('height: 208px')
+    wrapper.unmount()
+  })
+
+  it('stores calculated dimensions after loading an image without them', async () => {
+    const updateAttributes = vi.fn()
+    const wrapper = mountAttachment({
+      name: 'portrait.png',
+      type: 'image/png',
+      url: 'portrait.png',
+    }, vi.fn(async () => ({ url: 'blob:portrait', type: 'image/png' })), false, updateAttributes)
+
+    await flushPromises()
+    const image = wrapper.get('.image-preview img').element
+    Object.defineProperties(image, {
+      naturalWidth: { value: 100 },
+      naturalHeight: { value: 400 },
+    })
+    await wrapper.get('.image-preview img').trigger('load')
+
+    expect(updateAttributes).toHaveBeenCalledWith({ width: 52, height: 208 })
     wrapper.unmount()
   })
 })

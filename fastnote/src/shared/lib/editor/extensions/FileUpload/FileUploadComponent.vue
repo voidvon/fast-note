@@ -7,6 +7,11 @@ import {
   isLikelyImageAttachment,
   shouldAutoLoadAttachment,
 } from './file-loading'
+import {
+  DEFAULT_IMAGE_DISPLAY_SIZE,
+  getImageDisplaySize,
+  getStoredImageDisplaySize,
+} from './image-display-size'
 
 interface Extension {
   name: string
@@ -33,6 +38,10 @@ const props = defineProps({
     type: Object,
     required: true,
   },
+  updateAttributes: {
+    type: Function,
+    required: false,
+  },
 })
 
 const nodeProps = computed(() => ({
@@ -40,6 +49,8 @@ const nodeProps = computed(() => ({
   size: props.node.attrs.size as number | null,
   type: props.node.attrs.type as string | null,
   url: props.node.attrs.url,
+  width: props.node.attrs.width as number | null,
+  height: props.node.attrs.height as number | null,
 }))
 
 // 获取 fileUpload 扩展实例
@@ -51,7 +62,7 @@ const fileUploadExtension = computed<Extension | undefined>(() => {
 })
 
 const imageRef = ref<HTMLImageElement | null>(null)
-const containerSize = ref({ width: '88px', height: '88px' })
+const containerSize = ref({ width: `${DEFAULT_IMAGE_DISPLAY_SIZE}px`, height: `${DEFAULT_IMAGE_DISPLAY_SIZE}px` })
 const imageUrl = ref('')
 const isLoading = ref(shouldAutoLoadAttachment(nodeProps.value))
 const hasError = ref(false)
@@ -99,22 +110,25 @@ const fileTypeIcon = computed(() => {
   return `/file/${fileType.value}.svg`
 })
 
-// 图片尺寸常量
-const DEFAULT_SIZE = 88
-const MAX_SIZE = 208
+function setContainerSize(width?: number | null, height?: number | null) {
+  const size = getStoredImageDisplaySize(width, height)
+  containerSize.value = size
+    ? { width: `${size.width}px`, height: `${size.height}px` }
+    : { width: `${DEFAULT_IMAGE_DISPLAY_SIZE}px`, height: `${DEFAULT_IMAGE_DISPLAY_SIZE}px` }
+}
+
+setContainerSize(nodeProps.value.width, nodeProps.value.height)
 
 /**
- * 图片加载完成后计算尺寸：等比例缩放图片尺寸
- * 1. 高度等比例缩放到DEFAULT_SIZE，检查宽度
- * 2. 宽度等比例缩放到DEFAULT_SIZE，检查高度
- * 3. 否则，宽度设置为DEFAULT_SIZE，高度等比例缩放
- * @param event 事件对象
+ * 图片加载完成后计算并持久化展示尺寸，供下一次渲染提前预留布局。
  */
 function onImageLoad(event: Event) {
   const img = event.target as HTMLImageElement
   const naturalWidth = img.naturalWidth
   const naturalHeight = img.naturalHeight
-  const aspectRatio = naturalWidth / naturalHeight
+  const displaySize = getImageDisplaySize(naturalWidth, naturalHeight)
+  if (!displaySize)
+    return
 
   // 保存图片原始尺寸，用于PhotoSwipe
   naturalSize.value = {
@@ -122,33 +136,9 @@ function onImageLoad(event: Event) {
     height: naturalHeight,
   }
 
-  // 1. 高度等比例缩放到DEFAULT_SIZE，检查宽度
-  let height = DEFAULT_SIZE
-  let width = height * aspectRatio
-  if (width > MAX_SIZE) {
-    // 如果宽度大于MAX_SIZE，则宽度等比例缩放到MAX_SIZE
-    width = MAX_SIZE
-    height = width / aspectRatio
-  }
-  else {
-    // 2. 宽度等比例缩放到DEFAULT_SIZE，检查高度
-    width = DEFAULT_SIZE
-    height = width / aspectRatio
-    if (height > MAX_SIZE) {
-      // 如果高度大于MAX_SIZE，则高度等比例缩放到MAX_SIZE
-      height = MAX_SIZE
-      width = height * aspectRatio
-    }
-    else {
-      // 3. 否则，宽度设置为DEFAULT_SIZE，高度等比例缩放
-      width = DEFAULT_SIZE
-      height = width / aspectRatio
-    }
-  }
-
-  containerSize.value = {
-    width: `${width}px`,
-    height: `${height}px`,
+  setContainerSize(displaySize.width, displaySize.height)
+  if (nodeProps.value.width !== displaySize.width || nodeProps.value.height !== displaySize.height) {
+    props.updateAttributes?.(displaySize)
   }
 
   // 通知YYEditor中配置的onImageLoaded方法图片已加载完成
@@ -229,6 +219,11 @@ watch(
   },
 )
 
+watch(
+  () => [nodeProps.value.width, nodeProps.value.height],
+  ([width, height]) => setContainerSize(width, height),
+)
+
 const wrapperStyle = computed(() => {
   if (!isImage.value && !isPictureType.value) {
     return {
@@ -303,7 +298,7 @@ onBeforeUnmount(() => {
     class="file-upload-wrapper" :class="[{ 'is-selected': selected }]"
     :style="wrapperStyle"
   >
-    <div class="file-upload-content w-full h-full">
+    <div class="file-upload-content relative w-full h-full overflow-hidden">
       <div v-if="isLoading" class="loading-wrapper">
         <div class="loading-spinner" />
       </div>
@@ -338,8 +333,7 @@ onBeforeUnmount(() => {
   /* transition: all 20s ease; */
   position: relative;
   .file-upload-content {
-    /* border: 1px solid #ddd; */
-    box-shadow: 0 0 0 1px #ddd;
+    box-shadow: 0 0 0 1px var(--c-border);
     border-radius: 4px;
     transition: box-shadow 120ms ease;
   }
@@ -398,15 +392,15 @@ onBeforeUnmount(() => {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #f5f5f5;
+    background: var(--c-purple-gray-900);
     border-radius: 4px;
   }
 
   .loading-spinner {
     width: 24px;
     height: 24px;
-    border: 2px solid #ddd;
-    border-top-color: #2196f3;
+    border: 2px solid var(--c-border);
+    border-top-color: var(--c-blue-500);
     border-radius: 50%;
     animation: spin 1s linear infinite;
   }

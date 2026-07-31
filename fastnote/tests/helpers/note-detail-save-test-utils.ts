@@ -161,6 +161,7 @@ export async function mountNoteDetailForSaveTest(options: {
     query?: Record<string, unknown>
   }
   notesById?: Record<string, Note | null>
+  publicNotesById?: Record<string, Note | null>
   getNoteImpl?: (id: string) => Promise<Note | null>
   updateNoteImpl?: (id: string, note: Note) => Promise<unknown>
   addNoteImpl?: (note: Note) => Promise<unknown>
@@ -196,6 +197,7 @@ export async function mountNoteDetailForSaveTest(options: {
   const notesById = options.notesById ?? {
     [noteId]: makeNote(noteId),
   }
+  const publicNotesById = options.publicNotesById ?? {}
 
   const route = {
     params: options.route?.params ?? {},
@@ -342,7 +344,7 @@ export async function mountNoteDetailForSaveTest(options: {
 
   vi.doMock('@/entities/public-note', () => ({
     useUserPublicNotes: () => ({
-      getPublicNote: vi.fn(() => null),
+      getPublicNote: vi.fn((id: string) => publicNotesById[id] ?? null),
     }),
   }))
 
@@ -488,6 +490,7 @@ export async function mountNoteDetailForSaveTest(options: {
   return {
     wrapper,
     editorApi,
+    route,
     mocks: {
       addNoteMock,
       deleteNoteMock,

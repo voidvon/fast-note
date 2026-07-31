@@ -13,7 +13,7 @@ describe('fileUpload extension semantic HTML', () => {
         content: [{
           type: 'paragraph',
           content: [
-            { type: 'fileUpload', attrs: { url: 'photo.png', name: 'photo.png', size: 12, type: 'image/png' } },
+            { type: 'fileUpload', attrs: { url: 'photo.png', name: 'photo.png', size: 12, type: 'image/png', width: 88, height: 176 } },
             { type: 'text', text: ' ' },
             { type: 'fileUpload', attrs: { url: 'document.pdf', name: 'document.pdf', size: 34, type: 'application/pdf' } },
           ],
@@ -25,6 +25,8 @@ describe('fileUpload extension semantic HTML', () => {
     expect(html).toContain('<img data-file-name="photo.png"')
     expect(html).toContain('data-note-attachment="image"')
     expect(html).toContain('src="photo.png"')
+    expect(html).toContain('width="88"')
+    expect(html).toContain('height="176"')
     expect(html).toContain('<a data-file-name="document.pdf"')
     expect(html).toContain('data-note-attachment="file"')
     expect(html).toContain('href="document.pdf"')
@@ -37,7 +39,7 @@ describe('fileUpload extension semantic HTML', () => {
       extensions: [StarterKit.configure({ link: false }), AttachmentAwareLink, FileUpload],
       content: `
         <p>
-          <img data-note-attachment="image" data-file-type="image/png" data-file-name="photo.png" src="photo.png">
+          <img data-note-attachment="image" data-file-type="image/png" data-file-name="photo.png" src="photo.png" width="88" height="176">
           <a data-note-attachment="file" data-file-type="application/pdf" data-file-name="document.pdf" data-file-size="42" href="document.pdf">document.pdf</a>
         </p>
       `,
@@ -45,7 +47,7 @@ describe('fileUpload extension semantic HTML', () => {
 
     const attachments = editor.getJSON().content?.[0]?.content?.filter(node => node.type === 'fileUpload') || []
     expect(attachments).toHaveLength(2)
-    expect(attachments[0].attrs).toMatchObject({ name: 'photo.png', type: 'image/png', url: 'photo.png' })
+    expect(attachments[0].attrs).toMatchObject({ name: 'photo.png', type: 'image/png', url: 'photo.png', width: 88, height: 176 })
     expect(attachments[1].attrs).toMatchObject({ name: 'document.pdf', size: 42, type: 'application/pdf', url: 'document.pdf' })
     expect(editor.getHTML()).not.toContain('<file-upload')
     editor.destroy()

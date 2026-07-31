@@ -30,6 +30,19 @@ async function loadPublicNoteIfNeeded(
   return note
 }
 
+export async function loadPublicNote(username: string, noteId: string) {
+  if (!username || !noteId) {
+    return null
+  }
+
+  const userInfo = await authUsersService.getPublicUserInfo(username)
+  if (!userInfo) {
+    return null
+  }
+
+  return await loadPublicNoteIfNeeded(username, userInfo, noteId)
+}
+
 export async function syncPublicNotesForUser(
   username: string,
   options: Pick<EnsurePublicNotesReadyOptions, 'noteId'> = {},

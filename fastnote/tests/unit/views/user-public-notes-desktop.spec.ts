@@ -96,6 +96,10 @@ describe('user public notes page', () => {
         username: 'alice',
       },
     }))
+    const loadPublicNote = vi.fn(async () => ({
+      id: 'note-1',
+      content: '<p>完整正文</p>',
+    }))
 
     vi.doMock('vue-router', async () => {
       const actual = await vi.importActual<typeof import('vue-router')>('vue-router')
@@ -125,6 +129,7 @@ describe('user public notes page', () => {
 
     vi.doMock('@/processes/public-notes', () => ({
       ensurePublicNotesReady,
+      loadPublicNote,
     }))
 
     vi.doMock('@/pages/folder/ui/folder-page.vue', () => ({
@@ -218,8 +223,9 @@ describe('user public notes page', () => {
     expect(routerPush).not.toHaveBeenCalled()
 
     folderPage().vm.$emit('selected', 'note-1')
-    await nextTick()
+    await flushPromises()
 
+    expect(loadPublicNote).toHaveBeenCalledWith('alice', 'note-1')
     expect(folderPage().props('selectedNoteId')).toBe('note-1')
     expect(noteDetail().props('noteId')).toBe('note-1')
     expect(window.location.pathname).toBe('/alice/n/note-1')

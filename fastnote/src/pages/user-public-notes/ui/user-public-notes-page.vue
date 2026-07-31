@@ -21,7 +21,7 @@ import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserPublicNotes } from '@/entities/public-note'
 import { useDesktopPaneLayout } from '@/features/desktop-pane-layout'
-import { ensurePublicNotesReady } from '@/processes/public-notes'
+import { ensurePublicNotesReady, loadPublicNote } from '@/processes/public-notes'
 import { useDeviceType } from '@/shared/lib/device'
 import PaneSplitter from '@/shared/ui/pane-splitter'
 import FolderBrowser from '@/widgets/folder-browser'
@@ -60,7 +60,10 @@ const userInfo = ref<PublicUserInfo | null>(null)
 const unfiledNotesCount = ref(0)
 const presentingElement = ref()
 const page = ref()
+const publicNoteLoading = ref(false)
+const publicNoteError = ref('')
 let desktopResizeObserver: ResizeObserver | null = null
+let publicNoteRequestVersion = 0
 const desktopContainerWidth = ref(typeof window === 'undefined' ? 0 : window.innerWidth)
 const desktopPaneLayout = useDesktopPaneLayout(desktopContainerWidth)
 const desktopLayoutStyle = computed<CSSProperties | undefined>(() => isDesktop.value
@@ -131,12 +134,41 @@ function selectFolder(id: string) {
   void router.push(targetPath)
 }
 
-function selectNote(id: string) {
-  state.noteUuid = id
+async function selectNote(id: string) {
   const targetPath = `/${encodeURIComponent(username.value)}/n/${id}`
 
   if (isDesktop.value) {
     updateDesktopBrowserUrl(targetPath)
+    const requestVersion = ++publicNoteRequestVersion
+    publicNoteLoading.value = true
+    publicNoteError.value = ''
+
+    try {
+      const note = await loadPublicNote(username.value, id)
+      if (requestVersion !== publicNoteRequestVersion) {
+        return
+      }
+
+      if (!note) {
+        throw new Error('公开备忘录不存在')
+      }
+
+      state.noteUuid = id
+    }
+    catch (err) {
+      if (requestVersion !== publicNoteRequestVersion) {
+        return
+      }
+
+      state.noteUuid = ''
+      publicNoteError.value = err instanceof Error ? err.message : '无法加载备忘录'
+      console.error('加载公开备忘录详情失败:', err)
+    }
+    finally {
+      if (requestVersion === publicNoteRequestVersion) {
+        publicNoteLoading.value = false
+      }
+    }
     return
   }
 
@@ -304,6 +336,13 @@ watch(
     />
     <div v-if="isDesktop" id="public-note-detail-pane" class="home-detail">
       <NoteDetailPane :note-id="state.noteUuid" />
+      <div v-if="publicNoteLoading" class="public-note-detail-state">
+        <IonSpinner name="crescent" />
+      </div>
+      <div v-else-if="publicNoteError" class="public-note-detail-state public-note-detail-state--error">
+        <IonIcon :icon="alertCircleOutline" size="large" />
+        <p>{{ publicNoteError }}</p>
+      </div>
     </div>
   </IonPage>
 </template>
@@ -361,6 +400,25 @@ watch(
     1px
     minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
+}
+
+.public-note-detail-state {
+  display: flex;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  background: var(--ion-background-color);
+  color: var(--ion-color-medium);
+}
+
+.public-note-detail-state--error {
+  flex-direction: column;
+  gap: 8px;
+  text-align: center;
 }
 
 .public-note-desktop .public-navigation,

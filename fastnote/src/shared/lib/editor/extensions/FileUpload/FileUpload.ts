@@ -18,9 +18,25 @@ export interface FileUploadOptions {
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     fileUpload: {
-      setFileUpload: (attributes: { url?: string, id?: number, name?: string, size?: number, type?: string }) => ReturnType
+      setFileUpload: (attributes: {
+        url?: string
+        id?: number
+        name?: string
+        size?: number
+        type?: string
+        width?: number
+        height?: number
+      }) => ReturnType
     }
   }
+}
+
+function parsePositiveInteger(value: string | null): number | null {
+  if (!value || !/^\d+$/.test(value))
+    return null
+
+  const dimension = Number(value)
+  return Number.isSafeInteger(dimension) && dimension > 0 ? dimension : null
 }
 
 export const FileUpload = Node.create<FileUploadOptions>({
@@ -75,6 +91,14 @@ export const FileUpload = Node.create<FileUploadOptions>({
           return Number.isFinite(size) && size >= 0 ? size : null
         },
       },
+      width: {
+        default: null,
+        parseHTML: element => parsePositiveInteger(element.getAttribute('width')),
+      },
+      height: {
+        default: null,
+        parseHTML: element => parsePositiveInteger(element.getAttribute('height')),
+      },
     }
   },
 
@@ -86,7 +110,7 @@ export const FileUpload = Node.create<FileUploadOptions>({
   },
 
   renderHTML({ HTMLAttributes }) {
-    const { name, size, type, url } = HTMLAttributes
+    const { name, size, type, url, width, height } = HTMLAttributes
     const commonAttributes = {
       [ATTACHMENT_NAME_ATTRIBUTE]: name || '',
       [ATTACHMENT_SIZE_ATTRIBUTE]: size || '',
@@ -94,12 +118,17 @@ export const FileUpload = Node.create<FileUploadOptions>({
     }
 
     if (isImageAttachmentType(type)) {
+      const imageSizeAttributes = width && height
+        ? { width, height }
+        : {}
+
       return ['img', mergeAttributes(this.options.HTMLAttributes, commonAttributes, {
         [ATTACHMENT_KIND_ATTRIBUTE]: 'image',
         alt: name || '',
         decoding: 'async',
         loading: 'lazy',
         src: url,
+        ...imageSizeAttributes,
       })]
     }
 
