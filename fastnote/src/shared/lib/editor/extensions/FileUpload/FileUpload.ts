@@ -1,5 +1,12 @@
 import { mergeAttributes, Node } from '@tiptap/core'
 import { VueNodeViewRenderer } from '@tiptap/vue-3'
+import {
+  ATTACHMENT_KIND_ATTRIBUTE,
+  ATTACHMENT_NAME_ATTRIBUTE,
+  ATTACHMENT_SIZE_ATTRIBUTE,
+  ATTACHMENT_TYPE_ATTRIBUTE,
+  isImageAttachmentType,
+} from './attachment-html'
 import FileUploadComponent from './FileUploadComponent.vue'
 
 export interface FileUploadOptions {
@@ -18,6 +25,8 @@ declare module '@tiptap/core' {
 
 export const FileUpload = Node.create<FileUploadOptions>({
   name: 'fileUpload',
+
+  priority: 1100,
 
   group: 'inline',
   inline: true,
@@ -40,32 +49,65 @@ export const FileUpload = Node.create<FileUploadOptions>({
     return {
       url: {
         default: null,
+        parseHTML: element => element.getAttribute('src') || element.getAttribute('href'),
       },
       id: {
         default: null,
       },
       type: {
         default: null,
+        parseHTML: element => element.getAttribute(ATTACHMENT_TYPE_ATTRIBUTE) || element.getAttribute('type'),
       },
       name: {
         default: null,
+        parseHTML: element => element.getAttribute(ATTACHMENT_NAME_ATTRIBUTE)
+          || element.getAttribute('alt')
+          || element.getAttribute('download')
+          || element.textContent,
       },
       size: {
         default: null,
+        parseHTML: (element) => {
+          const value = element.getAttribute(ATTACHMENT_SIZE_ATTRIBUTE)
+          if (!value)
+            return null
+          const size = Number(value)
+          return Number.isFinite(size) && size >= 0 ? size : null
+        },
       },
     }
   },
 
   parseHTML() {
     return [
-      {
-        tag: 'file-upload',
-      },
+      { tag: `img[${ATTACHMENT_KIND_ATTRIBUTE}="image"]` },
+      { tag: `a[${ATTACHMENT_KIND_ATTRIBUTE}="file"]` },
     ]
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ['file-upload', mergeAttributes(HTMLAttributes)]
+    const { name, size, type, url } = HTMLAttributes
+    const commonAttributes = {
+      [ATTACHMENT_NAME_ATTRIBUTE]: name || '',
+      [ATTACHMENT_SIZE_ATTRIBUTE]: size || '',
+      [ATTACHMENT_TYPE_ATTRIBUTE]: type || '',
+    }
+
+    if (isImageAttachmentType(type)) {
+      return ['img', mergeAttributes(this.options.HTMLAttributes, commonAttributes, {
+        [ATTACHMENT_KIND_ATTRIBUTE]: 'image',
+        alt: name || '',
+        decoding: 'async',
+        loading: 'lazy',
+        src: url,
+      })]
+    }
+
+    return ['a', mergeAttributes(this.options.HTMLAttributes, commonAttributes, {
+      [ATTACHMENT_KIND_ATTRIBUTE]: 'file',
+      download: name || '',
+      href: url,
+    }), name || '附件']
   },
 
   addCommands() {

@@ -14,6 +14,7 @@ export interface NoteRemoteService {
   getFileByFilename: (noteId: string, filename: string) => Promise<{ url: string, type: string } | null>
   getNoteManifest: () => Promise<Array<{ id: string, updated: string }>>
   getNotesByUpdated: (lastUpdated: string) => Promise<Note[]>
+  stageNoteFiles: (note: Note, filesForUpload: Array<File | string>, mode: Exclude<NoteWriteMode, 'auto'>) => Promise<NoteRemoteUpdateResult>
   updateNote: (note: any, filesForUpload?: Array<File | string>, mode?: NoteWriteMode) => Promise<NoteRemoteUpdateResult>
 }
 
@@ -43,5 +44,8 @@ export const noteRemoteService: NoteRemoteService = {
   },
   async updateNote(note: any, filesForUpload?: Array<File | string>, mode: NoteWriteMode = 'auto') {
     return await notesService.updateNote(note, filesForUpload, mode)
+  },
+  async stageNoteFiles(note: Note, filesForUpload: Array<File | string>, mode: Exclude<NoteWriteMode, 'auto'>) {
+    return await notesService.stageNoteFiles(note, filesForUpload, mode)
   },
 }

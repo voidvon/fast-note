@@ -11,14 +11,23 @@ import (
 	"testing/fstest"
 
 	"github.com/pocketbase/pocketbase/core"
+	"golang.org/x/net/html"
 )
 
 const testIndexHTML = `<!doctype html><html><head><title>fastnote</title></head><body><div id="app"></div><div id="app-loading"></div><script src="/app.js"></script></body></html>`
 
 func TestRenderPublicNotePage(t *testing.T) {
 	rendered, err := renderPublicNotePage([]byte(testIndexHTML), publicNotePageData{
-		Title:        `标题 <script>alert("x")</script>`,
-		Summary:      `摘要"><img src=x onerror=alert(1)>`,
+		Title:   `标题 <script>alert("x")</script>`,
+		Summary: `摘要"><img src=x onerror=alert(1)>`,
+		Content: `
+			<h1>正文标题</h1>
+			<p onclick="alert(1)">正文<strong>内容</strong><script>alert(1)</script></p>
+			<img data-note-attachment="image" data-file-type="image/png" data-file-name="封面.png" src="/api/files/notes/note/cover.png" alt="封面" onerror="alert(1)">
+			<a data-note-attachment="file" data-file-type="application/pdf" href="javascript:alert(1)">危险附件</a>
+			<file-upload url="legacy.png" type="image/png"></file-upload>
+		`,
+		NoteID:       "note",
 		CanonicalURL: "https://example.com/user/n/note",
 	})
 	if err != nil {
@@ -30,8 +39,12 @@ func TestRenderPublicNotePage(t *testing.T) {
 		`name="description" content="摘要&#34;&gt;&lt;img src=x onerror=alert(1)&gt;"`,
 		`property="og:title"`,
 		`rel="canonical" href="https://example.com/user/n/note"`,
-		`<h1>标题 &lt;script&gt;alert(&#34;x&#34;)&lt;/script&gt;</h1>`,
-		`<p>摘要&#34;&gt;&lt;img src=x onerror=alert(1)&gt;</p>`,
+		`<h1>正文标题</h1>`,
+		`<p>正文<strong>内容</strong></p>`,
+		`src="/api/files/notes/note/cover.png"`,
+		`alt="封面"`,
+		`property="og:image" content="https://example.com/api/files/notes/note/cover.png"`,
+		`name="twitter:card" content="summary_large_image"`,
 		`<div id="app-loading"></div>`,
 		`<script src="/app.js"></script>`,
 	}
@@ -41,8 +54,41 @@ func TestRenderPublicNotePage(t *testing.T) {
 		}
 	}
 
-	if strings.Contains(rendered, `<img src=x`) || strings.Contains(rendered, `<script>alert`) {
+	if strings.Contains(rendered, `<img src=x`) || strings.Contains(rendered, `<script>alert`) ||
+		strings.Contains(rendered, `onclick="`) || strings.Contains(rendered, `onerror="`) ||
+		strings.Contains(rendered, "javascript:") || strings.Contains(rendered, "file-upload") ||
+		strings.Contains(rendered, `<h1>标题 &lt;script`) {
 		t.Fatalf("rendered HTML contains unescaped note data:\n%s", rendered)
+	}
+}
+
+func TestSanitizePublicNoteContentNormalizesAttachmentURLs(t *testing.T) {
+	content, err := sanitizePublicNoteContent(`
+		<p><a href="https://example.com/page">普通链接</a></p>
+		<img data-note-attachment="image" data-file-type="image/png" data-file-name="photo.png" src="photo_random.png">
+		<input type="text" value="unsafe"><input type="checkbox" checked>
+	`, "note-id")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	container := element("div")
+	for _, node := range content.Nodes {
+		container.AppendChild(node)
+	}
+	var output strings.Builder
+	if err := html.Render(&output, container); err != nil {
+		t.Fatal(err)
+	}
+	rendered := output.String()
+	if !strings.Contains(rendered, `href="https://example.com/page"`) {
+		t.Fatalf("ordinary link was changed: %s", rendered)
+	}
+	if !strings.Contains(rendered, `src="/api/files/notes/note-id/photo_random.png"`) {
+		t.Fatalf("attachment URL was not normalized: %s", rendered)
+	}
+	if strings.Contains(rendered, `type="text"`) || !strings.Contains(rendered, `type="checkbox"`) {
+		t.Fatalf("input allowlist was not applied: %s", rendered)
 	}
 }
 
@@ -50,6 +96,20 @@ func TestRenderPublicNotePageRequiresAppMount(t *testing.T) {
 	_, err := renderPublicNotePage([]byte(`<html><head></head><body></body></html>`), publicNotePageData{Title: "title"})
 	if err == nil {
 		t.Fatal("expected missing #app to fail")
+	}
+}
+
+func TestRenderPublicNotePageFallsBackForEmptyBodyHeading(t *testing.T) {
+	rendered, err := renderPublicNotePage([]byte(testIndexHTML), publicNotePageData{
+		Title:   "有效标题",
+		Summary: "有效摘要",
+		Content: "<h1></h1><p></p>",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(rendered, "<h1>有效标题</h1>") || !strings.Contains(rendered, "<p>有效摘要</p>") {
+		t.Fatalf("empty body did not receive metadata fallback: %s", rendered)
 	}
 }
 

@@ -1,6 +1,11 @@
+import type { NoteFile } from '@/shared/lib/storage'
 import type { Note } from '@/shared/types'
-import { extractAttachmentReferences, isAttachmentHash, registerCachedRemoteAttachment } from '@/entities/attachment'
+import { commitUploadedNoteAttachments, extractAttachmentReferences } from '@/entities/attachment'
 import { getTime } from '@/shared/lib/date'
+import {
+  buildNoteFileUrl,
+  replaceAttachmentUrls,
+} from '@/shared/lib/editor/extensions/FileUpload/attachment-html'
 import { hasRemoteUserId } from './domain/note-rules'
 import { noteRemoteService } from './note-remote-service'
 import { useNote } from './state/note-store'
@@ -10,8 +15,12 @@ export interface NoteRemoteSyncResult {
   syncedUpdatedAt: string
 }
 
-function generateTempFileId(index: number): string {
-  return `__TEMP_FILE_${index}__`
+function getRecoveryUpdatedAt(remoteUpdated?: string) {
+  const remoteTime = remoteUpdated
+    ? new Date(remoteUpdated.replace(' ', 'T')).getTime()
+    : 0
+  const minimumTime = Number.isFinite(remoteTime) ? remoteTime + 1 : 0
+  return getTime(new Date(Math.max(Date.now(), minimumTime)).toISOString())
 }
 
 export function useNoteSyncService() {
@@ -46,151 +55,73 @@ export function useNoteSyncService() {
   }
 
   async function prepareNoteFilesForRemoteSync(note: Note): Promise<{
-    updatedNote: Note
-    filesForUpload: Array<File | string> | undefined
-    fileHashesByFile: Map<File, string>
+    desiredRemoteFilenames: string[]
+    filesForStaging: Array<File | string>
+    localFiles: NoteFile[]
   }> {
     const references = extractAttachmentReferences(note.content)
-    const fileReferences = [...references.hashes, ...references.remoteFilenames]
+    const localFiles: NoteFile[] = []
 
-    if (fileReferences.length === 0) {
-      return {
-        updatedNote: note,
-        filesForUpload: [],
-        fileHashesByFile: new Map(),
-      }
+    for (const hash of references.hashes) {
+      const localFile = await getNoteFileByHash(hash)
+      if (!localFile?.file)
+        throw new Error(`本地附件不存在，停止同步: ${hash}`)
+      localFiles.push(localFile)
     }
 
-    let updatedContent = note.content || ''
-    const filesForUpload: Array<File | string> = []
-    const hashToTempIdMapping = new Map<string, string>()
-    const processedFiles = new Set<string>()
-    const fileHashesByFile = new Map<File, string>()
-    let tempFileIndex = 0
-
-    for (const hashOrFilename of fileReferences) {
-      try {
-        if (isAttachmentHash(hashOrFilename)) {
-          const localFile = await getNoteFileByHash(hashOrFilename)
-
-          if (localFile?.file) {
-            let tempId: string
-
-            if (hashToTempIdMapping.has(hashOrFilename)) {
-              tempId = hashToTempIdMapping.get(hashOrFilename)!
-            }
-            else {
-              tempId = generateTempFileId(tempFileIndex)
-              tempFileIndex++
-              hashToTempIdMapping.set(hashOrFilename, tempId)
-              filesForUpload.push(localFile.file)
-              fileHashesByFile.set(localFile.file, hashOrFilename)
-            }
-
-            const hashRegex = new RegExp(
-              `(<file-upload[^>]+url=")${hashOrFilename}("[^>]*>)`,
-              'g',
-            )
-            updatedContent = updatedContent.replace(hashRegex, `$1${tempId}$2`)
-          }
-          else {
-            throw new Error(`本地附件不存在，停止同步: ${hashOrFilename}`)
-          }
-        }
-        else if (!processedFiles.has(hashOrFilename)) {
-          filesForUpload.push(hashOrFilename)
-          processedFiles.add(hashOrFilename)
-        }
-      }
-      catch (error) {
-        console.error(`处理文件失败: ${hashOrFilename}`, error)
-        if (isAttachmentHash(hashOrFilename))
-          throw error
-        if (!isAttachmentHash(hashOrFilename) && !processedFiles.has(hashOrFilename)) {
-          filesForUpload.push(hashOrFilename)
-          processedFiles.add(hashOrFilename)
-        }
-      }
-    }
+    const preservedRemoteFilenames = [...new Set([
+      ...(note.files || []),
+      ...references.remoteFilenames,
+    ])]
 
     return {
-      updatedNote: { ...note, content: updatedContent },
-      filesForUpload: filesForUpload.length > 0 ? filesForUpload : [],
-      fileHashesByFile,
+      desiredRemoteFilenames: references.remoteFilenames,
+      filesForStaging: [...preservedRemoteFilenames, ...localFiles.map(file => file.file)],
+      localFiles,
     }
-  }
-
-  function applyUploadedFilesToContent(
-    content: string,
-    filesForUpload: Array<File | string>,
-    pocketbaseFiles: string[],
-  ): string {
-    let updatedContent = content
-    let fileObjectIndex = 0
-
-    for (let i = 0; i < filesForUpload.length; i++) {
-      const item = filesForUpload[i]
-
-      if (!(item instanceof File)) {
-        continue
-      }
-
-      const tempId = generateTempFileId(fileObjectIndex)
-
-      if (i < pocketbaseFiles.length) {
-        const pocketbaseFilename = pocketbaseFiles[i]
-        const tempIdRegex = new RegExp(
-          `(<file-upload[^>]+url=")${tempId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}("[^>]*>)`,
-          'g',
-        )
-        updatedContent = updatedContent.replace(tempIdRegex, `$1${pocketbaseFilename}$2`)
-      }
-
-      fileObjectIndex++
-    }
-
-    return updatedContent
   }
 
   async function syncNoteToRemote(note: Note, mode: 'create' | 'update'): Promise<NoteRemoteSyncResult> {
-    const { updatedNote, filesForUpload, fileHashesByFile } = await prepareNoteFilesForRemoteSync(note)
-    const result = filesForUpload !== undefined
-      ? await noteRemoteService.updateNote(updatedNote, filesForUpload, mode)
-      : await noteRemoteService.updateNote(updatedNote, undefined, mode)
+    const { desiredRemoteFilenames, filesForStaging, localFiles } = await prepareNoteFilesForRemoteSync(note)
 
-    let syncedUpdatedAt = await backfillRemoteNoteMetadata(note.id, result.record) || note.updated
-
-    if (result.success && result.fileMapping) {
-      for (const [file, remoteFilename] of result.fileMapping) {
-        const hash = fileHashesByFile.get(file)
-        if (hash)
-          await registerCachedRemoteAttachment(note.id, remoteFilename, hash)
+    if (localFiles.length === 0) {
+      const result = await noteRemoteService.updateNote(note, desiredRemoteFilenames, mode)
+      return {
+        syncedUpdatedAt: await backfillRemoteNoteMetadata(note.id, result.record) || note.updated,
       }
     }
 
-    if (filesForUpload && filesForUpload.length > 0 && result.success && result.record?.files && Array.isArray(result.record.files)) {
-      const finalContent = applyUploadedFilesToContent(
-        updatedNote.content || '',
-        filesForUpload,
-        result.record.files,
-      )
+    const staged = await noteRemoteService.stageNoteFiles(note, filesForStaging, mode)
+    if (!staged.success || !staged.fileMapping)
+      throw new Error('附件预上传未返回文件映射')
 
-      if (finalContent !== updatedNote.content) {
-        const finalNote = {
-          ...updatedNote,
-          content: finalContent,
-          files: result.record.files,
-          updated: getTime(),
-        }
-
-        await updateNote(note.id, finalNote)
-        const finalResult = await noteRemoteService.updateNote(finalNote, undefined, 'update')
-        syncedUpdatedAt = await backfillRemoteNoteMetadata(note.id, finalResult.record) || finalNote.updated
-      }
+    const replacements = new Map<string, string>()
+    const uploadedMappings = localFiles.map((file) => {
+      const remoteFilename = staged.fileMapping!.get(file.file)
+      if (!remoteFilename)
+        throw new Error(`附件预上传未返回文件名: ${file.fileName}`)
+      replacements.set(file.hash, buildNoteFileUrl(note.id, remoteFilename))
+      return { file, remoteFilename }
+    })
+    const uploadedRemoteFilenames = uploadedMappings.map(mapping => mapping.remoteFilename)
+    const finalFiles = [...new Set([...desiredRemoteFilenames, ...uploadedRemoteFilenames])]
+    const finalNote: Note = {
+      ...note,
+      content: replaceAttachmentUrls(note.content || '', replacements),
+      files: finalFiles,
+      updated: getRecoveryUpdatedAt(staged.record?.updated),
+      user_id: typeof staged.record?.user_id === 'string' && staged.record.user_id
+        ? staged.record.user_id
+        : note.user_id,
     }
+
+    await commitUploadedNoteAttachments(finalNote, uploadedMappings)
+    updateNote(note.id, finalNote)
+
+    const finalResult = await noteRemoteService.updateNote(finalNote, finalFiles, 'update')
 
     return {
-      syncedUpdatedAt,
+      syncedUpdatedAt: await backfillRemoteNoteMetadata(note.id, finalResult.record) || finalNote.updated,
     }
   }
 

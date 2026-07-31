@@ -53,6 +53,68 @@ describe('pocketbase notes write mode', () => {
     }))
   })
 
+  it('stages files on an existing note without changing remote content', async () => {
+    const notesCollection = createPocketBaseCollectionMock()
+    const file = new File(['image'], 'new.png', { type: 'image/png' })
+    notesCollection.update.mockResolvedValue({
+      id: 'note-stage-existing',
+      files: ['new_random.png', 'old.png'],
+    })
+
+    vi.doMock('@/shared/api/pocketbase/client', () => ({
+      mapErrorMessage: (error: any) => error?.message || 'error',
+      pb: {
+        authStore: { model: { id: 'user-a' }, isValid: true },
+        collection: vi.fn(() => notesCollection),
+      },
+    }))
+
+    const { notesService } = await import('@/shared/api/pocketbase/notes')
+    const result = await notesService.stageNoteFiles({
+      id: 'note-stage-existing',
+      content: '<p>本地新正文</p>',
+      is_public: true,
+    }, ['old.png', file], 'update')
+
+    const payload = notesCollection.update.mock.calls[0][1] as FormData
+    expect(payload).toBeInstanceOf(FormData)
+    expect(payload.has('content')).toBe(false)
+    expect(payload.has('is_public')).toBe(false)
+    expect(payload.getAll('files')).toEqual(['old.png', file])
+    expect(result.fileMapping?.get(file)).toBe('new_random.png')
+  })
+
+  it('creates a private empty staging record for a new note', async () => {
+    const notesCollection = createPocketBaseCollectionMock()
+    const file = new File(['image'], 'new.png', { type: 'image/png' })
+    notesCollection.create.mockResolvedValue({
+      id: 'note-stage-new',
+      files: ['new_random.png'],
+    })
+
+    vi.doMock('@/shared/api/pocketbase/client', () => ({
+      mapErrorMessage: (error: any) => error?.message || 'error',
+      pb: {
+        authStore: { model: { id: 'user-a' }, isValid: true },
+        collection: vi.fn(() => notesCollection),
+      },
+    }))
+
+    const { notesService } = await import('@/shared/api/pocketbase/notes')
+    await notesService.stageNoteFiles({
+      id: 'note-stage-new',
+      title: '公开笔记',
+      content: '<p>包含本地附件</p>',
+      is_public: true,
+    }, [file], 'create')
+
+    const payload = notesCollection.create.mock.calls[0][0] as FormData
+    expect(payload.get('content')).toBe('')
+    expect(payload.get('is_public')).toBe('false')
+    expect(payload.get('title')).toBe('公开笔记')
+    expect(payload.get('user_id')).toBe('user-a')
+  })
+
   it('falls back to update when create mode hits validation_pk_invalid', async () => {
     const notesCollection = createPocketBaseCollectionMock()
     notesCollection.create.mockRejectedValue({

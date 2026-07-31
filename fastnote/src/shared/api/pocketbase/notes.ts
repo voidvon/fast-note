@@ -94,13 +94,23 @@ function buildFileMapping(filesForUpload: Array<File | string> | undefined, resu
   if (!filesForUpload || !result?.files || !Array.isArray(result.files))
     return fileMapping
 
+  const existingFilenames = new Set(
+    filesForUpload.filter((item): item is string => typeof item === 'string'),
+  )
+  const uploadedFilenames = result.files.filter((filename: unknown) =>
+    typeof filename === 'string' && !existingFilenames.has(filename),
+  )
+  let uploadedIndex = 0
+
   for (let index = 0; index < filesForUpload.length; index++) {
     const item = filesForUpload[index]
     if (!(item instanceof File))
       continue
 
-    if (index < result.files.length)
-      fileMapping.set(item, result.files[index])
+    const remoteFilename = uploadedFilenames[uploadedIndex] || result.files[index]
+    if (remoteFilename)
+      fileMapping.set(item, remoteFilename)
+    uploadedIndex++
   }
 
   return fileMapping
@@ -121,6 +131,18 @@ async function createNoteRecord(noteData: any, filesForUpload?: Array<File | str
 async function updateNoteRecord(noteData: any, filesForUpload?: Array<File | string>): Promise<UpdateNoteResult> {
   const payload = buildWritePayload(noteData, filesForUpload)
   const result = await pb.collection('notes').update(noteData.id, payload)
+  const fileMapping = buildFileMapping(filesForUpload, result)
+
+  return {
+    success: true,
+    fileMapping: fileMapping.size > 0 ? fileMapping : undefined,
+    record: result || null,
+  }
+}
+
+async function updateNoteFilesRecord(noteId: string, filesForUpload: Array<File | string>): Promise<UpdateNoteResult> {
+  const payload = buildWritePayload({}, filesForUpload)
+  const result = await pb.collection('notes').update(noteId, payload)
   const fileMapping = buildFileMapping(filesForUpload, result)
 
   return {
@@ -236,6 +258,47 @@ export const notesService = {
     catch (error: any) {
       console.error('更新PocketBase笔记失败:', error)
       throw new Error(`更新PocketBase笔记失败: ${mapErrorMessage(error)}`)
+    }
+  },
+
+  async stageNoteFiles(
+    note: any,
+    filesForUpload: Array<File | string>,
+    mode: Exclude<WriteMode, 'auto'>,
+  ): Promise<UpdateNoteResult> {
+    try {
+      const stagedNote = {
+        ...note,
+        content: '',
+        is_public: false,
+        user_id: pb.authStore.model?.id,
+      }
+
+      if (mode === 'create') {
+        try {
+          return await createNoteRecord(stagedNote, filesForUpload)
+        }
+        catch (error: any) {
+          if (!isAlreadyExistsError(error))
+            throw error
+
+          return await updateNoteFilesRecord(note.id, filesForUpload)
+        }
+      }
+
+      try {
+        return await updateNoteFilesRecord(note.id, filesForUpload)
+      }
+      catch (error: any) {
+        if (!isNotFoundError(error))
+          throw error
+
+        return await createNoteRecord(stagedNote, filesForUpload)
+      }
+    }
+    catch (error: any) {
+      console.error('预上传PocketBase笔记附件失败:', error)
+      throw new Error(`预上传PocketBase笔记附件失败: ${mapErrorMessage(error)}`)
     }
   },
 

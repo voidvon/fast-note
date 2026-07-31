@@ -82,7 +82,7 @@ describe('attachment lifecycle', () => {
     const { reconcileRemoteNoteAttachmentRefs } = await import('@/entities/attachment/model/attachment-lifecycle-service')
     const result = await reconcileRemoteNoteAttachmentRefs({
       id: 'note-1',
-      content: '<file-upload url="remote.pdf"></file-upload><file-upload url="photo.png"></file-upload>',
+      content: '<a data-note-attachment="file" data-file-type="application/pdf" href="/api/files/notes/note-1/remote.pdf">remote.pdf</a><img data-note-attachment="image" data-file-type="image/png" src="/api/files/notes/note-1/photo.png">',
     } as any)
 
     expect(result).toEqual({ ready: 0, remoteOnly: 2, total: 2 })
@@ -132,11 +132,58 @@ describe('attachment lifecycle', () => {
     const { garbageCollectAttachments } = await import('@/entities/attachment/model/attachment-lifecycle-service')
     const deleted = await garbageCollectAttachments([{
       id: 'note-1',
-      content: `<file-upload url="${noteHash}"></file-upload>`,
+      content: `<a data-note-attachment="file" data-file-type="application/pdf" href="${noteHash}">file.pdf</a>`,
     } as any])
 
     expect(deleted).toBe(1)
     expect(deleteFile).toHaveBeenCalledOnce()
     expect(deleteFile).toHaveBeenCalledWith(expect.anything(), staleHash)
+  })
+
+  it('commits the rewritten note and uploaded attachment refs in one transaction', async () => {
+    const notePut = vi.fn(async () => undefined)
+    const refsPut = vi.fn(async () => undefined)
+    const transaction = vi.fn(async (_mode, _notes, _refs, operation) => await operation())
+    const database = {
+      notes: { put: notePut },
+      note_file_refs: {
+        get: vi.fn(async () => undefined),
+        bulkPut: refsPut,
+      },
+      transaction,
+    }
+    const note = {
+      id: 'note-transaction',
+      content: '<img data-note-attachment="image" src="/api/files/notes/note-transaction/photo_random.png">',
+    } as any
+    const file = {
+      hash: 'f'.repeat(64),
+      file: new File(['photo'], 'photo.png', { type: 'image/png' }),
+      fileName: 'photo.png',
+      fileSize: 5,
+      fileType: 'image/png',
+      created: '2026-07-30 10:00:00.000Z',
+      updated: '2026-07-30 10:00:00.000Z',
+    }
+
+    vi.doMock('@/shared/lib/date', () => ({ getTime: () => '2026-07-30 12:00:00.000Z' }))
+    vi.doMock('@/shared/api/pocketbase/files', () => ({ filesApi: {} }))
+    vi.doMock('@/shared/lib/storage/dexie', () => ({
+      useDexie: () => ({ db: { value: database } }),
+    }))
+    vi.doMock('@/shared/lib/storage/attachment-files', () => ({}))
+    vi.doMock('@/shared/lib/storage/note-files', () => ({}))
+
+    const { commitUploadedNoteAttachments } = await import('@/entities/attachment/model/attachment-lifecycle-service')
+    await commitUploadedNoteAttachments(note, [{ file, remoteFilename: 'photo_random.png' }])
+
+    expect(transaction).toHaveBeenCalledWith('rw', database.notes, database.note_file_refs, expect.any(Function))
+    expect(notePut).toHaveBeenCalledWith(note)
+    expect(refsPut).toHaveBeenCalledWith([expect.objectContaining({
+      noteId: note.id,
+      remoteFilename: 'photo_random.png',
+      hash: file.hash,
+      status: 'ready',
+    })])
   })
 })

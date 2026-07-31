@@ -8,7 +8,7 @@ function deletedNote(userId?: string) {
     user_id: userId,
     title: 'deleted',
     summary: '',
-    content: '<file-upload url="remote.pdf"></file-upload>',
+    content: '<a data-note-attachment="file" data-file-type="application/pdf" href="/api/files/notes/note-1/remote.pdf">remote.pdf</a>',
     created: '2026-01-01 00:00:00.000Z',
     updated: '2026-01-01 00:00:00.000Z',
     item_type: NOTE_TYPE.NOTE,

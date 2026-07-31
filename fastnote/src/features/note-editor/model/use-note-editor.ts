@@ -8,6 +8,7 @@ import StarterKit from '@tiptap/starter-kit'
 import { Editor } from '@tiptap/vue-3'
 import GlobalDragHandle from 'tiptap-extension-global-drag-handle'
 import { computed, onBeforeUnmount, ref } from 'vue'
+import { extractAttachmentReferences } from '@/entities/attachment'
 import {
   hydrateRemoteAttachment,
   registerActiveAttachmentHash,
@@ -17,6 +18,8 @@ import {
 import { noteRemoteService, useNoteFiles } from '@/entities/note'
 import { handleAttachmentDrop, handleAttachmentPaste } from '@/features/note-editor/lib/attachment-transfer'
 import { handleEditableLinkClick } from '@/features/note-editor/lib/link-click'
+import { getRemoteAttachmentFilename } from '@/shared/lib/editor/extensions/FileUpload/attachment-html'
+import { AttachmentAwareLink } from '@/shared/lib/editor/extensions/FileUpload/AttachmentAwareLink'
 import { FileUpload } from '@/shared/lib/editor/extensions/FileUpload/FileUpload'
 import { TableWithWrapper } from '@/shared/lib/editor/extensions/TableWithWrapper'
 import { TaskItem } from '@/shared/lib/editor/extensions/TaskItem'
@@ -143,9 +146,10 @@ export function useNoteEditor(options: {
       }
       else {
         const noteId = resolveFileOwnerNoteId(options.getCurrentNoteId?.())
+        const remoteFilename = getRemoteAttachmentFilename(hashOrFilename)
 
         if (noteId) {
-          const localFile = await resolveStoredRemoteAttachment(noteId, hashOrFilename)
+          const localFile = await resolveStoredRemoteAttachment(noteId, remoteFilename)
           if (localFile?.file) {
             return {
               url: URL.createObjectURL(localFile.file),
@@ -154,8 +158,8 @@ export function useNoteEditor(options: {
           }
 
           try {
-            await hydrateRemoteAttachment(noteId, hashOrFilename, loadOptions)
-            const hydratedFile = await resolveStoredRemoteAttachment(noteId, hashOrFilename)
+            await hydrateRemoteAttachment(noteId, remoteFilename, loadOptions)
+            const hydratedFile = await resolveStoredRemoteAttachment(noteId, remoteFilename)
             if (hydratedFile?.file) {
               return {
                 url: URL.createObjectURL(hydratedFile.file),
@@ -164,10 +168,10 @@ export function useNoteEditor(options: {
             }
           }
           catch (error) {
-            console.warn(`附件本地化失败，回退远端读取: ${hashOrFilename}`, error)
+            console.warn(`附件本地化失败，回退远端读取: ${remoteFilename}`, error)
           }
 
-          const result = await noteRemoteService.getFileByFilename(noteId, hashOrFilename)
+          const result = await noteRemoteService.getFileByFilename(noteId, remoteFilename)
           if (result) {
             return {
               url: result.url,
@@ -176,8 +180,8 @@ export function useNoteEditor(options: {
           }
         }
 
-        console.warn(`PocketBase文件未找到: ${hashOrFilename}`)
-        throw new Error(`远程附件不存在: ${hashOrFilename}`)
+        console.warn(`PocketBase文件未找到: ${remoteFilename}`)
+        throw new Error(`远程附件不存在: ${remoteFilename}`)
       }
     }
     catch (error) {
@@ -195,10 +199,9 @@ export function useNoteEditor(options: {
         Color.configure({ types: [TextStyleKit.name, ListItem.name] }),
         TextStyleKit,
         StarterKit.configure({
-          link: {
-            openOnClick: false,
-          },
+          link: false,
         }),
+        AttachmentAwareLink.configure({ openOnClick: false }),
         TextAlign.configure({
           types: ['heading', 'paragraph'],
         }),
@@ -287,17 +290,7 @@ export function useNoteEditor(options: {
       return []
     }
 
-    const html = editor.value.getHTML()
-    const fileHashRegex = /<file-upload[^>]+url="([^"]+)"/g
-    const fileHashes: string[] = []
-    let match = fileHashRegex.exec(html)
-
-    while (match !== null) {
-      fileHashes.push(match[1])
-      match = fileHashRegex.exec(html)
-    }
-
-    return fileHashes
+    return extractAttachmentReferences(editor.value.getHTML()).hashes
   }
 
   function getContentInfo() {

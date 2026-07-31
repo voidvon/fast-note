@@ -37,6 +37,8 @@ var errPublicPageNotFound = errors.New("public page not found")
 type publicNotePageData struct {
 	Title        string
 	Summary      string
+	Content      string
+	NoteID       string
 	CanonicalURL string
 }
 
@@ -235,6 +237,8 @@ func findPublicNotePage(e *core.RequestEvent, username string, noteID string) (p
 	return publicNotePageData{
 		Title:        title,
 		Summary:      truncateText(note.GetString("summary"), maxSummaryRunes),
+		Content:      note.GetString("content"),
+		NoteID:       note.Id,
 		CanonicalURL: buildCanonicalURL(e.App.Settings().Meta.AppURL, username, noteID),
 	}, nil
 }
@@ -435,6 +439,10 @@ func renderPublicNotePage(indexHTML []byte, page publicNotePageData) (string, er
 	if head == nil || app == nil {
 		return "", errors.New("frontend index.html is missing head or #app")
 	}
+	snapshot, err := sanitizePublicNoteContent(page.Content, page.NoteID)
+	if err != nil {
+		return "", err
+	}
 
 	documentTitle := page.Title + " - fastnote"
 	title := findElement(head, "title", "", "")
@@ -448,6 +456,8 @@ func renderPublicNotePage(indexHTML []byte, page publicNotePageData) (string, er
 	appendMeta(head, "property", "og:type", "article")
 	appendMeta(head, "property", "og:title", documentTitle)
 	appendMeta(head, "property", "og:description", page.Summary)
+	appendMeta(head, "name", "twitter:title", documentTitle)
+	appendMeta(head, "name", "twitter:description", page.Summary)
 	if page.CanonicalURL != "" {
 		head.AppendChild(element("link",
 			html.Attribute{Key: "rel", Val: "canonical"},
@@ -455,10 +465,20 @@ func renderPublicNotePage(indexHTML []byte, page publicNotePageData) (string, er
 		))
 		appendMeta(head, "property", "og:url", page.CanonicalURL)
 	}
+	if imageURL := absolutePublicURL(page.CanonicalURL, snapshot.FirstImageURL); imageURL != "" {
+		appendMeta(head, "property", "og:image", imageURL)
+		appendMeta(head, "name", "twitter:card", "summary_large_image")
+		appendMeta(head, "name", "twitter:image", imageURL)
+	}
 
 	article := element("article", html.Attribute{Key: "data-public-note-snapshot", Val: ""})
-	article.AppendChild(withText(element("h1"), page.Title))
-	if page.Summary != "" {
+	if !snapshot.HasH1 {
+		article.AppendChild(withText(element("h1"), page.Title))
+	}
+	for _, node := range snapshot.Nodes {
+		article.AppendChild(node)
+	}
+	if !snapshot.HasContent && page.Summary != "" {
 		article.AppendChild(withText(element("p"), page.Summary))
 	}
 	main := element("main", html.Attribute{Key: "data-server-rendered", Val: "public-note"})

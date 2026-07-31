@@ -1,4 +1,4 @@
-import type { NoteFileRef } from '@/shared/lib/storage/types'
+import type { NoteFile, NoteFileRef } from '@/shared/lib/storage/types'
 import type { Note } from '@/shared/types'
 import { filesApi } from '@/shared/api/pocketbase/files'
 import { getTime } from '@/shared/lib/date'
@@ -24,6 +24,11 @@ const inflightHydrations = new Map<string, Promise<NoteFileRef>>()
 const pendingHydrations: Array<() => void> = []
 const MAX_CONCURRENT_HYDRATIONS = 3
 let activeHydrations = 0
+
+export interface UploadedAttachmentMapping {
+  file: NoteFile
+  remoteFilename: string
+}
 
 async function withHydrationSlot<T>(task: () => Promise<T>): Promise<T> {
   if (activeHydrations >= MAX_CONCURRENT_HYDRATIONS) {
@@ -208,6 +213,34 @@ export async function registerCachedRemoteAttachment(noteId: string, remoteFilen
   }
   await putStoredNoteFileRef(database, ref)
   return ref
+}
+
+export async function commitUploadedNoteAttachments(note: Note, mappings: UploadedAttachmentMapping[]) {
+  const database = requireDatabase()
+  const now = getTime()
+
+  await database.transaction('rw', database.notes, database.note_file_refs, async () => {
+    const refs = await Promise.all(mappings.map(async ({ file, remoteFilename }) => {
+      const existing = await database.note_file_refs.get([note.id, remoteFilename])
+      return {
+        noteId: note.id,
+        remoteFilename,
+        hash: file.hash,
+        fileName: file.fileName,
+        fileSize: file.fileSize,
+        fileType: file.fileType,
+        status: 'ready' as const,
+        attempts: existing?.attempts || 0,
+        created: existing?.created || now,
+        updated: now,
+      }
+    }))
+
+    await Promise.all([
+      database.notes.put(note),
+      database.note_file_refs.bulkPut(refs),
+    ])
+  })
 }
 
 export async function reconcileRemoteNoteAttachmentRefs(note: Note) {
