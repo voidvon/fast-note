@@ -20,6 +20,7 @@ export interface NoteSaveEditor {
     summary: string
   }
   isMeaningfulContent?: () => boolean
+  releaseUnreferencedAttachmentHashes?: (content: string) => string[]
 }
 
 export interface SaveNotePayload {
@@ -51,6 +52,7 @@ export interface UseNoteSaveOptions {
   sync: (silent?: boolean) => MaybePromise<unknown>
   restoreHeight: () => void
   presentTopError: (message: string) => MaybePromise<void>
+  cleanupAttachments?: (note?: Note) => MaybePromise<unknown>
   flushNotesToLocal?: (reason: LeaveFlushReason) => MaybePromise<void>
   emitNoteSaved?: (payload: SaveNotePayload) => void
   getCurrentNote?: () => Note | null | undefined
@@ -76,6 +78,7 @@ function resolveParentId(isDesktop: boolean, parentId?: string, routeParentId?: 
 interface PreparedSaveRequest {
   baselineContent: string
   content: string
+  editor: NoteSaveEditor
   forceWrite: boolean
   hasMeaningfulContent: boolean
   isDesktop: boolean
@@ -109,6 +112,19 @@ export function useNoteSave(options: UseNoteSaveOptions) {
     }
 
     await options.flushNotesToLocal?.(reason)
+  }
+
+  async function cleanupDetachedAttachments(editor: NoteSaveEditor, content: string, note?: Note) {
+    editor.releaseUnreferencedAttachmentHashes?.(content)
+
+    try {
+      await options.cleanupAttachments?.(note)
+    }
+    catch (error) {
+      // Cleanup is derived-state maintenance. A failed cleanup must not make a
+      // successfully persisted note appear unsaved.
+      console.warn('清理未引用附件失败:', error)
+    }
   }
 
   function isSaveForced(params: SaveNoteParams) {
@@ -155,6 +171,7 @@ export function useNoteSave(options: UseNoteSaveOptions) {
     return {
       baselineContent: savedContentByNoteId.get(noteId) ?? lastSavedContent.value,
       content,
+      editor: params.editor,
       forceWrite: !!params.forceWrite,
       hasMeaningfulContent,
       isDesktop: params.isDesktop,
@@ -174,6 +191,7 @@ export function useNoteSave(options: UseNoteSaveOptions) {
     const {
       baselineContent,
       content,
+      editor,
       forceWrite,
       hasMeaningfulContent,
       isDesktop,
@@ -191,6 +209,7 @@ export function useNoteSave(options: UseNoteSaveOptions) {
     const noteExists = await options.getNote(noteId)
 
     if (wasNewNote && !noteExists && !hasMeaningfulContent) {
+      await cleanupDetachedAttachments(editor, content)
       await flushNotesToLocalIfNeeded(leaveFlushReason)
       return
     }
@@ -222,6 +241,8 @@ export function useNoteSave(options: UseNoteSaveOptions) {
     const fileHashes: string[] = []
 
     try {
+      let savedNote: Note
+
       if (noteExists) {
         const updateResult = await saveExistingNote({
           sync: silent ? undefined : options.sync,
@@ -236,6 +257,7 @@ export function useNoteSave(options: UseNoteSaveOptions) {
         if (!updateResult.ok || !updateResult.note) {
           throw new Error(updateResult.message || '更新备忘录失败')
         }
+        savedNote = updateResult.note
 
         if (isActiveTarget(noteId)) {
           options.setCurrentNote?.(updateResult.note)
@@ -278,6 +300,7 @@ export function useNoteSave(options: UseNoteSaveOptions) {
         if (!createResult.ok || !createResult.note) {
           throw new Error(createResult.message || '创建备忘录失败')
         }
+        savedNote = createResult.note
 
         if (isActiveTarget(noteId)) {
           options.setCurrentNote?.(createResult.note)
@@ -296,6 +319,8 @@ export function useNoteSave(options: UseNoteSaveOptions) {
       if (isActiveTarget(noteId)) {
         lastSavedContent.value = content
       }
+
+      await cleanupDetachedAttachments(editor, content, savedNote)
 
       await flushNotesToLocalIfNeeded(leaveFlushReason)
 

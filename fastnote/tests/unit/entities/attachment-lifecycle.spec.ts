@@ -28,6 +28,7 @@ describe('attachment lifecycle', () => {
       }),
     }))
     vi.doMock('@/shared/lib/storage/dexie', () => ({
+      default: { ignoreTransaction: (callback: () => unknown) => callback(), Promise },
       useDexie: () => ({ db: { value: {} } }),
     }))
     vi.doMock('@/shared/lib/storage/note-files', () => ({
@@ -70,6 +71,7 @@ describe('attachment lifecycle', () => {
       putStoredNoteFileRef: putRef,
     }))
     vi.doMock('@/shared/lib/storage/dexie', () => ({
+      default: { ignoreTransaction: (callback: () => unknown) => callback(), Promise },
       useDexie: () => ({ db: { value: {} } }),
     }))
     vi.doMock('@/shared/lib/storage/note-files', () => ({
@@ -116,6 +118,7 @@ describe('attachment lifecycle', () => {
       putStoredNoteFileRef: vi.fn(),
     }))
     vi.doMock('@/shared/lib/storage/dexie', () => ({
+      default: { ignoreTransaction: (callback: () => unknown) => callback(), Promise },
       useDexie: () => ({ db: { value: {} } }),
     }))
     vi.doMock('@/shared/lib/storage/note-files', () => ({
@@ -140,17 +143,15 @@ describe('attachment lifecycle', () => {
     expect(deleteFile).toHaveBeenCalledWith(expect.anything(), staleHash)
   })
 
-  it('commits the rewritten note and uploaded attachment refs in one transaction', async () => {
+  it('persists the rewritten note and uploaded attachment refs without a long-lived transaction', async () => {
     const notePut = vi.fn(async () => undefined)
     const refsPut = vi.fn(async () => undefined)
-    const transaction = vi.fn(async (_mode, _notes, _refs, operation) => await operation())
     const database = {
       notes: { put: notePut },
       note_file_refs: {
         get: vi.fn(async () => undefined),
         bulkPut: refsPut,
       },
-      transaction,
     }
     const note = {
       id: 'note-transaction',
@@ -169,6 +170,7 @@ describe('attachment lifecycle', () => {
     vi.doMock('@/shared/lib/date', () => ({ getTime: () => '2026-07-30 12:00:00.000Z' }))
     vi.doMock('@/shared/api/pocketbase/files', () => ({ filesApi: {} }))
     vi.doMock('@/shared/lib/storage/dexie', () => ({
+      default: { ignoreTransaction: (callback: () => unknown) => callback(), Promise },
       useDexie: () => ({ db: { value: database } }),
     }))
     vi.doMock('@/shared/lib/storage/attachment-files', () => ({}))
@@ -177,7 +179,6 @@ describe('attachment lifecycle', () => {
     const { commitUploadedNoteAttachments } = await import('@/entities/attachment/model/attachment-lifecycle-service')
     await commitUploadedNoteAttachments(note, [{ file, remoteFilename: 'photo_random.png' }])
 
-    expect(transaction).toHaveBeenCalledWith('rw', database.notes, database.note_file_refs, expect.any(Function))
     expect(notePut).toHaveBeenCalledWith(note)
     expect(refsPut).toHaveBeenCalledWith([expect.objectContaining({
       noteId: note.id,

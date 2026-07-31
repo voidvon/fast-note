@@ -293,6 +293,20 @@ export function useNoteEditor(options: {
     return extractAttachmentReferences(editor.value.getHTML()).hashes
   }
 
+  function releaseUnreferencedAttachmentHashes(content: string) {
+    const referencedHashes = new Set(extractAttachmentReferences(content).hashes)
+    const releasedHashes = [...activeAttachmentHashes]
+      .filter(hash => !referencedHashes.has(hash))
+
+    if (releasedHashes.length === 0) {
+      return []
+    }
+
+    releasedHashes.forEach(hash => activeAttachmentHashes.delete(hash))
+    unregisterActiveAttachmentHashes(releasedHashes)
+    return releasedHashes
+  }
+
   function getContentInfo() {
     if (!editor.value)
       return { title: '', summary: '' }
@@ -383,6 +397,7 @@ export function useNoteEditor(options: {
     initEditor,
     insertFiles,
     extractFileHashes,
+    releaseUnreferencedAttachmentHashes,
     getContentInfo,
     applyDefaultHeadingIfEmpty,
     isMeaningfulContent,

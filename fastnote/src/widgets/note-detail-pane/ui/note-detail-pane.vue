@@ -6,6 +6,7 @@ import { ellipsisHorizontalCircleOutline } from 'ionicons/icons'
 import { nanoid } from 'nanoid'
 import { computed, nextTick, reactive, ref, toRaw, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute } from 'vue-router'
+import { garbageCollectAttachments, reconcileRemoteNoteAttachmentRefs } from '@/entities/attachment'
 import { useNote } from '@/entities/note'
 import { useUserPublicNotes } from '@/entities/public-note'
 import { useNoteDetailEditorState } from '@/features/note-detail-editor'
@@ -37,7 +38,7 @@ const props = withDefaults(
 const emit = defineEmits(['noteSaved'])
 
 const route = useRoute()
-const { addNote, getNote, updateNote, updateParentFolderSubcount, getNotesSync } = useNote()
+const { addNote, getNote, notes, updateNote, updateParentFolderSubcount, getNotesSync } = useNote()
 const { isDesktop } = useDeviceType()
 const noteLock = useNoteLock()
 const { restoreHeight } = useVisualViewport()
@@ -98,6 +99,12 @@ const {
   sync,
   restoreHeight,
   presentTopError,
+  async cleanupAttachments(note) {
+    if (note) {
+      await reconcileRemoteNoteAttachmentRefs(note)
+    }
+    await garbageCollectAttachments(notes.value)
+  },
   flushNotesToLocal: noteDetailLeave.flushNotesToLocal,
   getCurrentEffectiveUuid() {
     return effectiveUuid.value
@@ -307,17 +314,30 @@ onBeforeRouteLeave(() => {
 })
 
 async function presentTopError(message: string) {
-  await toastController.dismiss(undefined, undefined, 'note-detail-error-toast')
+  try {
+    await toastController.dismiss(undefined, undefined, 'note-detail-error-toast')
+  }
+  catch {
+    // Ionic rejects when there is no matching overlay. There is nothing to
+    // dismiss in that case, especially while the detail view is leaving.
+  }
 
-  const toast = await toastController.create({
-    id: 'note-detail-error-toast',
-    message,
-    duration: 2000,
-    position: 'top',
-    color: 'danger',
-  })
+  try {
+    const toast = await toastController.create({
+      id: 'note-detail-error-toast',
+      message,
+      duration: 2000,
+      position: 'top',
+      color: 'danger',
+    })
 
-  await toast.present()
+    await toast.present()
+  }
+  catch (error) {
+    // Error feedback must never turn a handled save failure into an unhandled
+    // promise rejection when the page/overlay has already been destroyed.
+    console.warn('显示保存错误提示失败:', error)
+  }
 }
 
 function replaceMobileDraftUrl(noteId: string) {

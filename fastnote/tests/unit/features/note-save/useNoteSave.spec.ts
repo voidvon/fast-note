@@ -6,6 +6,7 @@ function createEditor(overrides: Partial<{
   getContent: () => string
   getTitle: () => { title: string, summary: string }
   isMeaningfulContent: () => boolean
+  releaseUnreferencedAttachmentHashes: (content: string) => string[]
 }> = {}) {
   return {
     getContent: overrides.getContent || (() => '<p>新内容</p>'),
@@ -14,6 +15,7 @@ function createEditor(overrides: Partial<{
       summary: '新摘要',
     })),
     isMeaningfulContent: overrides.isMeaningfulContent || (() => true),
+    releaseUnreferencedAttachmentHashes: overrides.releaseUnreferencedAttachmentHashes,
   }
 }
 
@@ -31,6 +33,8 @@ describe('useNoteSave', () => {
     const emitNoteSaved = vi.fn()
     const sync = vi.fn(async () => undefined)
     const presentTopError = vi.fn(async () => undefined)
+    const cleanupAttachments = vi.fn(async () => undefined)
+    const releaseUnreferencedAttachmentHashes = vi.fn(() => [])
 
     const noteSave = useNoteSave({
       addNote: vi.fn(async () => undefined),
@@ -40,6 +44,7 @@ describe('useNoteSave', () => {
       sync,
       restoreHeight: vi.fn(),
       presentTopError,
+      cleanupAttachments,
       emitNoteSaved,
       getCurrentNote: () => note,
       setCurrentNote,
@@ -49,7 +54,7 @@ describe('useNoteSave', () => {
     noteSave.lastSavedContent.value = '<p>旧内容</p>'
 
     await noteSave.saveNote({
-      editor: createEditor(),
+      editor: createEditor({ releaseUnreferencedAttachmentHashes }),
       effectiveUuid: 'note-1',
       isNewNote: false,
       isDesktop: false,
@@ -73,6 +78,11 @@ describe('useNoteSave', () => {
     })
     expect(sync).toHaveBeenCalledWith(true)
     expect(presentTopError).not.toHaveBeenCalled()
+    expect(releaseUnreferencedAttachmentHashes).toHaveBeenCalledWith('<p>新内容</p>')
+    expect(cleanupAttachments).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'note-1',
+      content: '<p>新内容</p>',
+    }))
     expect(noteSave.lastSavedContent.value).toBe('<p>新内容</p>')
     expect(noteSave.isSaving.value).toBe(false)
   })

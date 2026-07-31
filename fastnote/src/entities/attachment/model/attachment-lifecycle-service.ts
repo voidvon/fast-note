@@ -219,28 +219,30 @@ export async function commitUploadedNoteAttachments(note: Note, mappings: Upload
   const database = requireDatabase()
   const now = getTime()
 
-  await database.transaction('rw', database.notes, database.note_file_refs, async () => {
-    const refs = await Promise.all(mappings.map(async ({ file, remoteFilename }) => {
-      const existing = await database.note_file_refs.get([note.id, remoteFilename])
-      return {
-        noteId: note.id,
-        remoteFilename,
-        hash: file.hash,
-        fileName: file.fileName,
-        fileSize: file.fileSize,
-        fileType: file.fileType,
-        status: 'ready' as const,
-        attempts: existing?.attempts || 0,
-        created: existing?.created || now,
-        updated: now,
-      }
-    }))
-
-    await Promise.all([
-      database.notes.put(note),
-      database.note_file_refs.bulkPut(refs),
-    ])
+  // Attachment refs are derived data and can be rebuilt by reconciliation. Keep
+  // each IndexedDB write in its own short auto-transaction instead of holding a
+  // cross-table transaction across multiple requests.
+  const existingRefs = await Promise.all(
+    mappings.map(({ remoteFilename }) => database.note_file_refs.get([note.id, remoteFilename])),
+  )
+  const refs = mappings.map(({ file, remoteFilename }, index) => {
+    const existing = existingRefs[index]
+    return {
+      noteId: note.id,
+      remoteFilename,
+      hash: file.hash,
+      fileName: file.fileName,
+      fileSize: file.fileSize,
+      fileType: file.fileType,
+      status: 'ready' as const,
+      attempts: existing?.attempts || 0,
+      created: existing?.created || now,
+      updated: now,
+    }
   })
+
+  await database.notes.put(note)
+  await database.note_file_refs.bulkPut(refs)
 }
 
 export async function reconcileRemoteNoteAttachmentRefs(note: Note) {

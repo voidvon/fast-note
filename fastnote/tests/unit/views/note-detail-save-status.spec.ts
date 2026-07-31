@@ -43,6 +43,7 @@ describe('note detail save status (t-fn-028 / tc-fn-020, tc-fn-021)', () => {
         throw new Error('save failed')
       },
     })
+    mocks.toastDismissMock.mockRejectedValueOnce('overlay does not exist')
 
     editorApi.getContent.mockReturnValue('<p>保存失败内容</p>')
 
