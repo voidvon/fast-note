@@ -1211,8 +1211,8 @@ onUnmounted(() => {
       gap 180ms ease,
       border-radius 180ms ease,
       box-shadow 180ms ease;
-    backdrop-filter: blur(14px) saturate(150%) contrast(102%);
     -webkit-backdrop-filter: blur(14px) saturate(150%) contrast(102%);
+    backdrop-filter: blur(14px) saturate(150%) contrast(102%);
   }
 
   &__field-shell--panel-visible {
@@ -1313,18 +1313,18 @@ onUnmounted(() => {
     z-index: 0;
     pointer-events: none;
     background: var(--c-global-search-panel-overlay);
-    backdrop-filter: blur(0) saturate(100%);
     -webkit-backdrop-filter: blur(0) saturate(100%);
+    backdrop-filter: blur(0) saturate(100%);
     transition:
       background-color 320ms ease,
-      backdrop-filter 320ms ease,
-      -webkit-backdrop-filter 320ms ease;
+      -webkit-backdrop-filter 320ms ease,
+      backdrop-filter 320ms ease;
   }
 
   &__panel-surface--active::before {
     background: var(--c-global-search-panel-active-overlay);
-    backdrop-filter: blur(26px) saturate(150%);
     -webkit-backdrop-filter: blur(26px) saturate(150%);
+    backdrop-filter: blur(26px) saturate(150%);
   }
 
   &__panel-header {
@@ -1395,8 +1395,8 @@ onUnmounted(() => {
     border-radius: 20px;
     background: rgba(15, 23, 42, 0.88);
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.28);
-    backdrop-filter: blur(22px);
     -webkit-backdrop-filter: blur(22px);
+    backdrop-filter: blur(22px);
   }
 
   &__mention-caption {

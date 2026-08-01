@@ -11,11 +11,10 @@ describe('global search glass controls', () => {
   const expectGlassEffect = (selector: string, background: string) => {
     cy.get(selector).should('be.visible').then(($element) => {
       const styles = getComputedStyle($element.get(0))
-      const backdropFilter = styles.backdropFilter || styles.webkitBackdropFilter
 
       expect(styles.backgroundColor).to.equal(background)
-      expect(backdropFilter).to.contain('blur(')
-      expect(backdropFilter).to.contain('saturate(')
+      expect(styles.backdropFilter).to.contain('blur(')
+      expect(styles.backdropFilter).to.contain('saturate(')
     })
   }
 

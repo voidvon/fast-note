@@ -163,8 +163,8 @@ ion-modal#long-press-menu {
   overflow: hidden;
   border-radius: 14px;
   background: rgba(20, 20, 24, 0.94);
-  backdrop-filter: blur(20px) saturate(160%);
   -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
 }
 
 .long-press-menu .list-ios,
