@@ -43,9 +43,27 @@ describe('public note mobile route', () => {
   it('renders a skeleton before the public note request resolves', async () => {
     const pendingNote = deferred<{ id: string } | null>()
     const loadPublicNote = vi.fn(() => pendingNote.promise)
+    let ionViewDidLeaveCallback: (() => void) | undefined
     const noteDetailStub = defineComponent({
       name: 'NoteDetailPage',
-      template: '<div class="note-detail-page" />',
+      props: {
+        loadError: {
+          type: String,
+          default: '',
+        },
+        loading: Boolean,
+        noteId: {
+          type: String,
+          default: '',
+        },
+      },
+      template: `
+        <div class="note-detail-page" :data-note-id="noteId">
+          <div v-if="loading" class="public-note-skeleton" />
+          <div v-else-if="loadError" class="public-note-load-error">{{ loadError }}</div>
+          <div v-else class="note-detail-content" />
+        </div>
+      `,
     })
 
     vi.doMock('vue-router', async () => {
@@ -74,6 +92,9 @@ describe('public note mobile route', () => {
       IonPage: createIonicStub('IonPage'),
       IonSkeletonText: createIonicStub('IonSkeletonText'),
       IonToolbar: createIonicStub('IonToolbar'),
+      onIonViewDidLeave: (callback: () => void) => {
+        ionViewDidLeaveCallback = callback
+      },
     }))
 
     const PublicNoteRoute = (await import('@/app/router/ui/public-note-route.vue')).default
@@ -81,14 +102,26 @@ describe('public note mobile route', () => {
 
     expect(loadPublicNote).toHaveBeenCalledWith('voidvon', 'note-1')
     expect(wrapper.find('.public-note-skeleton').exists()).toBe(true)
-    expect(wrapper.find('.note-detail-page').exists()).toBe(false)
+    expect(wrapper.find('.note-detail-page').exists()).toBe(true)
+    expect(wrapper.find('.note-detail-content').exists()).toBe(false)
+    const stableDetailPage = wrapper.find('.note-detail-page').element
 
     pendingNote.resolve({ id: 'note-1' })
     await flushPromises()
 
     expect(wrapper.find('.public-note-skeleton').exists()).toBe(false)
     await vi.waitFor(() => {
-      expect(wrapper.find('.note-detail-page').exists()).toBe(true)
+      expect(wrapper.find('.note-detail-content').exists()).toBe(true)
     })
+    expect(wrapper.find('.note-detail-page').element).toBe(stableDetailPage)
+    expect(wrapper.find('.note-detail-page').attributes('data-note-id')).toBe('note-1')
+
+    ionViewDidLeaveCallback?.()
+    await flushPromises()
+
+    expect(wrapper.find('.note-detail-page').exists()).toBe(true)
+    expect(wrapper.find('.note-detail-page').element).toBe(stableDetailPage)
+    expect(wrapper.find('.note-detail-content').exists()).toBe(false)
+    expect(wrapper.find('.public-note-skeleton').exists()).toBe(true)
   })
 })

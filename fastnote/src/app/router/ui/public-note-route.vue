@@ -1,13 +1,5 @@
 <script setup lang="ts">
-import {
-  IonBackButton,
-  IonButtons,
-  IonContent,
-  IonHeader,
-  IonPage,
-  IonSkeletonText,
-  IonToolbar,
-} from '@ionic/vue'
+import { onIonViewDidLeave } from '@ionic/vue'
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import NoteDetailPage from '@/pages/note-detail'
@@ -19,23 +11,32 @@ const route = useRoute()
 const { isDesktop } = useDeviceType()
 const loading = ref(true)
 const error = ref('')
+const loadedNoteId = ref('')
 let requestVersion = 0
 
 const username = computed(() => route.params.username as string || '')
 const noteId = computed(() => route.params.noteId as string || '')
-const publicHomePath = computed(() => `/${encodeURIComponent(username.value)}`)
 
 async function loadNote() {
-  if (isDesktop.value || !username.value || !noteId.value) {
+  if (isDesktop.value) {
     requestVersion += 1
     loading.value = false
+    error.value = ''
+    loadedNoteId.value = ''
+    return
+  }
+
+  if (!username.value || !noteId.value) {
+    requestVersion += 1
     error.value = ''
     return
   }
 
   const currentRequest = ++requestVersion
+  const currentNoteId = noteId.value
   loading.value = true
   error.value = ''
+  loadedNoteId.value = ''
 
   try {
     const note = await loadPublicNote(username.value, noteId.value)
@@ -45,6 +46,7 @@ async function loadNote() {
     if (!note) {
       throw new Error('公开备忘录不存在')
     }
+    loadedNoteId.value = currentNoteId
   }
   catch (loadError) {
     if (currentRequest !== requestVersion) {
@@ -62,68 +64,29 @@ async function loadNote() {
 
 watch([username, noteId, isDesktop], () => {
   void loadNote()
-}, { immediate: true })
+}, { immediate: true, flush: 'sync' })
+
+// IonRouterOutlet retains routed pages for transition history. Release the
+// rich-text detail only after its leave animation completes so it cannot flash
+// when this cached route is entered again for another note.
+onIonViewDidLeave(() => {
+  if (isDesktop.value) {
+    return
+  }
+
+  requestVersion += 1
+  loading.value = true
+  error.value = ''
+  loadedNoteId.value = ''
+})
 </script>
 
 <template>
   <UserPublicNotesPage v-if="isDesktop" />
-  <NoteDetailPage v-else-if="!loading && !error" />
-  <IonPage v-else>
-    <IonHeader :translucent="true">
-      <IonToolbar>
-        <IonButtons slot="start">
-          <IonBackButton :default-href="publicHomePath" />
-        </IonButtons>
-      </IonToolbar>
-    </IonHeader>
-    <IonContent force-overscroll>
-      <div v-if="loading" class="public-note-skeleton" aria-label="正在加载备忘录">
-        <IonSkeletonText animated class="public-note-skeleton__title" />
-        <IonSkeletonText animated class="public-note-skeleton__meta" />
-        <div class="public-note-skeleton__body">
-          <IonSkeletonText v-for="width in ['94%', '87%', '91%', '68%', '89%', '76%']" :key="width" animated :style="{ width }" />
-        </div>
-      </div>
-      <div v-else class="public-note-load-error" role="alert">
-        {{ error }}
-      </div>
-    </IonContent>
-  </IonPage>
+  <NoteDetailPage
+    v-else
+    :note-id="loadedNoteId"
+    :loading="loading"
+    :load-error="error"
+  />
 </template>
-
-<style scoped lang="scss">
-.public-note-skeleton {
-  padding: 28px 20px;
-}
-
-.public-note-skeleton__title {
-  width: min(72%, 320px);
-  height: 32px;
-  margin: 0 0 14px;
-}
-
-.public-note-skeleton__meta {
-  width: 112px;
-  height: 14px;
-  margin: 0 0 36px;
-}
-
-.public-note-skeleton__body {
-  display: grid;
-  gap: 15px;
-}
-
-.public-note-skeleton__body ion-skeleton-text {
-  height: 16px;
-  margin: 0;
-}
-
-.public-note-load-error {
-  display: grid;
-  min-height: 50vh;
-  padding: 24px;
-  place-items: center;
-  color: var(--ion-color-medium);
-  text-align: center;
-}
-</style>

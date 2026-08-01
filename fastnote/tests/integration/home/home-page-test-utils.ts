@@ -9,7 +9,7 @@ function createIonicStub(name: string) {
     name,
     inheritAttrs: false,
     setup(_, { attrs, slots }) {
-      return () => h('div', attrs, slots.default ? slots.default() : [])
+      return () => h('div', { ...attrs, 'data-ionic-stub': name }, slots.default ? slots.default() : [])
     },
   })
 }

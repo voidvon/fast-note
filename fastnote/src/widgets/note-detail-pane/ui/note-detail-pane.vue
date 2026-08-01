@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { LeaveFlushReason, SaveTargetContext } from '@/features/note-save'
 import type { Note } from '@/shared/types'
-import { IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonPage, IonSpinner, IonToolbar, isPlatform, toastController } from '@ionic/vue'
+import { IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonPage, IonSkeletonText, IonSpinner, IonToolbar, isPlatform, toastController } from '@ionic/vue'
 import { ellipsisHorizontalCircleOutline } from 'ionicons/icons'
 import { nanoid } from 'nanoid'
 import { computed, nextTick, reactive, ref, toRaw, watch } from 'vue'
@@ -26,10 +26,14 @@ import NoteMore from '@/widgets/note-more'
 
 const props = withDefaults(
   defineProps<{
+    loadError?: string
+    loading?: boolean
     noteId?: string
     parentId?: string
   }>(),
   {
+    loadError: '',
+    loading: false,
     noteId: '',
     parentId: '',
   },
@@ -66,7 +70,13 @@ const state = reactive({
   showNoteMore: false,
 })
 const idFromRoute = computed(() => route.params.id as string || route.params.noteId as string)
-const idFromSource = computed(() => isDesktop.value ? props.noteId : (props.noteId || idFromRoute.value))
+const idFromSource = computed(() => {
+  if (props.loading || props.loadError) {
+    return ''
+  }
+
+  return isDesktop.value ? props.noteId : (props.noteId || idFromRoute.value)
+})
 const effectiveUuid = computed(() => {
   if (idFromSource.value === '0')
     return newNoteId.value
@@ -513,7 +523,17 @@ async function handleNoteLockUpdated(updatedNote: Note) {
     </IonHeader>
 
     <IonContent force-overscroll>
-      <div class="note-detail__content-shell">
+      <div v-if="loading" class="public-note-skeleton" aria-label="正在加载备忘录">
+        <IonSkeletonText animated class="public-note-skeleton__title" />
+        <IonSkeletonText animated class="public-note-skeleton__meta" />
+        <div class="public-note-skeleton__body">
+          <IonSkeletonText v-for="width in ['94%', '87%', '91%', '68%', '89%', '76%']" :key="width" animated :style="{ width }" />
+        </div>
+      </div>
+      <div v-else-if="loadError" class="public-note-load-error" role="alert">
+        {{ loadError }}
+      </div>
+      <div v-else class="note-detail__content-shell">
         <div class="ion-padding">
           <div v-if="isMissingPrivateNote" data-testid="note-detail-missing-note" class="note-detail__missing-state">
             当前备忘录不存在或尚未同步完成
@@ -591,6 +611,41 @@ async function handleNoteLockUpdated(updatedNote: Note) {
   border-radius: 12px;
   background: var(--ion-color-light, #f4f5f8);
   color: var(--ion-color-medium-shade, #666);
+  text-align: center;
+}
+
+.public-note-skeleton {
+  padding: 28px 20px;
+}
+
+.public-note-skeleton__title {
+  width: min(72%, 320px);
+  height: 32px;
+  margin: 0 0 14px;
+}
+
+.public-note-skeleton__meta {
+  width: 112px;
+  height: 14px;
+  margin: 0 0 36px;
+}
+
+.public-note-skeleton__body {
+  display: grid;
+  gap: 15px;
+}
+
+.public-note-skeleton__body ion-skeleton-text {
+  height: 16px;
+  margin: 0;
+}
+
+.public-note-load-error {
+  display: grid;
+  min-height: 50vh;
+  padding: 24px;
+  place-items: center;
+  color: var(--ion-color-medium);
   text-align: center;
 }
 

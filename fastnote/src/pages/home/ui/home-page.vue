@@ -41,6 +41,7 @@ import { getTime } from '@/shared/lib/date'
 import { useDeviceType } from '@/shared/lib/device'
 import { NOTE_TYPE } from '@/shared/types'
 import PaneSplitter from '@/shared/ui/pane-splitter'
+import ResponsivePagePane from '@/shared/ui/responsive-page-pane'
 import DeletedNoteList from '@/widgets/deleted-note-list'
 import ExtensionRenderer from '@/widgets/extension-renderer'
 import FolderBrowser from '@/widgets/folder-browser'
@@ -704,8 +705,9 @@ onUnmounted(() => {
 
 <template>
   <IonPage ref="page" :class="{ 'note-desktop': isDesktop }" :style="desktopLayoutStyle">
-    <div
+    <ResponsivePagePane
       id="home-navigation-pane"
+      :desktop="isDesktop"
       class="home-navigation"
       :class="{ 'home-navigation--search-active': showGlobalSearch }"
       data-global-search-container
@@ -714,7 +716,12 @@ onUnmounted(() => {
         <IonToolbar />
       </IonHeader>
 
-      <IonContent :fullscreen="true" :scroll-y="!showGlobalSearch">
+      <IonContent
+        class="home-navigation-content"
+        :class="{ 'home-navigation-content--search-active': showGlobalSearch }"
+        :fullscreen="true"
+        :scroll-y="!showGlobalSearch"
+      >
         <IonRefresher slot="fixed" :disabled="showGlobalSearch" @ion-refresh="refresh($event)">
           <IonRefresherContent />
         </IonRefresher>
@@ -797,7 +804,7 @@ onUnmounted(() => {
         @did-present="focusFolderAlertInput"
         @did-dismiss="showAddFolderAlert = false"
       />
-    </div>
+    </ResponsivePagePane>
 
     <!-- 扩展管理器 -->
     <!-- <ExtensionManager
@@ -878,11 +885,11 @@ onUnmounted(() => {
   background: var(--background);
 }
 
-.home-navigation ion-content {
+.home-navigation-content {
   --background: var(--c-page-background);
 }
 
-.home-navigation--search-active ion-content {
+.home-navigation-content--search-active {
   --background: transparent;
 }
 

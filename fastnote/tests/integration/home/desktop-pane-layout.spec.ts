@@ -19,7 +19,10 @@ describe('home pane layout', () => {
       isDesktop: false,
     })
 
-    expect(wrapper.find('.home-navigation').exists()).toBe(true)
+    expect(wrapper.find('.home-navigation').exists()).toBe(false)
+    const mobilePageChildren = Array.from(wrapper.find('[data-ionic-stub="IonPage"]').element.children)
+    expect(mobilePageChildren[0]?.getAttribute('data-ionic-stub')).toBe('IonHeader')
+    expect(mobilePageChildren[1]?.getAttribute('data-ionic-stub')).toBe('IonContent')
     expect(wrapper.findAll('[role="separator"]')).toHaveLength(0)
     expect(wrapper.find('#home-note-list-pane').exists()).toBe(false)
     expect(wrapper.find('#home-note-detail-pane').exists()).toBe(false)

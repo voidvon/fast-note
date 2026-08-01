@@ -9,7 +9,7 @@ function createIonicStub(name: string) {
     name,
     inheritAttrs: false,
     setup(_, { attrs, slots }) {
-      return () => h('div', attrs, slots.default ? slots.default() : [])
+      return () => h('div', { ...attrs, 'data-ionic-stub': name }, slots.default ? slots.default() : [])
     },
   })
 }
@@ -86,10 +86,8 @@ describe('user public notes page', () => {
       id: 'note-1',
       parent_id: '',
     }))
-    const routerPush = vi.fn()
-    const ionRouterBack = vi.fn()
-    const ionRouterNavigate = vi.fn()
-    const ionRouterCanGoBack = vi.fn(() => false)
+    const isDesktop = ref(true)
+    const ionRouterPush = vi.fn()
     let triggerIonViewWillEnter: (() => void) | undefined
     const ensurePublicNotesReady = vi.fn(async () => ({
       unfiledNotesCount: 2,
@@ -111,13 +109,12 @@ describe('user public notes page', () => {
           path: '/alice/n/note-1',
           fullPath: '/alice/n/note-1',
         }),
-        useRouter: () => ({ push: routerPush }),
       }
     })
 
     vi.doMock('@/shared/lib/device', () => ({
       useDeviceType: () => ({
-        isDesktop: ref(true),
+        isDesktop,
       }),
     }))
 
@@ -154,6 +151,7 @@ describe('user public notes page', () => {
     vi.doMock('@ionic/vue', () => {
       return {
         IonButton: createIonicStub('IonButton'),
+        IonBackButton: createIonicStub('IonBackButton'),
         IonButtons: createIonicStub('IonButtons'),
         IonContent: createIonicStub('IonContent'),
         IonHeader: createIonicStub('IonHeader'),
@@ -169,9 +167,7 @@ describe('user public notes page', () => {
           triggerIonViewWillEnter = callback
         },
         useIonRouter: () => ({
-          back: ionRouterBack,
-          canGoBack: ionRouterCanGoBack,
-          navigate: ionRouterNavigate,
+          push: ionRouterPush,
         }),
       }
     })
@@ -217,15 +213,8 @@ describe('user public notes page', () => {
     expect(wrapper.find('#public-note-list-pane').exists()).toBe(true)
     expect(wrapper.find('#public-note-detail-pane').exists()).toBe(true)
 
-    await wrapper.get('[aria-label="返回备忘录"]').trigger('click')
-    expect(ionRouterCanGoBack).toHaveBeenCalled()
-    expect(ionRouterNavigate).toHaveBeenCalledWith('/home', 'back', 'replace')
-    expect(ionRouterBack).not.toHaveBeenCalled()
-
-    ionRouterCanGoBack.mockReturnValue(true)
-    await wrapper.get('[aria-label="返回备忘录"]').trigger('click')
-    expect(ionRouterBack).toHaveBeenCalledOnce()
-    expect(ionRouterNavigate).toHaveBeenCalledOnce()
+    const backButton = wrapper.findComponent({ name: 'IonBackButton' })
+    expect(backButton.attributes('default-href')).toBe('/home')
 
     noteList.vm.$emit('selected', 'folder-1')
     await nextTick()
@@ -233,7 +222,7 @@ describe('user public notes page', () => {
     expect(noteList.props('noteUuid')).toBe('folder-1')
     expect(folderPage().props('currentFolder')).toBe('folder-1')
     expect(window.location.pathname).toBe('/alice/f/folder-1')
-    expect(routerPush).not.toHaveBeenCalled()
+    expect(ionRouterPush).not.toHaveBeenCalled()
 
     folderPage().vm.$emit('selected', 'note-1')
     await flushPromises()
@@ -242,6 +231,22 @@ describe('user public notes page', () => {
     expect(folderPage().props('selectedNoteId')).toBe('note-1')
     expect(noteDetail().props('noteId')).toBe('note-1')
     expect(window.location.pathname).toBe('/alice/n/note-1')
-    expect(routerPush).not.toHaveBeenCalled()
+    expect(ionRouterPush).not.toHaveBeenCalled()
+
+    isDesktop.value = false
+    await nextTick()
+
+    expect(wrapper.find('#public-navigation-pane').exists()).toBe(false)
+    const mobilePageChildren = Array.from(wrapper.find('[data-ionic-stub="IonPage"]').element.children)
+    expect(mobilePageChildren[0]?.getAttribute('data-ionic-stub')).toBe('IonHeader')
+    expect(mobilePageChildren[1]?.getAttribute('data-ionic-stub')).toBe('IonContent')
+
+    const mobileNoteList = wrapper.findComponent(noteListStub)
+    expect(mobileNoteList.props('disabledRoute')).toBe(true)
+    mobileNoteList.vm.$emit('selected', 'folder-1')
+    await nextTick()
+
+    expect(ionRouterPush).toHaveBeenCalledOnce()
+    expect(ionRouterPush).toHaveBeenCalledWith('/alice/f/folder-1')
   })
 })

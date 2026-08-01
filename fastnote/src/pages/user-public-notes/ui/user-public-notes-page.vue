@@ -2,6 +2,7 @@
 import type { CSSProperties } from 'vue'
 import type { PublicUserInfo } from '@/shared/types/pocketbase'
 import {
+  IonBackButton,
   IonButton,
   IonButtons,
   IonContent,
@@ -17,34 +18,25 @@ import {
   onIonViewWillEnter,
   useIonRouter,
 } from '@ionic/vue'
-import { alertCircleOutline, chevronBack, documentTextOutline } from 'ionicons/icons'
+import { alertCircleOutline, documentTextOutline } from 'ionicons/icons'
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { useUserPublicNotes } from '@/entities/public-note'
 import { useDesktopPaneLayout } from '@/features/desktop-pane-layout'
 import { ensurePublicNotesReady, loadPublicNote } from '@/processes/public-notes'
 import { useDeviceType } from '@/shared/lib/device'
 import PaneSplitter from '@/shared/ui/pane-splitter'
+import ResponsivePagePane from '@/shared/ui/responsive-page-pane'
 import FolderBrowser from '@/widgets/folder-browser'
 import NoteDetailPane from '@/widgets/note-detail-pane'
 import NoteList from '@/widgets/note-list'
 
 const route = useRoute()
-const router = useRouter()
 const ionRouter = useIonRouter()
 const { isDesktop } = useDeviceType()
 
 // 获取路由参数
 const username = computed(() => route.params.username as string)
-
-function backToHome() {
-  if (ionRouter.canGoBack()) {
-    ionRouter.back()
-    return
-  }
-
-  ionRouter.navigate('/home', 'back', 'replace')
-}
 
 const publicFolders = computed(() => {
   if (!username.value) {
@@ -134,7 +126,7 @@ function selectFolder(id: string) {
     return
   }
 
-  void router.push(targetPath)
+  ionRouter.push(targetPath)
 }
 
 async function selectNote(id: string) {
@@ -175,7 +167,7 @@ async function selectNote(id: string) {
     return
   }
 
-  void router.push(targetPath)
+  ionRouter.push(targetPath)
 }
 
 // 初始化数据
@@ -284,19 +276,17 @@ watch(
 
 <template>
   <IonPage ref="page" :class="{ 'public-note-desktop': isDesktop }" :style="desktopLayoutStyle">
-    <div id="public-navigation-pane" class="public-navigation">
+    <ResponsivePagePane id="public-navigation-pane" :desktop="isDesktop" class="public-navigation">
       <IonHeader>
         <IonToolbar>
           <IonTitle>{{ userInfo?.username }}</IonTitle>
           <IonButtons slot="start">
-            <IonButton class="public-home-back-button" fill="clear" aria-label="返回备忘录" @click="backToHome">
-              <IonIcon slot="icon-only" :icon="chevronBack" />
-            </IonButton>
+            <IonBackButton default-href="/home" text="返回" />
           </IonButtons>
         </IonToolbar>
       </IonHeader>
 
-      <IonContent :fullscreen="true">
+      <IonContent class="public-navigation-content" :fullscreen="true">
         <IonRefresher slot="fixed" @ion-refresh="refresh($event)">
           <IonRefresherContent />
         </IonRefresher>
@@ -323,7 +313,7 @@ watch(
           <IonIcon :icon="alertCircleOutline" size="large" />
           <h2>无法加载用户数据</h2>
           <p>{{ error }}</p>
-          <IonButton @click="$router.push('/')">
+          <IonButton @click="ionRouter.push('/home')">
             返回首页
           </IonButton>
         </div>
@@ -336,7 +326,7 @@ watch(
             :unfiled-notes-count="unfiledNotesCount"
             :expanded-state-key="expandedStateKey"
             :presenting-element="presentingElement"
-            :disabled-route="isDesktop"
+            :disabled-route="true"
             @refresh="init"
             @selected="selectFolder"
           />
@@ -348,7 +338,7 @@ watch(
           </div>
         </div>
       </IonContent>
-    </div>
+    </ResponsivePagePane>
 
     <PaneSplitter
       v-if="isDesktop"
@@ -444,27 +434,8 @@ watch(
   background: var(--background);
 }
 
-.public-navigation ion-content {
+.public-navigation-content {
   --background: var(--c-page-background);
-}
-
-.public-home-back-button {
-  --padding-top: 0;
-  --padding-end: 0;
-  --padding-bottom: 0;
-  --padding-start: 0;
-
-  min-width: auto;
-  min-height: 32px;
-  margin: 0;
-  font-size: 17px;
-
-  ion-icon {
-    margin-inline-start: -4px;
-    margin-inline-end: 1px;
-    font-size: 1.6em;
-    transform: translateX(-11px);
-  }
 }
 
 .public-note-desktop {
