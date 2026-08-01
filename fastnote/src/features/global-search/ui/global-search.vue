@@ -1148,16 +1148,6 @@ onUnmounted(() => {
 
 <style lang="scss">
 :root:not(.ion-palette-dark) .global-search {
-  .app-glass-circle-button,
-  .global-search__field-shell {
-    border-color: var(--c-divider);
-    background: var(--c-list-background);
-    box-shadow: none;
-    color: var(--c-text-primary);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-
   .global-search__search-icon,
   .global-search__clear-button {
     color: var(--c-icon);
@@ -1210,19 +1200,19 @@ onUnmounted(() => {
     min-height: 44px;
     padding: 0 12px;
     border-radius: 24px;
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.08)), rgba(20, 20, 24, 0.12);
+    border: 1px solid var(--c-global-search-control-border);
+    background: var(--c-global-search-control-background);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.22),
-      0 12px 30px rgba(0, 0, 0, 0.14);
+      inset 0 1px 0 var(--c-global-search-control-highlight),
+      0 8px 20px var(--c-global-search-control-shadow);
     overflow: hidden;
     transition:
       height 180ms ease,
       gap 180ms ease,
       border-radius 180ms ease,
       box-shadow 180ms ease;
-    backdrop-filter: blur(28px) saturate(180%);
-    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    backdrop-filter: blur(14px) saturate(150%) contrast(102%);
+    -webkit-backdrop-filter: blur(14px) saturate(150%) contrast(102%);
   }
 
   &__field-shell--panel-visible {

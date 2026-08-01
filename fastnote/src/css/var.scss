@@ -56,6 +56,10 @@
   --c-code-text: var(--c-text-primary);
   --c-global-search-panel-overlay: transparent;
   --c-global-search-panel-active-overlay: transparent;
+  --c-global-search-control-background: rgba(255, 255, 255, 0.01);
+  --c-global-search-control-border: rgba(255, 255, 255, 0.3);
+  --c-global-search-control-highlight: rgba(255, 255, 255, 0.18);
+  --c-global-search-control-shadow: rgba(31, 35, 48, 0.07);
 
   /* 功能色定义 TODO: 暂未使用  */
   --c-bg-base: var(--c-blue-gray-950); /* 应用基础背景色 */
@@ -125,4 +129,8 @@
   --c-code-text: var(--c-text-primary);
   --c-global-search-panel-overlay: rgba(10, 10, 12, 0.08);
   --c-global-search-panel-active-overlay: rgba(10, 10, 12, 0.38);
+  --c-global-search-control-background: rgba(255, 255, 255, 0.024);
+  --c-global-search-control-border: rgba(255, 255, 255, 0.12);
+  --c-global-search-control-highlight: rgba(255, 255, 255, 0.08);
+  --c-global-search-control-shadow: rgba(0, 0, 0, 0.14);
 }
