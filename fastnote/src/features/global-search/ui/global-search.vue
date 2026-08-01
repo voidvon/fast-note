@@ -1091,7 +1091,11 @@ onUnmounted(() => {
             </p>
           </div>
 
-          <IonContent v-if="isSearchMode" class="global-search__panel-content">
+          <IonContent
+            v-if="isSearchMode"
+            :fullscreen="true"
+            class="global-search__panel-content"
+          >
             <template v-if="hasSearchKeyword && state.notes.length > 0">
               <NoteList
                 :data-list="searchResults"
@@ -1328,23 +1332,38 @@ onUnmounted(() => {
   }
 
   &__panel-header {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: 3;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
+    justify-content: flex-end;
+    gap: 4px;
+    box-sizing: border-box;
+    height: var(--global-search-panel-header-height);
     padding: max(20px, env(safe-area-inset-top)) 16px 12px;
+    border-bottom: 1px solid var(--c-global-search-control-border);
+    background: var(--c-global-search-control-background);
+    -webkit-backdrop-filter: blur(18px) saturate(160%) contrast(104%);
+    backdrop-filter: blur(18px) saturate(160%) contrast(104%);
+    pointer-events: none;
   }
 
   &__panel-caption {
     margin: 0;
     font-size: 15px;
     font-weight: 600;
+    line-height: 20px;
     color: var(--c-text-primary);
   }
 
   &__panel-meta {
     margin: 0;
     font-size: 13px;
+    line-height: 18px;
     color: var(--c-text-primary);
   }
 
@@ -1357,9 +1376,9 @@ onUnmounted(() => {
     min-height: 0;
     box-sizing: border-box;
     color: var(--c-text-primary);
-    padding-bottom: var(--global-search-panel-bottom-inset, 0px);
     overflow: hidden;
     opacity: 0;
+    --global-search-panel-header-height: calc(max(20px, env(safe-area-inset-top)) + 54px);
     transition: opacity 220ms ease;
   }
 
@@ -1368,10 +1387,14 @@ onUnmounted(() => {
   }
 
   &__panel-content {
-    flex: 1;
-    min-height: 0;
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
     --background: transparent;
-    --padding-bottom: 0px;
+    --padding-top: var(--global-search-panel-header-height);
+    --padding-bottom: calc(var(--global-search-panel-bottom-inset) + 12px);
   }
 
   &__ai-panel {

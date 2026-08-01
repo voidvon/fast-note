@@ -11,7 +11,11 @@ describe('mobile Ionic page transitions', () => {
   }
 
   it('keeps private and public home content in the Ionic transition surface', () => {
-    cy.visit('/home')
+    cy.visit('/home', {
+      onBeforeLoad(window) {
+        window.localStorage.setItem('themeMode', 'light')
+      },
+    })
     cy.get('#app-loading').should('not.exist')
     assertStandardPageStructure()
 
@@ -29,9 +33,32 @@ describe('mobile Ionic page transitions', () => {
         const deadline = win.performance.now() + 1000
         let hasStandardContentAnimation = false
         let hasLargeTitleAnimation = false
+        const transitionToolbarBackgrounds = new Set<string>()
+        const clonedNavigationColors = new Set<string>()
+
+        const colorProbe = win.document.createElement('span')
+        colorProbe.style.color = 'var(--c-text-primary)'
+        win.document.body.appendChild(colorProbe)
+        const neutralColor = win.getComputedStyle(colorProbe).color
+        colorProbe.remove()
 
         while ((!hasStandardContentAnimation || !hasLargeTitleAnimation) && win.performance.now() < deadline) {
           const animations = win.document.getAnimations()
+          win.document
+            .querySelectorAll<HTMLElement>('ion-header.header-collapse-condense-inactive.header-transitioning:not(.header-collapse-condense) ion-toolbar')
+            .forEach((toolbar) => {
+              transitionToolbarBackgrounds.add(
+                win.getComputedStyle(toolbar).getPropertyValue('--background').trim(),
+              )
+            })
+          win.document
+            .querySelectorAll<HTMLElement>('ion-back-button.ion-cloned-element, ion-title.ion-cloned-element')
+            .forEach((element) => {
+              const styles = win.getComputedStyle(element)
+              if (styles.display !== 'none') {
+                clonedNavigationColors.add(styles.color)
+              }
+            })
           hasStandardContentAnimation = animations.some((animation) => {
             const effect = animation.effect as KeyframeEffect | null
             return effect?.target === leavingContent && effect.getTiming().duration === 540
@@ -49,7 +76,23 @@ describe('mobile Ionic page transitions', () => {
 
         expect(hasStandardContentAnimation).to.equal(true)
         expect(hasLargeTitleAnimation).to.equal(true)
+        expect([...transitionToolbarBackgrounds]).to.deep.equal(['#f0f0f2'])
+        expect([...clonedNavigationColors]).to.deep.equal([neutralColor])
       })
+    })
+
+    cy.get('ion-router-outlet > .ion-page:not(.ion-page-hidden)').children('ion-header').find('ion-toolbar').should(($toolbar) => {
+      const toolbar = $toolbar.get(0)
+      const backButton = toolbar.querySelector('ion-back-button')
+      const colorProbe = document.createElement('span')
+
+      colorProbe.style.color = 'var(--c-text-primary)'
+      document.body.appendChild(colorProbe)
+      const neutralColor = getComputedStyle(colorProbe).color
+      colorProbe.remove()
+
+      expect(getComputedStyle(toolbar).color).to.equal(neutralColor)
+      expect(getComputedStyle(backButton!).color).to.equal(neutralColor)
     })
   })
 })

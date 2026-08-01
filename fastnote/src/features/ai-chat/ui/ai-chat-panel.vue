@@ -297,6 +297,7 @@ function handleMessageAction(action: ChatMessageCardAction) {
 <template>
   <div class="ai-chat-panel">
     <AiChatToolbar
+      class="ai-chat-panel__toolbar"
       :can-clear="hasVisibleMessages"
       :context-remaining-percent="contextRemainingPercent"
       :provider-label="providerLabel"
@@ -352,29 +353,34 @@ function handleMessageAction(action: ChatMessageCardAction) {
       />
     </div>
 
-    <IonButtons v-if="canResumeTask" class="ai-chat-panel__task-actions">
-      <IonButton size="small" @click="emit('resumeTask')">
-        继续任务
-      </IonButton>
-    </IonButtons>
-
-    <div v-if="showConfirmationBlock" class="ai-chat-panel__confirmation">
-      <IonNote class="ai-chat-panel__confirmation-label">
-        待确认操作
-      </IonNote>
-      <ul class="ai-chat-panel__confirmation-list">
-        <li v-for="line in confirmationPreviewLines" :key="line">
-          {{ line }}
-        </li>
-      </ul>
-      <IonButtons class="ai-chat-panel__confirmation-actions">
-        <IonButton size="small" @click="handleConfirmPendingExecution">
-          确认执行
-        </IonButton>
-        <IonButton size="small" fill="clear" @click="cancelPendingExecution">
-          取消
+    <div
+      v-if="canResumeTask || showConfirmationBlock"
+      class="ai-chat-panel__status-stack"
+    >
+      <IonButtons v-if="canResumeTask" class="ai-chat-panel__task-actions">
+        <IonButton size="small" @click="emit('resumeTask')">
+          继续任务
         </IonButton>
       </IonButtons>
+
+      <div v-if="showConfirmationBlock" class="ai-chat-panel__confirmation">
+        <IonNote class="ai-chat-panel__confirmation-label">
+          待确认操作
+        </IonNote>
+        <ul class="ai-chat-panel__confirmation-list">
+          <li v-for="line in confirmationPreviewLines" :key="line">
+            {{ line }}
+          </li>
+        </ul>
+        <IonButtons class="ai-chat-panel__confirmation-actions">
+          <IonButton size="small" @click="handleConfirmPendingExecution">
+            确认执行
+          </IonButton>
+          <IonButton size="small" fill="clear" @click="cancelPendingExecution">
+            取消
+          </IonButton>
+        </IonButtons>
+      </div>
     </div>
 
     <AiChatErrorBanner
@@ -389,25 +395,44 @@ function handleMessageAction(action: ChatMessageCardAction) {
 
 <style lang="scss">
 .ai-chat-panel {
+  position: relative;
   display: flex;
   flex: 1;
   height: 100%;
   flex-direction: column;
   min-height: 0;
-  padding: 16px;
-  gap: 16px;
+  padding: 0;
+  gap: 0;
   overflow: hidden;
+  --ai-chat-toolbar-height: calc(max(20px, env(safe-area-inset-top)) + 52px);
+
+  &__toolbar {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: 3;
+    box-sizing: border-box;
+    height: var(--ai-chat-toolbar-height);
+    padding: max(20px, env(safe-area-inset-top)) 16px 10px;
+    border-bottom: 1px solid var(--c-global-search-control-border);
+    background: var(--c-global-search-control-background);
+    -webkit-backdrop-filter: blur(18px) saturate(160%) contrast(104%);
+    backdrop-filter: blur(18px) saturate(160%) contrast(104%);
+  }
 
   &__thread {
     display: flex;
     flex: 1 1 auto;
+    width: 100%;
+    height: 100%;
     min-height: 0;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
     touch-action: auto;
-    padding-right: 4px;
+    padding: calc(var(--ai-chat-toolbar-height) + 16px) 20px calc(var(--global-search-panel-bottom-inset) + 16px) 16px;
     box-sizing: border-box;
   }
 
@@ -421,9 +446,22 @@ function handleMessageAction(action: ChatMessageCardAction) {
     background: transparent;
   }
 
+  &__status-stack {
+    position: absolute;
+    right: 16px;
+    bottom: calc(var(--global-search-panel-bottom-inset) + 12px);
+    left: 16px;
+    z-index: 4;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: min(42vh, 360px);
+    overflow-y: auto;
+  }
+
   &__task-actions {
     gap: 8px;
-    margin-top: 8px;
+    margin: 0;
   }
 
   &__confirmation {

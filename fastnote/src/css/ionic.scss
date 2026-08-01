@@ -12,6 +12,21 @@ ion-footer {
   --background: var(--c-page-background);
 }
 
+ion-header ion-toolbar {
+  --ion-toolbar-color: var(--c-text-primary);
+}
+
+ion-back-button.ion-cloned-element,
+ion-title.ion-cloned-element {
+  --color: var(--c-text-primary);
+}
+
+:root:not(.ion-palette-dark)
+  ion-header.header-collapse-condense-inactive.header-transitioning:not(.header-collapse-condense)
+  ion-toolbar {
+  --background: var(--c-page-background);
+}
+
 ion-searchbar {
   &.sc-ion-searchbar-ios-h {
     --background: var(--c-blue-gray-950);

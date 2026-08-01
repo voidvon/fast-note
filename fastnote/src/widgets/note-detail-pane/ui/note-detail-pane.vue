@@ -586,15 +586,6 @@ async function handleNoteLockUpdated(updatedNote: Note) {
   --background: var(--c-note-detail-toolbar-background);
 }
 
-.note-detail__toolbar {
-  --color: var(--c-text-primary);
-}
-
-.note-detail__toolbar ion-button,
-.note-detail__toolbar ion-back-button {
-  --color: var(--c-text-primary);
-}
-
 .note-detail__header-buttons {
   align-items: center;
   gap: 4px;
