@@ -887,6 +887,7 @@ onUnmounted(() => {
 
 .home-navigation-content {
   --background: var(--c-page-background);
+  --padding-bottom: calc(68px + env(safe-area-inset-bottom));
 }
 
 .home-navigation-content--search-active {
@@ -914,6 +915,10 @@ onUnmounted(() => {
   height: 100%;
   min-height: 0;
   overflow: hidden;
+}
+
+.note-desktop .home-navigation-content {
+  --padding-bottom: 0px;
 }
 
 .note-desktop .home-list,
