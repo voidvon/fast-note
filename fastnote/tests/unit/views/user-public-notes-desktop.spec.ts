@@ -90,6 +90,7 @@ describe('user public notes page', () => {
     const ionRouterBack = vi.fn()
     const ionRouterNavigate = vi.fn()
     const ionRouterCanGoBack = vi.fn(() => false)
+    let triggerIonViewWillEnter: (() => void) | undefined
     const ensurePublicNotesReady = vi.fn(async () => ({
       unfiledNotesCount: 2,
       userInfo: {
@@ -160,10 +161,13 @@ describe('user public notes page', () => {
         IonPage: createIonicStub('IonPage'),
         IonRefresher: createIonicStub('IonRefresher'),
         IonRefresherContent: createIonicStub('IonRefresherContent'),
+        IonSkeletonText: createIonicStub('IonSkeletonText'),
         IonSpinner: createIonicStub('IonSpinner'),
         IonTitle: createIonicStub('IonTitle'),
         IonToolbar: createIonicStub('IonToolbar'),
-        onIonViewWillEnter: vi.fn(),
+        onIonViewWillEnter: (callback: () => void) => {
+          triggerIonViewWillEnter = callback
+        },
         useIonRouter: () => ({
           back: ionRouterBack,
           canGoBack: ionRouterCanGoBack,
@@ -183,6 +187,9 @@ describe('user public notes page', () => {
       },
     })
 
+    expect(wrapper.find('.public-home-skeleton').exists()).toBe(true)
+    expect(wrapper.findAll('.public-home-skeleton__row')).toHaveLength(1)
+
     await flushPromises()
 
     const noteList = wrapper.findComponent(noteListStub)
@@ -193,7 +200,13 @@ describe('user public notes page', () => {
       force: false,
       noteId: 'note-1',
     })
-    expect(wrapper.text()).not.toContain('加载中...')
+    expect(wrapper.find('.public-home-skeleton').exists()).toBe(false)
+    expect(ensurePublicNotesReady).toHaveBeenCalledTimes(1)
+
+    triggerIonViewWillEnter?.()
+    await flushPromises()
+    expect(ensurePublicNotesReady).toHaveBeenCalledTimes(1)
+
     expect(noteList.props('noteUuid')).toBe('unfilednotes')
     expect(noteList.props('showUnfiledNotes')).toBe(true)
     expect(noteList.props('unfiledNotesCount')).toBe(2)

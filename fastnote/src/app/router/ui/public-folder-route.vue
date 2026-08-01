@@ -1,10 +1,31 @@
 <script setup lang="ts">
-import { defineAsyncComponent } from 'vue'
+import { computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import FolderPage from '@/pages/folder'
+import UserPublicNotesPage from '@/pages/user-public-notes'
+import { loadPublicNote } from '@/processes/public-notes'
 import { useDeviceType } from '@/shared/lib/device'
 
+const route = useRoute()
 const { isDesktop } = useDeviceType()
-const FolderPage = defineAsyncComponent(() => import('@/pages/folder'))
-const UserPublicNotesPage = defineAsyncComponent(() => import('@/pages/user-public-notes'))
+
+const username = computed(() => route.params.username as string || '')
+const folderId = computed(() => {
+  const pathMatch = route.params.pathMatch
+  const path = Array.isArray(pathMatch) ? pathMatch.join('/') : pathMatch || ''
+  const segments = path.split('/').filter(Boolean)
+  return segments[segments.length - 1] || ''
+})
+
+watch([username, folderId, isDesktop], ([currentUsername, currentFolderId, desktop]) => {
+  if (desktop || !currentUsername || !currentFolderId || currentFolderId === 'allnotes' || currentFolderId === 'unfilednotes') {
+    return
+  }
+
+  void loadPublicNote(currentUsername, currentFolderId).catch((error) => {
+    console.error('加载公开文件夹信息失败:', error)
+  })
+}, { immediate: true })
 </script>
 
 <template>

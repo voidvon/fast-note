@@ -10,6 +10,7 @@ import {
   IonPage,
   IonRefresher,
   IonRefresherContent,
+  IonSkeletonText,
   IonSpinner,
   IonTitle,
   IonToolbar,
@@ -64,6 +65,8 @@ const publicNoteLoading = ref(false)
 const publicNoteError = ref('')
 let desktopResizeObserver: ResizeObserver | null = null
 let publicNoteRequestVersion = 0
+let initializedUsername = ''
+let pendingInit: { promise: Promise<void>, username: string } | null = null
 const desktopContainerWidth = ref(typeof window === 'undefined' ? 0 : window.innerWidth)
 const desktopPaneLayout = useDesktopPaneLayout(desktopContainerWidth)
 const desktopLayoutStyle = computed<CSSProperties | undefined>(() => isDesktop.value
@@ -176,32 +179,67 @@ async function selectNote(id: string) {
 }
 
 // 初始化数据
-async function init(force = false) {
-  if (!username.value) {
+function init(force = false): Promise<void> {
+  const currentUsername = username.value
+  if (!currentUsername) {
     error.value = '无效的用户名'
     loading.value = false
-    return
+    return Promise.resolve()
   }
 
-  try {
+  if (!force && initializedUsername === currentUsername) {
+    syncDesktopSelectionFromRoute()
+    return Promise.resolve()
+  }
+
+  if (!force && pendingInit?.username === currentUsername) {
+    return pendingInit.promise
+  }
+
+  const promise = (async () => {
     loading.value = true
     error.value = ''
 
-    const result = await ensurePublicNotesReady(username.value, {
-      force,
-      noteId: route.params.noteId as string | undefined,
+    try {
+      const result = await ensurePublicNotesReady(currentUsername, {
+        force,
+        noteId: route.params.noteId as string | undefined,
+      })
+      if (username.value !== currentUsername) {
+        return
+      }
+
+      userInfo.value = result.userInfo
+      unfiledNotesCount.value = result.unfiledNotesCount
+      initializedUsername = currentUsername
+      syncDesktopSelectionFromRoute()
+    }
+    catch (err) {
+      if (username.value !== currentUsername) {
+        return
+      }
+
+      initializedUsername = ''
+      error.value = err instanceof Error ? err.message : '加载用户数据失败'
+      console.error('加载用户数据失败:', err)
+    }
+    finally {
+      if (username.value === currentUsername) {
+        loading.value = false
+      }
+    }
+  })()
+
+  if (!force) {
+    pendingInit = { promise, username: currentUsername }
+    void promise.finally(() => {
+      if (pendingInit?.promise === promise) {
+        pendingInit = null
+      }
     })
-    userInfo.value = result.userInfo
-    unfiledNotesCount.value = result.unfiledNotesCount
-    syncDesktopSelectionFromRoute()
   }
-  catch (err) {
-    error.value = err instanceof Error ? err.message : '加载用户数据失败'
-    console.error('加载用户数据失败:', err)
-  }
-  finally {
-    loading.value = false
-  }
+
+  return promise
 }
 
 // 刷新数据
@@ -271,9 +309,14 @@ watch(
           </IonToolbar>
         </IonHeader>
 
-        <div v-if="loading" class="loading-container">
-          <IonSpinner />
-          <p>加载中...</p>
+        <div v-if="loading" class="public-home-skeleton" aria-label="正在加载个人中心">
+          <div class="public-home-skeleton__row">
+            <IonSkeletonText animated class="public-home-skeleton__icon" />
+            <div class="public-home-skeleton__content">
+              <IonSkeletonText animated style="width: 72%" />
+              <IonSkeletonText animated style="width: 48%" />
+            </div>
+          </div>
         </div>
 
         <div v-else-if="error" class="error-container">
@@ -348,7 +391,6 @@ watch(
 </template>
 
 <style lang="scss">
-.loading-container,
 .error-container,
 .empty-state {
   display: flex;
@@ -359,6 +401,35 @@ watch(
   gap: 1rem;
   text-align: center;
   color: var(--ion-color-medium);
+}
+
+.public-home-skeleton {
+  padding: 8px 16px;
+}
+
+.public-home-skeleton__row {
+  display: grid;
+  min-height: 68px;
+  align-items: center;
+  border-bottom: 1px solid var(--c-border);
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.public-home-skeleton__icon {
+  width: 32px;
+  height: 32px;
+  margin: 0;
+}
+
+.public-home-skeleton__content {
+  display: grid;
+  gap: 8px;
+}
+
+.public-home-skeleton__content ion-skeleton-text {
+  height: 14px;
+  margin: 0;
 }
 
 .public-navigation {

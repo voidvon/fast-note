@@ -13,7 +13,7 @@ import {
   IonInfiniteScroll,
   IonInfiniteScrollContent,
   IonPage,
-  IonSpinner,
+  IonSkeletonText,
   IonTitle,
   IonToolbar,
   onIonViewDidEnter,
@@ -229,7 +229,9 @@ const title = computed(() => {
     case 'unfilednotes':
       return '备忘录'
     default:
-      return data.value.title
+      return isUserContext.value
+        ? useUserPublicNotes(username.value).getPublicNote(folderId.value)?.title || data.value.title
+        : data.value.title
   }
 })
 
@@ -305,7 +307,9 @@ async function init() {
           data.value = folderInfo
         }
       }
-      await loadPublicPage(id !== loadedPublicFolderId)
+      if (id !== loadedPublicFolderId) {
+        await loadPublicPage(true)
+      }
     }
     else {
       // 当前用户的文件夹上下文
@@ -412,8 +416,14 @@ defineExpose({
       </IonHeader>
 
       <div class="folder-page-content__body">
-        <div v-if="publicPageLoading && !hasChildItems" class="folder-loading-state">
-          <IonSpinner name="crescent" />
+        <div v-if="publicPageLoading && !hasChildItems" class="folder-loading-state" aria-label="正在加载文件夹">
+          <div class="folder-loading-state__row">
+            <IonSkeletonText animated class="folder-loading-state__icon" />
+            <div class="folder-loading-state__content">
+              <IonSkeletonText animated style="width: 72%" />
+              <IonSkeletonText animated style="width: 48%" />
+            </div>
+          </div>
         </div>
         <NoteList
           v-else-if="hasChildItems"
@@ -501,8 +511,7 @@ defineExpose({
   flex-direction: column;
 }
 
-.folder-empty-state,
-.folder-loading-state {
+.folder-empty-state {
   flex: 1;
   display: flex;
   align-items: center;
@@ -514,5 +523,34 @@ defineExpose({
   color: var(--ion-color-medium);
   font-size: 16px;
   text-align: center;
+}
+
+.folder-loading-state {
+  padding: 8px 16px;
+}
+
+.folder-loading-state__row {
+  display: grid;
+  min-height: 68px;
+  align-items: center;
+  border-bottom: 1px solid var(--c-border);
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.folder-loading-state__icon {
+  width: 32px;
+  height: 32px;
+  margin: 0;
+}
+
+.folder-loading-state__content {
+  display: grid;
+  gap: 8px;
+}
+
+.folder-loading-state__content ion-skeleton-text {
+  height: 14px;
+  margin: 0;
 }
 </style>
