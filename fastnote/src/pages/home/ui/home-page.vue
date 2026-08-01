@@ -718,7 +718,6 @@ onUnmounted(() => {
 
       <IonContent
         class="home-navigation-content"
-        :class="{ 'home-navigation-content--search-active': showGlobalSearch }"
         :fullscreen="true"
         :scroll-y="!showGlobalSearch"
       >
@@ -888,10 +887,6 @@ onUnmounted(() => {
 .home-navigation-content {
   --background: var(--c-page-background);
   --padding-bottom: calc(68px + env(safe-area-inset-bottom));
-}
-
-.home-navigation-content--search-active {
-  --background: transparent;
 }
 
 .note-desktop {
