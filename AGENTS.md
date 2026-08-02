@@ -1,27 +1,35 @@
 # Repository Guidelines
 
-## 项目结构与模块
+## 项目结构与模块组织
 
-这是一个前端优先（offline-first）项目：客户端本地数据是即时真相源，云端同步负责最终一致性。用户的备忘录正文、标题、层级和同步所需元数据会在客户端完整保存并参与同步；附件实体只同步引用和元数据，文件 Blob 按需加载，图片打开备忘录时加载，其他附件在用户点击时加载，并缓存到 IndexedDB。`fastnote/` 是 Vue 3、Ionic、Vite 前端：业务代码在 `src/`，按 FSD 分为 `app`、`processes`、`features`、`entities`、`shared`；单测与集成测试在 `tests/unit/`、`tests/integration/`，Cypress 用例在 `tests/e2e/`。`backend/` 是 PocketBase Go 宿主，路由位于 `internal/server/routes/`，钩子位于 `hooks/`，迁移位于 `migrations/`。产品、架构和开发文档放在 `docs/`。
+仓库采用前后端一体结构。`fastnote/` 是 Vue 3、Framework7、Vite 前端，源码位于 `src/`，按 FSD 分为 `app`、`processes`、`pages`、`widgets`、`features`、`entities`、`shared`；Vitest 单元与集成测试位于 `tests/unit/`、`tests/integration/`，Cypress 用例位于 `tests/e2e/`。`backend/` 是 PocketBase Go 宿主：入口为 `main.go`，启动逻辑、路由和钩子在 `internal/server/`，集合结构与索引变更放入 `migrations/`。设计和研发文档统一放在 `docs/`。
 
-保持依赖方向：`features` 可依赖 `entities/shared`，`entities` 只能依赖 `shared`；页面和组件不得直接操作 Dexie 或 PocketBase SDK。修改同步逻辑时，不能把远程附件下载混入备忘录全量同步，也不能让远端状态覆盖未完成的本地编辑。
+保持 FSD 依赖向下：页面负责装配，用户动作进入 `features`，业务模型进入 `entities`，基础设施进入 `shared`。页面和组件不要直接调用 Dexie 或 PocketBase SDK。项目坚持 offline-first，本地状态是即时真相源，云端同步负责最终一致性。
 
-## 构建、测试与开发
+## 构建、测试与本地开发
 
-在 `fastnote/` 中执行：
+优先在仓库根目录执行：
 
-- `npm run dev`：启动 Vite，本地默认端口为 8888。
-- `npm run build`：执行 `vue-tsc` 后构建生产产物。
-- `npm run test:unit -- --run`：运行全部 Vitest 单测和集成测试。
-- `npm run lint`：执行 ESLint；提交前至少对改动文件运行精确范围 lint。
+- `npm run dev`：同时启动前端与 Go 后端；前端默认监听 `8888`。
+- `npm run dev:frontend` / `npm run dev:backend`：单独启动一侧。
+- `npm run lint`：运行前端 ESLint。
+- `npm run test:unit -- --run`：运行全部 Vitest 测试一次。
 - `npm run test:e2e`：运行 Cypress 端到端测试。
+- `npm run build`：构建前端、同步静态资源并编译后端。
+- `cd backend && go test ./...`：运行 Go 测试。
 
-在 `backend/` 中执行 `go test ./...` 和 `go build ./...`。前端开发通常还需单独启动本地 PocketBase 后端；不要在代码中写死线上地址。
+## 代码风格与命名
 
-## 代码风格
+TypeScript/Vue 使用 2 空格缩进、单引号、无分号、100 字符行宽；以根目录 ESLint 和 `fastnote/.prettierrc.json` 为准。Vue 组件使用 `kebab-case.vue`，组合式函数以 `use-*.ts` 命名，测试命名为 `*.spec.ts`。Go 代码必须经过 `gofmt`。不要为跨层复用绕过 FSD 公共入口或新增无必要的抽象层。
 
-TypeScript 使用 2 空格缩进、单引号和无分号风格，遵循现有 ESLint 配置。Vue 组件使用 `kebab-case.vue`，组合式函数以 `use` 开头，测试文件使用 `*.spec.ts`。颜色样式优先复用 `fastnote/src/css/var.scss` 中的 token；使用颜色变量时禁止在 `var()` 中提供兜底颜色，缺少 token 时应先在 `var.scss` 中补齐浅色和深色定义。Go 使用 `gofmt`；新增正式集合字段或索引必须放入 `backend/migrations/`。
+## 测试准则
 
-## 测试与提交
+同步、存储、编辑器、路由和公开笔记属于高风险链路，行为变更必须补回归测试。先运行相关 spec，再执行完整 Vitest、lint 和 build；涉及用户流程时补 Cypress 用例。测试应描述可观察行为，并使用 `tests/fixtures/`、`tests/factories/` 与既有 mock，避免依赖真实账号或线上服务。
 
-为同步、存储、编辑器和公开页改动补充回归测试；先运行相关 spec，再运行完整测试和构建。提交历史采用 Conventional Commit 风格，例如 `feat(attachments): ...`、`fix(desktop): ...`、`refactor(public-note): ...`。PR 应说明行为变化、验证命令和风险；UI 变更附截图，关联对应 issue 或需求文档。不要提交 `pb_data/`、构建产物、密钥或真实账号信息。
+## 提交与 Pull Request
+
+提交历史采用 Conventional Commits，例如 `feat(global-search): ...`、`fix(desktop): ...`、`refactor: ...`、`test(mobile): ...`。每个提交聚焦单一目的。PR 需说明行为变化、影响目录、验证命令和遗留风险，并关联 issue 或需求文档；UI 变更附桌面与移动端截图。
+
+## 安全与配置
+
+从 `.env.example` 创建本地配置，不提交密钥、真实账号、`pb_data/` 或构建产物。PocketBase 地址应使用同源或环境变量配置，禁止写死线上域名；迁移或发布前备份运行期 `pb_data/`。
