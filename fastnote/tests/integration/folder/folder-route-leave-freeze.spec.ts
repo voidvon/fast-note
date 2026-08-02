@@ -1,7 +1,7 @@
 import type { Note } from '@/shared/types'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, h, onMounted, ref } from 'vue'
+import { defineComponent, h, onMounted, reactive, ref } from 'vue'
 import { NOTE_TYPE } from '@/shared/types'
 
 function createGenericStub(name: string) {
@@ -24,7 +24,7 @@ describe('folderPage route leave freeze', () => {
   })
 
   it('keeps folder data stable when route changes to note detail before unmount', async () => {
-    const route = ref({
+    const route = reactive({
       params: {
         pathMatch: 'folder-a',
       },
@@ -64,10 +64,16 @@ describe('folderPage route leave freeze', () => {
     ])
     const scrollElement = document.createElement('div')
 
-    vi.doMock('vue-router', () => ({
-      onBeforeRouteLeave: vi.fn(),
-      useRoute: () => route.value,
-    }))
+    vi.doMock('@/shared/lib/framework7', async () => {
+      const actual = await vi.importActual<typeof import('@/shared/lib/framework7')>('@/shared/lib/framework7')
+      return {
+        ...actual,
+        useAppRoute: () => route,
+        useAppRouter: () => ({
+          afterEach: vi.fn(() => vi.fn()),
+        }),
+      }
+    })
 
     vi.doMock('@/shared/lib/device', () => ({
       useDeviceType: () => ({
@@ -104,9 +110,9 @@ describe('folderPage route leave freeze', () => {
       default: createGenericStub('NoteList'),
     }))
 
-    vi.doMock('@ionic/vue', async () => {
-      const IonContent = defineComponent({
-        name: 'IonContent',
+    vi.doMock('@/shared/ui/f7', async () => {
+      const F7Content = defineComponent({
+        name: 'F7Content',
         inheritAttrs: false,
         setup(_, { attrs, slots, expose }) {
           const elementRef = ref<HTMLElement>()
@@ -129,20 +135,21 @@ describe('folderPage route leave freeze', () => {
       })
 
       return {
-        IonAlert: createGenericStub('IonAlert'),
-        IonBackButton: createGenericStub('IonBackButton'),
-        IonButton: createGenericStub('IonButton'),
-        IonButtons: createGenericStub('IonButtons'),
-        IonContent,
-        IonFooter: createGenericStub('IonFooter'),
-        IonHeader: createGenericStub('IonHeader'),
-        IonIcon: createGenericStub('IonIcon'),
-        IonPage: createGenericStub('IonPage'),
-        IonTitle: createGenericStub('IonTitle'),
-        IonToolbar: createGenericStub('IonToolbar'),
-        onIonViewDidEnter: vi.fn(),
-        onIonViewWillEnter: vi.fn(),
-        onIonViewWillLeave: vi.fn(),
+        F7Alert: createGenericStub('F7Alert'),
+        F7BackButton: createGenericStub('F7BackButton'),
+        F7Button: createGenericStub('F7Button'),
+        F7Buttons: createGenericStub('F7Buttons'),
+        F7Content,
+        F7Footer: createGenericStub('F7Footer'),
+        F7Header: createGenericStub('F7Header'),
+        F7Icon: createGenericStub('F7Icon'),
+        F7Navbar: createGenericStub('F7Navbar'),
+        F7Page: createGenericStub('F7Page'),
+        F7Title: createGenericStub('F7Title'),
+        F7Toolbar: createGenericStub('F7Toolbar'),
+        onF7ViewDidEnter: vi.fn(),
+        onF7ViewWillEnter: vi.fn(),
+        onF7ViewWillLeave: vi.fn(),
       }
     })
 
@@ -150,13 +157,14 @@ describe('folderPage route leave freeze', () => {
     const wrapper = mount(FolderPage)
     await flushPromises()
 
+    expect(wrapper.findComponent({ name: 'NoteList' }).exists()).toBe(true)
     expect(wrapper.text()).toContain('1个备忘录')
 
-    route.value = {
+    Object.assign(route, {
       params: {},
       path: '/n/note-1',
       fullPath: '/n/note-1',
-    }
+    })
     await flushPromises()
 
     expect(wrapper.text()).toContain('1个备忘录')

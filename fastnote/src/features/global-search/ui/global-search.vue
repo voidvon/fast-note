@@ -3,19 +3,19 @@ import type { MentionEntity } from '../model/mention-types'
 import type { Note } from '@/entities/note'
 import type { AiChatRequestContext } from '@/features/ai-chat/model/request-context'
 import type { ChatMessageCardAction, ChatMessageCardItem } from '@/shared/ui/chat-message'
-import { IonContent, IonIcon, IonTextarea } from '@ionic/vue'
+import type { F7TextareaElement } from '@/shared/ui/f7'
 import { useDebounceFn } from '@vueuse/core'
-import { arrowUpOutline, closeCircle, closeOutline, searchOutline, sparklesOutline, stop } from 'ionicons/icons'
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
 import { NOTE_TYPE, useNote } from '@/entities/note'
 import AiChatPanel, { useAiChat } from '@/features/ai-chat'
 import { extractAiChatMentionedTargets } from '@/features/ai-chat/model/mentioned-targets'
 import { toAiChatContextNote } from '@/features/ai-chat/model/request-context'
 import { resolveAiChatTarget } from '@/features/ai-chat/model/target-resolution'
 import { useDesktopActiveNote } from '@/processes/navigation/model/use-desktop-active-note'
-import { cleanupIonicOverlayLocks } from '@/shared/lib/ionic'
+import { cleanupOverlayLocks, useAppRoute, useAppRouter } from '@/shared/lib/framework7'
 import ChatMessageCardItemView from '@/shared/ui/chat-message/ui/chat-message-card-item.vue'
+import { F7Button, F7Content, F7Icon, F7Searchbar, F7Textarea } from '@/shared/ui/f7'
+import { arrowUpOutline, closeOutline, searchOutline, sparklesOutline, stop } from '@/shared/ui/icons'
 import NoteList from '@/widgets/note-list'
 import { isOpenGlobalSearchShortcut } from '../lib/keyboard-shortcuts'
 import { toSearchResultNodes } from '../lib/search-results'
@@ -55,8 +55,8 @@ const noteStore = useNote()
 const { getNote, notes } = noteStore
 const { chat, isBusy: isAiBusy, resumeInterruptedTask, sendMessage: sendAiMessage } = useAiChat()
 const { getSnapshot } = useDesktopActiveNote()
-const route = useRoute()
-const router = useRouter()
+const route = useAppRoute()
+const router = useAppRouter()
 const SURFACE_TRANSITION_MS = 320
 const CONTENT_TRANSITION_MS = 220
 const TEXTAREA_MAX_ROWS = 3
@@ -65,13 +65,15 @@ type SearchTextareaEvent = CustomEvent<{
   event?: Event
   value?: string | null
 }> & {
-  target: HTMLIonTextareaElement
+  target: F7TextareaElement
 }
-type SearchTextareaHost = Pick<HTMLElement, 'blur' | 'focus' | 'style'> & Partial<Pick<HTMLIonTextareaElement, 'setFocus' | 'getInputElement'>>
+type SearchInputHost = HTMLElement & Partial<Pick<F7TextareaElement, 'getInputElement' | 'setFocus'>>
+type SearchTextareaHost = SearchInputHost
 type SearchTextareaRef = SearchTextareaHost | { $el?: SearchTextareaHost }
 
 const dockRef = ref<HTMLDivElement>()
-const inputRef = ref<SearchTextareaRef | null>(null)
+const searchInputRef = ref<SearchTextareaRef | null>(null)
+const aiInputRef = ref<SearchTextareaRef | null>(null)
 const mentionListRef = ref<HTMLElement | null>(null)
 const isComposing = ref(false)
 const state = reactive({
@@ -88,10 +90,10 @@ let mentionRequestId = 0
 let hideTimer: ReturnType<typeof setTimeout> | null = null
 let enterFrameId: number | null = null
 let panelContainerResizeObserver: ResizeObserver | null = null
+let routePageElement: HTMLElement | null = null
 
 const isSearchMode = computed(() => inputMode.value === 'search')
 const currentDraft = computed(() => isSearchMode.value ? searchKeyword.value : aiDraft.value)
-const currentFieldIcon = computed(() => isSearchMode.value ? searchOutline : sparklesOutline)
 const currentToggleIcon = computed(() => isSearchMode.value ? sparklesOutline : searchOutline)
 const currentPlaceholder = computed(() => isSearchMode.value ? '搜索' : '发消息')
 const currentToggleLabel = computed(() => isSearchMode.value ? '切换到 AI 对话' : '切换到全局搜索')
@@ -269,7 +271,7 @@ if (!hasRouteSearchOverlay.value) {
 function activateSearch(options: { syncRoute?: boolean } = {}) {
   const { syncRoute = true } = options
 
-  cleanupIonicOverlayLocks()
+  cleanupOverlayLocks()
 
   if (hideTimer) {
     clearTimeout(hideTimer)
@@ -315,15 +317,21 @@ function activateSearch(options: { syncRoute?: boolean } = {}) {
   }
 }
 
-function resolveInputHost() {
-  const input = inputRef.value
+function resolveInputHost(): SearchInputHost | null {
+  const input = isSearchMode.value ? searchInputRef.value : aiInputRef.value
   if (!input) {
     return null
   }
 
-  return ('$el' in input && input.$el
+  const host = ('$el' in input && input.$el
     ? input.$el
-    : input) as SearchTextareaHost
+    : input) as SearchInputHost
+
+  if (typeof host.getInputElement === 'function' || host.matches('input, textarea')) {
+    return host
+  }
+
+  return host.querySelector<SearchInputHost>('input, textarea') || host
 }
 
 function focusResolvedInput() {
@@ -377,6 +385,32 @@ function focusInput() {
   })
 }
 
+function focusCurrentRouteInput() {
+  void nextTick(() => {
+    const focus = () => {
+      const page = dockRef.value?.closest('.page')
+      if (page && (!page.classList.contains('page-current') || page.getAttribute('aria-hidden') === 'true')) {
+        return
+      }
+
+      focusResolvedInput()
+    }
+
+    if (typeof requestAnimationFrame === 'undefined') {
+      focus()
+      return
+    }
+
+    requestAnimationFrame(focus)
+  })
+}
+
+function handleRoutePageAfterIn() {
+  if (hasRouteSearchOverlay.value) {
+    focusCurrentRouteInput()
+  }
+}
+
 async function syncInputTextareaMaxHeight() {
   const inputHost = resolveInputHost()
   if (!inputHost) {
@@ -422,7 +456,7 @@ function resolvePanelContainer() {
     return desktopSidebar
   }
 
-  return dockRef.value?.closest('.ion-page, ion-page') as HTMLElement | null
+  return dockRef.value?.closest('.page') as HTMLElement | null
 }
 
 function updateLayout() {
@@ -535,7 +569,7 @@ function applySearchKeyword(value: string) {
 
 function handleCompositionEnd(event: CompositionEvent) {
   isComposing.value = false
-  const target = event.target as HTMLIonTextareaElement | HTMLTextAreaElement | null
+  const target = event.target as F7TextareaElement | HTMLTextAreaElement | null
   const value = target?.value || ''
   if (!isSearchMode.value) {
     aiDraft.value = value
@@ -599,12 +633,19 @@ async function syncSearchRoute() {
     return
   }
 
-  await router.push({
+  const target = {
     path: route.path,
     query: withGlobalSearchOverlay(route.query, inputMode.value),
     hash: route.hash,
     state: withGlobalSearchHistoryState(window.history.state),
-  })
+  }
+
+  if (typeof router.pushQueryState === 'function') {
+    router.pushQueryState(target)
+    return
+  }
+
+  await router.push(target)
 }
 
 async function syncSearchCloseToRoute() {
@@ -617,15 +658,27 @@ async function syncSearchCloseToRoute() {
   searchRequestId++
 
   if (shouldUseRouteBackForGlobalSearchClose(window.history.state)) {
-    router.back()
+    if (typeof router.backQueryState === 'function') {
+      router.backQueryState()
+    }
+    else {
+      router.back()
+    }
     return
   }
 
-  await router.replace({
+  const target = {
     path: route.path,
     query: withoutGlobalSearchOverlay(route.query),
     hash: route.hash,
-  })
+  }
+
+  if (typeof router.replaceQueryState === 'function') {
+    router.replaceQueryState(target)
+    return
+  }
+
+  await router.replace(target)
 }
 
 function onCancel() {
@@ -659,6 +712,17 @@ function onInput(event: SearchTextareaEvent) {
   void debouncedSearch(value)
 }
 
+function onSearchbarInput(event: Event) {
+  const target = event.target as HTMLInputElement | null
+  onInput({
+    detail: {
+      event,
+      value: target?.value || '',
+    },
+    target: target || event.target,
+  } as SearchTextareaEvent)
+}
+
 function onClear() {
   searchRequestId++
   state.notes = []
@@ -682,6 +746,8 @@ async function setInputSelection(position: number) {
   }
 
   const nativeInput = await inputHost.getInputElement()
+  if (!nativeInput)
+    return
   nativeInput.setSelectionRange(position, position)
   nativeInput.focus()
   aiSelectionStart.value = position
@@ -909,6 +975,7 @@ watch(hasRouteSearchOverlay, (visible, previousVisible) => {
   if (visible) {
     inputMode.value = routeOverlayMode.value
     activateSearch({ syncRoute: false })
+    focusCurrentRouteInput()
 
     if (!previousVisible && inputMode.value === 'search' && searchKeyword.value.trim()) {
       void runSearch(searchKeyword.value)
@@ -953,6 +1020,11 @@ watch([showMentionSuggestions, activeMentionIndex, mentionSuggestions], ([visibl
 onMounted(() => {
   updateLayout()
   syncInputHeightLimits()
+  routePageElement = dockRef.value?.closest('.page') || null
+  routePageElement?.addEventListener('page:afterin', handleRoutePageAfterIn)
+  if (hasRouteSearchOverlay.value) {
+    focusCurrentRouteInput()
+  }
   if (typeof ResizeObserver !== 'undefined') {
     const panelContainer = resolvePanelContainer()
     if (panelContainer) {
@@ -965,6 +1037,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  routePageElement?.removeEventListener('page:afterin', handleRoutePageAfterIn)
+  routePageElement = null
   panelContainerResizeObserver?.disconnect()
   panelContainerResizeObserver = null
   if (hideTimer) {
@@ -992,28 +1066,50 @@ onUnmounted(() => {
         <slot name="leading" :panel-visible="showGlobalSearch" />
       </div>
 
-      <button
+      <F7Button
         v-if="showGlobalSearch"
-        type="button"
+        href="false"
         class="app-glass-circle-button"
         :aria-label="currentToggleLabel"
         @pointerdown.prevent
         @click="toggleInputMode"
       >
-        <IonIcon :icon="currentToggleIcon" />
-      </button>
+        <F7Icon :icon="currentToggleIcon" />
+      </F7Button>
 
       <div class="global-search__field">
+        <F7Searchbar
+          v-if="isSearchMode"
+          ref="searchInputRef"
+          :value="currentDraft"
+          :clear-button="hasInputValue"
+          :custom-search="true"
+          :disable-button="false"
+          :form="false"
+          :inline="true"
+          :outline="false"
+          autocomplete="off"
+          :placeholder="currentPlaceholder"
+          :spellcheck="false"
+          class="global-search__input"
+          @focus="onFocus"
+          @input="onSearchbarInput"
+          @keydown="onKeydown"
+          @compositionstart="handleCompositionStart"
+          @compositionend="handleCompositionEnd"
+          @click:clear="onClear"
+        />
         <div
+          v-else
           :class="{ 'global-search__field-shell--panel-visible': shouldCollapseFieldIcon }"
           class="global-search__field-shell"
         >
-          <IonIcon
-            :icon="currentFieldIcon"
+          <F7Icon
+            :icon="sparklesOutline"
             class="global-search__search-icon"
           />
-          <IonTextarea
-            ref="inputRef"
+          <F7Textarea
+            ref="aiInputRef"
             :value="currentDraft"
             auto-grow
             :inputmode="currentInputMode"
@@ -1024,42 +1120,33 @@ onUnmounted(() => {
             :spellcheck="false"
             class="global-search__input"
             style="--padding-top: 5px; --padding-bottom: 5px;"
-            @ion-focus="onFocus"
-            @ion-input="onInput"
+            @f7-focus="onFocus"
+            @f7-input="onInput"
             @keydown="onKeydown"
             @compositionstart="handleCompositionStart"
             @compositionend="handleCompositionEnd"
           />
-          <button
-            v-if="isSearchMode && hasInputValue"
-            type="button"
-            class="global-search__clear-button"
-            aria-label="清空搜索"
-            @click="onClear"
-          >
-            <IonIcon :icon="closeCircle" />
-          </button>
         </div>
       </div>
 
-      <button
+      <F7Button
         v-if="showGlobalSearch && shouldShowCloseButton"
-        type="button"
+        href="false"
         class="app-glass-circle-button"
         aria-label="关闭搜索"
         @click="onCancel"
       >
-        <IonIcon :icon="closeOutline" />
-      </button>
-      <button
+        <F7Icon :icon="closeOutline" />
+      </F7Button>
+      <F7Button
         v-else-if="showGlobalSearch && showAiActionButton"
-        type="button"
+        href="false"
         class="app-glass-circle-button"
         :aria-label="currentActionLabel"
         @click="onAiAction"
       >
-        <IonIcon :icon="currentActionIcon" />
-      </button>
+        <F7Icon :icon="currentActionIcon" />
+      </F7Button>
 
       <div
         v-if="!showGlobalSearch"
@@ -1091,7 +1178,7 @@ onUnmounted(() => {
             </p>
           </div>
 
-          <IonContent
+          <F7Content
             v-if="isSearchMode"
             :fullscreen="true"
             class="global-search__panel-content"
@@ -1101,6 +1188,7 @@ onUnmounted(() => {
                 :data-list="searchResults"
                 :all-notes-count="state.notes.length"
                 disabled-route
+                media-list
                 show-parent-folder
                 @selected="handleSearchResultSelected"
               />
@@ -1112,7 +1200,7 @@ onUnmounted(() => {
               {{ panelIdleMessage }}
             </div>
             <div class="h-4" />
-          </IonContent>
+          </F7Content>
 
           <AiChatPanel
             v-else
@@ -1151,16 +1239,23 @@ onUnmounted(() => {
 </template>
 
 <style lang="scss">
-:root:not(.ion-palette-dark) .global-search {
+:root:not(.app-theme-dark) .global-search {
   .global-search__search-icon,
-  .global-search__clear-button {
+  .global-search__input .searchbar-icon,
+  .global-search__input .input-clear-button {
     color: var(--c-icon);
   }
 
-  .global-search__input {
+  .global-search__input,
+  .global-search__input input {
     --color: var(--c-text-primary);
     --placeholder-color: var(--c-placeholder);
   }
+}
+
+.page-with-navbar-large .global-search .global-search__input.searchbar {
+  top: auto;
+  transform: none;
 }
 
 .global-search {
@@ -1253,10 +1348,10 @@ onUnmounted(() => {
 
   &__input {
     --background: transparent;
-    --color: #f5f5f7;
+    --color: var(--c-text-primary);
     --padding-start: 0;
     --padding-end: 0;
-    --placeholder-color: #8e8e93;
+    --placeholder-color: var(--c-placeholder);
     flex: 1;
     min-width: 0;
     min-height: 32px;
@@ -1266,25 +1361,26 @@ onUnmounted(() => {
     transition: min-height 180ms ease;
   }
 
+  &__input.searchbar {
+    --f7-searchbar-bg-color: transparent;
+    --f7-searchbar-input-bg-color: var(--c-global-search-control-background);
+    --f7-searchbar-input-text-color: var(--c-text-primary);
+    --f7-searchbar-placeholder-color: var(--c-placeholder);
+    --f7-searchbar-search-icon-color: var(--c-icon);
+    --f7-searchbar-input-font-size: 16px;
+    flex: 1;
+    display: block;
+    position: relative;
+    top: auto;
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    transform: none;
+  }
+
   &__field-shell &__input {
     min-height: 32px;
-  }
-
-  &__clear-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 18px;
-    height: 18px;
-    flex: 0 0 18px;
-    border: 0;
-    padding: 0;
-    background: transparent;
-    color: #8e8e93;
-  }
-
-  &__clear-button ion-icon {
-    font-size: 18px;
   }
 
   &__panel {

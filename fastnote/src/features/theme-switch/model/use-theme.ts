@@ -57,7 +57,8 @@ const isDarkMode = computed(() => {
 })
 
 function applyDarkMode(isDark: boolean) {
-  document.documentElement.classList.toggle('ion-palette-dark', isDark)
+  document.documentElement.classList.toggle('app-theme-dark', isDark)
+  document.documentElement.classList.toggle('dark', isDark)
 }
 
 function handlePrefersDarkChange(mediaQuery: MediaQueryListEvent) {

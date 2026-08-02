@@ -32,7 +32,7 @@ describe('note detail public read-only persistence boundary', () => {
       content: '',
       updated: '2026-07-31 10:00:00',
     }
-    const { editorApi, mocks, triggerIonViewWillLeave, wrapper } = await mountNoteDetailForSaveTest({
+    const { editorApi, mocks, triggerF7ViewWillLeave, wrapper } = await mountNoteDetailForSaveTest({
       noteId: 'note-1',
       route: {
         params: {
@@ -52,7 +52,7 @@ describe('note detail public read-only persistence boundary', () => {
     // return an empty string. That representation mismatch used to force a save.
     editorApi.getContent.mockReturnValue('<p></p>')
 
-    await triggerIonViewWillLeave()
+    await triggerF7ViewWillLeave()
 
     expect(mocks.updateNoteMock).not.toHaveBeenCalled()
     expect(mocks.manualSyncMock).not.toHaveBeenCalled()
@@ -60,7 +60,7 @@ describe('note detail public read-only persistence boundary', () => {
   })
 
   it('still saves a private pane while the global route is changing to a public URL', async () => {
-    const { editorApi, mocks, route, triggerIonViewWillLeave, wrapper } = await mountNoteDetailForSaveTest({
+    const { editorApi, mocks, route, triggerF7ViewWillLeave, wrapper } = await mountNoteDetailForSaveTest({
       noteId: 'note-1',
       route: {
         params: {
@@ -79,7 +79,7 @@ describe('note detail public read-only persistence boundary', () => {
       noteId: 'note-1',
     }
 
-    await triggerIonViewWillLeave()
+    await triggerF7ViewWillLeave()
 
     expect(mocks.updateNoteMock).toHaveBeenCalledWith('note-1', expect.objectContaining({
       content: '<p>切换前最新内容</p>',

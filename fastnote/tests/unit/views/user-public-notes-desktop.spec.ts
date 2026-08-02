@@ -4,12 +4,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick, ref } from 'vue'
 import { NOTE_TYPE } from '@/shared/types'
 
-function createIonicStub(name: string) {
+function createF7Stub(name: string) {
   return defineComponent({
     name,
     inheritAttrs: false,
     setup(_, { attrs, slots }) {
-      return () => h('div', { ...attrs, 'data-ionic-stub': name }, slots.default ? slots.default() : [])
+      return () => h('div', { ...attrs, 'data-f7-stub': name }, slots.default ? slots.default() : [])
     },
   })
 }
@@ -87,8 +87,8 @@ describe('user public notes page', () => {
       parent_id: '',
     }))
     const isDesktop = ref(true)
-    const ionRouterPush = vi.fn()
-    let triggerIonViewWillEnter: (() => void) | undefined
+    const appRouterPush = vi.fn()
+    let triggerF7ViewWillEnter: (() => void) | undefined
     const ensurePublicNotesReady = vi.fn(async () => ({
       unfiledNotesCount: 2,
       userInfo: {
@@ -148,26 +148,26 @@ describe('user public notes page', () => {
       default: noteListStub,
     }))
 
-    vi.doMock('@ionic/vue', () => {
+    vi.doMock('@/shared/ui/f7', () => {
       return {
-        IonButton: createIonicStub('IonButton'),
-        IonBackButton: createIonicStub('IonBackButton'),
-        IonButtons: createIonicStub('IonButtons'),
-        IonContent: createIonicStub('IonContent'),
-        IonHeader: createIonicStub('IonHeader'),
-        IonIcon: createIonicStub('IonIcon'),
-        IonPage: createIonicStub('IonPage'),
-        IonRefresher: createIonicStub('IonRefresher'),
-        IonRefresherContent: createIonicStub('IonRefresherContent'),
-        IonSkeletonText: createIonicStub('IonSkeletonText'),
-        IonSpinner: createIonicStub('IonSpinner'),
-        IonTitle: createIonicStub('IonTitle'),
-        IonToolbar: createIonicStub('IonToolbar'),
-        onIonViewWillEnter: (callback: () => void) => {
-          triggerIonViewWillEnter = callback
+        F7Button: createF7Stub('F7Button'),
+        F7BackButton: createF7Stub('F7BackButton'),
+        F7Buttons: createF7Stub('F7Buttons'),
+        F7Content: createF7Stub('F7Content'),
+        F7Header: createF7Stub('F7Header'),
+        F7Icon: createF7Stub('F7Icon'),
+        F7Page: createF7Stub('F7Page'),
+        F7Refresher: createF7Stub('F7Refresher'),
+        F7RefresherContent: createF7Stub('F7RefresherContent'),
+        F7SkeletonText: createF7Stub('F7SkeletonText'),
+        F7Spinner: createF7Stub('F7Spinner'),
+        F7Title: createF7Stub('F7Title'),
+        F7Toolbar: createF7Stub('F7Toolbar'),
+        onF7ViewWillEnter: (callback: () => void) => {
+          triggerF7ViewWillEnter = callback
         },
-        useIonRouter: () => ({
-          push: ionRouterPush,
+        useAppRouter: () => ({
+          push: appRouterPush,
         }),
       }
     })
@@ -199,7 +199,7 @@ describe('user public notes page', () => {
     expect(wrapper.find('.public-home-skeleton').exists()).toBe(false)
     expect(ensurePublicNotesReady).toHaveBeenCalledTimes(1)
 
-    triggerIonViewWillEnter?.()
+    triggerF7ViewWillEnter?.()
     await flushPromises()
     expect(ensurePublicNotesReady).toHaveBeenCalledTimes(1)
 
@@ -213,7 +213,7 @@ describe('user public notes page', () => {
     expect(wrapper.find('#public-note-list-pane').exists()).toBe(true)
     expect(wrapper.find('#public-note-detail-pane').exists()).toBe(true)
 
-    const backButton = wrapper.findComponent({ name: 'IonBackButton' })
+    const backButton = wrapper.findComponent({ name: 'F7BackButton' })
     expect(backButton.attributes('default-href')).toBe('/home')
 
     noteList.vm.$emit('selected', 'folder-1')
@@ -222,7 +222,7 @@ describe('user public notes page', () => {
     expect(noteList.props('noteUuid')).toBe('folder-1')
     expect(folderPage().props('currentFolder')).toBe('folder-1')
     expect(window.location.pathname).toBe('/alice/f/folder-1')
-    expect(ionRouterPush).not.toHaveBeenCalled()
+    expect(appRouterPush).not.toHaveBeenCalled()
 
     folderPage().vm.$emit('selected', 'note-1')
     await flushPromises()
@@ -231,22 +231,22 @@ describe('user public notes page', () => {
     expect(folderPage().props('selectedNoteId')).toBe('note-1')
     expect(noteDetail().props('noteId')).toBe('note-1')
     expect(window.location.pathname).toBe('/alice/n/note-1')
-    expect(ionRouterPush).not.toHaveBeenCalled()
+    expect(appRouterPush).not.toHaveBeenCalled()
 
     isDesktop.value = false
     await nextTick()
 
     expect(wrapper.find('#public-navigation-pane').exists()).toBe(false)
-    const mobilePageChildren = Array.from(wrapper.find('[data-ionic-stub="IonPage"]').element.children)
-    expect(mobilePageChildren[0]?.getAttribute('data-ionic-stub')).toBe('IonHeader')
-    expect(mobilePageChildren[1]?.getAttribute('data-ionic-stub')).toBe('IonContent')
+    const mobilePageChildren = Array.from(wrapper.find('[data-f7-stub="F7Page"]').element.children)
+    expect(mobilePageChildren[0]?.getAttribute('data-f7-stub')).toBe('F7Header')
+    expect(mobilePageChildren[1]?.getAttribute('data-f7-stub')).toBe('F7Content')
 
     const mobileNoteList = wrapper.findComponent(noteListStub)
     expect(mobileNoteList.props('disabledRoute')).toBe(true)
     mobileNoteList.vm.$emit('selected', 'folder-1')
     await nextTick()
 
-    expect(ionRouterPush).toHaveBeenCalledOnce()
-    expect(ionRouterPush).toHaveBeenCalledWith('/alice/f/folder-1')
+    expect(appRouterPush).toHaveBeenCalledOnce()
+    expect(appRouterPush).toHaveBeenCalledWith('/alice/f/folder-1')
   })
 })

@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import type { FolderTreeNode } from '@/entities/note'
 import type { NoteLockIndicatorState } from '@/features/note-lock'
-import { IonAccordion, IonIcon, IonItem, IonLabel, IonNote, useIonRouter } from '@ionic/vue'
-import { folderOutline, lockClosed, lockOpen, trashOutline } from 'ionicons/icons'
 import { computed } from 'vue'
-import { useRoute } from 'vue-router'
 import { NOTE_TYPE } from '@/entities/note'
 import { formatNotePreviewLine } from '@/shared/lib/date'
 import { useDeviceType } from '@/shared/lib/device'
+import { F7Accordion, F7Icon, F7Item, F7List, F7Note, useAppRoute, useAppRouter } from '@/shared/ui/f7'
+import { folderOutline, lockClosed, lockOpen, trashOutline } from '@/shared/ui/icons'
 
 defineOptions({
   name: 'NoteListItem',
@@ -29,8 +28,8 @@ const props = withDefaults(
 
 const emit = defineEmits(['selected'])
 
-const route = useRoute()
-const router = useIonRouter()
+const route = useAppRoute()
+const router = useAppRouter()
 const { isDesktop } = useDeviceType()
 
 // 计算属性：获取实际的 Note 数据
@@ -68,169 +67,150 @@ const routerLink = computed(() => {
   if (isDesktop.value)
     return undefined
 
-  if (noteData.value.id === 'deleted') {
-    return `/deleted`
-  }
+  if (noteData.value.id === 'deleted')
+    return '/deleted'
 
   if (noteData.value.item_type === NOTE_TYPE.FOLDER) {
-    /**
-     * 文件夹跳转逻辑
-     * 1. isDesktop 不跳转
-     * 2. 首页到文件夹: /f/ + id
-     * 3. 用户公开页面到文件夹: /:username/f/ + id
-     * 4. 文件夹到文件夹: 当前路径 + id
-     */
-    const isHome = route.path === '/home'
-    const isUserHome = route.params.username && (route.name === 'UserHome' || route.path === `/${route.params.username}`)
-
-    if (isHome) {
+    const username = route.params.username as string | undefined
+    if (route.path === '/home')
       return `/f/${noteData.value.id}`
-    }
-    else if (isUserHome) {
-      return `/${route.params.username}/f/${noteData.value.id}`
-    }
-    else {
-      return `${route.path}/${noteData.value.id}`
-    }
+    if (username && (route.name === 'UserHome' || route.path === `/${username}`))
+      return `/${username}/f/${noteData.value.id}`
+    return `${route.path}/${noteData.value.id}`
   }
 
-  // 笔记跳转逻辑
-  const isUserContext = route.params.username
-  if (isUserContext) {
-    return `/${route.params.username}/n/${noteData.value.id}`
-  }
-
-  return `/n/${noteData.value.id}`
+  const username = route.params.username as string | undefined
+  return username
+    ? `/${username}/n/${noteData.value.id}`
+    : `/n/${noteData.value.id}`
 })
 
 function onClick() {
   emit('selected', noteData.value.id)
-  // 只在移动端且未禁用路由时才执行路由跳转
-  if (!props.disabledRoute && !isDesktop.value && router) {
-    router.push(routerLink.value)
-  }
+  if (!props.disabledRoute && routerLink.value)
+    void router.push(routerLink.value)
 }
 </script>
 
 <template>
-  <IonAccordion v-if="noteData.item_type === NOTE_TYPE.FOLDER" :value="noteData.id" :class="{ 'no-children': !childrenData.length }" class="message-list-item">
-    <IonItem
-      v-if="noteData"
-      slot="header"
-      :detail="false"
-      :data-id="noteData.id"
-      class="list-item"
-      lines="inset"
-      style="--inner-border-width: 0 0 0.55px 0;"
-    >
-      <IonIcon :icon="noteData.id === 'deleted' ? trashOutline : folderOutline" class="folder-icon mr-3 primary" />
-      <IonLabel
-        class="ion-text-wrap my-0! py-[10px]!"
+  <F7Accordion
+    v-if="noteData.item_type === NOTE_TYPE.FOLDER"
+    :value="noteData.id"
+    :data-id="noteData.id"
+    :class="{ 'no-children': !childrenData.length }"
+    class="message-list-item"
+  >
+    <template #media>
+      <F7Icon
+        :icon="noteData.id === 'deleted' ? trashOutline : folderOutline"
+        class="folder-icon primary"
+        @click.stop="onClick"
+      />
+    </template>
+    <template #title>
+      <div
+        :data-id="noteData.id"
+        class="folder-item-title app-text-wrap"
         @click.stop="onClick"
       >
-        <h2 class="mb-0 line-height-[24px]">
-          {{ noteData.title }}
-          <span class="date">
-            <IonNote class="text-gray-400 text-base font-semibold">{{ noteData.note_count }}</IonNote>
-          </span>
-        </h2>
-      </IonLabel>
-    </IonItem>
-    <div v-if="childrenData.length" slot="content">
-      <NoteListItem v-for="d in childrenData" :key="d.originNote.id" :data="d" :lock-indicator-state-map="lockIndicatorStateMap" :disabled-route class="child-list-item" @selected="$emit('selected', $event)" />
-    </div>
-  </IonAccordion>
-  <IonItem
+        <span>{{ noteData.title }}</span>
+      </div>
+    </template>
+    <template #after>
+      <F7Note class="text-gray-400 text-base font-semibold" @click.stop="onClick">
+        {{ noteData.note_count }}
+      </F7Note>
+    </template>
+    <template #content>
+      <F7List v-if="childrenData.length" class="child-note-list">
+        <NoteListItem v-for="d in childrenData" :key="d.originNote.id" :data="d" :lock-indicator-state-map="lockIndicatorStateMap" :disabled-route class="child-list-item" @selected="$emit('selected', $event)" />
+      </F7List>
+    </template>
+  </F7Accordion>
+  <F7Item
     v-else
     :detail="false"
     :data-id="noteData.id"
+    :data-lock-state="resolvedLockIndicatorState"
     class="list-item note-list-item--note"
     lines="inset"
+    media-item
+    @click="onClick"
   >
-    <div
-      class="note-leading-slot"
-      :data-lock-state="resolvedLockIndicatorState"
-      data-testid="note-leading-slot"
-      @click.stop="onClick"
-    >
-      <IonIcon
-        v-if="showLockIcon"
+    <template v-if="showLockIcon" #before-title>
+      <F7Icon
         :icon="lockIcon"
+        size="13"
         class="note-lock-icon"
         data-testid="note-lock-icon"
       />
-    </div>
-    <IonLabel
-      class="note-label ion-text-wrap my-0! py-[10px]!"
-      @click.stop="onClick"
-    >
-      <h2>
-        {{ noteData.title }}
-        <span class="date">
-          <!-- <ion-note>{{ noteData.created }}</ion-note> -->
-          <!-- <ion-icon aria-hidden="true" :icon="chevronForward" size="small" /> -->
-        </span>
-      </h2>
-      <p class="text-gray-400! text-elipsis!">
-        {{ formatNotePreviewLine(noteData.created, noteData.summary) }}
-      </p>
-      <p v-if="showParentFolder" class="text-gray-400!">
-        <IonIcon :icon="folderOutline" class="v-text-bottom" />
-        {{ data.folderName }}
-      </p>
-    </IonLabel>
-  </IonItem>
+    </template>
+    <template #title>
+      {{ noteData.title }}
+    </template>
+    <template #text>
+      {{ formatNotePreviewLine(noteData.created, noteData.summary) }}
+    </template>
+    <template v-if="showParentFolder" #footer>
+      <F7Icon :icon="folderOutline" size="12" class="note-folder-icon" aria-hidden="true" />
+      {{ data.folderName }}
+    </template>
+  </F7Item>
 </template>
 
 <style lang="scss">
 .message-list-item {
+  .folder-item-title {
+    cursor: pointer;
+    width: 100%;
+  }
+
+  > .item-link > .item-content > .item-inner > .item-title {
+    flex: 1;
+  }
+
   &.no-children {
-    .ion-accordion-toggle-icon {
+    .accordion-item-toggle-icon {
       transform: rotate(270deg) !important;
       color: var(--c-purple-gray-550);
     }
   }
   .child-list-item {
-    .folder-icon,
-    .note-leading-slot {
+    .folder-icon {
       --uno: pl-8;
     }
     .child-list-item {
-      .folder-icon,
-      .note-leading-slot {
+      .folder-icon {
         --uno: pl-16;
       }
       .child-list-item {
-        .folder-icon,
-        .note-leading-slot {
+        .folder-icon {
           --uno: pl-24;
         }
         .child-list-item {
-          .folder-icon,
-          .note-leading-slot {
+          .folder-icon {
             --uno: pl-32;
           }
         }
       }
     }
   }
-  .ion-accordion-toggle-icon {
+  .accordion-item-toggle-icon {
     transform: rotate(270deg);
     color: var(--primary);
   }
-  &.accordion-expanding > [slot='header'] .ion-accordion-toggle-icon,
-  &.accordion-expanded > [slot='header'] .ion-accordion-toggle-icon {
+  &.accordion-item-opened > .item-link .accordion-item-toggle-icon {
     transform: rotate(360deg);
   }
   // TODO: 子级选中没有样式变化
   &.active {
-    ion-item {
-      --background: var(--c-list-active-background);
+    > .item-link > .item-content {
+      background: var(--c-list-active-background);
     }
   }
 }
 .list-item {
-  .ion-accordion-toggle-icon {
+  .accordion-item-toggle-icon {
     font-size: 1.125rem;
   }
 }
@@ -238,68 +218,57 @@ function onClick() {
 
 <style lang="scss" scoped>
 .list-item {
-  --background: var(--c-list-background);
-  --background-hover: var(--c-list-hover-background);
-  --background-hover-opacity: 1;
-  --inner-box-shadow: none;
-  --border-color: var(--c-blue-gray-700);
+  --f7-list-item-border-color: var(--c-blue-gray-700);
+
+  > .item-content {
+    background: var(--c-list-background);
+  }
+
+  &:hover > .item-content {
+    background: var(--c-list-hover-background);
+  }
+
   &.active {
-    --background: var(--c-list-active-background);
+    > .item-content {
+      background: var(--c-list-active-background);
+    }
   }
 }
 
 .note-list-item--note {
-  --padding-start: 10px;
-  --inner-padding-start: 0;
+  --f7-list-item-title-font-size: 18px;
+  --f7-list-item-text-max-lines: 1;
+  --f7-list-item-text-text-color: var(--c-text-secondary);
+  --f7-list-item-footer-text-color: var(--c-text-secondary);
 
-  .note-leading-slot {
-    align-items: flex-start;
-    align-self: stretch;
-    color: var(--c-icon);
-    cursor: pointer;
-    display: flex;
-    flex: 0 0 1.5rem;
+  :deep(.item-title-row) {
+    align-items: center;
     justify-content: flex-start;
-    min-width: 1.5rem;
-    padding: 12px 0 10px;
-    width: 1.5rem;
+  }
+
+  :deep(.item-footer) {
+    align-items: center;
+    display: flex;
+    gap: 3px;
   }
 
   .note-lock-icon {
-    font-size: 1.125rem;
-    margin-top: 1px;
+    align-self: center;
+    color: var(--c-icon);
+    flex: 0 0 auto;
+    margin-right: 4px;
   }
 
-  .note-label {
-    min-width: 0;
+  .note-folder-icon {
+    flex: 0 0 auto;
   }
 }
 
-.list-item h2 {
-  font-weight: 600;
-
-  /**
-   * With larger font scales
-   * the date/time should wrap to the next
-   * line. However, there should be
-   * space between the name and the date/time
-   * if they can appear on the same line.
-   */
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-}
-
-.list-item .date {
-  align-items: center;
-  display: flex;
-}
-
-.list-item ion-note {
+.list-item .app-note {
   margin-right: 8px;
 }
 
-.list-item ion-note.md {
+.list-item .app-note.md {
   margin-right: 14px;
 }
 </style>

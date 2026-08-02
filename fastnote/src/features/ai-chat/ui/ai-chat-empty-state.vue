@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { IonButton } from '@ionic/vue'
+import { F7Button } from '@/shared/ui/f7'
 
 const props = defineProps<{
   configured: boolean
@@ -21,7 +21,7 @@ const emit = defineEmits<{
     </p>
 
     <div v-if="props.configured" class="ai-chat-empty-state__suggestions">
-      <IonButton
+      <F7Button
         v-for="prompt in prompts"
         :key="prompt"
         fill="outline"
@@ -30,7 +30,7 @@ const emit = defineEmits<{
         @click="emit('prefill', prompt)"
       >
         {{ prompt }}
-      </IonButton>
+      </F7Button>
     </div>
   </div>
 </template>

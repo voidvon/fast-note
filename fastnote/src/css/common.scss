@@ -1,15 +1,13 @@
-@use './ionic-var.scss';
-@use './ionic.scss';
 @use './var.scss';
 @use './var-class.scss';
 html,
 body,
-ion-app,
-.ion-page {
+.app,
+.page {
   overscroll-behavior-y: none;
 }
 
-ion-content::part(scroll) {
+.page-content {
   overscroll-behavior: auto;
 }
 
@@ -19,25 +17,25 @@ ion-content::part(scroll) {
     scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
   }
 
-  ion-content::part(scroll),
+  .page-content,
   * {
     scrollbar-width: thin;
     scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
   }
 
-  ion-content::part(scroll)::-webkit-scrollbar,
+  .page-content::-webkit-scrollbar,
   *::-webkit-scrollbar {
     width: var(--scrollbar-size);
     height: var(--scrollbar-size);
   }
 
-  ion-content::part(scroll)::-webkit-scrollbar-track,
+  .page-content::-webkit-scrollbar-track,
   *::-webkit-scrollbar-track {
     background: var(--scrollbar-track);
     border-radius: var(--scrollbar-radius);
   }
 
-  ion-content::part(scroll)::-webkit-scrollbar-thumb,
+  .page-content::-webkit-scrollbar-thumb,
   *::-webkit-scrollbar-thumb {
     background: var(--scrollbar-thumb);
     border-top: 2px solid transparent;
@@ -49,17 +47,17 @@ ion-content::part(scroll) {
     min-height: 32px;
   }
 
-  ion-content::part(scroll)::-webkit-scrollbar-thumb:hover,
+  .page-content::-webkit-scrollbar-thumb:hover,
   *::-webkit-scrollbar-thumb:hover {
     background: var(--scrollbar-thumb-hover);
   }
 
-  ion-content::part(scroll)::-webkit-scrollbar-thumb:active,
+  .page-content::-webkit-scrollbar-thumb:active,
   *::-webkit-scrollbar-thumb:active {
     background: var(--scrollbar-thumb-active);
   }
 
-  ion-content::part(scroll)::-webkit-scrollbar-corner,
+  .page-content::-webkit-scrollbar-corner,
   *::-webkit-scrollbar-corner {
     background: transparent;
   }
@@ -106,6 +104,106 @@ ion-content::part(scroll) {
   -webkit-appearance: none;
 }
 
-.app-glass-circle-button ion-icon {
+.app-glass-circle-button .app-icon {
   font-size: 20px;
+}
+
+.app-padding {
+  padding: var(--f7-block-padding-vertical) var(--f7-block-padding-horizontal);
+}
+
+.app-padding-top {
+  padding-top: var(--f7-block-padding-vertical);
+}
+
+.app-text-wrap {
+  white-space: normal;
+}
+
+.app-content {
+  overflow-y: auto;
+  min-height: 0;
+  padding-top: calc(
+    var(--f7-page-navbar-offset, 0px) + var(--f7-page-toolbar-top-offset, 0px) + var(--f7-page-subnavbar-offset, 0px) +
+      var(--f7-page-searchbar-offset, 0px) + var(--f7-page-content-extra-padding-top, 0px) + var(--padding-top, 0px)
+  );
+  padding-bottom: calc(
+    var(--f7-page-toolbar-bottom-offset, 0px) + var(--f7-safe-area-bottom, 0px) +
+      var(--f7-page-content-extra-padding-bottom, 0px) + var(--padding-bottom, 0px)
+  );
+  background: var(--background, var(--c-page-background));
+}
+
+.app-navbar {
+  --f7-navbar-large-title-letter-spacing: 0;
+}
+
+.app-page-embedded {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.app-pane-navbar,
+.app-pane-footer {
+  display: flex;
+  width: 100%;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+.app-pane-navbar {
+  min-height: var(--f7-navbar-height);
+}
+
+.app-pane-content {
+  flex: 1 1 auto;
+}
+
+.app-large-title {
+  display: flex;
+  min-height: 52px;
+  padding: 8px var(--f7-navbar-inner-padding-left);
+  align-items: flex-end;
+}
+
+.app-title--large {
+  color: var(--f7-navbar-text-color);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.app-modal {
+  --f7-sheet-height: min(80vh, 720px);
+
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.app-modal.sheet-modal > .sheet-modal-inner {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.app-sheet-handle {
+  width: 36px;
+  height: 5px;
+  margin: 8px auto 6px;
+  flex: 0 0 auto;
+  border-radius: 3px;
+  background: var(--c-border);
+  cursor: grab;
+  touch-action: none;
+}
+
+.app-sheet-handle:active {
+  cursor: grabbing;
 }

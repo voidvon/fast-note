@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type { NoteLockSetupResult } from '../model/use-note-lock'
 import type { Note } from '@/shared/types'
-import { IonButton, IonModal } from '@ionic/vue'
 import { computed, reactive, watch } from 'vue'
 import { useDeviceType } from '@/shared/lib/device'
+import { F7Button, F7List, F7ListInput, F7Modal } from '@/shared/ui/f7'
 import { useNoteLock } from '../model/use-note-lock'
 
 const props = withDefaults(defineProps<{
@@ -107,7 +107,7 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <IonModal
+  <F7Modal
     :is-open="isOpen"
     :breakpoints="modalBreakpoints"
     :initial-breakpoint="modalInitialBreakpoint"
@@ -131,17 +131,19 @@ async function handleSubmit() {
 
       <div class="note-lock-setup-modal__body">
         <template v-if="!hasGlobalPin">
-          <label class="note-lock-setup-modal__field">
-            <input
+          <F7List strong inset class="note-lock-setup-modal__pin-list">
+            <F7ListInput
               data-testid="note-lock-setup-pin"
               :value="form.pin"
+              input-id="note-lock-setup-pin-input"
               inputmode="numeric"
               maxlength="6"
+              outline
               placeholder="请输入 6 位数字"
               type="text"
               @input="form.pin = normalizePinValue(($event.target as HTMLInputElement).value)"
-            >
-          </label>
+            />
+          </F7List>
         </template>
 
         <label class="note-lock-setup-modal__toggle" :class="{ 'is-disabled': !deviceSupportsBiometric }">
@@ -165,39 +167,35 @@ async function handleSubmit() {
       </div>
 
       <div class="note-lock-setup-modal__footer">
-        <IonButton fill="clear" @click="dismiss">
+        <F7Button fill="clear" @click="dismiss">
           取消
-        </IonButton>
-        <IonButton
+        </F7Button>
+        <F7Button
           data-testid="note-lock-setup-submit"
           :disabled="!canSubmit"
           @click="handleSubmit"
         >
           {{ form.isSubmitting ? '处理中...' : '确认' }}
-        </IonButton>
+        </F7Button>
       </div>
     </div>
-  </IonModal>
+  </F7Modal>
 </template>
 
 <style lang="scss">
 .note-lock-setup-modal {
-  --height: auto;
-  --border-radius: 24px 24px 0 0;
+  --f7-sheet-height: auto;
+  --f7-sheet-border-radius: 24px;
   --note-lock-setup-panel-bg: var(--c-blue-gray-900);
   --note-lock-setup-text: var(--c-text-primary);
   --note-lock-setup-muted: var(--c-text-secondary);
-  --note-lock-setup-input-bg: var(--c-blue-gray-950);
-  --note-lock-setup-input-border: var(--c-border);
-  --note-lock-setup-input-focus: var(--primary);
-  --note-lock-setup-input-ring: color-mix(in srgb, var(--primary) 24%, transparent);
   --note-lock-setup-toggle-bg: var(--c-blue-gray-800);
   --note-lock-setup-toggle-text: var(--c-text-primary);
   --note-lock-setup-error-bg: color-mix(in srgb, var(--danger) 18%, var(--c-blue-gray-800));
   --note-lock-setup-error-text: var(--c-text-primary);
 
-  &::part(content) {
-    max-width: 460px;
+  > .sheet-modal-inner {
+    width: min(460px, 100%);
     margin: auto;
   }
 }
@@ -234,26 +232,8 @@ async function handleSubmit() {
   margin-top: 20px;
 }
 
-.note-lock-setup-modal__field {
-  input {
-    width: 100%;
-    border: 1px solid var(--note-lock-setup-input-border);
-    border-radius: 14px;
-    padding: 14px 16px;
-    background: var(--note-lock-setup-input-bg);
-    font-size: 16px;
-    color: var(--note-lock-setup-text);
-    outline: none;
-
-    &::placeholder {
-      color: var(--note-lock-setup-muted);
-    }
-
-    &:focus {
-      border-color: var(--note-lock-setup-input-focus);
-      box-shadow: 0 0 0 3px var(--note-lock-setup-input-ring);
-    }
-  }
+.note-lock-setup-modal__pin-list {
+  margin: 0;
 }
 
 .note-lock-setup-modal__toggle {

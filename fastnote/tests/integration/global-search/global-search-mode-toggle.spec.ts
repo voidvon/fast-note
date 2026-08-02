@@ -38,7 +38,7 @@ function createRect({ left, top, width, height }: { left: number, top: number, w
   } as DOMRect
 }
 
-function createIonicStub(name: string, tag = 'div') {
+function createF7Stub(name: string, tag = 'div') {
   return defineComponent({
     name,
     inheritAttrs: false,
@@ -79,7 +79,7 @@ function createInputStub(name: string) {
     },
     emits: ['update:modelValue'],
     setup(props, { attrs, emit }) {
-      return () => h('label', { ...attrs, 'data-ion-input': name }, [
+      return () => h('label', { ...attrs, 'data-f7-input': name }, [
         props.label ? h('span', props.label) : null,
         h('input', {
           value: props.modelValue,
@@ -108,11 +108,11 @@ function createTextareaStub(name: string) {
         spellcheck: attrs.spellcheck,
         class: attrs.class,
         onFocus: (event: FocusEvent) => {
-          ;(attrs.onIonFocus as ((event: FocusEvent) => void) | undefined)?.(event)
+          ;(attrs.onF7Focus as ((event: FocusEvent) => void) | undefined)?.(event)
           ;(attrs.onFocus as ((event: FocusEvent) => void) | undefined)?.(event)
         },
         onInput: (event: Event) => {
-          ;(attrs.onIonInput as ((event: { detail: { event: Event, value: string }, target: EventTarget | null }) => void) | undefined)?.({
+          ;(attrs.onF7Input as ((event: { detail: { event: Event, value: string }, target: EventTarget | null }) => void) | undefined)?.({
             detail: {
               event,
               value: (event.target as HTMLTextAreaElement).value,
@@ -141,7 +141,7 @@ function createModalStub(name: string) {
     },
     setup(props, { attrs, slots }) {
       return () => props.isOpen
-        ? h('div', { ...attrs, 'data-ion-modal': name }, slots.default ? slots.default() : [])
+        ? h('div', { ...attrs, 'data-f7-modal': name }, slots.default ? slots.default() : [])
         : null
     },
   })
@@ -202,24 +202,25 @@ describe('global search mode toggle', () => {
       }
     })
 
-    vi.doMock('@ionic/vue', () => ({
-      IonButton: createButtonStub('IonButton'),
-      IonButtons: createIonicStub('IonButtons'),
-      IonChip: createIonicStub('IonChip'),
-      IonContent: createIonicStub('IonContent'),
-      IonAlert: createModalStub('IonAlert'),
-      IonIcon: createIonicStub('IonIcon'),
-      IonInput: createInputStub('IonInput'),
-      IonTextarea: createTextareaStub('IonTextarea'),
-      IonItem: createIonicStub('IonItem'),
-      IonLabel: createIonicStub('IonLabel', 'span'),
-      IonList: createIonicStub('IonList'),
-      IonModal: createModalStub('IonModal'),
-      IonNote: createIonicStub('IonNote', 'span'),
-      IonSpinner: createIonicStub('IonSpinner', 'span'),
-      IonHeader: createIonicStub('IonHeader'),
-      IonToolbar: createIonicStub('IonToolbar'),
-      IonTitle: createIonicStub('IonTitle', 'span'),
+    vi.doMock('@/shared/ui/f7', () => ({
+      F7Button: createButtonStub('F7Button'),
+      F7Buttons: createF7Stub('F7Buttons'),
+      F7Chip: createF7Stub('F7Chip'),
+      F7Content: createF7Stub('F7Content'),
+      F7Alert: createModalStub('F7Alert'),
+      F7Icon: createF7Stub('F7Icon'),
+      F7Input: createInputStub('F7Input'),
+      F7Searchbar: createTextareaStub('F7Searchbar'),
+      F7Textarea: createTextareaStub('F7Textarea'),
+      F7Item: createF7Stub('F7Item'),
+      F7Label: createF7Stub('F7Label', 'span'),
+      F7List: createF7Stub('F7List'),
+      F7Modal: createModalStub('F7Modal'),
+      F7Note: createF7Stub('F7Note', 'span'),
+      F7Spinner: createF7Stub('F7Spinner', 'span'),
+      F7Header: createF7Stub('F7Header'),
+      F7Toolbar: createF7Stub('F7Toolbar'),
+      F7Title: createF7Stub('F7Title', 'span'),
     }))
 
     const focusSpy = vi.spyOn(HTMLTextAreaElement.prototype, 'focus')
@@ -233,7 +234,7 @@ describe('global search mode toggle', () => {
       },
     })
 
-    const input = wrapper.get('textarea')
+    const input = wrapper.get('input, textarea')
     await input.trigger('focus')
     await nextTick()
 
@@ -353,24 +354,25 @@ describe('global search mode toggle', () => {
       }
     })
 
-    vi.doMock('@ionic/vue', () => ({
-      IonButton: createButtonStub('IonButton'),
-      IonButtons: createIonicStub('IonButtons'),
-      IonChip: createIonicStub('IonChip'),
-      IonContent: createIonicStub('IonContent'),
-      IonAlert: createModalStub('IonAlert'),
-      IonIcon: createIonicStub('IonIcon'),
-      IonInput: createInputStub('IonInput'),
-      IonTextarea: createTextareaStub('IonTextarea'),
-      IonItem: createIonicStub('IonItem'),
-      IonLabel: createIonicStub('IonLabel', 'span'),
-      IonList: createIonicStub('IonList'),
-      IonModal: createModalStub('IonModal'),
-      IonNote: createIonicStub('IonNote', 'span'),
-      IonSpinner: createIonicStub('IonSpinner', 'span'),
-      IonHeader: createIonicStub('IonHeader'),
-      IonToolbar: createIonicStub('IonToolbar'),
-      IonTitle: createIonicStub('IonTitle', 'span'),
+    vi.doMock('@/shared/ui/f7', () => ({
+      F7Button: createButtonStub('F7Button'),
+      F7Buttons: createF7Stub('F7Buttons'),
+      F7Chip: createF7Stub('F7Chip'),
+      F7Content: createF7Stub('F7Content'),
+      F7Alert: createModalStub('F7Alert'),
+      F7Icon: createF7Stub('F7Icon'),
+      F7Input: createInputStub('F7Input'),
+      F7Searchbar: createTextareaStub('F7Searchbar'),
+      F7Textarea: createTextareaStub('F7Textarea'),
+      F7Item: createF7Stub('F7Item'),
+      F7Label: createF7Stub('F7Label', 'span'),
+      F7List: createF7Stub('F7List'),
+      F7Modal: createModalStub('F7Modal'),
+      F7Note: createF7Stub('F7Note', 'span'),
+      F7Spinner: createF7Stub('F7Spinner', 'span'),
+      F7Header: createF7Stub('F7Header'),
+      F7Toolbar: createF7Stub('F7Toolbar'),
+      F7Title: createF7Stub('F7Title', 'span'),
     }))
 
     const GlobalSearch = (await import('@/features/global-search/ui/global-search.vue')).default
@@ -380,7 +382,7 @@ describe('global search mode toggle', () => {
       props: { syncWithRoute: false },
     })
 
-    await wrapper.get('textarea').setValue('会议')
+    await wrapper.get('input, textarea').setValue('会议')
     await vi.advanceTimersByTimeAsync(300)
     await nextTick()
     await wrapper.get('.search-result').trigger('click')
@@ -419,41 +421,39 @@ describe('global search mode toggle', () => {
       }),
     }))
 
-    vi.doMock('vue-router', async () => {
-      const actual = await vi.importActual<typeof import('vue-router')>('vue-router')
-      return {
-        ...actual,
-        useRoute: () => ({
-          path: '/home',
-          query: {},
-          hash: '',
-        }),
-        useRouter: () => ({
-          push: pushMock,
-          replace: vi.fn(),
-          back: vi.fn(),
-        }),
-      }
-    })
+    vi.doMock('@/shared/lib/framework7', () => ({
+      cleanupOverlayLocks: vi.fn(),
+      useAppRoute: () => ({
+        path: '/home',
+        query: {},
+        hash: '',
+      }),
+      useAppRouter: () => ({
+        push: pushMock,
+        replace: vi.fn(),
+        back: vi.fn(),
+      }),
+    }))
 
-    vi.doMock('@ionic/vue', () => ({
-      IonButton: createButtonStub('IonButton'),
-      IonButtons: createIonicStub('IonButtons'),
-      IonChip: createIonicStub('IonChip'),
-      IonContent: createIonicStub('IonContent'),
-      IonAlert: createModalStub('IonAlert'),
-      IonIcon: createIonicStub('IonIcon'),
-      IonInput: createInputStub('IonInput'),
-      IonTextarea: createTextareaStub('IonTextarea'),
-      IonItem: createIonicStub('IonItem'),
-      IonLabel: createIonicStub('IonLabel', 'span'),
-      IonList: createIonicStub('IonList'),
-      IonModal: createModalStub('IonModal'),
-      IonNote: createIonicStub('IonNote', 'span'),
-      IonSpinner: createIonicStub('IonSpinner', 'span'),
-      IonHeader: createIonicStub('IonHeader'),
-      IonToolbar: createIonicStub('IonToolbar'),
-      IonTitle: createIonicStub('IonTitle', 'span'),
+    vi.doMock('@/shared/ui/f7', () => ({
+      F7Button: createButtonStub('F7Button'),
+      F7Buttons: createF7Stub('F7Buttons'),
+      F7Chip: createF7Stub('F7Chip'),
+      F7Content: createF7Stub('F7Content'),
+      F7Alert: createModalStub('F7Alert'),
+      F7Icon: createF7Stub('F7Icon'),
+      F7Input: createInputStub('F7Input'),
+      F7Searchbar: createTextareaStub('F7Searchbar'),
+      F7Textarea: createTextareaStub('F7Textarea'),
+      F7Item: createF7Stub('F7Item'),
+      F7Label: createF7Stub('F7Label', 'span'),
+      F7List: createF7Stub('F7List'),
+      F7Modal: createModalStub('F7Modal'),
+      F7Note: createF7Stub('F7Note', 'span'),
+      F7Spinner: createF7Stub('F7Spinner', 'span'),
+      F7Header: createF7Stub('F7Header'),
+      F7Toolbar: createF7Stub('F7Toolbar'),
+      F7Title: createF7Stub('F7Title', 'span'),
     }))
 
     const GlobalSearch = (await import('@/features/global-search/ui/global-search.vue')).default
@@ -464,7 +464,7 @@ describe('global search mode toggle', () => {
       },
     })
 
-    const input = wrapper.get('textarea')
+    const input = wrapper.get('input, textarea')
     await input.trigger('focus')
     await nextTick()
     await wrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
@@ -502,44 +502,42 @@ describe('global search mode toggle', () => {
       }),
     }))
 
-    vi.doMock('vue-router', async () => {
-      const actual = await vi.importActual<typeof import('vue-router')>('vue-router')
-      return {
-        ...actual,
-        useRoute: () => ({
-          path: '/home',
-          query: {
-            overlay: 'search',
-            overlayMode: 'ai',
-          },
-          hash: '',
-        }),
-        useRouter: () => ({
-          push: vi.fn(),
-          replace: vi.fn(),
-          back: vi.fn(),
-        }),
-      }
-    })
+    vi.doMock('@/shared/lib/framework7', () => ({
+      cleanupOverlayLocks: vi.fn(),
+      useAppRoute: () => ({
+        path: '/home',
+        query: {
+          overlay: 'search',
+          overlayMode: 'ai',
+        },
+        hash: '',
+      }),
+      useAppRouter: () => ({
+        push: vi.fn(),
+        replace: vi.fn(),
+        back: vi.fn(),
+      }),
+    }))
 
-    vi.doMock('@ionic/vue', () => ({
-      IonButton: createButtonStub('IonButton'),
-      IonButtons: createIonicStub('IonButtons'),
-      IonChip: createIonicStub('IonChip'),
-      IonContent: createIonicStub('IonContent'),
-      IonAlert: createModalStub('IonAlert'),
-      IonIcon: createIonicStub('IonIcon'),
-      IonInput: createInputStub('IonInput'),
-      IonTextarea: createTextareaStub('IonTextarea'),
-      IonItem: createIonicStub('IonItem'),
-      IonLabel: createIonicStub('IonLabel', 'span'),
-      IonList: createIonicStub('IonList'),
-      IonModal: createModalStub('IonModal'),
-      IonNote: createIonicStub('IonNote', 'span'),
-      IonSpinner: createIonicStub('IonSpinner', 'span'),
-      IonHeader: createIonicStub('IonHeader'),
-      IonToolbar: createIonicStub('IonToolbar'),
-      IonTitle: createIonicStub('IonTitle', 'span'),
+    vi.doMock('@/shared/ui/f7', () => ({
+      F7Button: createButtonStub('F7Button'),
+      F7Buttons: createF7Stub('F7Buttons'),
+      F7Chip: createF7Stub('F7Chip'),
+      F7Content: createF7Stub('F7Content'),
+      F7Alert: createModalStub('F7Alert'),
+      F7Icon: createF7Stub('F7Icon'),
+      F7Input: createInputStub('F7Input'),
+      F7Searchbar: createTextareaStub('F7Searchbar'),
+      F7Textarea: createTextareaStub('F7Textarea'),
+      F7Item: createF7Stub('F7Item'),
+      F7Label: createF7Stub('F7Label', 'span'),
+      F7List: createF7Stub('F7List'),
+      F7Modal: createModalStub('F7Modal'),
+      F7Note: createF7Stub('F7Note', 'span'),
+      F7Spinner: createF7Stub('F7Spinner', 'span'),
+      F7Header: createF7Stub('F7Header'),
+      F7Toolbar: createF7Stub('F7Toolbar'),
+      F7Title: createF7Stub('F7Title', 'span'),
     }))
 
     const GlobalSearch = (await import('@/features/global-search/ui/global-search.vue')).default
@@ -599,24 +597,25 @@ describe('global search mode toggle', () => {
       }
     })
 
-    vi.doMock('@ionic/vue', () => ({
-      IonButton: createButtonStub('IonButton'),
-      IonButtons: createIonicStub('IonButtons'),
-      IonChip: createIonicStub('IonChip'),
-      IonContent: createIonicStub('IonContent'),
-      IonAlert: createModalStub('IonAlert'),
-      IonIcon: createIonicStub('IonIcon'),
-      IonInput: createInputStub('IonInput'),
-      IonTextarea: createTextareaStub('IonTextarea'),
-      IonItem: createIonicStub('IonItem'),
-      IonLabel: createIonicStub('IonLabel', 'span'),
-      IonList: createIonicStub('IonList'),
-      IonModal: createModalStub('IonModal'),
-      IonNote: createIonicStub('IonNote', 'span'),
-      IonSpinner: createIonicStub('IonSpinner', 'span'),
-      IonHeader: createIonicStub('IonHeader'),
-      IonToolbar: createIonicStub('IonToolbar'),
-      IonTitle: createIonicStub('IonTitle', 'span'),
+    vi.doMock('@/shared/ui/f7', () => ({
+      F7Button: createButtonStub('F7Button'),
+      F7Buttons: createF7Stub('F7Buttons'),
+      F7Chip: createF7Stub('F7Chip'),
+      F7Content: createF7Stub('F7Content'),
+      F7Alert: createModalStub('F7Alert'),
+      F7Icon: createF7Stub('F7Icon'),
+      F7Input: createInputStub('F7Input'),
+      F7Searchbar: createTextareaStub('F7Searchbar'),
+      F7Textarea: createTextareaStub('F7Textarea'),
+      F7Item: createF7Stub('F7Item'),
+      F7Label: createF7Stub('F7Label', 'span'),
+      F7List: createF7Stub('F7List'),
+      F7Modal: createModalStub('F7Modal'),
+      F7Note: createF7Stub('F7Note', 'span'),
+      F7Spinner: createF7Stub('F7Spinner', 'span'),
+      F7Header: createF7Stub('F7Header'),
+      F7Toolbar: createF7Stub('F7Toolbar'),
+      F7Title: createF7Stub('F7Title', 'span'),
     }))
 
     const GlobalSearch = (await import('@/features/global-search/ui/global-search.vue')).default
@@ -629,7 +628,7 @@ describe('global search mode toggle', () => {
       },
     })
 
-    const input = wrapper.get('textarea')
+    const input = wrapper.get('input, textarea')
     await input.trigger('focus')
     await input.setValue('会议')
     await nextTick()
@@ -689,24 +688,25 @@ describe('global search mode toggle', () => {
       }
     })
 
-    vi.doMock('@ionic/vue', () => ({
-      IonButton: createButtonStub('IonButton'),
-      IonButtons: createIonicStub('IonButtons'),
-      IonChip: createIonicStub('IonChip'),
-      IonContent: createIonicStub('IonContent'),
-      IonAlert: createModalStub('IonAlert'),
-      IonIcon: createIonicStub('IonIcon'),
-      IonInput: createInputStub('IonInput'),
-      IonTextarea: createTextareaStub('IonTextarea'),
-      IonItem: createIonicStub('IonItem'),
-      IonLabel: createIonicStub('IonLabel', 'span'),
-      IonList: createIonicStub('IonList'),
-      IonModal: createModalStub('IonModal'),
-      IonNote: createIonicStub('IonNote', 'span'),
-      IonSpinner: createIonicStub('IonSpinner', 'span'),
-      IonHeader: createIonicStub('IonHeader'),
-      IonToolbar: createIonicStub('IonToolbar'),
-      IonTitle: createIonicStub('IonTitle', 'span'),
+    vi.doMock('@/shared/ui/f7', () => ({
+      F7Button: createButtonStub('F7Button'),
+      F7Buttons: createF7Stub('F7Buttons'),
+      F7Chip: createF7Stub('F7Chip'),
+      F7Content: createF7Stub('F7Content'),
+      F7Alert: createModalStub('F7Alert'),
+      F7Icon: createF7Stub('F7Icon'),
+      F7Input: createInputStub('F7Input'),
+      F7Searchbar: createTextareaStub('F7Searchbar'),
+      F7Textarea: createTextareaStub('F7Textarea'),
+      F7Item: createF7Stub('F7Item'),
+      F7Label: createF7Stub('F7Label', 'span'),
+      F7List: createF7Stub('F7List'),
+      F7Modal: createModalStub('F7Modal'),
+      F7Note: createF7Stub('F7Note', 'span'),
+      F7Spinner: createF7Stub('F7Spinner', 'span'),
+      F7Header: createF7Stub('F7Header'),
+      F7Toolbar: createF7Stub('F7Toolbar'),
+      F7Title: createF7Stub('F7Title', 'span'),
     }))
 
     const GlobalSearch = (await import('@/features/global-search/ui/global-search.vue')).default
@@ -719,7 +719,7 @@ describe('global search mode toggle', () => {
       },
     })
 
-    const input = wrapper.get('textarea')
+    const input = wrapper.get('input, textarea')
     await input.trigger('focus')
     await nextTick()
     await wrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
@@ -781,24 +781,25 @@ describe('global search mode toggle', () => {
       }
     })
 
-    vi.doMock('@ionic/vue', () => ({
-      IonButton: createButtonStub('IonButton'),
-      IonButtons: createIonicStub('IonButtons'),
-      IonChip: createIonicStub('IonChip'),
-      IonContent: createIonicStub('IonContent'),
-      IonAlert: createModalStub('IonAlert'),
-      IonIcon: createIonicStub('IonIcon'),
-      IonInput: createInputStub('IonInput'),
-      IonTextarea: createTextareaStub('IonTextarea'),
-      IonItem: createIonicStub('IonItem'),
-      IonLabel: createIonicStub('IonLabel', 'span'),
-      IonList: createIonicStub('IonList'),
-      IonModal: createModalStub('IonModal'),
-      IonNote: createIonicStub('IonNote', 'span'),
-      IonSpinner: createIonicStub('IonSpinner', 'span'),
-      IonHeader: createIonicStub('IonHeader'),
-      IonToolbar: createIonicStub('IonToolbar'),
-      IonTitle: createIonicStub('IonTitle', 'span'),
+    vi.doMock('@/shared/ui/f7', () => ({
+      F7Button: createButtonStub('F7Button'),
+      F7Buttons: createF7Stub('F7Buttons'),
+      F7Chip: createF7Stub('F7Chip'),
+      F7Content: createF7Stub('F7Content'),
+      F7Alert: createModalStub('F7Alert'),
+      F7Icon: createF7Stub('F7Icon'),
+      F7Input: createInputStub('F7Input'),
+      F7Searchbar: createTextareaStub('F7Searchbar'),
+      F7Textarea: createTextareaStub('F7Textarea'),
+      F7Item: createF7Stub('F7Item'),
+      F7Label: createF7Stub('F7Label', 'span'),
+      F7List: createF7Stub('F7List'),
+      F7Modal: createModalStub('F7Modal'),
+      F7Note: createF7Stub('F7Note', 'span'),
+      F7Spinner: createF7Stub('F7Spinner', 'span'),
+      F7Header: createF7Stub('F7Header'),
+      F7Toolbar: createF7Stub('F7Toolbar'),
+      F7Title: createF7Stub('F7Title', 'span'),
     }))
 
     const FirstGlobalSearch = (await import('@/features/global-search/ui/global-search.vue')).default
@@ -809,7 +810,7 @@ describe('global search mode toggle', () => {
       },
     })
 
-    await firstWrapper.get('textarea').trigger('focus')
+    await firstWrapper.get('input, textarea').trigger('focus')
     await nextTick()
     await firstWrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
     await nextTick()
@@ -850,24 +851,25 @@ describe('global search mode toggle', () => {
         }),
       }
     })
-    vi.doMock('@ionic/vue', () => ({
-      IonButton: createButtonStub('IonButton'),
-      IonButtons: createIonicStub('IonButtons'),
-      IonChip: createIonicStub('IonChip'),
-      IonContent: createIonicStub('IonContent'),
-      IonAlert: createModalStub('IonAlert'),
-      IonIcon: createIonicStub('IonIcon'),
-      IonInput: createInputStub('IonInput'),
-      IonTextarea: createTextareaStub('IonTextarea'),
-      IonItem: createIonicStub('IonItem'),
-      IonLabel: createIonicStub('IonLabel', 'span'),
-      IonList: createIonicStub('IonList'),
-      IonModal: createModalStub('IonModal'),
-      IonNote: createIonicStub('IonNote', 'span'),
-      IonSpinner: createIonicStub('IonSpinner', 'span'),
-      IonHeader: createIonicStub('IonHeader'),
-      IonToolbar: createIonicStub('IonToolbar'),
-      IonTitle: createIonicStub('IonTitle', 'span'),
+    vi.doMock('@/shared/ui/f7', () => ({
+      F7Button: createButtonStub('F7Button'),
+      F7Buttons: createF7Stub('F7Buttons'),
+      F7Chip: createF7Stub('F7Chip'),
+      F7Content: createF7Stub('F7Content'),
+      F7Alert: createModalStub('F7Alert'),
+      F7Icon: createF7Stub('F7Icon'),
+      F7Input: createInputStub('F7Input'),
+      F7Searchbar: createTextareaStub('F7Searchbar'),
+      F7Textarea: createTextareaStub('F7Textarea'),
+      F7Item: createF7Stub('F7Item'),
+      F7Label: createF7Stub('F7Label', 'span'),
+      F7List: createF7Stub('F7List'),
+      F7Modal: createModalStub('F7Modal'),
+      F7Note: createF7Stub('F7Note', 'span'),
+      F7Spinner: createF7Stub('F7Spinner', 'span'),
+      F7Header: createF7Stub('F7Header'),
+      F7Toolbar: createF7Stub('F7Toolbar'),
+      F7Title: createF7Stub('F7Title', 'span'),
     }))
 
     const RestoredGlobalSearch = (await import('@/features/global-search/ui/global-search.vue')).default
@@ -880,12 +882,12 @@ describe('global search mode toggle', () => {
       },
     })
 
-    await restoredWrapper.get('textarea').trigger('focus')
+    await restoredWrapper.get('input, textarea').trigger('focus')
     await nextTick()
 
     expect(state.inputMode.value).toBe('ai')
     expect(restoredWrapper.text()).toContain('AI 对话')
-    expect(restoredWrapper.get('textarea').attributes('placeholder')).toBe('发消息')
+    expect(restoredWrapper.get('input, textarea').attributes('placeholder')).toBe('发消息')
 
     restoredWrapper.unmount()
   })
@@ -928,28 +930,29 @@ describe('global search mode toggle', () => {
       }
     })
 
-    vi.doMock('@ionic/vue', () => ({
-      IonButton: createButtonStub('IonButton'),
-      IonButtons: createIonicStub('IonButtons'),
-      IonChip: createIonicStub('IonChip'),
-      IonContent: createIonicStub('IonContent'),
-      IonAlert: createModalStub('IonAlert'),
-      IonIcon: createIonicStub('IonIcon'),
-      IonInput: createInputStub('IonInput'),
-      IonTextarea: createTextareaStub('IonTextarea'),
-      IonItem: createIonicStub('IonItem'),
-      IonLabel: createIonicStub('IonLabel', 'span'),
-      IonList: createIonicStub('IonList'),
-      IonModal: createModalStub('IonModal'),
-      IonNote: createIonicStub('IonNote', 'span'),
-      IonSpinner: createIonicStub('IonSpinner', 'span'),
-      IonHeader: createIonicStub('IonHeader'),
-      IonToolbar: createIonicStub('IonToolbar'),
-      IonTitle: createIonicStub('IonTitle', 'span'),
+    vi.doMock('@/shared/ui/f7', () => ({
+      F7Button: createButtonStub('F7Button'),
+      F7Buttons: createF7Stub('F7Buttons'),
+      F7Chip: createF7Stub('F7Chip'),
+      F7Content: createF7Stub('F7Content'),
+      F7Alert: createModalStub('F7Alert'),
+      F7Icon: createF7Stub('F7Icon'),
+      F7Input: createInputStub('F7Input'),
+      F7Searchbar: createTextareaStub('F7Searchbar'),
+      F7Textarea: createTextareaStub('F7Textarea'),
+      F7Item: createF7Stub('F7Item'),
+      F7Label: createF7Stub('F7Label', 'span'),
+      F7List: createF7Stub('F7List'),
+      F7Modal: createModalStub('F7Modal'),
+      F7Note: createF7Stub('F7Note', 'span'),
+      F7Spinner: createF7Stub('F7Spinner', 'span'),
+      F7Header: createF7Stub('F7Header'),
+      F7Toolbar: createF7Stub('F7Toolbar'),
+      F7Title: createF7Stub('F7Title', 'span'),
     }))
 
     const host = document.createElement('div')
-    host.className = 'ion-page'
+    host.className = 'page'
     host.getBoundingClientRect = () => createRect({
       left: 10,
       top: 20,
@@ -974,7 +977,7 @@ describe('global search mode toggle', () => {
       height: 44,
     })
 
-    await wrapper.get('textarea').trigger('focus')
+    await wrapper.get('input, textarea').trigger('focus')
     await nextTick()
 
     const panel = wrapper.get('.global-search__panel')

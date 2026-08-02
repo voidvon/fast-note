@@ -1,10 +1,8 @@
 import type { App as VueApp } from 'vue'
-import type { Router } from 'vue-router'
 import { prepareSessionContext } from '@/processes/session'
 
 interface BootstrapAppOptions {
   app: VueApp
-  router: Router
 }
 
 function dismissAppLoading() {
@@ -19,12 +17,9 @@ function dismissAppLoading() {
   window.setTimeout(remove, 250)
 }
 
-export async function bootstrapApp({ app, router }: BootstrapAppOptions) {
+export async function bootstrapApp({ app }: BootstrapAppOptions) {
   try {
-    await Promise.all([
-      router.isReady(),
-      prepareSessionContext(),
-    ])
+    await prepareSessionContext()
   }
   catch (error) {
     console.error('应用初始化失败:', error)

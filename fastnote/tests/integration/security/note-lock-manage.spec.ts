@@ -2,7 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, ref } from 'vue'
 
-function createIonicStub(name: string, tag = 'div') {
+function createF7Stub(name: string, tag = 'div') {
   return defineComponent({
     name,
     inheritAttrs: false,
@@ -82,9 +82,9 @@ describe('note lock manage modal integration (t-fn-043 / tc-fn-036)', () => {
         setBiometricEnabled: setBiometricEnabledMock,
       }),
     }))
-    vi.doMock('@ionic/vue', () => ({
-      IonButton: createButtonStub('IonButton'),
-      IonModal: createIonicStub('IonModal'),
+    vi.doMock('@/shared/ui/f7', () => ({
+      F7Button: createButtonStub('F7Button'),
+      F7Modal: createF7Stub('F7Modal'),
     }))
 
     const NoteLockManageModal = (await import('@/features/note-lock/ui/note-lock-manage-modal.vue')).default

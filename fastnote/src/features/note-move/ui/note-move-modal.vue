@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { FolderTreeNode } from '@/entities/note'
-import { IonButton, IonButtons, IonContent, IonHeader, IonModal, IonTitle, IonToolbar } from '@ionic/vue'
 import { ref } from 'vue'
+import { F7Button, F7Buttons, F7Content, F7Header, F7Modal, F7Title, F7Toolbar } from '@/shared/ui/f7'
 import NoteList from '@/widgets/note-list/ui/note-list.vue'
 import { useNoteMove } from '../model/use-note-move'
 
@@ -38,19 +38,19 @@ function onWillPersent() {
 </script>
 
 <template>
-  <IonModal ref="modalRef" :is-open v-bind="$attrs" @will-present="onWillPersent">
-    <IonHeader>
-      <IonToolbar>
-        <IonTitle>选择文件夹</IonTitle>
-        <IonButtons slot="end">
-          <IonButton @click="dismiss()">
+  <F7Modal ref="modalRef" :is-open v-bind="$attrs" @will-present="onWillPersent">
+    <F7Header>
+      <F7Toolbar>
+        <F7Title>选择文件夹</F7Title>
+        <F7Buttons position="end">
+          <F7Button @click="dismiss()">
             取消
-          </IonButton>
-        </IonButtons>
-      </IonToolbar>
-    </IonHeader>
-    <IonContent>
+          </F7Button>
+        </F7Buttons>
+      </F7Toolbar>
+    </F7Header>
+    <F7Content>
       <NoteList ref="noteListRef" :data-list="dataList" disabled-route disabled-long-press @selected="onSelected" />
-    </IonContent>
-  </IonModal>
+    </F7Content>
+  </F7Modal>
 </template>

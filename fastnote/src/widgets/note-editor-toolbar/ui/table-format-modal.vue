@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type { Editor } from '@tiptap/vue-3'
-import { IonIcon, IonItem, IonLabel, IonList, IonModal } from '@ionic/vue'
-import { trashOutline } from 'ionicons/icons'
 import { onMounted, ref } from 'vue'
+import { F7Icon, F7Item, F7Label, F7List, F7Modal } from '@/shared/ui/f7'
 import Icon from '@/shared/ui/icon'
+import { trashOutline } from '@/shared/ui/icons'
 
 const props = withDefaults(defineProps<{
   isOpen: boolean
@@ -62,7 +62,7 @@ function onClick(type: string) {
 </script>
 
 <template>
-  <IonModal
+  <F7Modal
     ref="modalRef"
     v-bind="$attrs"
     :is-open
@@ -73,56 +73,56 @@ function onClick(type: string) {
     @did-dismiss="$emit('update:isOpen', false)"
   >
     <div>
-      <IonList class="table-format-modal-list" inset>
-        <IonItem @click="onClick('insert-table')">
-          <IonLabel>插入表格</IonLabel>
-          <div slot="end">
+      <F7List class="table-format-modal-list" inset>
+        <F7Item @click="onClick('insert-table')">
+          <F7Label>插入表格</F7Label>
+          <template #after>
             <Icon name="table" />
-          </div>
-        </IonItem>
-        <IonItem @click="onClick('delete-table')">
-          <IonLabel style="color: var(--danger)">
+          </template>
+        </F7Item>
+        <F7Item @click="onClick('delete-table')">
+          <F7Label style="color: var(--danger)">
             删除表格
-          </IonLabel>
-          <div slot="end">
-            <IonIcon :icon="trashOutline" color="danger" />
-          </div>
-        </IonItem>
-      </IonList>
-      <IonList class="table-format-modal-list" inset>
-        <IonItem @click="onClick('add-column-after')">
-          <IonLabel>插入列</IonLabel>
-          <div slot="end">
+          </F7Label>
+          <template #after>
+            <F7Icon :icon="trashOutline" color="danger" />
+          </template>
+        </F7Item>
+      </F7List>
+      <F7List class="table-format-modal-list" inset>
+        <F7Item @click="onClick('add-column-after')">
+          <F7Label>插入列</F7Label>
+          <template #after>
             <Icon name="insert-right-column" />
-          </div>
-        </IonItem>
-        <IonItem @click="onClick('delete-column')">
-          <IonLabel style="color: var(--danger)">
+          </template>
+        </F7Item>
+        <F7Item @click="onClick('delete-column')">
+          <F7Label style="color: var(--danger)">
             删除列
-          </IonLabel>
-          <div slot="end">
+          </F7Label>
+          <template #after>
             <Icon name="remove-column" color="danger" />
-          </div>
-        </IonItem>
-      </IonList>
-      <IonList class="table-format-modal-list" inset>
-        <IonItem @click="onClick('add-row-after')">
-          <IonLabel>插入行</IonLabel>
-          <div slot="end">
+          </template>
+        </F7Item>
+      </F7List>
+      <F7List class="table-format-modal-list" inset>
+        <F7Item @click="onClick('add-row-after')">
+          <F7Label>插入行</F7Label>
+          <template #after>
             <Icon name="insert-bottom-row" />
-          </div>
-        </IonItem>
-        <IonItem @click="onClick('delete-row')">
-          <IonLabel style="color: var(--danger)">
+          </template>
+        </F7Item>
+        <F7Item @click="onClick('delete-row')">
+          <F7Label style="color: var(--danger)">
             删除行
-          </IonLabel>
-          <div slot="end">
+          </F7Label>
+          <template #after>
             <Icon name="remove-row" color="danger" />
-          </div>
-        </IonItem>
-      </IonList>
+          </template>
+        </F7Item>
+      </F7List>
     </div>
-  </IonModal>
+  </F7Modal>
 </template>
 
 <style lang="scss">
@@ -130,16 +130,16 @@ function onClick(type: string) {
   --background: var(--c-modal-background);
 }
 .table-format-modal-list {
-  ion-item {
+  .app-list-item {
     --background: var(--c-list-background);
     --color: var(--c-text-primary);
     font-size: 18px;
-    ion-label {
+    .app-label {
       margin-top: 14px;
       margin-bottom: 14px;
       font-weight: 500;
     }
-    ion-icon {
+    .app-icon {
       font-size: 28px;
     }
     .icon {

@@ -2,7 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, reactive, ref } from 'vue'
 
-function createIonicStub(name: string, tag = 'div', emits: string[] = []) {
+function createF7Stub(name: string, tag = 'div', emits: string[] = []) {
   return defineComponent({
     name,
     inheritAttrs: false,
@@ -13,13 +13,13 @@ function createIonicStub(name: string, tag = 'div', emits: string[] = []) {
   })
 }
 
-function createIconTextButtonStub() {
+function createF7ListItemStub() {
   return defineComponent({
-    name: 'IconTextButton',
+    name: 'F7ListItem',
     inheritAttrs: false,
     emits: ['click'],
     props: {
-      text: {
+      title: {
         type: String,
         required: true,
       },
@@ -29,9 +29,19 @@ function createIconTextButtonStub() {
         ...attrs,
         type: 'button',
         onClick: (event: MouseEvent) => emit('click', event),
-      }, props.text)
+      }, props.title)
     },
   })
+}
+
+function mockF7Primitives() {
+  vi.doMock('framework7-vue', () => ({
+    f7Link: createF7Stub('F7Link', 'button', ['click']),
+    f7List: createF7Stub('F7List'),
+    f7ListItem: createF7ListItemStub(),
+    f7PageContent: createF7Stub('F7PageContent'),
+    f7Toolbar: createF7Stub('F7Toolbar'),
+  }))
 }
 
 function createLockModalStub(name: string, testId: string) {
@@ -132,21 +142,19 @@ describe('note more lock entry integration', () => {
     const alertCreate = vi.fn(async (_options: AlertOptions) => ({ present: alertPresent }))
     const routerPush = vi.fn()
     mockUseSync()
+    mockF7Primitives()
 
-    vi.doMock('@ionic/vue', () => ({
+    vi.doMock('@/shared/ui/f7', () => ({
       alertController: {
         create: alertCreate,
       },
-      IonCol: createIonicStub('IonCol'),
-      IonGrid: createIonicStub('IonGrid'),
-      IonModal: createIonicStub('IonModal', 'div', ['will-present', 'did-dismiss']),
-      IonRow: createIonicStub('IonRow'),
+      F7Modal: createF7Stub('F7Modal', 'div', ['will-present', 'did-dismiss']),
       toastController: {
         create: vi.fn(async () => ({
           present: vi.fn(),
         })),
       },
-      useIonRouter: () => ({
+      useAppRouter: () => ({
         back: vi.fn(),
         push: routerPush,
       }),
@@ -154,8 +162,9 @@ describe('note more lock entry integration', () => {
     vi.doMock('@/processes/session', () => ({
       useAuth: () => ({ currentUser, isLoggedIn }),
     }))
-    vi.doMock('vue-router', () => ({
-      useRoute: () => ({
+    vi.doMock('@/shared/lib/framework7', () => ({
+      cleanupOverlayLocksAsync: vi.fn(),
+      useAppRoute: () => ({
         params: {
           id: 'note-1',
         },
@@ -185,9 +194,6 @@ describe('note more lock entry integration', () => {
     vi.doMock('@/features/public-note-share', () => ({
       PublicNoteAccessModal: createLockModalStub('PublicNoteAccessModal', 'public-note-access-modal'),
     }))
-    vi.doMock('@/shared/lib/ionic', () => ({
-      cleanupIonicOverlayLocksAsync: vi.fn(),
-    }))
     vi.doMock('@/shared/lib/logger', () => ({
       logger: {
         warn: vi.fn(),
@@ -195,9 +201,6 @@ describe('note more lock entry integration', () => {
         error: vi.fn(),
         debug: vi.fn(),
       },
-    }))
-    vi.doMock('@/shared/ui/icon-text-button', () => ({
-      default: createIconTextButtonStub(),
     }))
 
     const NoteMore = (await import('@/widgets/note-more')).default
@@ -209,13 +212,13 @@ describe('note more lock entry integration', () => {
       },
     })
 
-    const modal = wrapper.findComponent({ name: 'IonModal' })
+    const modal = wrapper.findComponent({ name: 'F7Modal' })
     modal.vm.$emit('will-present')
     await flushPromises()
 
     expect(getNoteMock).toHaveBeenCalledWith('note-1')
 
-    await wrapper.get('button').trigger('click')
+    await wrapper.get('[data-testid="note-more-lock-action"]').trigger('click')
 
     expect(noteLockFlow.prepareLockModal).toHaveBeenCalledWith(expect.objectContaining({
       id: 'note-1',
@@ -231,8 +234,7 @@ describe('note more lock entry integration', () => {
     expect(wrapper.get('[data-testid="note-lock-manage-modal"]').attributes('data-open')).toBe('false')
 
     await wrapper.setProps({ isOpen: true })
-    expect(wrapper.findAll('button')[1].text()).toBe('公开')
-    await wrapper.findAll('button')[1].trigger('click')
+    await wrapper.get('[data-testid="note-more-public-action"]').trigger('click')
     await flushPromises()
 
     expect(alertCreate).toHaveBeenCalledWith(expect.objectContaining({
@@ -253,7 +255,7 @@ describe('note more lock entry integration', () => {
     currentUser.value = { username: 'virjay' }
     isLoggedIn.value = true
     await wrapper.setProps({ isOpen: true })
-    await wrapper.findAll('button')[1].trigger('click')
+    await wrapper.get('[data-testid="note-more-public-action"]').trigger('click')
 
     expect(wrapper.get('[data-testid="public-note-access-modal"]').attributes('data-open')).toBe('false')
 
@@ -266,23 +268,22 @@ describe('note more lock entry integration', () => {
   it('opens the manage modal after the more sheet dismisses for locked notes', async () => {
     const noteLockFlow = createNoteLockFlowStub('manage')
     mockUseSync()
+    mockF7Primitives()
 
-    vi.doMock('@ionic/vue', () => ({
-      IonCol: createIonicStub('IonCol'),
-      IonGrid: createIonicStub('IonGrid'),
-      IonModal: createIonicStub('IonModal', 'div', ['will-present', 'did-dismiss']),
-      IonRow: createIonicStub('IonRow'),
+    vi.doMock('@/shared/ui/f7', () => ({
+      F7Modal: createF7Stub('F7Modal', 'div', ['will-present', 'did-dismiss']),
       toastController: {
         create: vi.fn(async () => ({
           present: vi.fn(),
         })),
       },
-      useIonRouter: () => ({
+      useAppRouter: () => ({
         back: vi.fn(),
       }),
     }))
-    vi.doMock('vue-router', () => ({
-      useRoute: () => ({
+    vi.doMock('@/shared/lib/framework7', () => ({
+      cleanupOverlayLocksAsync: vi.fn(),
+      useAppRoute: () => ({
         params: {
           id: 'note-2',
         },
@@ -316,9 +317,6 @@ describe('note more lock entry integration', () => {
     vi.doMock('@/features/public-note-share', () => ({
       PublicNoteAccessModal: createLockModalStub('PublicNoteAccessModal', 'public-note-access-modal'),
     }))
-    vi.doMock('@/shared/lib/ionic', () => ({
-      cleanupIonicOverlayLocksAsync: vi.fn(),
-    }))
     vi.doMock('@/shared/lib/logger', () => ({
       logger: {
         warn: vi.fn(),
@@ -326,9 +324,6 @@ describe('note more lock entry integration', () => {
         error: vi.fn(),
         debug: vi.fn(),
       },
-    }))
-    vi.doMock('@/shared/ui/icon-text-button', () => ({
-      default: createIconTextButtonStub(),
     }))
 
     const NoteMore = (await import('@/widgets/note-more')).default
@@ -340,11 +335,11 @@ describe('note more lock entry integration', () => {
       },
     })
 
-    const modal = wrapper.findComponent({ name: 'IonModal' })
+    const modal = wrapper.findComponent({ name: 'F7Modal' })
     modal.vm.$emit('will-present')
     await flushPromises()
 
-    await wrapper.get('button').trigger('click')
+    await wrapper.get('[data-testid="note-more-lock-action"]').trigger('click')
     expect(wrapper.get('[data-testid="note-lock-manage-modal"]').attributes('data-open')).toBe('false')
 
     modal.vm.$emit('did-dismiss')
@@ -362,21 +357,20 @@ describe('note more lock entry integration', () => {
       present: presentMock,
     }))
     const noteLockFlow = createNoteLockFlowStub('setup')
+    mockF7Primitives()
 
-    vi.doMock('@ionic/vue', () => ({
-      IonCol: createIonicStub('IonCol'),
-      IonGrid: createIonicStub('IonGrid'),
-      IonModal: createIonicStub('IonModal', 'div', ['will-present', 'did-dismiss']),
-      IonRow: createIonicStub('IonRow'),
+    vi.doMock('@/shared/ui/f7', () => ({
+      F7Modal: createF7Stub('F7Modal', 'div', ['will-present', 'did-dismiss']),
       toastController: {
         create: toastCreateMock,
       },
-      useIonRouter: () => ({
+      useAppRouter: () => ({
         back: vi.fn(),
       }),
     }))
-    vi.doMock('vue-router', () => ({
-      useRoute: () => ({
+    vi.doMock('@/shared/lib/framework7', () => ({
+      cleanupOverlayLocksAsync: vi.fn(),
+      useAppRoute: () => ({
         params: {
           id: 'note-4',
         },
@@ -410,9 +404,6 @@ describe('note more lock entry integration', () => {
     vi.doMock('@/features/public-note-share', () => ({
       PublicNoteAccessModal: createLockModalStub('PublicNoteAccessModal', 'public-note-access-modal'),
     }))
-    vi.doMock('@/shared/lib/ionic', () => ({
-      cleanupIonicOverlayLocksAsync: vi.fn(),
-    }))
     vi.doMock('@/shared/lib/logger', () => ({
       logger: {
         warn: vi.fn(),
@@ -420,9 +411,6 @@ describe('note more lock entry integration', () => {
         error: vi.fn(),
         debug: vi.fn(),
       },
-    }))
-    vi.doMock('@/shared/ui/icon-text-button', () => ({
-      default: createIconTextButtonStub(),
     }))
 
     const NoteMore = (await import('@/widgets/note-more')).default
@@ -434,7 +422,7 @@ describe('note more lock entry integration', () => {
       },
     })
 
-    wrapper.findComponent({ name: 'IonModal' }).vm.$emit('will-present')
+    wrapper.findComponent({ name: 'F7Modal' }).vm.$emit('will-present')
     await flushPromises()
 
     wrapper.findComponent({ name: 'NoteLockSetupModal' }).vm.$emit('confirm', {
@@ -496,23 +484,22 @@ describe('note more lock entry integration', () => {
       },
     }))
     mockUseSync()
+    mockF7Primitives()
 
-    vi.doMock('@ionic/vue', () => ({
-      IonCol: createIonicStub('IonCol'),
-      IonGrid: createIonicStub('IonGrid'),
-      IonModal: createIonicStub('IonModal', 'div', ['will-present', 'did-dismiss']),
-      IonRow: createIonicStub('IonRow'),
+    vi.doMock('@/shared/ui/f7', () => ({
+      F7Modal: createF7Stub('F7Modal', 'div', ['will-present', 'did-dismiss']),
       toastController: {
         create: vi.fn(async () => ({
           present: vi.fn(),
         })),
       },
-      useIonRouter: () => ({
+      useAppRouter: () => ({
         back: backMock,
       }),
     }))
-    vi.doMock('vue-router', () => ({
-      useRoute: () => ({
+    vi.doMock('@/shared/lib/framework7', () => ({
+      cleanupOverlayLocksAsync: vi.fn(),
+      useAppRoute: () => ({
         params: {
           id: 'note-3',
         },
@@ -542,9 +529,6 @@ describe('note more lock entry integration', () => {
     vi.doMock('@/features/public-note-share', () => ({
       PublicNoteAccessModal: createLockModalStub('PublicNoteAccessModal', 'public-note-access-modal'),
     }))
-    vi.doMock('@/shared/lib/ionic', () => ({
-      cleanupIonicOverlayLocksAsync: vi.fn(),
-    }))
     vi.doMock('@/shared/lib/logger', () => ({
       logger: {
         warn: vi.fn(),
@@ -552,9 +536,6 @@ describe('note more lock entry integration', () => {
         error: vi.fn(),
         debug: vi.fn(),
       },
-    }))
-    vi.doMock('@/shared/ui/icon-text-button', () => ({
-      default: createIconTextButtonStub(),
     }))
 
     const NoteMore = (await import('@/widgets/note-more')).default
@@ -566,12 +547,11 @@ describe('note more lock entry integration', () => {
       },
     })
 
-    const modal = wrapper.findComponent({ name: 'IonModal' })
+    const modal = wrapper.findComponent({ name: 'F7Modal' })
     modal.vm.$emit('will-present')
     await flushPromises()
 
-    const buttons = wrapper.findAll('button')
-    await buttons[2].trigger('click')
+    await wrapper.get('[data-testid="note-more-delete-action"]').trigger('click')
     await flushPromises()
 
     expect(deleteNoteMock).toHaveBeenCalledWith(expect.objectContaining({

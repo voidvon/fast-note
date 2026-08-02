@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { Note } from '@/shared/types'
-import { IonButton, IonModal } from '@ionic/vue'
 import { computed, reactive, watch } from 'vue'
 import { useDeviceType } from '@/shared/lib/device'
+import { F7Button, F7Modal } from '@/shared/ui/f7'
 import { useNoteLock } from '../model/use-note-lock'
 
 const props = withDefaults(defineProps<{
@@ -200,7 +200,7 @@ async function handleChangePin() {
 </script>
 
 <template>
-  <IonModal
+  <F7Modal
     :is-open="isOpen"
     :breakpoints="modalBreakpoints"
     :initial-breakpoint="modalInitialBreakpoint"
@@ -281,13 +281,13 @@ async function handleChangePin() {
             >
           </label>
 
-          <IonButton
+          <F7Button
             data-testid="note-lock-manage-submit-pin"
             :disabled="!canSubmitPin"
             @click="handleChangePin"
           >
             {{ state.isSubmitting ? '处理中...' : '确认修改' }}
-          </IonButton>
+          </F7Button>
         </div>
 
         <div v-if="state.errorMessage" data-testid="note-lock-manage-error" class="note-lock-manage-modal__error">
@@ -295,13 +295,13 @@ async function handleChangePin() {
         </div>
       </div>
     </div>
-  </IonModal>
+  </F7Modal>
 </template>
 
 <style lang="scss">
 .note-lock-manage-modal {
-  --height: auto;
-  --border-radius: 24px 24px 0 0;
+  --f7-sheet-height: auto;
+  --f7-sheet-border-radius: 24px;
   --note-lock-manage-panel-bg: var(--c-blue-gray-900);
   --note-lock-manage-text: var(--c-text-primary);
   --note-lock-manage-muted: var(--c-text-secondary);
@@ -316,8 +316,8 @@ async function handleChangePin() {
   --note-lock-manage-error-bg: color-mix(in srgb, var(--danger) 18%, var(--c-blue-gray-800));
   --note-lock-manage-error-text: var(--c-text-primary);
 
-  &::part(content) {
-    max-width: 480px;
+  > .sheet-modal-inner {
+    width: min(480px, 100%);
     margin: auto;
   }
 }

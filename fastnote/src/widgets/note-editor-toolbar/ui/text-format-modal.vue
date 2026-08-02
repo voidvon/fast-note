@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type { Editor } from '@tiptap/vue-3'
-import { IonButton, IonIcon, IonModal, IonText } from '@ionic/vue'
-import { closeCircle } from 'ionicons/icons'
 import { onMounted, ref } from 'vue'
+import { F7Button, F7Icon, F7Modal, F7Text } from '@/shared/ui/f7'
 import Icon from '@/shared/ui/icon'
+import { closeCircle } from '@/shared/ui/icons'
 
 withDefaults(defineProps<{
   isOpen: boolean
@@ -22,7 +22,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <IonModal
+  <F7Modal
     ref="modalRef"
     v-bind="$attrs"
     :is-open
@@ -33,122 +33,122 @@ onMounted(() => {
   >
     <div class="text-format-modal-content px-5">
       <div class="flex justify-between items-center">
-        <IonText>
+        <F7Text>
           <h3>格式</h3>
-        </IonText>
-        <IonButton fill="clear" class="close-btn mr-[-8px]" @click="$emit('update:isOpen', false)">
-          <IonIcon slot="icon-only" :icon="closeCircle" />
-        </IonButton>
+        </F7Text>
+        <F7Button fill="clear" class="close-btn mr-[-8px]" @click="$emit('update:isOpen', false)">
+          <F7Icon slot="icon-only" :icon="closeCircle" />
+        </F7Button>
       </div>
       <div class="font-size flex items-center justify-between">
-        <IonButton
+        <F7Button
           :fill="editor.isActive('heading', { level: 1 }) ? undefined : 'clear'"
           size="small"
           @click="editor.chain().focus().toggleHeading({ level: 1 }).run()"
         >
           <h1>标题</h1>
-        </IonButton>
-        <IonButton
+        </F7Button>
+        <F7Button
           :fill="editor.isActive('heading', { level: 2 }) ? undefined : 'clear'"
           size="small"
           @click="editor.chain().focus().toggleHeading({ level: 2 }).run()"
         >
           <h2>副标题</h2>
-        </IonButton>
-        <IonButton
+        </F7Button>
+        <F7Button
           :fill="editor.isActive('heading', { level: 3 }) ? undefined : 'clear'"
           size="small"
           @click="editor.chain().focus().toggleHeading({ level: 3 }).run()"
         >
           <h3>小标题</h3>
-        </IonButton>
-        <IonButton
+        </F7Button>
+        <F7Button
           :fill="editor.isActive('paragraph') ? undefined : 'clear'"
           class="text-4"
           size="small"
           @click="editor.chain().focus().setParagraph().run()"
         >
           正文
-        </IonButton>
+        </F7Button>
       </div>
       <div class="font-style flex">
-        <IonButton
+        <F7Button
           :fill="editor.isActive('bold') ? undefined : 'clear'"
           expand="full"
           @click="editor.chain().focus().toggleBold().run()"
         >
           <Icon name="bold" class="text-6" />
-        </IonButton>
-        <IonButton
+        </F7Button>
+        <F7Button
           :fill="editor.isActive('italic') ? undefined : 'clear'"
           expand="full"
           @click="editor.chain().focus().toggleItalic().run()"
         >
           <Icon name="italic" class="text-6" />
-        </IonButton>
-        <IonButton
+        </F7Button>
+        <F7Button
           :fill="editor.isActive('underline') ? undefined : 'clear'"
           expand="full"
           @click="editor.chain().focus().toggleUnderline().run()"
         >
           <Icon name="underline" class="text-6" />
-        </IonButton>
-        <IonButton
+        </F7Button>
+        <F7Button
           :fill="editor.isActive('strike') ? undefined : 'clear'"
           expand="full"
           @click="editor.chain().focus().toggleStrike().run()"
         >
           <Icon name="strikethrough" class="text-6" />
-        </IonButton>
+        </F7Button>
       </div>
       <div class="flex">
         <div class="list-format flex flex-1">
-          <IonButton
+          <F7Button
             :fill="editor.isActive('bulletList') ? undefined : 'clear'"
             expand="full"
             @click="editor.chain().focus().toggleBulletList().run()"
           >
             <Icon name="unorderedlist" class="text-6" />
-          </IonButton>
-          <IonButton
+          </F7Button>
+          <F7Button
             :fill="editor.isActive('orderedList') ? undefined : 'clear'"
             expand="full"
             @click="editor.chain().focus().toggleOrderedList().run()"
           >
             <Icon name="orderedlist" class="text-6" />
-          </IonButton>
+          </F7Button>
         </div>
         <div class="list-indent flex flex-1">
-          <IonButton
+          <F7Button
             fill="clear"
             expand="full"
             @click="editor.chain().focus().liftListItem('listItem').run()"
           >
             <Icon name="outdent" class="text-6" />
-          </IonButton>
-          <IonButton
+          </F7Button>
+          <F7Button
             fill="clear"
             expand="full"
             @click="editor.chain().focus().sinkListItem('listItem').run()"
           >
             <Icon name="indent" class="text-6" />
-          </IonButton>
+          </F7Button>
         </div>
       </div>
     </div>
-  </IonModal>
+  </F7Modal>
 </template>
 
 <style lang="scss">
 .text-format-modal-content {
   .close-btn {
     --color: var(--c-blue-gray-300);
-    ion-icon {
+    .app-icon {
       font-size: 28px;
     }
   }
   .font-size {
-    ion-button {
+    .app-button {
       --color: var(--c-gray-0);
       --padding-start: 10px;
       --padding-end: 10px;
@@ -162,7 +162,7 @@ onMounted(() => {
   .font-style,
   .list-format,
   .list-indent {
-    ion-button {
+    .app-button {
       --background: var(--primary);
       --color: var(--c-gray-0);
       --background-activated: var(--primary);

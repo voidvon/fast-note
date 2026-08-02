@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type { Note } from '@/shared/types'
-import { IonButton, IonIcon, IonModal, IonToggle, toastController } from '@ionic/vue'
-import { copyOutline, globeOutline, linkOutline } from 'ionicons/icons'
 import { computed, ref } from 'vue'
 import { copyText } from '@/shared/lib/clipboard'
+import { F7Button, F7Icon, F7Modal, F7Toggle, toastController } from '@/shared/ui/f7'
+import { copyOutline, globeOutline, linkOutline } from '@/shared/ui/icons'
 import { buildPublicNoteUrl, usePublicNoteAccess } from '../model/use-public-note-share'
 
 const props = defineProps<{
@@ -74,7 +74,7 @@ async function copyPublicLink() {
 </script>
 
 <template>
-  <IonModal
+  <F7Modal
     :is-open="isOpen"
     :initial-breakpoint="1"
     :breakpoints="[0, 1]"
@@ -84,12 +84,12 @@ async function copyPublicLink() {
     <section class="public-note-access-panel">
       <header class="public-note-access-header">
         <div class="public-note-access-title">
-          <IonIcon :icon="globeOutline" aria-hidden="true" />
+          <F7Icon :icon="globeOutline" aria-hidden="true" />
           <h2>公开设置</h2>
         </div>
-        <IonButton fill="clear" size="small" @click="emit('update:isOpen', false)">
+        <F7Button fill="clear" size="small" @click="emit('update:isOpen', false)">
           完成
-        </IonButton>
+        </F7Button>
       </header>
 
       <div class="public-note-access-control">
@@ -97,40 +97,39 @@ async function copyPublicLink() {
           <strong>公开访问</strong>
           <p>{{ isPublic ? '任何获得链接的人都可以查看' : '仅你自己可以查看' }}</p>
         </div>
-        <IonToggle
+        <F7Toggle
           aria-label="公开访问"
           :checked="isPublic"
           :disabled="isUpdating"
-          @ion-change="onPublicChange"
+          @f7-change="onPublicChange"
         />
       </div>
 
       <div v-if="isPublic" class="public-note-access-link">
         <div class="public-note-access-url">
-          <IonIcon :icon="linkOutline" aria-hidden="true" />
+          <F7Icon :icon="linkOutline" aria-hidden="true" />
           <span>{{ publicUrl || '暂时无法生成公开链接' }}</span>
         </div>
-        <IonButton
+        <F7Button
           fill="clear"
           :disabled="!publicUrl"
           title="复制公开链接"
           aria-label="复制公开链接"
           @click="copyPublicLink"
         >
-          <IonIcon slot="icon-only" :icon="copyOutline" />
-        </IonButton>
+          <F7Icon slot="icon-only" :icon="copyOutline" />
+        </F7Button>
       </div>
     </section>
-  </IonModal>
+  </F7Modal>
 </template>
 
 <style lang="scss">
 .public-note-access-modal {
-  --height: fit-content;
-  --max-height: 360px;
-  --border-radius: 16px 16px 0 0;
+  --f7-sheet-height: fit-content;
+  --f7-sheet-border-radius: 16px;
 
-  &::part(content) {
+  > .sheet-modal-inner {
     max-height: 360px;
   }
 }
@@ -158,10 +157,10 @@ async function copyPublicLink() {
 .public-note-access-title {
   gap: 10px;
 
-  ion-icon {
+  .app-icon {
     width: 22px;
     height: 22px;
-    color: var(--ion-color-success);
+    color: var(--app-color-success);
   }
 
   h2 {
@@ -202,7 +201,7 @@ async function copyPublicLink() {
   gap: 8px;
   min-width: 0;
 
-  ion-icon {
+  .app-icon {
     flex: 0 0 auto;
   }
 

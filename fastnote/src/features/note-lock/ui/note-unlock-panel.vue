@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { NoteLockViewState } from '@/features/note-lock'
-import { IonButton, IonIcon } from '@ionic/vue'
-import { lockClosed } from 'ionicons/icons'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { F7Block, F7Button, F7Icon, F7List, F7ListInput } from '@/shared/ui/f7'
+import { lockClosed } from '@/shared/ui/icons'
 
 const props = withDefaults(defineProps<{
   biometricEnabled?: boolean
@@ -51,6 +51,10 @@ const canSubmit = computed(() => {
   return !props.isSubmitting && !isCooldownActive.value && pin.value.length === 6
 })
 
+const statusMessage = computed(() => {
+  return props.errorMessage || cooldownText.value || (props.failedAttempts ? `已连续失败 ${props.failedAttempts} 次` : '')
+})
+
 watch(() => props.lockViewState, () => {
   if (props.lockViewState !== 'unlocked') {
     pin.value = ''
@@ -97,149 +101,59 @@ function submit() {
 </script>
 
 <template>
-  <div data-testid="note-unlock-panel" class="note-unlock-panel">
-    <div class="note-unlock-panel__card">
-      <div class="note-unlock-panel__icon">
-        <IonIcon :icon="lockClosed" />
-      </div>
-      <h2>备忘录已锁定</h2>
-      <p class="note-unlock-panel__subtitle">
+  <div
+    data-testid="note-unlock-panel"
+    class="display-flex flex-direction-column justify-content-center"
+  >
+    <F7Block inset class="text-align-center margin-bottom-half">
+      <F7Icon :icon="lockClosed" size="24" />
+      <p>
         输入备忘录密码以查看
       </p>
+    </F7Block>
 
-      <IonButton
-        v-if="biometricEnabled && deviceSupportsBiometric"
-        data-testid="note-unlock-panel-biometric"
-        :disabled="isSubmitting || isCooldownActive"
-        fill="clear"
-        class="note-unlock-panel__biometric"
-        @click="$emit('tryBiometric')"
-      >
-        尝试生物识别
-      </IonButton>
-
-      <label class="note-unlock-panel__field">
-        <input
-          data-testid="note-unlock-panel-pin"
+    <F7Block inset class="display-flex justify-content-center no-margin-vertical">
+      <F7List strong inset class="display-inline-block width-auto no-margin-vertical">
+        <F7ListInput
+          data-testid="note-unlock-panel-pin-field"
           :value="pin"
           :disabled="isCooldownActive"
+          :error-message="statusMessage"
+          :error-message-force="!!statusMessage"
           autocomplete="new-password"
+          input-id="note-unlock-panel-pin"
           inputmode="numeric"
           maxlength="6"
           name="note-unlock-pin"
           placeholder="输入密码"
+          size="8"
           type="password"
           @input="normalizePinValue(($event.target as HTMLInputElement).value)"
           @keyup.enter="submit"
-        >
-      </label>
+        />
+      </F7List>
+    </F7Block>
 
-      <div
-        v-if="errorMessage || cooldownText || failedAttempts"
-        data-testid="note-unlock-panel-message"
-        class="note-unlock-panel__message"
-      >
-        {{ errorMessage || cooldownText || `已连续失败 ${failedAttempts} 次` }}
-      </div>
-
-      <IonButton
+    <F7Block inset class="margin-vertical-half">
+      <F7Button
         data-testid="note-unlock-panel-submit"
         :disabled="!canSubmit"
-        class="note-unlock-panel__submit"
+        fill
+        large
         @click="submit"
       >
         {{ isSubmitting ? '解锁中...' : '解锁' }}
-      </IonButton>
-    </div>
+      </F7Button>
+
+      <F7Button
+        v-if="biometricEnabled && deviceSupportsBiometric"
+        data-testid="note-unlock-panel-biometric"
+        :disabled="isSubmitting || isCooldownActive"
+        large
+        @click="$emit('tryBiometric')"
+      >
+        尝试生物识别
+      </F7Button>
+    </F7Block>
   </div>
 </template>
-
-<style lang="scss">
-.note-unlock-panel {
-  --note-unlock-text: var(--c-text-primary);
-  --note-unlock-muted: var(--c-text-secondary);
-  --note-unlock-icon-text: var(--c-blue-gray-700);
-  --note-unlock-input-border: var(--c-border);
-  --note-unlock-input-focus: var(--primary);
-  --note-unlock-input-ring: color-mix(in srgb, var(--primary) 24%, transparent);
-  min-height: calc(100vh - 112px);
-  display: grid;
-  place-items: center;
-  padding: 24px 20px;
-}
-
-.note-unlock-panel__card {
-  width: min(100%, 420px);
-  padding: 12px 0;
-  text-align: center;
-
-  h2 {
-    margin: 12px 0 0;
-    font-size: 24px;
-    font-weight: 600;
-    color: var(--note-unlock-text);
-  }
-}
-
-.note-unlock-panel__subtitle {
-  margin: 8px 0 0;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--note-unlock-muted);
-}
-
-.note-unlock-panel__icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--note-unlock-icon-text);
-
-  ion-icon {
-    font-size: 64px;
-  }
-}
-
-.note-unlock-panel__biometric {
-  margin-top: 14px;
-}
-
-.note-unlock-panel__field {
-  margin-top: 28px;
-  display: flex;
-  justify-content: center;
-
-  input {
-    width: min(100%, 220px);
-    border: 1px solid var(--note-unlock-input-border);
-    border-radius: 10px;
-    padding: 12px 14px;
-    background: transparent;
-    font-size: 16px;
-    color: var(--note-unlock-text);
-    text-align: center;
-    outline: none;
-
-    &::placeholder {
-      color: var(--note-unlock-muted);
-    }
-
-    &:focus {
-      border-color: var(--note-unlock-input-focus);
-      box-shadow: 0 0 0 3px var(--note-unlock-input-ring);
-    }
-  }
-}
-
-.note-unlock-panel__message {
-  margin-top: 14px;
-  color: var(--danger);
-  text-align: center;
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.note-unlock-panel__submit {
-  margin-top: 18px;
-  width: min(100%, 220px);
-}
-</style>

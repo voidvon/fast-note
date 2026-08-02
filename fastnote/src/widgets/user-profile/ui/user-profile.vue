@@ -1,41 +1,38 @@
 <script setup lang="ts">
+import type { F7LoadingElement } from '@/shared/ui/f7'
 import {
-  alertController,
-  IonAvatar,
-  IonButton,
-  IonCol,
-  IonContent,
-  IonGrid,
-  IonHeader,
-  IonIcon,
-  IonImg,
-  IonItem,
-  IonLabel,
-  IonList,
-  IonModal,
-  IonRow,
-  IonTitle,
-  IonToolbar,
-  loadingController,
-  useIonRouter,
-} from '@ionic/vue'
-import {
-  closeOutline,
-  logInOutline,
-  logOutOutline,
-  personCircleOutline,
-  syncOutline,
-  warningOutline,
-} from 'ionicons/icons'
+  f7Block as F7Block,
+  f7BlockTitle as F7BlockTitle,
+  f7Link as F7Link,
+  f7List as F7List,
+  f7ListItem as F7ListItem,
+  f7PageContent as F7PageContent,
+  f7Button as F7SheetButton,
+  f7Toolbar as F7Toolbar,
+} from 'framework7-vue'
 import { computed, onMounted, ref } from 'vue'
 import { useAuth } from '@/processes/session'
 import { useSync } from '@/processes/sync-notes'
 import { useDeviceType } from '@/shared/lib/device'
+import {
+  alertController,
+  F7Avatar,
+  F7Button,
+  F7Icon,
+  F7Image,
+  F7Modal,
+  loadingController,
+  useAppRouter,
+} from '@/shared/ui/f7'
+import {
+  logInOutline,
+  personCircleOutline,
+} from '@/shared/ui/icons'
 
 // 获取全局版本号
 const version = (window as any).version
 
-const router = useIonRouter()
+const router = useAppRouter()
 const { isDesktop } = useDeviceType()
 const { bidirectionalSync, syncing, syncStatus, getLocalDataStats } = useSync()
 const { avatarUrl, currentUser, isLoggedIn, logout } = useAuth()
@@ -49,6 +46,22 @@ const modalInitialBreakpoint = computed(() => (isDesktop.value ? undefined : 0.7
 // 同步相关状态
 const syncResult = ref<{ uploaded: number, downloaded: number, deleted: number } | null>(null)
 const localStats = ref<{ notes: number } | null>(null)
+const profileInitial = computed(() => currentUser.value?.username?.trim().charAt(0).toUpperCase() || '?')
+const registrationDate = computed(() => currentUser.value?.created
+  ? new Date(currentUser.value.created).toLocaleDateString('zh-CN')
+  : '')
+const syncResultSummary = computed(() => syncResult.value
+  ? `上传 ${syncResult.value.uploaded}，下载 ${syncResult.value.downloaded}，删除 ${syncResult.value.deleted}`
+  : '')
+const attachmentHasWarning = computed(() => syncStatus.value.attachments.failed + syncStatus.value.attachments.missing > 0)
+const attachmentSummary = computed(() => {
+  const attachments = syncStatus.value.attachments
+  if (attachments.quotaExceeded)
+    return '设备存储空间不足，附件可在需要时重新下载'
+  if (attachmentHasWarning.value)
+    return `已缓存 ${attachments.ready}/${attachments.total}，失败 ${attachments.failed + attachments.missing}，点击附件可重试`
+  return `已缓存 ${attachments.ready}/${attachments.total}，其余附件将在查看时下载`
+})
 
 function handleLogin() {
   router.push('/login')
@@ -113,7 +126,7 @@ async function loadLocalStats() {
 
 // 处理同步功能
 async function handleSync() {
-  let loading: HTMLIonLoadingElement | null = null
+  let loading: F7LoadingElement | null = null
 
   try {
     loading = await loadingController.create({
@@ -162,44 +175,45 @@ onMounted(() => {
 <template>
   <!-- 头部用户信息按钮 -->
   <div class="flex items-center">
-    <IonButton
+    <F7Button
       v-if="!isLoggedIn"
       fill="clear"
       size="small"
       @click="handleLogin"
     >
-      <IonIcon slot="icon-only" :icon="logInOutline" />
-    </IonButton>
+      <F7Icon slot="icon-only" :icon="logInOutline" />
+    </F7Button>
 
-    <IonButton
+    <F7Button
       v-else
+      data-testid="user-profile-trigger"
       fill="clear"
       size="small"
       style="--padding-start: 0px;"
       @click="openModal"
     >
       <div class="flex items-center space-x-1 bg-primary c-gray-100 rounded-full p-[1px]">
-        <IonAvatar class="w-6 h-6">
-          <IonImg
+        <F7Avatar class="w-6 h-6">
+          <F7Image
             v-if="currentUser && avatarUrl"
             :src="avatarUrl"
             :alt="currentUser?.username || '用户头像'"
           />
-          <IonIcon
+          <F7Icon
             v-else
             :icon="personCircleOutline"
             class="w-full h-full"
           />
-        </IonAvatar>
+        </F7Avatar>
         <div class="pr-2">
           {{ currentUser?.username }}
         </div>
       </div>
-    </IonButton>
+    </F7Button>
   </div>
 
   <!-- 用户信息详情弹窗 -->
-  <IonModal
+  <F7Modal
     class="user-profile-modal"
     :is-open="isModalOpen"
     :breakpoints="modalBreakpoints"
@@ -207,176 +221,153 @@ onMounted(() => {
     :class="{ 'user-profile-modal--desktop': isDesktop }"
     @did-dismiss="closeModal"
   >
-    <IonHeader>
-      <IonToolbar>
-        <IonTitle>用户信息</IonTitle>
-        <IonButton
-          slot="end"
-          fill="clear"
-          @click="closeModal"
-        >
-          <IonIcon :icon="closeOutline" />
-        </IonButton>
-      </IonToolbar>
-    </IonHeader>
+    <F7Toolbar top class="user-profile-modal__toolbar">
+      <div class="left user-profile-modal__title">
+        用户信息
+      </div>
+      <div class="right">
+        <F7Link @click="closeModal">
+          完成
+        </F7Link>
+      </div>
+    </F7Toolbar>
 
-    <component
-      :is="isDesktop ? 'div' : IonContent"
-      class="user-profile-modal__body ion-padding"
+    <F7PageContent
+      class="user-profile-modal__body"
       :class="{ 'user-profile-modal__body--desktop': isDesktop }"
     >
-      <IonGrid>
-        <IonRow>
-          <IonCol size="12">
-            <!-- 用户基本信息 -->
-            <IonList>
-              <IonItem>
-                <IonLabel>
-                  <h3>用户名</h3>
-                  <p>{{ currentUser?.username }}</p>
-                </IonLabel>
-                <IonAvatar slot="end" class="w-10 h-10">
-                  <IonImg
-                    v-if="currentUser && avatarUrl"
-                    :src="avatarUrl"
-                    :alt="currentUser?.username || '用户头像'"
-                  />
-                  <IonIcon
-                    v-else
-                    :icon="personCircleOutline"
-                    class="w-full h-full text-gray-400"
-                  />
-                </IonAvatar>
-              </IonItem>
+      <F7BlockTitle>账户</F7BlockTitle>
+      <F7List strong inset dividers media-list>
+        <F7ListItem
+          :title="currentUser?.username || '未命名用户'"
+          :subtitle="currentUser?.email || '未设置邮箱'"
+        >
+          <template #media>
+            <img
+              v-if="currentUser && avatarUrl"
+              class="user-profile-modal__avatar"
+              :src="avatarUrl"
+              :alt="currentUser.username || '用户头像'"
+            >
+            <span v-else class="user-profile-modal__avatar user-profile-modal__avatar--fallback" aria-hidden="true">
+              {{ profileInitial }}
+            </span>
+          </template>
+        </F7ListItem>
+        <F7ListItem v-if="registrationDate" title="注册时间" :after="registrationDate" />
+      </F7List>
 
-              <IonItem v-if="currentUser?.email">
-                <IonLabel>
-                  <h3>邮箱</h3>
-                  <p>{{ currentUser.email }}</p>
-                </IonLabel>
-              </IonItem>
+      <F7BlockTitle>数据与同步</F7BlockTitle>
+      <F7List strong inset dividers>
+        <F7ListItem title="本地笔记" :after="`${localStats?.notes ?? '加载中...'} 条`" />
+        <F7ListItem v-if="syncResultSummary" title="上次同步结果" :footer="syncResultSummary" />
+        <F7ListItem
+          v-if="syncStatus.lastSyncTime"
+          title="上次同步时间"
+          :footer="syncStatus.lastSyncTime.toLocaleString('zh-CN')"
+        />
+        <F7ListItem
+          v-if="syncStatus.attachments.total > 0"
+          title="附件缓存"
+          :footer="attachmentSummary"
+          :text-color="attachmentHasWarning ? 'orange' : undefined"
+        />
+        <F7ListItem
+          v-if="syncStatus.error"
+          title="同步错误"
+          :footer="syncStatus.error"
+          text-color="red"
+        />
+      </F7List>
 
-              <IonItem v-if="currentUser?.created">
-                <IonLabel>
-                  <h3>注册时间</h3>
-                  <p>{{ new Date(currentUser.created).toLocaleDateString('zh-CN') }}</p>
-                </IonLabel>
-              </IonItem>
+      <F7BlockTitle>应用</F7BlockTitle>
+      <F7List strong inset dividers>
+        <F7ListItem title="版本号" :after="version" />
+      </F7List>
 
-              <IonItem>
-                <IonLabel>
-                  <h3>本地笔记数量</h3>
-                  <p>{{ localStats?.notes ?? '加载中...' }} 条</p>
-                </IonLabel>
-              </IonItem>
-
-              <IonItem v-if="syncResult">
-                <IonLabel>
-                  <h3>上次同步结果</h3>
-                  <p>上传: {{ syncResult.uploaded }} 条, 下载: {{ syncResult.downloaded }} 条, 删除: {{ syncResult.deleted }} 条</p>
-                </IonLabel>
-              </IonItem>
-
-              <IonItem v-if="syncStatus.lastSyncTime">
-                <IonLabel>
-                  <h3>上次同步时间</h3>
-                  <p>{{ syncStatus.lastSyncTime.toLocaleString('zh-CN') }}</p>
-                </IonLabel>
-              </IonItem>
-
-              <IonItem v-if="syncStatus.attachments.total > 0">
-                <IonLabel :color="syncStatus.attachments.failed + syncStatus.attachments.missing > 0 ? 'warning' : undefined">
-                  <h3>附件缓存</h3>
-                  <p v-if="syncStatus.attachments.quotaExceeded">
-                    设备存储空间不足，附件可在需要时重新下载
-                  </p>
-                  <p v-else-if="syncStatus.attachments.failed + syncStatus.attachments.missing > 0">
-                    已缓存 {{ syncStatus.attachments.ready }}/{{ syncStatus.attachments.total }}，失败 {{ syncStatus.attachments.failed + syncStatus.attachments.missing }}，点击附件可重试
-                  </p>
-                  <p v-else>
-                    已缓存 {{ syncStatus.attachments.ready }}/{{ syncStatus.attachments.total }}，其余附件将在查看时下载
-                  </p>
-                </IonLabel>
-                <IonIcon
-                  v-if="syncStatus.attachments.failed + syncStatus.attachments.missing > 0"
-                  slot="end"
-                  :icon="warningOutline"
-                  color="warning"
-                />
-              </IonItem>
-
-              <IonItem v-if="syncStatus.error">
-                <IonLabel color="danger">
-                  <h3>同步错误</h3>
-                  <p>{{ syncStatus.error }}</p>
-                </IonLabel>
-                <IonIcon slot="end" :icon="warningOutline" color="danger" />
-              </IonItem>
-
-              <IonItem>
-                <IonLabel>
-                  <h3>版本号</h3>
-                  <p>{{ version }}</p>
-                </IonLabel>
-              </IonItem>
-            </IonList>
-
-            <!-- 操作按钮 -->
-            <div class="flex mt-4 flex-col space-y-3">
-              <IonButton
-                v-if="isLoggedIn"
-                expand="block"
-                color="primary"
-                :disabled="syncing || isLoading"
-                @click="handleSync"
-              >
-                <IonIcon slot="start" :icon="syncOutline" />
-                {{ syncing ? '同步中...' : '同步数据' }}
-              </IonButton>
-
-              <IonButton
-                expand="block"
-                color="danger"
-                @click="handleLogout"
-              >
-                <IonIcon slot="start" :icon="logOutOutline" />
-                退出登录
-              </IonButton>
-            </div>
-          </IonCol>
-        </IonRow>
-      </IonGrid>
-    </component>
-  </IonModal>
+      <F7Block inset class="user-profile-modal__actions">
+        <F7SheetButton
+          v-if="isLoggedIn"
+          fill
+          large
+          :loading="syncing"
+          :disabled="syncing || isLoading"
+          @click="handleSync"
+        >
+          {{ syncing ? '同步中...' : '同步数据' }}
+        </F7SheetButton>
+        <F7SheetButton
+          outline
+          large
+          color="red"
+          :disabled="isLoading"
+          @click="handleLogout"
+        >
+          退出登录
+        </F7SheetButton>
+      </F7Block>
+    </F7PageContent>
+  </F7Modal>
 </template>
 
 <style lang="scss">
 .user-profile-modal {
-  --border-radius: 24px 24px 0 0;
+  --f7-sheet-height: 100vh;
+  --f7-sheet-border-radius: 24px;
 
-  &::part(content) {
-    max-width: 520px;
+  > .sheet-modal-inner {
+    width: min(520px, 100%);
     margin: auto;
   }
 }
 
 .user-profile-modal--desktop {
-  --height: auto;
-  --width: min(520px, calc(100vw - 32px));
+  --f7-sheet-height: min(80vh, 720px);
 
-  &::part(content) {
+  > .sheet-modal-inner {
     max-height: min(80vh, 720px);
   }
 }
 
-.user-profile-modal__body--desktop {
-  overflow-y: auto;
+.user-profile-modal__toolbar {
+  --f7-toolbar-bg-color: var(--c-list-background);
+  --f7-toolbar-border-color: var(--c-border);
 }
-</style>
 
-<style lang="scss">
-.example-test {
-  // 打包出空css导致edgeone 404
-  color: red;
+.user-profile-modal__title {
+  padding-left: 16px;
+  color: var(--c-text-primary);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.user-profile-modal__body {
+  --f7-page-toolbar-top-offset: var(--f7-toolbar-height);
+
+  overflow-y: auto;
+  background: var(--c-page-background);
+}
+
+.user-profile-modal__avatar {
+  display: block;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.user-profile-modal__avatar--fallback {
+  display: grid;
+  place-items: center;
+  background: var(--f7-theme-color);
+  color: var(--c-gray-0);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.user-profile-modal__actions {
+  display: grid;
+  gap: 12px;
+  padding-bottom: calc(16px + var(--f7-safe-area-bottom));
 }
 </style>

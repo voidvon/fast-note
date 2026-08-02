@@ -2,7 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick, ref } from 'vue'
 
-function createIonicStub(name: string, tag = 'div') {
+function createF7Stub(name: string, tag = 'div') {
   return defineComponent({
     name,
     inheritAttrs: false,
@@ -43,7 +43,7 @@ function createInputStub(name: string) {
     },
     emits: ['update:modelValue'],
     setup(props, { attrs, emit }) {
-      return () => h('label', { ...attrs, 'data-ion-input': name }, [
+      return () => h('label', { ...attrs, 'data-f7-input': name }, [
         props.label ? h('span', props.label) : null,
         h('input', {
           value: props.modelValue,
@@ -72,11 +72,11 @@ function createTextareaStub(name: string) {
         spellcheck: attrs.spellcheck,
         class: attrs.class,
         onFocus: (event: FocusEvent) => {
-          ;(attrs.onIonFocus as ((event: FocusEvent) => void) | undefined)?.(event)
+          ;(attrs.onF7Focus as ((event: FocusEvent) => void) | undefined)?.(event)
           ;(attrs.onFocus as ((event: FocusEvent) => void) | undefined)?.(event)
         },
         onInput: (event: Event) => {
-          ;(attrs.onIonInput as ((event: { detail: { event: Event, value: string }, target: EventTarget | null }) => void) | undefined)?.({
+          ;(attrs.onF7Input as ((event: { detail: { event: Event, value: string }, target: EventTarget | null }) => void) | undefined)?.({
             detail: {
               event,
               value: (event.target as HTMLTextAreaElement).value,
@@ -105,7 +105,7 @@ function createModalStub(name: string) {
     },
     setup(props, { attrs, slots }) {
       return () => props.isOpen
-        ? h('div', { ...attrs, 'data-ion-modal': name }, slots.default ? slots.default() : [])
+        ? h('div', { ...attrs, 'data-f7-modal': name }, slots.default ? slots.default() : [])
         : null
     },
   })
@@ -195,24 +195,25 @@ function setupModuleMocks() {
     }
   })
 
-  vi.doMock('@ionic/vue', () => ({
-    IonButton: createButtonStub('IonButton'),
-    IonButtons: createIonicStub('IonButtons'),
-    IonChip: createIonicStub('IonChip'),
-    IonContent: createIonicStub('IonContent'),
-    IonAlert: createModalStub('IonAlert'),
-    IonIcon: createIonicStub('IonIcon'),
-    IonInput: createInputStub('IonInput'),
-    IonTextarea: createTextareaStub('IonTextarea'),
-    IonItem: createIonicStub('IonItem'),
-    IonLabel: createIonicStub('IonLabel', 'span'),
-    IonList: createIonicStub('IonList'),
-    IonModal: createModalStub('IonModal'),
-    IonNote: createIonicStub('IonNote', 'span'),
-    IonSpinner: createIonicStub('IonSpinner', 'span'),
-    IonHeader: createIonicStub('IonHeader'),
-    IonToolbar: createIonicStub('IonToolbar'),
-    IonTitle: createIonicStub('IonTitle', 'span'),
+  vi.doMock('@/shared/ui/f7', () => ({
+    F7Button: createButtonStub('F7Button'),
+    F7Buttons: createF7Stub('F7Buttons'),
+    F7Chip: createF7Stub('F7Chip'),
+    F7Content: createF7Stub('F7Content'),
+    F7Alert: createModalStub('F7Alert'),
+    F7Icon: createF7Stub('F7Icon'),
+    F7Input: createInputStub('F7Input'),
+    F7Searchbar: createTextareaStub('F7Searchbar'),
+    F7Textarea: createTextareaStub('F7Textarea'),
+    F7Item: createF7Stub('F7Item'),
+    F7Label: createF7Stub('F7Label', 'span'),
+    F7List: createF7Stub('F7List'),
+    F7Modal: createModalStub('F7Modal'),
+    F7Note: createF7Stub('F7Note', 'span'),
+    F7Spinner: createF7Stub('F7Spinner', 'span'),
+    F7Header: createF7Stub('F7Header'),
+    F7Toolbar: createF7Stub('F7Toolbar'),
+    F7Title: createF7Stub('F7Title', 'span'),
   }))
 }
 
@@ -227,7 +228,7 @@ async function mountGlobalSearch() {
 }
 
 async function ensureAiMode(wrapper: Awaited<ReturnType<typeof mountGlobalSearch>>) {
-  const input = wrapper.get('textarea')
+  const input = wrapper.get('input, textarea')
 
   await input.trigger('focus')
   await nextTick()

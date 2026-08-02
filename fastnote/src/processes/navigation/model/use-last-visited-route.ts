@@ -1,4 +1,4 @@
-import type { Router } from 'vue-router'
+import type { AppRouter } from '@/shared/lib/framework7'
 import { onBeforeUnmount } from 'vue'
 import { createScopedStorageKey } from '@/shared/lib/user-scope'
 
@@ -55,7 +55,7 @@ export function useLastVisitedRoute() {
     localStorage.setItem(getLastVisitedRouteStorageKey(userId), fullPath)
   }
 
-  const saveCurrentRoute = (router: Router, userId?: string | null) => {
+  const saveCurrentRoute = (router: AppRouter, userId?: string | null) => {
     const currentRoute = router.currentRoute.value
     if (currentRoute.name !== 'Login' && currentRoute.name !== 'Register') {
       saveVisitedRoute(currentRoute.fullPath, userId)
@@ -70,7 +70,7 @@ export function useLastVisitedRoute() {
     localStorage.removeItem(getLastVisitedRouteStorageKey(userId))
   }
 
-  const restoreLastVisitedRoute = async (router: Router, userId?: string | null, mode: RouteRestoreMode = 'all') => {
+  const restoreLastVisitedRoute = async (router: AppRouter, userId?: string | null, mode: RouteRestoreMode = 'all') => {
     const lastRoute = getLastVisitedRoute(userId)
     if (!lastRoute)
       return null
@@ -90,15 +90,15 @@ export function useLastVisitedRoute() {
     return lastRoute
   }
 
-  const restoreImmediateLastVisitedRoute = (router: Router, userId?: string | null) => {
+  const restoreImmediateLastVisitedRoute = (router: AppRouter, userId?: string | null) => {
     return restoreLastVisitedRoute(router, userId, 'immediate')
   }
 
-  const restoreDeferredLastVisitedRoute = (router: Router, userId?: string | null) => {
+  const restoreDeferredLastVisitedRoute = (router: AppRouter, userId?: string | null) => {
     return restoreLastVisitedRoute(router, userId, 'deferred')
   }
 
-  const setupAutoSave = (router: Router, userId?: string | null) => {
+  const setupAutoSave = (router: AppRouter, userId?: string | null) => {
     const unwatch = router.afterEach(() => {
       saveCurrentRoute(router, userId)
     })

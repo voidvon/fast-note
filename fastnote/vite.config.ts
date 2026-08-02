@@ -56,7 +56,7 @@ export default defineConfig(({ mode }) => {
           target: apiProxyTarget,
           changeOrigin: true,
         },
-        '^/(?!home/?$|login/?$|register/?$|deleted/?$|api(?:/|$)|_)[^/.]+/?$': {
+        '^/(?!home/?$|login/?$|register/?$|deleted/?$|framework7-preview/?$|api(?:/|$)|_)[^/.]+/?$': {
           target: apiProxyTarget,
           changeOrigin: true,
         },

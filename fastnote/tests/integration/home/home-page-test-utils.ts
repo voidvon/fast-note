@@ -4,12 +4,12 @@ import { vi } from 'vitest'
 import { defineComponent, h, nextTick } from 'vue'
 import { getDesktopActiveNoteStorageKey } from '@/processes/navigation'
 
-function createIonicStub(name: string) {
+function createF7Stub(name: string) {
   return defineComponent({
     name,
     inheritAttrs: false,
     setup(_, { attrs, slots }) {
-      return () => h('div', { ...attrs, 'data-ionic-stub': name }, slots.default ? slots.default() : [])
+      return () => h('div', { ...attrs, 'data-f7-stub': name }, slots.default ? slots.default() : [])
     },
   })
 }
@@ -181,23 +181,28 @@ export async function mountHomePageForDesktopRestore(options: {
     default: noteDetailStub,
   }))
 
-  vi.doMock('@ionic/vue', async () => {
+  vi.doMock('@/shared/ui/f7', async () => {
     const { onMounted } = await import('vue')
 
     return {
-      IonAlert: createIonicStub('IonAlert'),
-      IonButton: createIonicStub('IonButton'),
-      IonButtons: createIonicStub('IonButtons'),
-      IonContent: createIonicStub('IonContent'),
-      IonFooter: createIonicStub('IonFooter'),
-      IonHeader: createIonicStub('IonHeader'),
-      IonIcon: createIonicStub('IonIcon'),
-      IonPage: createIonicStub('IonPage'),
-      IonRefresher: createIonicStub('IonRefresher'),
-      IonRefresherContent: createIonicStub('IonRefresherContent'),
-      IonTitle: createIonicStub('IonTitle'),
-      IonToolbar: createIonicStub('IonToolbar'),
-      onIonViewWillEnter: (callback: () => void) => onMounted(callback),
+      F7Alert: createF7Stub('F7Alert'),
+      F7Button: createF7Stub('F7Button'),
+      F7Buttons: createF7Stub('F7Buttons'),
+      F7Content: createF7Stub('F7Content'),
+      F7Footer: createF7Stub('F7Footer'),
+      F7Header: createF7Stub('F7Header'),
+      F7Icon: createF7Stub('F7Icon'),
+      F7Navbar: createF7Stub('F7Navbar'),
+      F7Page: createF7Stub('F7Page'),
+      F7PageContent: createF7Stub('F7PageContent'),
+      F7Refresher: createF7Stub('F7Refresher'),
+      F7RefresherContent: createF7Stub('F7RefresherContent'),
+      onF7ViewWillEnter: (callback: () => void) => onMounted(callback),
+      useAppRouter: () => ({
+        back: vi.fn(),
+        push: vi.fn(),
+        replace: vi.fn(),
+      }),
     }
   })
 

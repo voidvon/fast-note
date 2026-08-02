@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
-import { useRoute } from 'vue-router'
 import FolderPage from '@/pages/folder'
 import UserPublicNotesPage from '@/pages/user-public-notes'
 import { loadPublicNote } from '@/processes/public-notes'
 import { useDeviceType } from '@/shared/lib/device'
+import { useAppRoute } from '@/shared/lib/framework7'
 
-const route = useRoute()
+const route = useAppRoute()
 const { isDesktop } = useDeviceType()
 
 const username = computed(() => route.params.username as string || '')

@@ -1,11 +1,8 @@
 <script setup lang="ts">
 import type { LeaveFlushReason, SaveTargetContext } from '@/features/note-save'
 import type { Note } from '@/shared/types'
-import { IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonPage, IonSkeletonText, IonSpinner, IonToolbar, isPlatform, toastController } from '@ionic/vue'
-import { ellipsisHorizontalCircleOutline } from 'ionicons/icons'
 import { nanoid } from 'nanoid'
 import { computed, nextTick, reactive, ref, toRaw, watch } from 'vue'
-import { onBeforeRouteLeave, useRoute } from 'vue-router'
 import { garbageCollectAttachments, reconcileRemoteNoteAttachmentRefs } from '@/entities/attachment'
 import { useNote } from '@/entities/note'
 import { useUserPublicNotes } from '@/entities/public-note'
@@ -19,7 +16,10 @@ import { useNoteSave } from '@/features/note-save'
 import { useNoteBackButton } from '@/processes/navigation'
 import { useSync } from '@/processes/sync-notes'
 import { useDeviceType } from '@/shared/lib/device'
+import { useAppRoute } from '@/shared/lib/framework7'
 import { useVisualViewport } from '@/shared/lib/viewport'
+import { F7BackButton, F7Content, F7Icon, F7Link, F7Navbar, F7Page, F7SkeletonText, F7Spinner, isPlatform, onF7ViewWillLeave, toastController } from '@/shared/ui/f7'
+import { ellipsisHorizontalCircleOutline } from '@/shared/ui/icons'
 import YYEditor from '@/widgets/editor'
 import NoteEditorToolbar from '@/widgets/note-editor-toolbar'
 import NoteMore from '@/widgets/note-more'
@@ -30,22 +30,24 @@ const props = withDefaults(
     loading?: boolean
     noteId?: string
     parentId?: string
+    publicContext?: boolean
   }>(),
   {
     loadError: '',
     loading: false,
     noteId: '',
     parentId: '',
+    publicContext: false,
   },
 )
 
 const emit = defineEmits(['noteSaved'])
 
-const route = useRoute()
-// Ionic keeps detail pages alive while the global route moves on. Capture the
+const route = useAppRoute()
+// Framework7 keeps detail pages alive while the global route moves on. Capture the
 // ownership boundary for this pane so a public reader can never enter the
 // private-note save pipeline during leave/pagehide callbacks.
-const canPersistPrivateNote = !route.params.username
+const canPersistPrivateNote = !props.publicContext && !route.params.username
 const { addNote, getNote, notes, updateNote, updateParentFolderSubcount, getNotesSync } = useNote()
 const { isDesktop } = useDeviceType()
 const noteLock = useNoteLock()
@@ -179,6 +181,11 @@ const noteLockView = useNoteLockViewFlow({
 })
 const username = computed(() => route.params.username as string)
 const isUserContext = computed(() => !!username.value)
+// The desktop detail pane can remain mounted while the global route changes;
+// use the pane's captured ownership boundary and source id for header actions.
+const canShowHeaderActions = computed(() => {
+  return canPersistPrivateNote && !!(props.noteId || idFromRoute.value || retainedEffectiveUuid.value || data.value?.id)
+})
 const privateNoteDetail = useNoteDetailPrivate({
   getNote,
   onLoaded: applyPrivateNoteState,
@@ -225,7 +232,6 @@ const noteDetailEntry = useNoteDetailEntry({
 })
 const isNewNote = computed(() => idFromSource.value === '0' && !hasCreatedRouteDraft.value)
 const {
-  canShowNoteActions,
   isEditorBlocked,
   isMissingPrivateNote,
   isPinLockedForView,
@@ -319,12 +325,9 @@ function triggerAsyncRouteLeaveSave() {
     })
 }
 
-onBeforeRouteLeave(() => {
-  if (isDesktop.value || isUserContext.value) {
-    return
-  }
-
-  triggerAsyncRouteLeaveSave()
+onF7ViewWillLeave(() => {
+  if (!isDesktop.value && !isUserContext.value)
+    triggerAsyncRouteLeaveSave()
 })
 
 async function presentTopError(message: string) {
@@ -332,7 +335,7 @@ async function presentTopError(message: string) {
     await toastController.dismiss(undefined, undefined, 'note-detail-error-toast')
   }
   catch {
-    // Ionic rejects when there is no matching overlay. There is nothing to
+    // Framework7 rejects when there is no matching overlay. There is nothing to
     // dismiss in that case, especially while the detail view is leaving.
   }
 
@@ -503,38 +506,48 @@ async function handleNoteLockUpdated(updatedNote: Note) {
 </script>
 
 <template>
-  <IonPage ref="pageRef">
-    <IonHeader :translucent="!isDesktop">
-      <IonToolbar class="note-detail__toolbar">
-        <IonButtons v-if="!isDesktop" slot="start">
-          <IonBackButton v-bind="backButtonProps" />
-        </IonButtons>
-        <IonButtons v-if="canShowNoteActions" slot="end" class="note-detail__header-buttons">
-          <IonSpinner
-            v-if="isNoteSaving"
-            class="note-detail__saving-spinner"
-            name="crescent"
-          />
-          <IonButton @click="state.showNoteMore = true">
-            <IonIcon :icon="ellipsisHorizontalCircleOutline" />
-          </IonButton>
-        </IonButtons>
-      </IonToolbar>
-    </IonHeader>
+  <F7Page ref="pageRef" class="note-detail">
+    <F7Navbar
+      class="note-detail__toolbar"
+      transparent
+    >
+      <template v-if="!isDesktop" #nav-left>
+        <F7BackButton v-bind="backButtonProps" />
+      </template>
+      <template #nav-right>
+        <F7Spinner
+          v-if="isNoteSaving"
+          class="note-detail__saving-spinner"
+          name="crescent"
+        />
+        <F7Link
+          v-if="canShowHeaderActions"
+          :key="effectiveUuid || props.noteId || idFromRoute"
+          icon-only
+          data-testid="note-more-trigger"
+          aria-label="更多操作"
+          tooltip="更多操作"
+          :href="false"
+          @click="state.showNoteMore = true"
+        >
+          <F7Icon :icon="ellipsisHorizontalCircleOutline" />
+        </F7Link>
+      </template>
+    </F7Navbar>
 
-    <IonContent force-overscroll>
+    <F7Content class="note-detail__content" force-overscroll>
       <div v-if="loading" class="public-note-skeleton" aria-label="正在加载备忘录">
-        <IonSkeletonText animated class="public-note-skeleton__title" />
-        <IonSkeletonText animated class="public-note-skeleton__meta" />
+        <F7SkeletonText animated class="public-note-skeleton__title" />
+        <F7SkeletonText animated class="public-note-skeleton__meta" />
         <div class="public-note-skeleton__body">
-          <IonSkeletonText v-for="width in ['94%', '87%', '91%', '68%', '89%', '76%']" :key="width" animated :style="{ width }" />
+          <F7SkeletonText v-for="width in ['94%', '87%', '91%', '68%', '89%', '76%']" :key="width" animated :style="{ width }" />
         </div>
       </div>
       <div v-else-if="loadError" class="public-note-load-error" role="alert">
         {{ loadError }}
       </div>
       <div v-else class="note-detail__content-shell">
-        <div class="ion-padding">
+        <div class="app-padding">
           <div v-if="isMissingPrivateNote" data-testid="note-detail-missing-note" class="note-detail__missing-state">
             当前备忘录不存在或尚未同步完成
           </div>
@@ -546,24 +559,24 @@ async function handleNoteLockUpdated(updatedNote: Note) {
             @blur="debouncedSave"
           />
         </div>
-        <NoteUnlockPanel
-          v-if="isPinLockedForView"
-          class="note-detail__unlock-overlay"
-          :lock-view-state="noteLockView.state.viewState"
-          :biometric-enabled="noteLockView.state.biometricEnabled"
-          :device-supports-biometric="noteLockView.state.deviceSupportsBiometric"
-          :failed-attempts="noteLockView.state.failedAttempts"
-          :cooldown-until="noteLockView.state.cooldownUntil"
-          :error-message="noteLockView.state.errorMessage"
-          :is-submitting="noteLockView.state.isPinUnlocking"
-          @try-biometric="handleBiometricUnlock"
-          @submit-pin="handlePinUnlock"
-        />
       </div>
+      <NoteUnlockPanel
+        v-if="isPinLockedForView"
+        class="note-detail__unlock-overlay"
+        :lock-view-state="noteLockView.state.viewState"
+        :biometric-enabled="noteLockView.state.biometricEnabled"
+        :device-supports-biometric="noteLockView.state.deviceSupportsBiometric"
+        :failed-attempts="noteLockView.state.failedAttempts"
+        :cooldown-until="noteLockView.state.cooldownUntil"
+        :error-message="noteLockView.state.errorMessage"
+        :is-submitting="noteLockView.state.isPinUnlocking"
+        @try-biometric="handleBiometricUnlock"
+        @submit-pin="handlePinUnlock"
+      />
       <!-- <div v-if="keyboardHeight > 0" slot="fixed" :style="{ top: `${visualHeight - 66}px` }" class="h-[66px]">
         Fixed Button
       </div> -->
-    </IonContent>
+    </F7Content>
     <NoteEditorToolbar
       v-if="!isEditorBlocked"
       ref="editorToolbarRef"
@@ -572,41 +585,92 @@ async function handleNoteLockUpdated(updatedNote: Note) {
       @update:is-format-modal-open="state.isFormatModalOpen = $event"
     />
     <NoteMore
-      v-if="canShowNoteActions"
+      v-if="canShowHeaderActions"
       v-model:is-open="state.showNoteMore"
+      :note="data"
       :note-id="effectiveUuid || ''"
       :prepare-for-lock="persistEditorBeforeLock"
       @note-lock-updated="handleNoteLockUpdated"
     />
-  </IonPage>
+  </F7Page>
 </template>
 
 <style lang="scss">
-:root:not(.ion-palette-dark) .note-detail__toolbar {
-  --background: var(--c-note-detail-toolbar-background);
+.note-detail__toolbar .navbar-bg {
+  background: transparent !important;
+  background-color: transparent !important;
+  backdrop-filter: none;
 }
 
-.note-detail__header-buttons {
-  align-items: center;
-  gap: 4px;
+.note-detail__toolbar .navbar-bg::before,
+.note-detail__toolbar .navbar-bg::after {
+  display: none;
+}
+
+.ios .note-detail__toolbar .right:has(> .link:only-child) {
+  width: 44px;
+  height: 44px;
+  align-self: center;
+}
+
+.note-detail__toolbar {
+  position: absolute;
+  z-index: 20;
+  top: 0;
+  right: 0;
+  left: 0;
+}
+
+.note-detail {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app-page-embedded.note-detail {
+  position: relative;
+  display: block;
+}
+
+.note-detail__content {
+  --f7-page-navbar-offset: 0px;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding-top: 0;
+  padding-bottom: calc(var(--f7-toolbar-height) + var(--f7-safe-area-bottom));
+  background: var(--c-page-background);
+}
+
+.note-detail > .app-pane-footer,
+.note-detail > .app-footer {
+  position: absolute;
+  z-index: 20;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  min-height: calc(var(--f7-toolbar-height) + var(--f7-safe-area-bottom));
 }
 
 .note-detail__saving-spinner {
   width: 18px;
   height: 18px;
-  color: var(--ion-color-medium);
+  color: var(--c-text-secondary);
 }
 
 .note-detail__missing-state {
   padding: 16px;
   border-radius: 12px;
-  background: var(--ion-color-light, #f4f5f8);
-  color: var(--ion-color-medium-shade, #666);
+  background: var(--c-list-hover-background);
+  color: var(--c-text-secondary);
   text-align: center;
 }
 
 .public-note-skeleton {
-  padding: 28px 20px;
+  padding: calc(var(--f7-navbar-height) + var(--f7-safe-area-top) + 28px) 20px 28px;
 }
 
 .public-note-skeleton__title {
@@ -626,7 +690,7 @@ async function handleNoteLockUpdated(updatedNote: Note) {
   gap: 15px;
 }
 
-.public-note-skeleton__body ion-skeleton-text {
+.public-note-skeleton__body .skeleton-text {
   height: 16px;
   margin: 0;
 }
@@ -634,37 +698,39 @@ async function handleNoteLockUpdated(updatedNote: Note) {
 .public-note-load-error {
   display: grid;
   min-height: 50vh;
-  padding: 24px;
+  padding: calc(var(--f7-navbar-height) + var(--f7-safe-area-top) + 24px) 24px 24px;
   place-items: center;
-  color: var(--ion-color-medium);
+  color: var(--c-text-secondary);
   text-align: center;
 }
 
 .note-detail__content-shell {
   position: relative;
+  box-sizing: border-box;
   min-height: 100%;
+  padding-top: calc(var(--f7-navbar-height) + var(--f7-safe-area-top));
 }
 
 .note-detail__unlock-overlay {
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: var(--ion-background-color, var(--c-blue-gray-950));
+  background: var(--c-page-background);
 }
 </style>
 
 <style scoped>
-ion-item {
+.app-list-item {
   --inner-padding-end: 0;
   --background: transparent;
 }
 
-ion-label {
+.app-label {
   margin-top: 12px;
   margin-bottom: 12px;
 }
 
-ion-item h2 {
+.app-list-item h2 {
   font-weight: 600;
 
   /**
@@ -679,17 +745,17 @@ ion-item h2 {
   justify-content: space-between;
 }
 
-ion-item .date {
+.app-list-item .date {
   align-items: center;
   display: flex;
 }
 
-ion-item ion-icon {
+.app-list-item .app-icon {
   font-size: 42px;
   margin-right: 8px;
 }
 
-ion-item ion-note {
+.app-list-item .app-note {
   font-size: 0.9375rem;
   margin-right: 12px;
   font-weight: normal;

@@ -339,7 +339,7 @@ onBeforeUnmount(() => {
   }
   &.is-selected > .file-upload-content {
     box-shadow:
-      0 0 0 2px var(--ion-color-primary, #3880ff),
+      0 0 0 2px var(--app-color-primary),
       0 0 0 5px rgba(56, 128, 255, 0.22);
   }
 
@@ -374,7 +374,7 @@ onBeforeUnmount(() => {
   .file-name {
     width: 100%;
     overflow: hidden;
-    color: var(--ion-text-color, #202124);
+    color: var(--c-text-primary);
     font-size: 10px;
     line-height: 14px;
     text-align: center;

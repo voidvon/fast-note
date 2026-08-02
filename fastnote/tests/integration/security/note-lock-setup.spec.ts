@@ -2,7 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, ref } from 'vue'
 
-function createIonicStub(name: string, tag = 'div') {
+function createF7Stub(name: string, tag = 'div') {
   return defineComponent({
     name,
     inheritAttrs: false,
@@ -23,6 +23,26 @@ function createButtonStub(name: string) {
         type: 'button',
         onClick: (event: MouseEvent) => emit('click', event),
       }, slots.default ? slots.default() : [])
+    },
+  })
+}
+
+function createInputStub(name: string) {
+  return defineComponent({
+    name,
+    inheritAttrs: false,
+    props: {
+      type: String,
+      value: String,
+    },
+    emits: ['input'],
+    setup(props, { attrs, emit }) {
+      return () => h('input', {
+        ...attrs,
+        type: props.type,
+        value: props.value,
+        onInput: (event: Event) => emit('input', event),
+      })
     },
   })
 }
@@ -55,9 +75,11 @@ describe('note lock setup modal integration (t-fn-037 / tc-fn-028)', () => {
         setupGlobalPin: setupGlobalPinMock,
       }),
     }))
-    vi.doMock('@ionic/vue', () => ({
-      IonButton: createButtonStub('IonButton'),
-      IonModal: createIonicStub('IonModal'),
+    vi.doMock('@/shared/ui/f7', () => ({
+      F7Button: createButtonStub('F7Button'),
+      F7List: createF7Stub('F7List'),
+      F7ListInput: createInputStub('F7ListInput'),
+      F7Modal: createF7Stub('F7Modal'),
     }))
 
     const NoteLockSetupModal = (await import('@/features/note-lock/ui/note-lock-setup-modal.vue')).default
@@ -73,6 +95,7 @@ describe('note lock setup modal integration (t-fn-037 / tc-fn-028)', () => {
 
     await wrapper.get('[data-testid="note-lock-setup-pin"]').setValue('123456')
     expect(wrapper.get('[data-testid="note-lock-setup-pin"]').attributes('type')).toBe('text')
+    expect(wrapper.findComponent({ name: 'F7ListInput' }).exists()).toBe(true)
 
     const biometricInput = wrapper.get('[data-testid="note-lock-setup-biometric"]')
     expect((biometricInput.element as HTMLInputElement).disabled).toBe(true)
@@ -119,9 +142,11 @@ describe('note lock setup modal integration (t-fn-037 / tc-fn-028)', () => {
         setupGlobalPin: vi.fn(),
       }),
     }))
-    vi.doMock('@ionic/vue', () => ({
-      IonButton: createButtonStub('IonButton'),
-      IonModal: createIonicStub('IonModal'),
+    vi.doMock('@/shared/ui/f7', () => ({
+      F7Button: createButtonStub('F7Button'),
+      F7List: createF7Stub('F7List'),
+      F7ListInput: createInputStub('F7ListInput'),
+      F7Modal: createF7Stub('F7Modal'),
     }))
 
     const NoteLockSetupModal = (await import('@/features/note-lock/ui/note-lock-setup-modal.vue')).default

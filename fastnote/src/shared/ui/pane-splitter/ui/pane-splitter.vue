@@ -211,7 +211,7 @@ onBeforeUnmount(() => {
 
 .pane-splitter:hover::after,
 .pane-splitter:focus-visible::after {
-  background: var(--ion-color-primary, #007aff);
+  background: var(--app-color-primary);
 }
 
 .pane-splitter--disabled {

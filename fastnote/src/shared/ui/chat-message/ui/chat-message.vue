@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type { ChatMessageBlock, ChatMessageCard, ChatMessageCardAction } from '../model/message-card'
-import { IonButton, IonIcon, IonItem, IonNote, IonSpinner } from '@ionic/vue'
-import { checkmarkOutline, copyOutline } from 'ionicons/icons'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { copyText } from '@/shared/lib/clipboard'
+import { F7Button, F7Icon, F7Item, F7Note, F7Spinner } from '@/shared/ui/f7'
+import { checkmarkOutline, copyOutline } from '@/shared/ui/icons'
 import StreamMarkdown from '@/shared/ui/stream-markdown'
 import ChatMessageCards from './chat-message-cards.vue'
 
@@ -118,7 +118,7 @@ function isCardsBlock(block: ChatMessageBlock): block is Extract<ChatMessageBloc
 </script>
 
 <template>
-  <IonItem
+  <F7Item
     lines="none"
     class="chat-message"
     :class="[
@@ -127,14 +127,14 @@ function isCardsBlock(block: ChatMessageBlock): block is Extract<ChatMessageBloc
     ]"
   >
     <div class="chat-message__container">
-      <IonNote class="chat-message__role">
+      <F7Note class="chat-message__role">
         {{ resolvedLabel }}
-      </IonNote>
+      </F7Note>
 
       <div class="chat-message__bubble">
         <div v-if="pending" class="chat-message__pending-state">
           <div class="chat-message__pending-main">
-            <IonSpinner name="crescent" class="chat-message__spinner" />
+            <F7Spinner name="crescent" class="chat-message__spinner" />
             <span>{{ pendingLabel }}</span>
           </div>
           <p v-if="pendingDescription" class="chat-message__pending-description">
@@ -162,7 +162,7 @@ function isCardsBlock(block: ChatMessageBlock): block is Extract<ChatMessageBloc
 
         <div v-if="statusLabel" class="chat-message__status-state">
           <div class="chat-message__status-main">
-            <IonSpinner
+            <F7Spinner
               v-if="statusLoading"
               name="crescent"
               class="chat-message__spinner"
@@ -176,19 +176,19 @@ function isCardsBlock(block: ChatMessageBlock): block is Extract<ChatMessageBloc
       </div>
 
       <div v-if="canCopy" class="chat-message__actions">
-        <IonButton
+        <F7Button
           fill="clear"
           size="small"
           class="chat-message__copy-button"
           :aria-label="hasCopied ? '已复制消息' : '复制消息'"
           @click="handleCopy"
         >
-          <IonIcon :icon="hasCopied ? checkmarkOutline : copyOutline" />
+          <F7Icon :icon="hasCopied ? checkmarkOutline : copyOutline" />
           <span>{{ hasCopied ? '已复制' : '复制' }}</span>
-        </IonButton>
+        </F7Button>
       </div>
     </div>
-  </IonItem>
+  </F7Item>
 </template>
 
 <style scoped lang="scss">

@@ -1,36 +1,33 @@
 <script setup lang="ts">
-import type { AlertButton } from '@ionic/vue'
 import type { FolderTreeNode, Note } from '@/shared/types'
-import {
-  IonAlert,
-  IonBackButton,
-  IonButton,
-  IonButtons,
-  IonContent,
-  IonFooter,
-  IonHeader,
-  IonIcon,
-  IonInfiniteScroll,
-  IonInfiniteScrollContent,
-  IonPage,
-  IonSkeletonText,
-  IonTitle,
-  IonToolbar,
-  onIonViewDidEnter,
-  onIonViewWillEnter,
-} from '@ionic/vue'
-import { addOutline, createOutline } from 'ionicons/icons'
 import { nanoid } from 'nanoid'
-import { computed, onMounted, ref, watch } from 'vue'
-import { onBeforeRouteLeave, useRoute } from 'vue-router'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useNote } from '@/entities/note'
 import { useUserPublicNotes } from '@/entities/public-note'
+import { promptFolderName } from '@/features/note-write'
 import { useFolderBackButton, useRouteStateRestore } from '@/processes/navigation'
 import { loadPublicFolderNotes } from '@/processes/public-notes'
 import { getTime } from '@/shared/lib/date'
 import { useDeviceType } from '@/shared/lib/device'
-import { useIonContentScrollMemory } from '@/shared/lib/ionic'
+import { useAppRoute, useAppRouter, usePageScrollMemory } from '@/shared/lib/framework7'
 import { NOTE_TYPE } from '@/shared/types'
+import {
+  F7BackButton,
+  F7Button,
+  F7Buttons,
+  F7Content,
+  F7Footer,
+  F7Header,
+  F7Icon,
+  F7Navbar,
+  F7Page,
+  F7SkeletonText,
+  F7Title,
+  F7Toolbar,
+  onF7ViewDidEnter,
+  onF7ViewWillEnter,
+} from '@/shared/ui/f7'
+import { addOutline, createOutline } from '@/shared/ui/icons'
 import NoteList from '@/widgets/note-list'
 
 const props = withDefaults(
@@ -46,13 +43,13 @@ const props = withDefaults(
 
 defineEmits(['selected', 'createNote'])
 
-const route = useRoute()
+const route = useAppRoute()
+const appRouter = useAppRouter()
 const { notes, addNote, getNote, getFolderTreeByParentId } = useNote()
 const { isDesktop } = useDeviceType()
 
 const data = ref<Note>({} as Note)
 const contentRef = ref()
-const showAddFolderAlert = ref(false)
 const publicPage = ref(0)
 const publicTotalPages = ref(0)
 const publicPageLoading = ref(false)
@@ -156,44 +153,31 @@ const noteList = computed(() => {
   }
 })
 
-function focusFolderAlertInput(event: CustomEvent) {
-  const alert = event.target as HTMLElement | null
-
-  window.setTimeout(() => {
-    const input = alert?.querySelector('input.alert-input') as HTMLInputElement | null
-    if (!input) {
-      return
-    }
-
-    input.focus()
-    const end = input.value.length
-    input.setSelectionRange(end, end)
-  }, 50)
+async function handleAddFolder(name: string) {
+  const isoTime = getTime()
+  await addNote({
+    title: name,
+    created: isoTime,
+    updated: isoTime,
+    item_type: NOTE_TYPE.FOLDER,
+    parent_id: folderId.value,
+    id: nanoid(12),
+    version: 1,
+    content: '',
+    is_deleted: 0,
+    is_locked: 0,
+    note_count: 0,
+  })
+  init()
 }
 
-const addButtons: AlertButton[] = [
-  { text: '取消', role: 'cancel' },
-  {
-    text: '确认',
-    handler: async (d) => {
-      const isoTime = getTime()
-      await addNote({
-        title: d.newFolderName,
-        created: getTime(),
-        updated: isoTime,
-        item_type: NOTE_TYPE.FOLDER,
-        parent_id: folderId.value,
-        id: nanoid(12),
-        version: 1,
-        content: '',
-        is_deleted: 0,
-        is_locked: 0,
-        note_count: 0,
-      })
-      init()
-    },
-  },
-] as const
+async function openAddFolderDialog() {
+  const name = await promptFolderName()
+  if (name === null)
+    return
+
+  await handleAddFolder(name)
+}
 
 const isTopFolder = computed(() => {
   const path = isDesktop.value ? route.path : activeMobileFolderPath.value
@@ -244,7 +228,7 @@ const scrollMemoryKey = computed(() => {
   const path = isDesktop.value ? (route.fullPath || route.path) : activeMobileFolderPath.value
   return `${context}:${path}`
 })
-const { saveScrollPosition, restoreScrollPosition, scrollToTop } = useIonContentScrollMemory(
+const { saveScrollPosition, restoreScrollPosition, scrollToTop } = usePageScrollMemory(
   contentRef,
   () => scrollMemoryKey.value,
 )
@@ -353,18 +337,16 @@ async function loadPublicPage(reset = false) {
   }
 }
 
-async function loadMorePublicNotes(event: CustomEvent) {
+async function loadMorePublicNotes() {
   await loadPublicPage()
-  const target = event.target as HTMLIonInfiniteScrollElement | null
-  await target?.complete()
 }
 
-onIonViewWillEnter(() => {
+onF7ViewWillEnter(() => {
   if (!isDesktop.value && syncActiveMobileFolderRoute())
     init()
 })
 
-onIonViewDidEnter(() => {
+onF7ViewDidEnter(() => {
   if (!isDesktop.value) {
     if (resolveFolderEnterMode(scrollMemoryKey.value) === 'restore') {
       void restoreScrollPosition()
@@ -375,7 +357,7 @@ onIonViewDidEnter(() => {
   }
 })
 
-onBeforeRouteLeave(async (to, from) => {
+const removeRouteAfterEach = appRouter.afterEach(async (to, from) => {
   if (isDesktop.value)
     return
 
@@ -386,6 +368,8 @@ onBeforeRouteLeave(async (to, from) => {
   }
 })
 
+onBeforeUnmount(removeRouteAfterEach)
+
 // 暴露 refresh 方法给父组件
 defineExpose({
   refresh: init,
@@ -393,35 +377,43 @@ defineExpose({
 </script>
 
 <template>
-  <IonPage>
-    <IonHeader v-if="!isDesktop" :translucent="true">
-      <IonToolbar>
-        <IonButtons slot="start">
-          <IonBackButton v-bind="backButtonProps" text="返回" />
-        </IonButtons>
-      </IonToolbar>
-    </IonHeader>
+  <F7Page>
+    <F7Navbar
+      v-if="!isDesktop"
+      class="app-navbar folder-navbar"
+      :title="title"
+      :title-large="title"
+      large
+    >
+      <template #nav-left>
+        <F7BackButton v-bind="backButtonProps" text="返回" />
+      </template>
+    </F7Navbar>
 
-    <IonContent
+    <F7Content
       ref="contentRef"
       class="folder-page-content"
       :fullscreen="true"
+      :infinite="isUserContext && hasMorePublicNotes"
+      :infinite-preloader="isUserContext && publicPageLoading"
+      :infinite-distance="100"
+      @infinite="loadMorePublicNotes"
     >
-      <IonHeader collapse="condense">
-        <IonToolbar>
-          <IonTitle size="large">
+      <F7Header v-if="isDesktop" collapse="condense">
+        <F7Toolbar>
+          <F7Title size="large">
             {{ title }}
-          </IonTitle>
-        </IonToolbar>
-      </IonHeader>
+          </F7Title>
+        </F7Toolbar>
+      </F7Header>
 
       <div class="folder-page-content__body">
         <div v-if="publicPageLoading && !hasChildItems" class="folder-loading-state" aria-label="正在加载文件夹">
           <div class="folder-loading-state__row">
-            <IonSkeletonText animated class="folder-loading-state__icon" />
+            <F7SkeletonText animated class="folder-loading-state__icon" />
             <div class="folder-loading-state__content">
-              <IonSkeletonText animated style="width: 72%" />
-              <IonSkeletonText animated style="width: 48%" />
+              <F7SkeletonText animated style="width: 72%" />
+              <F7SkeletonText animated style="width: 48%" />
             </div>
           </div>
         </div>
@@ -431,6 +423,7 @@ defineExpose({
           :note-uuid="selectedNoteId"
           :show-parent-folder="data.id === 'allnotes'"
           :expanded-state-key="expandedStateKey"
+          media-list
           @selected="$emit('selected', $event)"
         />
 
@@ -438,61 +431,44 @@ defineExpose({
           无备忘录
         </div>
       </div>
-      <IonInfiniteScroll
-        v-if="isUserContext"
-        :disabled="!hasMorePublicNotes || publicPageLoading"
-        threshold="100px"
-        @ion-infinite="loadMorePublicNotes"
-      >
-        <IonInfiniteScrollContent loading-spinner="crescent" />
-      </IonInfiniteScroll>
-    </IonContent>
-    <IonFooter v-if="!isDesktop">
-      <IonToolbar>
-        <IonButtons v-if="data.id !== 'allnotes' && !isUserContext" slot="start">
-          <IonButton @click="showAddFolderAlert = true">
-            <IonIcon :icon="addOutline" />
-          </IonButton>
-        </IonButtons>
-        <IonTitle>
+    </F7Content>
+    <F7Footer v-if="!isDesktop">
+      <F7Toolbar>
+        <F7Buttons v-if="data.id !== 'allnotes' && !isUserContext" position="start">
+          <F7Button @click="openAddFolderDialog">
+            <F7Icon :icon="addOutline" />
+          </F7Button>
+        </F7Buttons>
+        <F7Title>
           {{ folders.length > 0 ? `${folders.length}个文件夹 ·` : '' }}
           {{ noteList.length > 0 ? `${noteList.length}个备忘录` : '无备忘录' }}
-        </IonTitle>
-        <IonButtons v-if="data.id !== 'allnotes' && !isUserContext" slot="end">
-          <IonButton :router-link="`/n/0?parent_id=${folderId}`" router-direction="forward">
-            <IonIcon :icon="createOutline" />
-          </IonButton>
-        </IonButtons>
-      </IonToolbar>
-    </IonFooter>
-    <IonFooter v-else-if="isDesktop && data.id !== 'allnotes' && !isUserContext">
-      <IonToolbar>
-        <IonButtons slot="start">
-          <IonButton @click="showAddFolderAlert = true">
-            <IonIcon :icon="addOutline" />
-          </IonButton>
-        </IonButtons>
-        <IonTitle>
+        </F7Title>
+        <F7Buttons v-if="data.id !== 'allnotes' && !isUserContext" position="end">
+          <F7Button :router-link="`/n/0?parent_id=${folderId}`" router-direction="forward">
+            <F7Icon :icon="createOutline" />
+          </F7Button>
+        </F7Buttons>
+      </F7Toolbar>
+    </F7Footer>
+    <F7Footer v-else-if="isDesktop && data.id !== 'allnotes' && !isUserContext">
+      <F7Toolbar>
+        <F7Buttons position="start">
+          <F7Button @click="openAddFolderDialog">
+            <F7Icon :icon="addOutline" />
+          </F7Button>
+        </F7Buttons>
+        <F7Title>
           {{ folders.length > 0 ? `${folders.length}个文件夹 ·` : '' }}
           {{ noteList.length > 0 ? `${noteList.length}个备忘录` : '无备忘录' }}
-        </IonTitle>
-        <IonButtons slot="end">
-          <IonButton @click="$emit('createNote', folderId)">
-            <IonIcon :icon="createOutline" />
-          </IonButton>
-        </IonButtons>
-      </IonToolbar>
-    </IonFooter>
-    <IonAlert
-      :is-open="showAddFolderAlert"
-      :keyboard-close="false"
-      header="请输入文件夹名称"
-      :buttons="addButtons"
-      :inputs="[{ name: 'newFolderName', placeholder: '请输入文件夹名称' }]"
-      @did-present="focusFolderAlertInput"
-      @did-dismiss="showAddFolderAlert = false"
-    />
-  </IonPage>
+        </F7Title>
+        <F7Buttons position="end">
+          <F7Button @click="$emit('createNote', folderId)">
+            <F7Icon :icon="createOutline" />
+          </F7Button>
+        </F7Buttons>
+      </F7Toolbar>
+    </F7Footer>
+  </F7Page>
 </template>
 
 <style lang="scss">
@@ -520,7 +496,7 @@ defineExpose({
 }
 
 .folder-empty-state {
-  color: var(--ion-color-medium);
+  color: var(--c-text-secondary);
   font-size: 16px;
   text-align: center;
 }
@@ -549,7 +525,7 @@ defineExpose({
   gap: 8px;
 }
 
-.folder-loading-state__content ion-skeleton-text {
+.folder-loading-state__content .skeleton-text {
   height: 14px;
   margin: 0;
 }

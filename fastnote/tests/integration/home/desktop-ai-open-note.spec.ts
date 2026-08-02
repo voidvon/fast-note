@@ -1,11 +1,11 @@
 import type { Note } from '@/shared/types'
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
-import { defineComponent, h, nextTick, ref } from 'vue'
+import { defineComponent, h, nextTick } from 'vue'
 import { NOTE_TYPE } from '@/shared/types'
 import { makeNote } from '../../factories/note.factory'
 
-function createIonicStub(name: string) {
+function createF7Stub(name: string) {
   return defineComponent({
     name,
     inheritAttrs: false,
@@ -165,20 +165,23 @@ describe('desktop ai open note', () => {
       default: noteDetailStub,
     }))
 
-    vi.doMock('@ionic/vue', async () => {
+    vi.doMock('@/shared/ui/f7', async () => {
       const { onMounted } = await import('vue')
 
       return {
-        IonAlert: createIonicStub('IonAlert'),
-        IonContent: createIonicStub('IonContent'),
-        IonHeader: createIonicStub('IonHeader'),
-        IonIcon: createIonicStub('IonIcon'),
-        IonPage: createIonicStub('IonPage'),
-        IonRefresher: createIonicStub('IonRefresher'),
-        IonRefresherContent: createIonicStub('IonRefresherContent'),
-        IonTitle: createIonicStub('IonTitle'),
-        IonToolbar: createIonicStub('IonToolbar'),
-        onIonViewWillEnter: (callback: () => void) => onMounted(callback),
+        F7Alert: createF7Stub('F7Alert'),
+        F7Icon: createF7Stub('F7Icon'),
+        F7Navbar: createF7Stub('F7Navbar'),
+        F7Page: createF7Stub('F7Page'),
+        F7PageContent: createF7Stub('F7PageContent'),
+        F7Refresher: createF7Stub('F7Refresher'),
+        F7RefresherContent: createF7Stub('F7RefresherContent'),
+        onF7ViewWillEnter: (callback: () => void) => onMounted(callback),
+        useAppRouter: () => ({
+          back: vi.fn(),
+          push: vi.fn(),
+          replace: vi.fn(),
+        }),
       }
     })
 
@@ -302,20 +305,23 @@ describe('desktop ai open note', () => {
       default: noteDetailStub,
     }))
 
-    vi.doMock('@ionic/vue', async () => {
+    vi.doMock('@/shared/ui/f7', async () => {
       const { onMounted } = await import('vue')
 
       return {
-        IonAlert: createIonicStub('IonAlert'),
-        IonContent: createIonicStub('IonContent'),
-        IonHeader: createIonicStub('IonHeader'),
-        IonIcon: createIonicStub('IonIcon'),
-        IonPage: createIonicStub('IonPage'),
-        IonRefresher: createIonicStub('IonRefresher'),
-        IonRefresherContent: createIonicStub('IonRefresherContent'),
-        IonTitle: createIonicStub('IonTitle'),
-        IonToolbar: createIonicStub('IonToolbar'),
-        onIonViewWillEnter: (callback: () => void) => onMounted(callback),
+        F7Alert: createF7Stub('F7Alert'),
+        F7Icon: createF7Stub('F7Icon'),
+        F7Navbar: createF7Stub('F7Navbar'),
+        F7Page: createF7Stub('F7Page'),
+        F7PageContent: createF7Stub('F7PageContent'),
+        F7Refresher: createF7Stub('F7Refresher'),
+        F7RefresherContent: createF7Stub('F7RefresherContent'),
+        onF7ViewWillEnter: (callback: () => void) => onMounted(callback),
+        useAppRouter: () => ({
+          back: vi.fn(),
+          push: vi.fn(),
+          replace: vi.fn(),
+        }),
       }
     })
 

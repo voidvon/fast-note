@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { IonButton, IonIcon, IonLabel } from '@ionic/vue'
+import { F7Button, F7Icon, F7Label } from '@/shared/ui/f7'
 
 // 1. 定义组件的 Props
 interface Props {
   icon?: object | string // icon 可以是 import 的对象，也可以是字符串
   text: string
-  color?: string // Ionic 的主题色, e.g., 'primary', 'secondary'
+  color?: string // Framework7 的主题色, e.g., 'primary', 'secondary'
   href?: string // 如果提供，则作为链接跳转
 }
 
@@ -31,29 +31,29 @@ function handleClick(event: MouseEvent) {
 </script>
 
 <template>
-  <IonButton
+  <F7Button
     fill="clear"
     :href="props.href"
     class="p-0 w-full h-full rounded-2xl"
     @click="handleClick"
   >
     <div class="flex flex-col items-center justify-center p-2 w-full h-full">
-      <IonIcon
+      <F7Icon
         v-if="props.icon"
         :icon="props.icon"
         aria-hidden="true"
         class="text-4xl mb-1.5"
       />
-      <IonLabel class="text-base font-medium tracking-wide">
+      <F7Label class="text-base font-medium tracking-wide">
         {{ props.text }}
-      </IonLabel>
+      </F7Label>
     </div>
-  </IonButton>
+  </F7Button>
 </template>
 
 <style lang="scss" scoped>
 /*
-  使用 SCSS 来处理更复杂的样式和 Ionic CSS 自定义属性
+  使用 SCSS 来处理更复杂的样式和 Framework7 CSS 自定义属性
 */
 
 // :host 选择器用于定义组件根元素本身的样式
@@ -64,8 +64,8 @@ function handleClick(event: MouseEvent) {
   width: 100%;
 }
 
-ion-button {
-  // 确保 ion-button 填满 :host 元素
+.app-button {
+  // 确保 .app-button 填满 :host 元素
   width: 100%;
   height: 100%;
 
@@ -75,7 +75,7 @@ ion-button {
   // 自定义背景色（可以通过 CSS 变量覆盖）
   --background: var(--c-blue-gray-800);
 
-  // 重置 Ionic button 的默认内边距，让我们的 UnoCSS padding 生效
+  // 重置 Framework7 button 的默认内边距，让我们的 UnoCSS padding 生效
   --padding-start: 0;
   --padding-end: 0;
   --padding-top: 0;
@@ -86,7 +86,7 @@ ion-button {
   }
 }
 
-ion-label {
+.app-label {
   // 防止长文本换行破坏布局
   white-space: nowrap;
   overflow: hidden;

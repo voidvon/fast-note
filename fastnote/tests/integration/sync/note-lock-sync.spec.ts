@@ -2,7 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick, ref } from 'vue'
 
-function createIonicStub(name: string) {
+function createF7Stub(name: string) {
   return defineComponent({
     name,
     inheritAttrs: false,
@@ -37,6 +37,7 @@ async function mountAppForNoteLockSync(options: {
   const routerReplaceMock = vi.fn(async () => undefined)
 
   vi.doMock('vue-router', () => ({
+    RouterView: createF7Stub('RouterView'),
     useRouter: () => ({
       currentRoute,
       replace: routerReplaceMock,
@@ -162,10 +163,9 @@ async function mountAppForNoteLockSync(options: {
     },
   }))
 
-  vi.doMock('@ionic/vue', () => ({
-    IonApp: createIonicStub('IonApp'),
-    IonRouterOutlet: createIonicStub('IonRouterOutlet'),
-    useIonRouter: () => ({
+  vi.doMock('@/shared/ui/f7', () => ({
+    F7App: createF7Stub('F7App'),
+    useAppRouter: () => ({
       navigate: vi.fn(),
     }),
     alertController: {

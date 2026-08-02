@@ -1,18 +1,88 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
-import { nextTick } from 'vue'
-import { NoteUnlockPanel } from '@/features/note-lock'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { defineComponent, h, nextTick } from 'vue'
 import { mountNoteDetailForSaveTest } from '../../helpers/note-detail-save-test-utils'
 
+function createF7Stub(name: string, tag = 'div') {
+  return defineComponent({
+    name,
+    inheritAttrs: false,
+    setup(_, { attrs, slots }) {
+      return () => h(tag, attrs, slots.default ? slots.default() : [])
+    },
+  })
+}
+
+function createInputStub(name: string) {
+  return defineComponent({
+    name,
+    inheritAttrs: false,
+    props: {
+      autocomplete: String,
+      inputId: String,
+      name: String,
+      outline: Boolean,
+      placeholder: String,
+      type: String,
+      value: String,
+    },
+    emits: ['input'],
+    setup(props, { attrs, emit }) {
+      return () => h('input', {
+        ...attrs,
+        id: props.inputId,
+        autocomplete: props.autocomplete,
+        name: props.name,
+        placeholder: props.placeholder,
+        type: props.type,
+        value: props.value,
+        onInput: (event: Event) => emit('input', event),
+      })
+    },
+  })
+}
+
 describe('note unlock panel integration (t-fn-038 / tc-fn-030)', () => {
-  it('marks the pin as a non-login password field', () => {
+  afterEach(() => {
+    vi.doUnmock('@/shared/ui/f7')
+    vi.resetModules()
+  })
+
+  it('uses a Framework7 outline field for the non-login password', async () => {
+    vi.doMock('@/shared/ui/f7', () => ({
+      F7Block: createF7Stub('F7Block'),
+      F7Button: createF7Stub('F7Button', 'button'),
+      F7Icon: createF7Stub('F7Icon', 'span'),
+      F7List: createF7Stub('F7List'),
+      F7ListInput: createInputStub('F7ListInput'),
+    }))
+
+    const NoteUnlockPanel = (await import('@/features/note-lock/ui/note-unlock-panel.vue')).default
     const wrapper = mount(NoteUnlockPanel, {
       props: {
         lockViewState: 'locked',
       },
     })
-    const input = wrapper.get('[data-testid="note-unlock-panel-pin"]')
+    const input = wrapper.get('input#note-unlock-panel-pin')
 
+    expect(wrapper.get('[data-testid="note-unlock-panel"]').classes()).toEqual(expect.arrayContaining([
+      'display-flex',
+      'flex-direction-column',
+      'justify-content-center',
+    ]))
+    expect(wrapper.findComponent({ name: 'F7List' }).exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'F7List' }).classes()).toEqual(expect.arrayContaining([
+      'display-inline-block',
+      'no-margin-vertical',
+      'width-auto',
+    ]))
+    expect(wrapper.findComponent({ name: 'F7ListInput' }).props('outline')).toBe(false)
+    const blocks = wrapper.findAllComponents({ name: 'F7Block' })
+    expect(blocks[0].classes()).toContain('text-align-center')
+    expect(blocks[0].classes()).toContain('margin-bottom-half')
+    expect(blocks[0].attributes('strong')).toBeUndefined()
+    expect(blocks[1].classes()).toContain('no-margin-vertical')
+    expect(blocks[2].classes()).toContain('margin-vertical-half')
     expect(input.attributes('type')).toBe('password')
     expect(input.attributes('autocomplete')).toBe('new-password')
     expect(input.attributes('name')).toBe('note-unlock-pin')
@@ -50,7 +120,7 @@ describe('note unlock panel integration (t-fn-038 / tc-fn-030)', () => {
     })
 
     expect(wrapper.find('[data-testid="note-unlock-panel"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain('备忘录已锁定')
+    expect(wrapper.text()).not.toContain('备忘录已锁定')
     expect(wrapper.text()).toContain('输入备忘录密码以查看')
     expect(wrapper.get('[data-testid="note-unlock-panel-pin"]').attributes('placeholder')).toBe('输入密码')
     expect(wrapper.get('[data-testid="note-unlock-panel-pin"]').attributes('type')).toBe('password')

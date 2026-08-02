@@ -1,38 +1,36 @@
 <script setup lang="ts">
 import type { CSSProperties } from 'vue'
 import type { PublicUserInfo } from '@/shared/types/pocketbase'
-import {
-  IonBackButton,
-  IonButton,
-  IonButtons,
-  IonContent,
-  IonHeader,
-  IonIcon,
-  IonPage,
-  IonRefresher,
-  IonRefresherContent,
-  IonSkeletonText,
-  IonSpinner,
-  IonTitle,
-  IonToolbar,
-  onIonViewWillEnter,
-  useIonRouter,
-} from '@ionic/vue'
-import { alertCircleOutline, documentTextOutline } from 'ionicons/icons'
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
 import { useUserPublicNotes } from '@/entities/public-note'
 import { useDesktopPaneLayout } from '@/features/desktop-pane-layout'
 import { ensurePublicNotesReady, loadPublicNote } from '@/processes/public-notes'
 import { useDeviceType } from '@/shared/lib/device'
+import {
+  F7BackButton,
+  F7Button,
+  F7Buttons,
+  F7Content,
+  F7Header,
+  F7Icon,
+  F7Page,
+  F7SkeletonText,
+  F7Spinner,
+  F7Title,
+  F7Toolbar,
+  onF7ViewWillEnter,
+  useAppRoute,
+  useAppRouter,
+} from '@/shared/ui/f7'
+import { alertCircleOutline, documentTextOutline } from '@/shared/ui/icons'
 import PaneSplitter from '@/shared/ui/pane-splitter'
 import ResponsivePagePane from '@/shared/ui/responsive-page-pane'
 import FolderBrowser from '@/widgets/folder-browser'
 import NoteDetailPane from '@/widgets/note-detail-pane'
 import NoteList from '@/widgets/note-list'
 
-const route = useRoute()
-const ionRouter = useIonRouter()
+const route = useAppRoute()
+const appRouter = useAppRouter()
 const { isDesktop } = useDeviceType()
 
 // 获取路由参数
@@ -126,7 +124,7 @@ function selectFolder(id: string) {
     return
   }
 
-  ionRouter.push(targetPath)
+  appRouter.push(targetPath)
 }
 
 async function selectNote(id: string) {
@@ -167,7 +165,7 @@ async function selectNote(id: string) {
     return
   }
 
-  ionRouter.push(targetPath)
+  appRouter.push(targetPath)
 }
 
 // 初始化数据
@@ -235,12 +233,16 @@ function init(force = false): Promise<void> {
 }
 
 // 刷新数据
-async function refresh(ev: CustomEvent) {
-  await init(true)
-  ev.detail.complete()
+async function refresh(done: () => void) {
+  try {
+    await init(true)
+  }
+  finally {
+    done()
+  }
 }
 
-onIonViewWillEnter(() => {
+onF7ViewWillEnter(() => {
   presentingElement.value = page.value?.$el || page.value
   void init()
 })
@@ -275,47 +277,49 @@ watch(
 </script>
 
 <template>
-  <IonPage ref="page" :class="{ 'public-note-desktop': isDesktop }" :style="desktopLayoutStyle">
+  <F7Page ref="page" :class="{ 'public-note-desktop': isDesktop }" :style="desktopLayoutStyle">
     <ResponsivePagePane id="public-navigation-pane" :desktop="isDesktop" class="public-navigation">
-      <IonHeader>
-        <IonToolbar>
-          <IonTitle>{{ userInfo?.username }}</IonTitle>
-          <IonButtons slot="start">
-            <IonBackButton default-href="/home" text="返回" />
-          </IonButtons>
-        </IonToolbar>
-      </IonHeader>
+      <F7Header>
+        <F7Toolbar>
+          <F7Title>{{ userInfo?.username }}</F7Title>
+          <F7Buttons position="start">
+            <F7BackButton default-href="/home" text="返回" />
+          </F7Buttons>
+        </F7Toolbar>
+      </F7Header>
 
-      <IonContent class="public-navigation-content" :fullscreen="true">
-        <IonRefresher slot="fixed" @ion-refresh="refresh($event)">
-          <IonRefresherContent />
-        </IonRefresher>
-
-        <IonHeader collapse="condense">
-          <IonToolbar>
-            <IonTitle size="large">
+      <F7Content
+        class="public-navigation-content"
+        :fullscreen="true"
+        ptr
+        ptr-preloader
+        @ptr:refresh="refresh"
+      >
+        <F7Header collapse="condense">
+          <F7Toolbar>
+            <F7Title size="large">
               {{ userInfo?.username }}
-            </IonTitle>
-          </IonToolbar>
-        </IonHeader>
+            </F7Title>
+          </F7Toolbar>
+        </F7Header>
 
         <div v-if="loading" class="public-home-skeleton" aria-label="正在加载个人中心">
           <div class="public-home-skeleton__row">
-            <IonSkeletonText animated class="public-home-skeleton__icon" />
+            <F7SkeletonText animated class="public-home-skeleton__icon" />
             <div class="public-home-skeleton__content">
-              <IonSkeletonText animated style="width: 72%" />
-              <IonSkeletonText animated style="width: 48%" />
+              <F7SkeletonText animated style="width: 72%" />
+              <F7SkeletonText animated style="width: 48%" />
             </div>
           </div>
         </div>
 
         <div v-else-if="error" class="error-container">
-          <IonIcon :icon="alertCircleOutline" size="large" />
+          <F7Icon :icon="alertCircleOutline" size="large" />
           <h2>无法加载用户数据</h2>
           <p>{{ error }}</p>
-          <IonButton @click="ionRouter.push('/home')">
+          <F7Button @click="appRouter.push('/home')">
             返回首页
-          </IonButton>
+          </F7Button>
         </div>
 
         <div v-else>
@@ -332,12 +336,12 @@ watch(
           />
 
           <div v-if="publicFolders.length === 0 && unfiledNotesCount === 0" class="empty-state">
-            <IonIcon :icon="documentTextOutline" size="large" />
+            <F7Icon :icon="documentTextOutline" size="large" />
             <h2>暂无公开内容</h2>
             <p>该用户还没有公开任何备忘录</p>
           </div>
         </div>
-      </IonContent>
+      </F7Content>
     </ResponsivePagePane>
 
     <PaneSplitter
@@ -368,16 +372,16 @@ watch(
       @resize-end="desktopPaneLayout.persist"
     />
     <div v-if="isDesktop" id="public-note-detail-pane" class="home-detail">
-      <NoteDetailPane :note-id="state.noteUuid" />
+      <NoteDetailPane :note-id="state.noteUuid" public-context />
       <div v-if="publicNoteLoading" class="public-note-detail-state">
-        <IonSpinner name="crescent" />
+        <F7Spinner name="crescent" />
       </div>
       <div v-else-if="publicNoteError" class="public-note-detail-state public-note-detail-state--error">
-        <IonIcon :icon="alertCircleOutline" size="large" />
+        <F7Icon :icon="alertCircleOutline" size="large" />
         <p>{{ publicNoteError }}</p>
       </div>
     </div>
-  </IonPage>
+  </F7Page>
 </template>
 
 <style lang="scss">
@@ -390,7 +394,7 @@ watch(
   height: 50vh;
   gap: 1rem;
   text-align: center;
-  color: var(--ion-color-medium);
+  color: var(--c-text-secondary);
 }
 
 .public-home-skeleton {
@@ -417,7 +421,7 @@ watch(
   gap: 8px;
 }
 
-.public-home-skeleton__content ion-skeleton-text {
+.public-home-skeleton__content .skeleton-text {
   height: 14px;
   margin: 0;
 }
@@ -459,8 +463,8 @@ watch(
   height: 100%;
   align-items: center;
   justify-content: center;
-  background: var(--ion-background-color);
-  color: var(--ion-color-medium);
+  background: var(--c-page-background);
+  color: var(--c-text-secondary);
 }
 
 .public-note-detail-state--error {

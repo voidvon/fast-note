@@ -1,4 +1,4 @@
-import type { Router } from 'vue-router'
+import type { AppRouter } from '@/shared/lib/framework7'
 import { computed, ref } from 'vue'
 
 export type NavigationType = 'push' | 'pop'
@@ -58,7 +58,7 @@ export function createRouteStateRestoreManager() {
     return 'push'
   }
 
-  function setRouter(router: Router) {
+  function setRouter(router: AppRouter) {
     removeAfterEachHook?.()
     ensurePopstateListener()
 

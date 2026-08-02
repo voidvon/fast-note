@@ -47,17 +47,24 @@ describe('folderPage mobile scroll restore', () => {
         version: 1,
       },
     ])
-    const ionViewDidEnterHandlers: Array<() => void> = []
-    const beforeRouteLeaveGuards: Array<(to: { path: string, fullPath: string }, from: { path: string, fullPath: string }) => void | Promise<void>> = []
+    const f7ViewDidEnterHandlers: Array<() => void> = []
+    const afterEachHandlers: Array<(to: { path: string, fullPath: string }, from: { path: string, fullPath: string }) => void | Promise<void>> = []
     const scrollElement = document.createElement('div')
     scrollElement.scrollTop = 0
 
-    vi.doMock('vue-router', () => ({
-      onBeforeRouteLeave: (guard: (to: { path: string, fullPath: string }, from: { path: string, fullPath: string }) => void | Promise<void>) => {
-        beforeRouteLeaveGuards.push(guard)
-      },
-      useRoute: () => route.value,
-    }))
+    vi.doMock('@/shared/lib/framework7', async () => {
+      const actual = await vi.importActual<typeof import('@/shared/lib/framework7')>('@/shared/lib/framework7')
+      return {
+        ...actual,
+        useAppRoute: () => route.value,
+        useAppRouter: () => ({
+          afterEach: (handler: (to: { path: string, fullPath: string }, from: { path: string, fullPath: string }) => void | Promise<void>) => {
+            afterEachHandlers.push(handler)
+            return vi.fn()
+          },
+        }),
+      }
+    })
 
     vi.doMock('@/shared/lib/device', () => ({
       useDeviceType: () => ({
@@ -94,9 +101,9 @@ describe('folderPage mobile scroll restore', () => {
       default: createGenericStub('NoteList'),
     }))
 
-    vi.doMock('@ionic/vue', async () => {
-      const IonContent = defineComponent({
-        name: 'IonContent',
+    vi.doMock('@/shared/ui/f7', async () => {
+      const F7Content = defineComponent({
+        name: 'F7Content',
         inheritAttrs: false,
         setup(_, { attrs, slots, expose }) {
           const elementRef = ref<HTMLElement>()
@@ -119,21 +126,22 @@ describe('folderPage mobile scroll restore', () => {
       })
 
       return {
-        IonAlert: createGenericStub('IonAlert'),
-        IonBackButton: createGenericStub('IonBackButton'),
-        IonButton: createGenericStub('IonButton'),
-        IonButtons: createGenericStub('IonButtons'),
-        IonContent,
-        IonFooter: createGenericStub('IonFooter'),
-        IonHeader: createGenericStub('IonHeader'),
-        IonIcon: createGenericStub('IonIcon'),
-        IonPage: createGenericStub('IonPage'),
-        IonTitle: createGenericStub('IonTitle'),
-        IonToolbar: createGenericStub('IonToolbar'),
-        onIonViewDidEnter: (callback: () => void) => {
-          ionViewDidEnterHandlers.push(callback)
+        F7Alert: createGenericStub('F7Alert'),
+        F7BackButton: createGenericStub('F7BackButton'),
+        F7Button: createGenericStub('F7Button'),
+        F7Buttons: createGenericStub('F7Buttons'),
+        F7Content,
+        F7Footer: createGenericStub('F7Footer'),
+        F7Header: createGenericStub('F7Header'),
+        F7Icon: createGenericStub('F7Icon'),
+        F7Navbar: createGenericStub('F7Navbar'),
+        F7Page: createGenericStub('F7Page'),
+        F7Title: createGenericStub('F7Title'),
+        F7Toolbar: createGenericStub('F7Toolbar'),
+        onF7ViewDidEnter: (callback: () => void) => {
+          f7ViewDidEnterHandlers.push(callback)
         },
-        onIonViewWillEnter: vi.fn(),
+        onF7ViewWillEnter: vi.fn(),
       }
     })
 
@@ -142,16 +150,16 @@ describe('folderPage mobile scroll restore', () => {
     await flushPromises()
 
     scrollElement.scrollTop = 248
-    await beforeRouteLeaveGuards[0](
+    await afterEachHandlers[0](
       { path: '/n/note-1', fullPath: '/n/note-1' },
       { path: '/f/unfilednotes', fullPath: '/f/unfilednotes' },
     )
     await flushPromises()
 
-    expect(sessionStorage.getItem('ion-content-scroll:private:/f/unfilednotes')).toBe('248')
+    expect(sessionStorage.getItem('page-scroll:private:/f/unfilednotes')).toBe('248')
 
     scrollElement.scrollTop = 0
-    await ionViewDidEnterHandlers[0]()
+    await f7ViewDidEnterHandlers[0]()
     await flushPromises()
 
     expect(scrollElement.scrollTop).toBe(248)
@@ -165,16 +173,22 @@ describe('folderPage mobile scroll restore', () => {
     })
     const isDesktop = ref(false)
     const notes = ref<Note[]>([])
-    const ionViewDidEnterHandlers: Array<() => void> = []
+    const f7ViewDidEnterHandlers: Array<() => void> = []
     const scrollElement = document.createElement('div')
     scrollElement.scrollTop = 196
 
-    sessionStorage.setItem('ion-content-scroll:private:/f/folder-b', '248')
+    sessionStorage.setItem('page-scroll:private:/f/folder-b', '248')
 
-    vi.doMock('vue-router', () => ({
-      onBeforeRouteLeave: vi.fn(),
-      useRoute: () => route.value,
-    }))
+    vi.doMock('@/shared/lib/framework7', async () => {
+      const actual = await vi.importActual<typeof import('@/shared/lib/framework7')>('@/shared/lib/framework7')
+      return {
+        ...actual,
+        useAppRoute: () => route.value,
+        useAppRouter: () => ({
+          afterEach: vi.fn(() => vi.fn()),
+        }),
+      }
+    })
 
     vi.doMock('@/shared/lib/device', () => ({
       useDeviceType: () => ({
@@ -211,9 +225,9 @@ describe('folderPage mobile scroll restore', () => {
       default: createGenericStub('NoteList'),
     }))
 
-    vi.doMock('@ionic/vue', async () => {
-      const IonContent = defineComponent({
-        name: 'IonContent',
+    vi.doMock('@/shared/ui/f7', async () => {
+      const F7Content = defineComponent({
+        name: 'F7Content',
         inheritAttrs: false,
         setup(_, { attrs, slots, expose }) {
           const elementRef = ref<HTMLElement>()
@@ -236,21 +250,22 @@ describe('folderPage mobile scroll restore', () => {
       })
 
       return {
-        IonAlert: createGenericStub('IonAlert'),
-        IonBackButton: createGenericStub('IonBackButton'),
-        IonButton: createGenericStub('IonButton'),
-        IonButtons: createGenericStub('IonButtons'),
-        IonContent,
-        IonFooter: createGenericStub('IonFooter'),
-        IonHeader: createGenericStub('IonHeader'),
-        IonIcon: createGenericStub('IonIcon'),
-        IonPage: createGenericStub('IonPage'),
-        IonTitle: createGenericStub('IonTitle'),
-        IonToolbar: createGenericStub('IonToolbar'),
-        onIonViewDidEnter: (callback: () => void) => {
-          ionViewDidEnterHandlers.push(callback)
+        F7Alert: createGenericStub('F7Alert'),
+        F7BackButton: createGenericStub('F7BackButton'),
+        F7Button: createGenericStub('F7Button'),
+        F7Buttons: createGenericStub('F7Buttons'),
+        F7Content,
+        F7Footer: createGenericStub('F7Footer'),
+        F7Header: createGenericStub('F7Header'),
+        F7Icon: createGenericStub('F7Icon'),
+        F7Navbar: createGenericStub('F7Navbar'),
+        F7Page: createGenericStub('F7Page'),
+        F7Title: createGenericStub('F7Title'),
+        F7Toolbar: createGenericStub('F7Toolbar'),
+        onF7ViewDidEnter: (callback: () => void) => {
+          f7ViewDidEnterHandlers.push(callback)
         },
-        onIonViewWillEnter: vi.fn(),
+        onF7ViewWillEnter: vi.fn(),
       }
     })
 
@@ -258,7 +273,7 @@ describe('folderPage mobile scroll restore', () => {
     mount(FolderPage)
     await flushPromises()
 
-    await ionViewDidEnterHandlers[0]()
+    await f7ViewDidEnterHandlers[0]()
     await flushPromises()
 
     expect(scrollElement.scrollTop).toBe(0)

@@ -1,29 +1,35 @@
 <script setup lang="ts">
 import type { NoteLockManageUpdate, NoteLockSetupResult } from '@/features/note-lock'
 import type { Note } from '@/shared/types'
-import { alertController, IonCol, IonGrid, IonModal, IonRow, toastController, useIonRouter } from '@ionic/vue'
-import { globeOutline, lockClosed, lockOpen, trashOutline } from 'ionicons/icons'
+import {
+  f7Link as F7Link,
+  f7List as F7List,
+  f7ListItem as F7ListItem,
+  f7PageContent as F7PageContent,
+  f7Toolbar as F7Toolbar,
+} from 'framework7-vue'
 import { computed, ref } from 'vue'
-import { useRoute } from 'vue-router'
 import { useNote } from '@/entities/note'
 import { useNoteDelete } from '@/features/note-delete'
 import { NoteLockManageModal, NoteLockSetupModal, useNoteLockModalFlow } from '@/features/note-lock'
 import { PublicNoteAccessModal } from '@/features/public-note-share'
 import { useAuth } from '@/processes/session'
 import { useSync } from '@/processes/sync-notes'
-import { cleanupIonicOverlayLocksAsync } from '@/shared/lib/ionic'
-import IconTextButton from '@/shared/ui/icon-text-button'
+import { cleanupOverlayLocksAsync, useAppRoute } from '@/shared/lib/framework7'
+import { alertController, F7Modal, toastController, useAppRouter } from '@/shared/ui/f7'
+import { globeOutline, lockClosed, lockOpen, trashOutline } from '@/shared/ui/icons'
 
 const props = withDefaults(defineProps<{
   isOpen: boolean
+  note?: Note
   noteId?: string
   prepareForLock: () => Promise<void>
 }>(), {})
 
 const emit = defineEmits(['noteLockUpdated', 'update:isOpen'])
 
-const route = useRoute()
-const router = useIonRouter()
+const route = useAppRoute()
+const router = useAppRouter()
 const { sync } = useSync()
 const { updateNote, getNote, updateParentFolderSubcount } = useNote()
 const { deleteNote } = useNoteDelete({
@@ -40,16 +46,28 @@ const {
   prepareLockModal,
 } = useNoteLockModalFlow()
 
-const note = ref<Note | undefined>(undefined)
+const note = ref<Note | undefined>(props.note)
 const publicAccessOpen = ref(false)
 const publicAccessPending = ref(false)
 const currentNoteId = computed(() => props.noteId || route.params.id as string || '')
 
 async function onWillPresent() {
-  const result = await getNote(currentNoteId.value)
+  const result = props.note || await getNote(currentNoteId.value)
   if (result) {
     note.value = result
   }
+}
+
+function getCurrentNote() {
+  if (note.value?.id) {
+    return note.value
+  }
+
+  const result = props.note || getNote(currentNoteId.value)
+  if (result) {
+    note.value = result
+  }
+  return result
 }
 
 function dismiss() {
@@ -68,7 +86,8 @@ async function syncLockNoteChange(fallbackMessage: string) {
 }
 
 async function onPublicAccess() {
-  if (!note.value?.id) {
+  const currentNote = getCurrentNote()
+  if (!currentNote?.id) {
     return
   }
 
@@ -99,17 +118,18 @@ async function onPublicAccess() {
 }
 
 async function onLock() {
-  if (!note.value?.id) {
+  const currentNote = getCurrentNote()
+  if (!currentNote?.id) {
     return
   }
 
-  await prepareLockModal(note.value)
+  await prepareLockModal(currentNote)
   dismiss()
 }
 
 function onMoreModalDidDismiss() {
   emit('update:isOpen', false)
-  cleanupIonicOverlayLocksAsync()
+  cleanupOverlayLocksAsync()
   openPendingLockModal()
 
   if (publicAccessPending.value) {
@@ -171,7 +191,7 @@ async function onLockManaged(payload: NoteLockManageUpdate) {
 }
 
 async function onDelete() {
-  const currentNote = note.value || await getNote(route.params.id as string)
+  const currentNote = getCurrentNote()
   if (!currentNote?.id) {
     return
   }
@@ -184,7 +204,7 @@ async function onDelete() {
 </script>
 
 <template>
-  <IonModal
+  <F7Modal
     v-bind="$attrs"
     :is-open="isOpen"
     :initial-breakpoint="1"
@@ -193,40 +213,71 @@ async function onDelete() {
     @will-present="onWillPresent"
     @did-dismiss="onMoreModalDidDismiss"
   >
-    <div class="note-more-sheet">
-      <IonGrid>
-        <IonRow>
-          <IonCol size="3" class="grid-item">
-            <IconTextButton
-              :icon="note?.is_locked === 1 ? lockOpen : lockClosed"
-              class="c-blue-500"
-              :text="note?.is_locked === 1 ? '锁设置' : '锁定'"
-              color="primary"
-              @click="onLock"
+    <F7Toolbar top class="note-more-sheet__toolbar">
+      <div class="left note-more-sheet__title">
+        备忘录操作
+      </div>
+      <div class="right">
+        <F7Link @click="dismiss">
+          完成
+        </F7Link>
+      </div>
+    </F7Toolbar>
+
+    <F7PageContent class="note-more-sheet">
+      <F7List strong inset dividers>
+        <F7ListItem
+          link
+          :href="false"
+          no-chevron
+          :title="note?.is_locked === 1 ? '锁设置' : '锁定备忘录'"
+          data-testid="note-more-lock-action"
+          @click="onLock"
+        >
+          <template #media>
+            <component
+              :is="note?.is_locked === 1 ? lockOpen : lockClosed"
+              class="note-more-sheet__icon note-more-sheet__icon--primary"
+              aria-hidden="true"
             />
-          </IonCol>
-          <IonCol size="3" class="grid-item">
-            <IconTextButton
-              :icon="globeOutline"
-              class="c-green-500"
-              text="公开"
-              color="success"
-              @click="onPublicAccess"
+          </template>
+        </F7ListItem>
+        <F7ListItem
+          link
+          :href="false"
+          no-chevron
+          title="公开设置"
+          data-testid="note-more-public-action"
+          @click="onPublicAccess"
+        >
+          <template #media>
+            <component
+              :is="globeOutline"
+              class="note-more-sheet__icon note-more-sheet__icon--success"
+              aria-hidden="true"
             />
-          </IonCol>
-          <IonCol size="3" class="grid-item">
-            <IconTextButton
-              :icon="trashOutline"
-              class="danger"
-              text="删除"
-              color="danger"
-              @click="onDelete"
+          </template>
+        </F7ListItem>
+        <F7ListItem
+          link
+          :href="false"
+          no-chevron
+          title="删除备忘录"
+          text-color="red"
+          data-testid="note-more-delete-action"
+          @click="onDelete"
+        >
+          <template #media>
+            <component
+              :is="trashOutline"
+              class="note-more-sheet__icon note-more-sheet__icon--danger"
+              aria-hidden="true"
             />
-          </IonCol>
-        </IonRow>
-      </IonGrid>
-    </div>
-  </IonModal>
+          </template>
+        </F7ListItem>
+      </F7List>
+    </F7PageContent>
+  </F7Modal>
   <PublicNoteAccessModal
     v-if="note?.id"
     v-model:is-open="publicAccessOpen"
@@ -258,18 +309,43 @@ async function onDelete() {
 
 <style lang="scss">
 .note-more-modal--sheet {
-  --height: fit-content;
-  --max-height: 260px;
-  --border-radius: 24px 24px 0 0;
-
-  &::part(content) {
-    max-height: 260px;
-  }
+  --f7-sheet-height: min(360px, 60vh);
+  --f7-sheet-border-radius: 24px;
 }
 
 .note-more-sheet {
-  padding: 20px 20px 24px;
-  background: var(--c-blue-gray-900);
+  --f7-page-toolbar-top-offset: var(--f7-toolbar-height);
+
+  overflow-y: auto;
+  background: var(--c-page-background);
+}
+
+.note-more-sheet__toolbar {
+  --f7-toolbar-bg-color: var(--c-list-background);
+  --f7-toolbar-border-color: var(--c-border);
+}
+
+.note-more-sheet__title {
+  padding-left: 16px;
   color: var(--c-text-primary);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.note-more-sheet__icon {
+  width: 24px;
+  height: 24px;
+}
+
+.note-more-sheet__icon--primary {
+  color: var(--f7-theme-color);
+}
+
+.note-more-sheet__icon--success {
+  color: var(--app-color-success);
+}
+
+.note-more-sheet__icon--danger {
+  color: var(--f7-color-red);
 }
 </style>

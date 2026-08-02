@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { IonButton, IonIcon, IonItem, IonLabel, IonList, IonPopover } from '@ionic/vue'
-import { contrastOutline, moon, sunny } from 'ionicons/icons'
 import { computed, ref } from 'vue'
+import { F7Button, F7Icon, F7Item, F7Label, F7List, F7Popover } from '@/shared/ui/f7'
+import { contrastOutline, moon, sunny } from '@/shared/ui/icons'
 import { ThemeMode, useTheme } from '../model/use-theme'
 
 // 使用主题 composable
@@ -46,35 +46,38 @@ function togglePopover() {
 
 <template>
   <div class="dark-mode-toggle">
-    <IonButton
+    <F7Button
       id="theme-mode-button"
       fill="clear"
       size="small"
       :title="buttonTitle"
       @click="togglePopover"
     >
-      <IonIcon
-        slot="icon-only"
-        :icon="currentIcon"
-      />
-    </IonButton>
+      <F7Icon :icon="currentIcon" />
+    </F7Button>
 
-    <IonPopover :is-open="showPopover" @did-dismiss="showPopover = false">
-      <IonList>
-        <IonItem button :detail="false" @click="handleSetThemeMode(ThemeMode.Auto)">
-          <IonIcon slot="start" :icon="contrastOutline" />
-          <IonLabel>自动（跟随系统）</IonLabel>
-        </IonItem>
-        <IonItem button :detail="false" @click="handleSetThemeMode(ThemeMode.Light)">
-          <IonIcon slot="start" :icon="moon" />
-          <IonLabel>浅色模式</IonLabel>
-        </IonItem>
-        <IonItem button :detail="false" @click="handleSetThemeMode(ThemeMode.Dark)">
-          <IonIcon slot="start" :icon="sunny" />
-          <IonLabel>深色模式</IonLabel>
-        </IonItem>
-      </IonList>
-    </IonPopover>
+    <F7Popover target-el="#theme-mode-button" :is-open="showPopover" @did-dismiss="showPopover = false">
+      <F7List>
+        <F7Item button :detail="false" @click="handleSetThemeMode(ThemeMode.Auto)">
+          <template #media>
+            <F7Icon :icon="contrastOutline" />
+          </template>
+          <F7Label>自动（跟随系统）</F7Label>
+        </F7Item>
+        <F7Item button :detail="false" @click="handleSetThemeMode(ThemeMode.Light)">
+          <template #media>
+            <F7Icon :icon="moon" />
+          </template>
+          <F7Label>浅色模式</F7Label>
+        </F7Item>
+        <F7Item button :detail="false" @click="handleSetThemeMode(ThemeMode.Dark)">
+          <template #media>
+            <F7Icon :icon="sunny" />
+          </template>
+          <F7Label>深色模式</F7Label>
+        </F7Item>
+      </F7List>
+    </F7Popover>
   </div>
 </template>
 
@@ -85,17 +88,17 @@ function togglePopover() {
   margin-left: 8px;
 }
 
-ion-button {
+.app-button {
   --color: var(--c-text-primary);
   --padding-start: 8px;
   --padding-end: 8px;
 }
 
-ion-popover {
+.app-popover {
   --width: 200px;
 }
 
-ion-item {
+.app-list-item {
   --padding-start: 16px;
   --padding-end: 16px;
   cursor: pointer;

@@ -4,7 +4,7 @@ import { vi } from 'vitest'
 import { defineComponent, h, nextTick, ref } from 'vue'
 import { NOTE_TYPE } from '@/shared/types'
 
-function createIonicStub(name: string, tag = 'div') {
+function createF7Stub(name: string, tag = 'div') {
   return defineComponent({
     name,
     inheritAttrs: false,
@@ -20,6 +20,18 @@ function createPlainStub(name: string) {
     template: `<div class="${name}-stub" />`,
   })
 }
+
+const F7NavbarStub = defineComponent({
+  name: 'F7Navbar',
+  inheritAttrs: false,
+  setup(_, { attrs, slots }) {
+    return () => h('div', attrs, [
+      slots['nav-left']?.(),
+      slots['nav-right']?.(),
+      slots.default?.(),
+    ])
+  },
+})
 
 const NoteMoreStub = defineComponent({
   name: 'NoteMore',
@@ -85,7 +97,6 @@ const NoteUnlockPanelStub = defineComponent({
     const pin = ref('')
 
     return () => h('div', { 'data-testid': 'note-unlock-panel' }, [
-      h('h2', '备忘录已锁定'),
       h('p', '输入备忘录密码以查看'),
       props.biometricEnabled && props.deviceSupportsBiometric
         ? h('button', {
@@ -251,8 +262,8 @@ export async function mountNoteDetailForSaveTest(options: {
     message: null,
     note: notesById[lockedNoteId] ?? undefined,
   }))
-  let ionViewWillLeaveCallback: (() => void | Promise<void>) | null = null
-  let ionViewDidLeaveCallback: (() => void | Promise<void>) | null = null
+  let f7ViewWillLeaveCallback: (() => void | Promise<void>) | null = null
+  let f7ViewDidLeaveCallback: (() => void | Promise<void>) | null = null
   let beforeRouteLeaveCallback: ((to: any, from: any) => void | Promise<void>) | null = null
   const toastPresentMock = vi.fn(async () => undefined)
   const toastCreateMock = vi.fn(async () => ({
@@ -298,8 +309,8 @@ export async function mountNoteDetailForSaveTest(options: {
     },
   })
 
-  const IonBackButtonStub = defineComponent({
-    name: 'IonBackButton',
+  const F7BackButtonStub = defineComponent({
+    name: 'F7BackButton',
     inheritAttrs: false,
     setup(_, { attrs, slots }) {
       return () => h('button', {
@@ -446,23 +457,25 @@ export async function mountNoteDetailForSaveTest(options: {
     default: YYEditorStub,
   }))
 
-  vi.doMock('@ionic/vue', async () => ({
-    IonBackButton: IonBackButtonStub,
-    IonButton: createButtonStub('IonButton'),
-    IonButtons: createIonicStub('IonButtons'),
-    IonContent: createIonicStub('IonContent'),
-    IonFooter: createIonicStub('IonFooter'),
-    IonHeader: createIonicStub('IonHeader'),
-    IonIcon: createIonicStub('IonIcon'),
-    IonPage: createIonicStub('IonPage'),
-    IonSpinner: createIonicStub('IonSpinner'),
-    IonToolbar: createIonicStub('IonToolbar'),
+  vi.doMock('@/shared/ui/f7', async () => ({
+    F7BackButton: F7BackButtonStub,
+    F7Button: createButtonStub('F7Button'),
+    F7Buttons: createF7Stub('F7Buttons'),
+    F7Content: createF7Stub('F7Content'),
+    F7Footer: createF7Stub('F7Footer'),
+    F7Header: createF7Stub('F7Header'),
+    F7Link: createF7Stub('F7Link', 'a'),
+    F7Icon: createF7Stub('F7Icon'),
+    F7Navbar: F7NavbarStub,
+    F7Page: createF7Stub('F7Page'),
+    F7Spinner: createF7Stub('F7Spinner'),
+    F7Toolbar: createF7Stub('F7Toolbar'),
     isPlatform: () => false,
-    onIonViewDidLeave: (callback: () => void | Promise<void>) => {
-      ionViewDidLeaveCallback = callback
+    onF7ViewDidLeave: (callback: () => void | Promise<void>) => {
+      f7ViewDidLeaveCallback = callback
     },
-    onIonViewWillLeave: (callback: () => void | Promise<void>) => {
-      ionViewWillLeaveCallback = callback
+    onF7ViewWillLeave: (callback: () => void | Promise<void>) => {
+      f7ViewWillLeaveCallback = callback
     },
     toastController: {
       dismiss: toastDismissMock,
@@ -512,13 +525,13 @@ export async function mountNoteDetailForSaveTest(options: {
       verifyPinMock,
     },
     noteFactory: makeNote,
-    triggerIonViewWillLeave: async () => {
-      await ionViewWillLeaveCallback?.()
+    triggerF7ViewWillLeave: async () => {
+      await f7ViewWillLeaveCallback?.()
       await flushPromises()
       await nextTick()
     },
-    triggerIonViewDidLeave: async () => {
-      await ionViewDidLeaveCallback?.()
+    triggerF7ViewDidLeave: async () => {
+      await f7ViewDidLeaveCallback?.()
       await flushPromises()
       await nextTick()
     },

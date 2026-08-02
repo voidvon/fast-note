@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick, watch } from 'vue'
 import { getDesktopActiveNoteStorageKey } from '@/processes/navigation'
 
-function createIonicStub(name: string) {
+function createF7Stub(name: string) {
   return defineComponent({
     name,
     inheritAttrs: false,
@@ -277,28 +277,31 @@ async function mountHomePageForEmptyDetailCreate(options: {
     default: NoteDetailStub,
   }))
 
-  vi.doMock('@ionic/vue', async () => {
+  vi.doMock('@/shared/ui/f7', async () => {
     const { onMounted, onUnmounted } = await import('vue')
 
     return {
-      IonAlert: createIonicStub('IonAlert'),
-      IonBackButton: createIonicStub('IonBackButton'),
-      IonButton: createIonicStub('IonButton'),
-      IonButtons: createIonicStub('IonButtons'),
-      IonContent: createIonicStub('IonContent'),
-      IonFooter: createIonicStub('IonFooter'),
-      IonHeader: createIonicStub('IonHeader'),
-      IonIcon: createIonicStub('IonIcon'),
-      IonPage: createIonicStub('IonPage'),
-      IonRefresher: createIonicStub('IonRefresher'),
-      IonRefresherContent: createIonicStub('IonRefresherContent'),
-      IonTitle: createIonicStub('IonTitle'),
-      IonToast: createIonicStub('IonToast'),
-      IonToolbar: createIonicStub('IonToolbar'),
+      F7Alert: createF7Stub('F7Alert'),
+      F7BackButton: createF7Stub('F7BackButton'),
+      F7Button: createF7Stub('F7Button'),
+      F7Buttons: createF7Stub('F7Buttons'),
+      F7Footer: createF7Stub('F7Footer'),
+      F7Icon: createF7Stub('F7Icon'),
+      F7Navbar: createF7Stub('F7Navbar'),
+      F7Page: createF7Stub('F7Page'),
+      F7PageContent: createF7Stub('F7PageContent'),
+      F7Refresher: createF7Stub('F7Refresher'),
+      F7RefresherContent: createF7Stub('F7RefresherContent'),
+      F7Toast: createF7Stub('F7Toast'),
       isPlatform: () => false,
-      onIonViewWillEnter: (callback: () => void) => onMounted(callback),
-      onIonViewWillLeave: () => {},
-      onIonViewDidLeave: (callback: () => void) => onUnmounted(callback),
+      onF7ViewWillEnter: (callback: () => void) => onMounted(callback),
+      onF7ViewWillLeave: () => {},
+      onF7ViewDidLeave: (callback: () => void) => onUnmounted(callback),
+      useAppRouter: () => ({
+        back: vi.fn(),
+        push: vi.fn(),
+        replace: vi.fn(),
+      }),
     }
   })
 

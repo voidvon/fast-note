@@ -33,27 +33,16 @@ describe('T-FN-scroll restore across nested folders', () => {
   }
 
   function getContentScrollTop() {
-    return cy.get('ion-content').then(($content) => {
-      const ionContent = $content.get(0) as HTMLElement & {
-        shadowRoot?: ShadowRoot
-      }
-      const scrollEl = ionContent.shadowRoot?.querySelector('.inner-scroll') as HTMLElement | null
-
-      expect(scrollEl, 'ion-content inner scroll element').to.not.equal(null)
-      return (scrollEl as HTMLElement).scrollTop
+    return cy.get('.page-content:visible').first().then(($content) => {
+      return $content.get(0).scrollTop
     })
   }
 
   function setContentScrollTop(top: number) {
-    return cy.get('ion-content').then(($content) => {
-      const ionContent = $content.get(0) as HTMLElement & {
-        shadowRoot?: ShadowRoot
-      }
-      const scrollEl = ionContent.shadowRoot?.querySelector('.inner-scroll') as HTMLElement | null
-
-      expect(scrollEl, 'ion-content inner scroll element').to.not.equal(null)
-      ;(scrollEl as HTMLElement).scrollTop = top
-      ;(scrollEl as HTMLElement).dispatchEvent(new Event('scroll', { bubbles: true }))
+    return cy.get('.page-content:visible').first().then(($content) => {
+      const scrollElement = $content.get(0)
+      scrollElement.scrollTop = top
+      scrollElement.dispatchEvent(new Event('scroll', { bubbles: true }))
     })
   }
 

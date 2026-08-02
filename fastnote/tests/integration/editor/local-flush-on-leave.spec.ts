@@ -70,7 +70,7 @@ describe('note detail local flush on leave (t-fn-035 / tc-fn-026)', () => {
   })
 
   it('forces local manualSync on ion leave even when content already saved in memory', async () => {
-    const { wrapper, editorApi, mocks, triggerIonViewWillLeave } = await mountNoteDetailForSaveTest()
+    const { wrapper, editorApi, mocks, triggerF7ViewWillLeave } = await mountNoteDetailForSaveTest()
 
     editorApi.getContent.mockReturnValue('<p>已保存但尚未落库</p>')
 
@@ -87,7 +87,7 @@ describe('note detail local flush on leave (t-fn-035 / tc-fn-026)', () => {
     mocks.manualSyncMock.mockClear()
     mocks.syncMock.mockClear()
 
-    await triggerIonViewWillLeave()
+    await triggerF7ViewWillLeave()
 
     expect(mocks.updateNoteMock).not.toHaveBeenCalled()
     expect(mocks.manualSyncMock).toHaveBeenCalledTimes(1)
@@ -100,7 +100,7 @@ describe('note detail local flush on leave (t-fn-035 / tc-fn-026)', () => {
       editorApi,
       mocks,
       triggerBeforeRouteLeave,
-      triggerIonViewWillLeave,
+      triggerF7ViewWillLeave,
     } = await mountNoteDetailForSaveTest({
       updateNoteImpl: async () => pendingUpdate.promise,
     })
@@ -115,7 +115,7 @@ describe('note detail local flush on leave (t-fn-035 / tc-fn-026)', () => {
     }))
     expect(mocks.syncMock).not.toHaveBeenCalled()
 
-    await triggerIonViewWillLeave()
+    await triggerF7ViewWillLeave()
 
     expect(mocks.updateNoteMock).toHaveBeenCalledTimes(1)
     expect(mocks.manualSyncMock).not.toHaveBeenCalled()

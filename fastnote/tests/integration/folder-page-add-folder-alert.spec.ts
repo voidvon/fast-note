@@ -1,25 +1,31 @@
 import type { Note } from '@/shared/types'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, h, nextTick, ref } from 'vue'
-import { NOTE_TYPE } from '@/shared/types'
+import { defineComponent, h, ref } from 'vue'
 import FolderPage from '@/pages/folder/ui/folder-page.vue'
+import { NOTE_TYPE } from '@/shared/types'
 
 const {
   addNoteMock,
   getFolderTreeByParentIdMock,
   getNoteMock,
   isDesktopMock,
+  promptFolderNameMock,
   routeMock,
 } = vi.hoisted(() => ({
   addNoteMock: vi.fn(),
   getFolderTreeByParentIdMock: vi.fn(() => []),
   getNoteMock: vi.fn(),
   isDesktopMock: { value: true },
+  promptFolderNameMock: vi.fn(),
   routeMock: { value: {
     params: {},
     path: '/home',
   } },
+}))
+
+vi.mock('@/features/note-write', () => ({
+  promptFolderName: promptFolderNameMock,
 }))
 
 vi.mock('vue-router', () => ({
@@ -62,8 +68,8 @@ vi.mock('@/entities/public-note', () => ({
   }),
 }))
 
-const IonButtonStub = defineComponent({
-  name: 'IonButton',
+const F7ButtonStub = defineComponent({
+  name: 'F7Button',
   emits: ['click'],
   setup(_, { emit, slots, attrs }) {
     return () => h('button', {
@@ -71,23 +77,6 @@ const IonButtonStub = defineComponent({
       type: 'button',
       onClick: (event: MouseEvent) => emit('click', event),
     }, slots.default?.())
-  },
-})
-
-const IonAlertStub = defineComponent({
-  name: 'IonAlert',
-  props: {
-    isOpen: {
-      type: Boolean,
-      default: false,
-    },
-  },
-  emits: ['did-dismiss'],
-  setup(props) {
-    return () => h('div', {
-      'data-testid': 'folder-add-alert',
-      'data-open': String(props.isOpen),
-    })
   },
 })
 
@@ -113,17 +102,16 @@ function mountFolderPage() {
     },
     global: {
       stubs: {
-        IonAlert: IonAlertStub,
-        IonBackButton: genericStub,
-        IonButton: IonButtonStub,
-        IonButtons: genericStub,
-        IonContent: genericStub,
-        IonFooter: genericStub,
-        IonHeader: genericStub,
-        IonIcon: genericStub,
-        IonPage: genericStub,
-        IonTitle: genericStub,
-        IonToolbar: genericStub,
+        F7BackButton: genericStub,
+        F7Button: F7ButtonStub,
+        F7Buttons: genericStub,
+        F7Content: genericStub,
+        F7Footer: genericStub,
+        F7Header: genericStub,
+        F7Icon: genericStub,
+        F7Page: genericStub,
+        F7Title: genericStub,
+        F7Toolbar: genericStub,
         NoteList: NoteListStub,
       },
     },
@@ -138,6 +126,8 @@ describe('folderPage desktop add-folder alert regression', () => {
     }
     isDesktopMock.value = true
     addNoteMock.mockReset()
+    promptFolderNameMock.mockReset()
+    promptFolderNameMock.mockResolvedValue('项目资料')
     getFolderTreeByParentIdMock.mockClear()
     getNoteMock.mockReset()
     getNoteMock.mockResolvedValue({
@@ -154,19 +144,21 @@ describe('folderPage desktop add-folder alert regression', () => {
     } satisfies Note)
   })
 
-  it('opens add-folder alert when desktop footer button is clicked', async () => {
+  it('creates a folder from the Framework7 prompt dialog', async () => {
     const wrapper = mountFolderPage()
     await flushPromises()
-
-    const alert = wrapper.get('[data-testid="folder-add-alert"]')
-    expect(alert.attributes('data-open')).toBe('false')
 
     const buttons = wrapper.findAll('button')
     expect(buttons.length).toBeGreaterThan(0)
 
     await buttons[0].trigger('click')
-    await nextTick()
+    await flushPromises()
 
-    expect(alert.attributes('data-open')).toBe('true')
+    expect(promptFolderNameMock).toHaveBeenCalledTimes(1)
+    expect(addNoteMock).toHaveBeenCalledWith(expect.objectContaining({
+      title: '项目资料',
+      parent_id: 'folder-1',
+      item_type: NOTE_TYPE.FOLDER,
+    }))
   })
 })

@@ -48,7 +48,7 @@ describe('T-FN-003 / TC-FN-003 delete persists after refresh', () => {
     cy.contains(noteTitle).click()
     cy.url().should('include', `/n/${noteId}`)
 
-    cy.get('ion-header ion-buttons[slot="end"] ion-button').click()
+    cy.get('[data-testid="note-more-trigger"]').click()
     cy.contains('删除').should('be.visible').click()
 
     cy.url().should('include', '/f/allnotes')

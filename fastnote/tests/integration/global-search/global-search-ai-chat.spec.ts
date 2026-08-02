@@ -49,7 +49,7 @@ function resetNoteStoreMock() {
   noteStoreMock.searchNotes.mockImplementation(async () => [])
 }
 
-function createIonicStub(name: string, tag = 'div') {
+function createF7Stub(name: string, tag = 'div') {
   return defineComponent({
     name,
     inheritAttrs: false,
@@ -90,7 +90,7 @@ function createInputStub(name: string) {
     },
     emits: ['update:modelValue'],
     setup(props, { attrs, emit }) {
-      return () => h('label', { ...attrs, 'data-ion-input': name }, [
+      return () => h('label', { ...attrs, 'data-f7-input': name }, [
         props.label ? h('span', props.label) : null,
         h('input', {
           value: props.modelValue,
@@ -119,11 +119,11 @@ function createTextareaStub(name: string) {
         spellcheck: attrs.spellcheck,
         class: attrs.class,
         onFocus: (event: FocusEvent) => {
-          ;(attrs.onIonFocus as ((event: FocusEvent) => void) | undefined)?.(event)
+          ;(attrs.onF7Focus as ((event: FocusEvent) => void) | undefined)?.(event)
           ;(attrs.onFocus as ((event: FocusEvent) => void) | undefined)?.(event)
         },
         onInput: (event: Event) => {
-          ;(attrs.onIonInput as ((event: { detail: { event: Event, value: string }, target: EventTarget | null }) => void) | undefined)?.({
+          ;(attrs.onF7Input as ((event: { detail: { event: Event, value: string }, target: EventTarget | null }) => void) | undefined)?.({
             detail: {
               event,
               value: (event.target as HTMLTextAreaElement).value,
@@ -152,7 +152,7 @@ function createModalStub(name: string) {
     },
     setup(props, { attrs, slots }) {
       return () => props.isOpen
-        ? h('div', { ...attrs, 'data-ion-modal': name }, slots.default ? slots.default() : [])
+        ? h('div', { ...attrs, 'data-f7-modal': name }, slots.default ? slots.default() : [])
         : null
     },
   })
@@ -314,7 +314,7 @@ async function mountGlobalSearch() {
 }
 
 async function ensureAiMode(wrapper: Awaited<ReturnType<typeof mountGlobalSearch>>) {
-  const input = wrapper.get('textarea')
+  const input = wrapper.get('input, textarea')
 
   await input.trigger('focus')
   await nextTick()
@@ -370,24 +370,25 @@ function setupModuleMocks() {
     }
   })
 
-  vi.doMock('@ionic/vue', () => ({
-    IonButton: createButtonStub('IonButton'),
-    IonButtons: createIonicStub('IonButtons'),
-    IonChip: createIonicStub('IonChip'),
-    IonContent: createIonicStub('IonContent'),
-    IonAlert: createModalStub('IonAlert'),
-    IonIcon: createIonicStub('IonIcon'),
-    IonInput: createInputStub('IonInput'),
-    IonTextarea: createTextareaStub('IonTextarea'),
-    IonItem: createIonicStub('IonItem'),
-    IonLabel: createIonicStub('IonLabel', 'span'),
-    IonList: createIonicStub('IonList'),
-    IonModal: createModalStub('IonModal'),
-    IonNote: createIonicStub('IonNote', 'span'),
-    IonSpinner: createIonicStub('IonSpinner', 'span'),
-    IonHeader: createIonicStub('IonHeader'),
-    IonToolbar: createIonicStub('IonToolbar'),
-    IonTitle: createIonicStub('IonTitle', 'span'),
+  vi.doMock('@/shared/ui/f7', () => ({
+    F7Button: createButtonStub('F7Button'),
+    F7Buttons: createF7Stub('F7Buttons'),
+    F7Chip: createF7Stub('F7Chip'),
+    F7Content: createF7Stub('F7Content'),
+    F7Alert: createModalStub('F7Alert'),
+    F7Icon: createF7Stub('F7Icon'),
+    F7Input: createInputStub('F7Input'),
+    F7Searchbar: createTextareaStub('F7Searchbar'),
+    F7Textarea: createTextareaStub('F7Textarea'),
+    F7Item: createF7Stub('F7Item'),
+    F7Label: createF7Stub('F7Label', 'span'),
+    F7List: createF7Stub('F7List'),
+    F7Modal: createModalStub('F7Modal'),
+    F7Note: createF7Stub('F7Note', 'span'),
+    F7Spinner: createF7Stub('F7Spinner', 'span'),
+    F7Header: createF7Stub('F7Header'),
+    F7Toolbar: createF7Stub('F7Toolbar'),
+    F7Title: createF7Stub('F7Title', 'span'),
   }))
 }
 
@@ -420,7 +421,7 @@ describe('global search ai chat', () => {
 
   it('shows configuration card in ai mode when provider settings are missing', async () => {
     const wrapper = await mountGlobalSearch()
-    const input = wrapper.get('textarea')
+    const input = wrapper.get('input, textarea')
 
     await input.trigger('focus')
     await nextTick()
@@ -435,7 +436,7 @@ describe('global search ai chat', () => {
 
   it('returns to search mode when AI configuration is cancelled', async () => {
     const wrapper = await mountGlobalSearch()
-    const input = wrapper.get('textarea')
+    const input = wrapper.get('input, textarea')
 
     await input.trigger('focus')
     await nextTick()
@@ -444,7 +445,7 @@ describe('global search ai chat', () => {
     await wrapper.get('button[aria-label="取消 AI 配置"]').trigger('click')
     await nextTick()
 
-    expect(wrapper.get('textarea').attributes('placeholder')).toBe('搜索')
+    expect(wrapper.get('input, textarea').attributes('placeholder')).toBe('搜索')
     expect(wrapper.text()).not.toContain('配置直连模型')
 
     wrapper.unmount()
@@ -485,7 +486,7 @@ describe('global search ai chat', () => {
     })
 
     const wrapper = await mountGlobalSearch()
-    const input = wrapper.get('textarea')
+    const input = wrapper.get('input, textarea')
 
     await input.trigger('focus')
     await wrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
@@ -705,7 +706,7 @@ describe('global search ai chat', () => {
       parentId: '',
       rootTitle: '全部',
     }))
-    expect(wrapper.find('[data-ion-modal="IonModal"]').exists()).toBe(true)
+    expect(wrapper.find('[data-f7-modal="F7Modal"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('引用建议')
     expect(wrapper.text()).toContain('周报')
     expect(wrapper.text()).toContain('工作')
@@ -1163,7 +1164,7 @@ describe('global search ai chat', () => {
     })
 
     const wrapper = await mountGlobalSearch()
-    const input = wrapper.get('textarea')
+    const input = wrapper.get('input, textarea')
 
     await input.trigger('focus')
     await wrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
@@ -1197,7 +1198,7 @@ describe('global search ai chat', () => {
     })
 
     const wrapper = await mountGlobalSearch()
-    const input = wrapper.get('textarea')
+    const input = wrapper.get('input, textarea')
 
     await input.trigger('focus')
     await wrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
@@ -1364,7 +1365,7 @@ describe('global search ai chat', () => {
     })
 
     const wrapper = await mountGlobalSearch()
-    const input = wrapper.get('textarea')
+    const input = wrapper.get('input, textarea')
 
     await input.trigger('focus')
     await wrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
@@ -1417,7 +1418,7 @@ describe('global search ai chat', () => {
     })
 
     const wrapper = await mountGlobalSearch()
-    const input = wrapper.get('textarea')
+    const input = wrapper.get('input, textarea')
 
     await input.trigger('focus')
     await wrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
@@ -1481,7 +1482,7 @@ describe('global search ai chat', () => {
     })
 
     const firstWrapper = await mountGlobalSearch()
-    const firstInput = firstWrapper.get('textarea')
+    const firstInput = firstWrapper.get('input, textarea')
 
     await firstInput.trigger('focus')
     await firstWrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
@@ -1692,7 +1693,7 @@ describe('global search ai chat', () => {
     })
 
     const firstWrapper = await mountGlobalSearch()
-    const firstInput = firstWrapper.get('textarea')
+    const firstInput = firstWrapper.get('input, textarea')
 
     await firstInput.trigger('focus')
     await firstWrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
@@ -1749,7 +1750,7 @@ describe('global search ai chat', () => {
     })
 
     const firstWrapper = await mountGlobalSearch()
-    const firstInput = firstWrapper.get('textarea')
+    const firstInput = firstWrapper.get('input, textarea')
 
     await firstInput.trigger('focus')
     await firstWrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
@@ -1866,7 +1867,7 @@ describe('global search ai chat', () => {
     })
 
     const firstWrapper = await mountGlobalSearch()
-    const firstInput = firstWrapper.get('textarea')
+    const firstInput = firstWrapper.get('input, textarea')
 
     await firstInput.trigger('focus')
     await firstWrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
@@ -2013,7 +2014,7 @@ describe('global search ai chat', () => {
     })
 
     const wrapper = await mountGlobalSearch()
-    const input = wrapper.get('textarea')
+    const input = wrapper.get('input, textarea')
 
     await input.trigger('focus')
     await wrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
@@ -2337,7 +2338,7 @@ describe('global search ai chat', () => {
     })
 
     const wrapper = await mountGlobalSearch()
-    const input = wrapper.get('textarea')
+    const input = wrapper.get('input, textarea')
 
     await input.trigger('focus')
     await wrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
@@ -2422,7 +2423,7 @@ describe('global search ai chat', () => {
     })
 
     const wrapper = await mountGlobalSearch()
-    const input = wrapper.get('textarea')
+    const input = wrapper.get('input, textarea')
 
     await input.trigger('focus')
     await wrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
@@ -2523,7 +2524,7 @@ describe('global search ai chat', () => {
     })
 
     const wrapper = await mountGlobalSearch()
-    const input = wrapper.get('textarea')
+    const input = wrapper.get('input, textarea')
 
     await input.trigger('focus')
     await wrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
@@ -2696,7 +2697,7 @@ describe('global search ai chat', () => {
     })
 
     const wrapper = await mountGlobalSearch()
-    const input = wrapper.get('textarea')
+    const input = wrapper.get('input, textarea')
 
     await input.trigger('focus')
     await wrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')
@@ -2888,7 +2889,7 @@ describe('global search ai chat', () => {
     })
 
     const wrapper = await mountGlobalSearch()
-    const input = wrapper.get('textarea')
+    const input = wrapper.get('input, textarea')
 
     await input.trigger('focus')
     await wrapper.get('button[aria-label="切换到 AI 对话"]').trigger('click')

@@ -1,13 +1,12 @@
 <script setup lang="ts">
-import { onIonViewDidLeave } from '@ionic/vue'
 import { computed, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
 import NoteDetailPage from '@/pages/note-detail'
 import UserPublicNotesPage from '@/pages/user-public-notes'
 import { loadPublicNote } from '@/processes/public-notes'
 import { useDeviceType } from '@/shared/lib/device'
+import { onF7ViewDidLeave, useAppRoute } from '@/shared/ui/f7'
 
-const route = useRoute()
+const route = useAppRoute()
 const { isDesktop } = useDeviceType()
 const loading = ref(true)
 const error = ref('')
@@ -66,10 +65,10 @@ watch([username, noteId, isDesktop], () => {
   void loadNote()
 }, { immediate: true, flush: 'sync' })
 
-// IonRouterOutlet retains routed pages for transition history. Release the
+// Framework7 Router retains routed pages for transition history. Release the
 // rich-text detail only after its leave animation completes so it cannot flash
 // when this cached route is entered again for another note.
-onIonViewDidLeave(() => {
+onF7ViewDidLeave(() => {
   if (isDesktop.value) {
     return
   }

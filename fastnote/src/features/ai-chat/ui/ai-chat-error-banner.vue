@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import type { AlertButton } from '@ionic/vue'
-import { IonAlert } from '@ionic/vue'
+import type { AlertButton } from '@/shared/ui/f7'
 import { computed } from 'vue'
+import { F7Alert } from '@/shared/ui/f7'
 
 const props = defineProps<{
   canRetry: boolean
@@ -39,7 +39,7 @@ function handleDidDismiss() {
 </script>
 
 <template>
-  <IonAlert
+  <F7Alert
     :is-open="!!message"
     header="AI 请求失败"
     :message="message"

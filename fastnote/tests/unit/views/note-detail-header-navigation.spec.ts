@@ -8,6 +8,7 @@ describe('note detail header navigation', () => {
     })
 
     expect(wrapper.find('[data-testid="note-detail-back-button"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="note-more-trigger"]').exists()).toBe(true)
   })
 
   it('keeps the back button on mobile detail pages', async () => {

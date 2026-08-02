@@ -32,7 +32,7 @@ describe('new note default heading integration (t-fn-049 / tc-fn-044)', () => {
   })
 
   it('does not persist a blank default heading on view leave flush', async () => {
-    const { editorApi, mocks, triggerIonViewWillLeave } = await mountNoteDetailForSaveTest({
+    const { editorApi, mocks, triggerF7ViewWillLeave } = await mountNoteDetailForSaveTest({
       noteId: '',
       route: {
         params: {
@@ -45,7 +45,7 @@ describe('new note default heading integration (t-fn-049 / tc-fn-044)', () => {
     editorApi.getContent.mockReturnValue('<h1></h1>')
     editorApi.isMeaningfulContent.mockReturnValue(false)
 
-    await triggerIonViewWillLeave()
+    await triggerF7ViewWillLeave()
 
     expect(mocks.addNoteMock).not.toHaveBeenCalled()
     expect(mocks.manualSyncMock).toHaveBeenCalledTimes(1)

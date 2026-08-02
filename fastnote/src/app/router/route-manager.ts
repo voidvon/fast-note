@@ -1,14 +1,17 @@
-import type { Router, RouteRecordRaw } from 'vue-router'
+import type { Router } from 'framework7/types'
+
+type Framework7Router = Router.Router
+type Framework7Route = Router.RouteParameters
 
 class RouteManager {
-  private router: Router | null = null
-  private extensionRoutes: Map<string, RouteRecordRaw[]> = new Map()
+  private router: Framework7Router | null = null
+  private extensionRoutes: Map<string, Framework7Route[]> = new Map()
 
-  setRouter(router: Router) {
+  setRouter(router: Framework7Router) {
     this.router = router
   }
 
-  registerExtensionRoutes(extensionName: string, routes: RouteRecordRaw[]) {
+  registerExtensionRoutes(extensionName: string, routes: Framework7Route[]) {
     if (!this.router) {
       console.warn('路由器未初始化')
       return
@@ -16,9 +19,7 @@ class RouteManager {
 
     this.extensionRoutes.set(extensionName, routes)
 
-    routes.forEach((route) => {
-      this.router!.addRoute(route)
-    })
+    this.router.routes.push(...routes)
 
     console.log(`已注册 ${extensionName} 扩展的路由:`, routes)
   }
@@ -33,11 +34,8 @@ class RouteManager {
     if (!routes)
       return
 
-    routes.forEach((route) => {
-      if (route.name) {
-        this.router!.removeRoute(route.name)
-      }
-    })
+    const routeSet = new Set(routes)
+    this.router.routes.splice(0, this.router.routes.length, ...this.router.routes.filter(route => !routeSet.has(route)))
 
     this.extensionRoutes.delete(extensionName)
     console.log(`已移除 ${extensionName} 扩展的路由`)
@@ -47,7 +45,7 @@ class RouteManager {
     return this.extensionRoutes.has(extensionName)
   }
 
-  getExtensionRoutes(extensionName: string): RouteRecordRaw[] | undefined {
+  getExtensionRoutes(extensionName: string): Framework7Route[] | undefined {
     return this.extensionRoutes.get(extensionName)
   }
 }

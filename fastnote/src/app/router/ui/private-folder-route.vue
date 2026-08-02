@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { defineAsyncComponent } from 'vue'
+import FolderPage from '@/pages/folder'
+import HomePage from '@/pages/home'
 import { useDeviceType } from '@/shared/lib/device'
 
 const { isDesktop } = useDeviceType()
-const HomePage = defineAsyncComponent(() => import('@/pages/home'))
-const FolderPage = defineAsyncComponent(() => import('@/pages/folder'))
 </script>
 
 <template>

@@ -1,6 +1,6 @@
 import type { LeaveFlushReason } from '@/features/note-save'
-import { onIonViewDidLeave, onIonViewWillLeave } from '@ionic/vue'
 import { onBeforeUnmount, onMounted } from 'vue'
+import { onF7ViewDidLeave, onF7ViewWillLeave } from '@/shared/ui/f7'
 
 export interface UseNoteDetailLeaveLifecycleOptions {
   clearPendingSaveTimer: () => void
@@ -29,14 +29,14 @@ export function useNoteDetailLeaveLifecycle(options: UseNoteDetailLeaveLifecycle
     window.removeEventListener('beforeunload', handleBeforeUnload)
   })
 
-  onIonViewWillLeave(() => {
+  onF7ViewWillLeave(() => {
     options.triggerLeavePageLocalFlush('view-leave')
     setTimeout(() => {
       options.closeToolbarPanels?.()
     }, 300)
   })
 
-  onIonViewDidLeave(() => {
+  onF7ViewDidLeave(() => {
     options.onDetailDidLeave?.()
   })
 

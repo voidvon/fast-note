@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { IonButton, IonInput, IonItem, IonList, IonNote } from '@ionic/vue'
+import { F7Button, F7Input, F7Item, F7List, F7Note } from '@/shared/ui/f7'
 
 const props = defineProps<{
   apiKey: string
@@ -22,19 +22,19 @@ const emit = defineEmits<{
 
 <template>
   <section>
-    <IonNote>
+    <F7Note>
       当前是浏览器直连模式，API Key 会保存在本地浏览器，请只在受信任环境中使用。
-    </IonNote>
-    <IonNote v-if="props.contextWindowHint" class="ai-chat-settings-card__hint">
+    </F7Note>
+    <F7Note v-if="props.contextWindowHint" class="ai-chat-settings-card__hint">
       {{ props.contextWindowHint }}
-    </IonNote>
-    <IonNote v-if="props.tokenizerHint" class="ai-chat-settings-card__hint">
+    </F7Note>
+    <F7Note v-if="props.tokenizerHint" class="ai-chat-settings-card__hint">
       {{ props.tokenizerHint }}
-    </IonNote>
+    </F7Note>
 
-    <IonList>
-      <IonItem>
-        <IonInput
+    <F7List>
+      <F7Item>
+        <F7Input
           :model-value="props.baseUrl"
           label="Base URL"
           label-placement="stacked"
@@ -43,10 +43,10 @@ const emit = defineEmits<{
           placeholder="https://api.openai.com/v1"
           @update:model-value="emit('update:baseUrl', String($event ?? ''))"
         />
-      </IonItem>
+      </F7Item>
 
-      <IonItem>
-        <IonInput
+      <F7Item>
+        <F7Input
           :model-value="props.model"
           label="Model"
           label-placement="stacked"
@@ -54,10 +54,10 @@ const emit = defineEmits<{
           placeholder="gpt-4.1-mini"
           @update:model-value="emit('update:model', String($event ?? ''))"
         />
-      </IonItem>
+      </F7Item>
 
-      <IonItem>
-        <IonInput
+      <F7Item>
+        <F7Input
           :model-value="props.contextWindowTokens ? String(props.contextWindowTokens) : ''"
           label="Context Window Tokens"
           label-placement="stacked"
@@ -66,10 +66,10 @@ const emit = defineEmits<{
           placeholder="留空则按模型名推断，如 128000"
           @update:model-value="emit('update:contextWindowTokens', String($event ?? ''))"
         />
-      </IonItem>
+      </F7Item>
 
-      <IonItem>
-        <IonInput
+      <F7Item>
+        <F7Input
           :model-value="props.apiKey"
           label="API Key"
           label-placement="stacked"
@@ -77,16 +77,16 @@ const emit = defineEmits<{
           placeholder="sk-..."
           @update:model-value="emit('update:apiKey', String($event ?? ''))"
         />
-      </IonItem>
-    </IonList>
+      </F7Item>
+    </F7List>
 
-    <div class="ion-padding-top">
-      <IonButton expand="block" @click="emit('save')">
+    <div class="app-padding-top">
+      <F7Button expand="block" @click="emit('save')">
         保存配置
-      </IonButton>
-      <IonButton expand="block" fill="clear" @click="emit('reset')">
+      </F7Button>
+      <F7Button expand="block" fill="clear" @click="emit('reset')">
         恢复默认
-      </IonButton>
+      </F7Button>
     </div>
   </section>
 </template>

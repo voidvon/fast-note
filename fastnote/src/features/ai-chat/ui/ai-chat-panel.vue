@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { ChatMessageCardAction } from '@/shared/ui/chat-message'
-import { IonButton, IonButtons, IonList, IonNote } from '@ionic/vue'
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import ChatMessage from '@/shared/ui/chat-message'
+import { F7Button, F7Buttons, F7List, F7Note } from '@/shared/ui/f7'
 import { AI_CHAT_STARTER_PROMPTS } from '../model/starter-prompts'
 import { useAiChat } from '../model/use-ai-chat'
 import AiChatEmptyState from './ai-chat-empty-state.vue'
@@ -322,7 +322,7 @@ function handleMessageAction(action: ChatMessageCardAction) {
 
     <div ref="threadRef" class="ai-chat-panel__thread" @scroll.passive="syncAutoScrollState">
       <template v-if="hasVisibleMessages">
-        <IonList lines="none" class="ai-chat-panel__message-list">
+        <F7List lines="none" class="ai-chat-panel__message-list">
           <ChatMessage
             v-for="message in visibleMessages"
             :key="message.id"
@@ -342,7 +342,7 @@ function handleMessageAction(action: ChatMessageCardAction) {
             :pending-label="conversationProgress.label"
             :pending-description="conversationProgress.description"
           />
-        </IonList>
+        </F7List>
       </template>
 
       <AiChatEmptyState
@@ -357,29 +357,29 @@ function handleMessageAction(action: ChatMessageCardAction) {
       v-if="canResumeTask || showConfirmationBlock"
       class="ai-chat-panel__status-stack"
     >
-      <IonButtons v-if="canResumeTask" class="ai-chat-panel__task-actions">
-        <IonButton size="small" @click="emit('resumeTask')">
+      <F7Buttons v-if="canResumeTask" class="ai-chat-panel__task-actions">
+        <F7Button size="small" @click="emit('resumeTask')">
           继续任务
-        </IonButton>
-      </IonButtons>
+        </F7Button>
+      </F7Buttons>
 
       <div v-if="showConfirmationBlock" class="ai-chat-panel__confirmation">
-        <IonNote class="ai-chat-panel__confirmation-label">
+        <F7Note class="ai-chat-panel__confirmation-label">
           待确认操作
-        </IonNote>
+        </F7Note>
         <ul class="ai-chat-panel__confirmation-list">
           <li v-for="line in confirmationPreviewLines" :key="line">
             {{ line }}
           </li>
         </ul>
-        <IonButtons class="ai-chat-panel__confirmation-actions">
-          <IonButton size="small" @click="handleConfirmPendingExecution">
+        <F7Buttons class="ai-chat-panel__confirmation-actions">
+          <F7Button size="small" @click="handleConfirmPendingExecution">
             确认执行
-          </IonButton>
-          <IonButton size="small" fill="clear" @click="cancelPendingExecution">
+          </F7Button>
+          <F7Button size="small" fill="clear" @click="cancelPendingExecution">
             取消
-          </IonButton>
-        </IonButtons>
+          </F7Button>
+        </F7Buttons>
       </div>
     </div>
 

@@ -1,20 +1,20 @@
 <script setup lang="ts">
-import {
-  IonButton,
-  IonButtons,
-  IonContent,
-  IonHeader,
-  IonIcon,
-  IonItem,
-  IonLabel,
-  IonList,
-  IonModal,
-  IonTitle,
-  IonToggle,
-  IonToolbar,
-} from '@ionic/vue'
-import { closeOutline } from 'ionicons/icons'
 import { ref, watch } from 'vue'
+import {
+  F7Button,
+  F7Buttons,
+  F7Content,
+  F7Header,
+  F7Icon,
+  F7Item,
+  F7Label,
+  F7List,
+  F7Modal,
+  F7Title,
+  F7Toggle,
+  F7Toolbar,
+} from '@/shared/ui/f7'
+import { closeOutline } from '@/shared/ui/icons'
 import { useExtensions } from '../model/use-extensions'
 
 defineProps({
@@ -68,53 +68,53 @@ function closeModal() {
 </script>
 
 <template>
-  <IonModal
+  <F7Modal
     ref="modal"
     :is-open="isOpen"
     :presenting-element="presentingElement"
     @did-dismiss="closeModal"
   >
-    <IonHeader>
-      <IonToolbar>
-        <IonTitle>扩展管理</IonTitle>
-        <IonButtons slot="end">
-          <IonButton @click="closeModal">
-            <IonIcon :icon="closeOutline" />
-          </IonButton>
-        </IonButtons>
-      </IonToolbar>
-    </IonHeader>
-    <IonContent>
-      <IonList>
-        <IonItem v-for="extension in extensions" :key="extension.id">
-          <IonIcon
-            v-if="extension.icon"
-            slot="start"
-            size="small"
-          />
+    <F7Header>
+      <F7Toolbar>
+        <F7Title>扩展管理</F7Title>
+        <F7Buttons position="end">
+          <F7Button @click="closeModal">
+            <F7Icon :icon="closeOutline" />
+          </F7Button>
+        </F7Buttons>
+      </F7Toolbar>
+    </F7Header>
+    <F7Content>
+      <F7List>
+        <F7Item v-for="extension in extensions" :key="extension.id">
+          <template #media>
+            <F7Icon v-if="extension.icon" size="small" />
+          </template>
           <!-- :icon="extension.icon" -->
-          <IonLabel>
+          <F7Label>
             <h2>{{ extension.name }}</h2>
             <p>{{ extension.description }}</p>
-          </IonLabel>
-          <div slot="end" class="flex items-center">
-            <div v-if="loadingExtensions[extension.id]" class="mr-2 text-sm text-gray-500">
-              下载中...
+          </F7Label>
+          <template #after>
+            <div class="flex items-center">
+              <div v-if="loadingExtensions[extension.id]" class="mr-2 text-sm text-gray-500">
+                下载中...
+              </div>
+              <div v-if="errorExtensions[extension.id]" class="mr-2 text-sm text-red-500">
+                {{ errorExtensions[extension.id] }}
+              </div>
+              <F7Toggle
+                :model-value="extension.enabled"
+                :disabled="loadingExtensions[extension.id]"
+                @update:model-value="handleToggleExtension(extension.id)"
+              />
             </div>
-            <div v-if="errorExtensions[extension.id]" class="mr-2 text-sm text-red-500">
-              {{ errorExtensions[extension.id] }}
-            </div>
-            <IonToggle
-              :model-value="extension.enabled"
-              :disabled="loadingExtensions[extension.id]"
-              @update:model-value="handleToggleExtension(extension.id)"
-            />
-          </div>
-        </IonItem>
+          </template>
+        </F7Item>
         <div class="mt-2 text-sm text-center">
           v0.0.1({{ version }})
         </div>
-      </IonList>
-    </IonContent>
-  </IonModal>
+      </F7List>
+    </F7Content>
+  </F7Modal>
 </template>

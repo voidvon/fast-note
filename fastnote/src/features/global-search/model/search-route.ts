@@ -1,12 +1,12 @@
-import type { LocationQuery, LocationQueryRaw } from 'vue-router'
 import type { GlobalSearchInputMode } from './use-global-search'
+import type { AppRouteQuery } from '@/shared/lib/framework7'
 
 export const GLOBAL_SEARCH_OVERLAY_QUERY_KEY = 'overlay'
 export const GLOBAL_SEARCH_OVERLAY_QUERY_VALUE = 'search'
 export const GLOBAL_SEARCH_OVERLAY_MODE_QUERY_KEY = 'overlayMode'
 export const GLOBAL_SEARCH_HISTORY_STATE_KEY = 'globalSearchOverlay'
 
-function normalizeQueryValue(value: LocationQuery[string] | LocationQueryRaw[string]) {
+function normalizeQueryValue(value: AppRouteQuery[string]) {
   if (Array.isArray(value)) {
     return value[0] ?? ''
   }
@@ -14,17 +14,17 @@ function normalizeQueryValue(value: LocationQuery[string] | LocationQueryRaw[str
   return value ?? ''
 }
 
-export function hasGlobalSearchOverlay(query: LocationQuery | LocationQueryRaw) {
+export function hasGlobalSearchOverlay(query: AppRouteQuery) {
   return normalizeQueryValue(query[GLOBAL_SEARCH_OVERLAY_QUERY_KEY]) === GLOBAL_SEARCH_OVERLAY_QUERY_VALUE
 }
 
-export function getGlobalSearchOverlayMode(query: LocationQuery | LocationQueryRaw): GlobalSearchInputMode {
+export function getGlobalSearchOverlayMode(query: AppRouteQuery): GlobalSearchInputMode {
   return normalizeQueryValue(query[GLOBAL_SEARCH_OVERLAY_MODE_QUERY_KEY]) === 'ai'
     ? 'ai'
     : 'search'
 }
 
-export function withGlobalSearchOverlay(query: LocationQuery | LocationQueryRaw, mode: GlobalSearchInputMode = 'search') {
+export function withGlobalSearchOverlay(query: AppRouteQuery, mode: GlobalSearchInputMode = 'search') {
   return {
     ...query,
     [GLOBAL_SEARCH_OVERLAY_QUERY_KEY]: GLOBAL_SEARCH_OVERLAY_QUERY_VALUE,
@@ -32,7 +32,7 @@ export function withGlobalSearchOverlay(query: LocationQuery | LocationQueryRaw,
   }
 }
 
-export function withoutGlobalSearchOverlay(query: LocationQuery | LocationQueryRaw) {
+export function withoutGlobalSearchOverlay(query: AppRouteQuery) {
   const nextQuery = {
     ...query,
   }

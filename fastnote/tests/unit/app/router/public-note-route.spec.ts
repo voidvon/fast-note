@@ -10,7 +10,7 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
-function createIonicStub(name: string) {
+function createF7Stub(name: string) {
   return defineComponent({
     name,
     inheritAttrs: false,
@@ -25,7 +25,7 @@ describe('public note mobile route', () => {
     vi.resetModules()
   })
 
-  it('keeps distinct Ionic route components for each public center level', async () => {
+  it('keeps distinct Framework7 route components for each public center level', async () => {
     const { appRoutes } = await import('@/app/router/routes')
     const publicRouteComponents = appRoutes
       .filter(route => ['UserHome', 'UserFolder', 'UserNote'].includes(route.name as string))
@@ -34,16 +34,13 @@ describe('public note mobile route', () => {
     expect(publicRouteComponents).toHaveLength(3)
     expect(new Set(publicRouteComponents).size).toBe(3)
 
-    const resolvedComponents = await Promise.all(
-      publicRouteComponents.map(component => (component as () => Promise<unknown>)()),
-    )
-    expect(new Set(resolvedComponents).size).toBe(3)
+    expect(publicRouteComponents.every(component => component && typeof component === 'object')).toBe(true)
   })
 
   it('renders a skeleton before the public note request resolves', async () => {
     const pendingNote = deferred<{ id: string } | null>()
     const loadPublicNote = vi.fn(() => pendingNote.promise)
-    let ionViewDidLeaveCallback: (() => void) | undefined
+    let f7ViewDidLeaveCallback: (() => void) | undefined
     const noteDetailStub = defineComponent({
       name: 'NoteDetailPage',
       props: {
@@ -66,16 +63,6 @@ describe('public note mobile route', () => {
       `,
     })
 
-    vi.doMock('vue-router', async () => {
-      const actual = await vi.importActual<typeof import('vue-router')>('vue-router')
-      return {
-        ...actual,
-        useRoute: () => ({
-          name: 'UserNote',
-          params: { username: 'voidvon', noteId: 'note-1' },
-        }),
-      }
-    })
     vi.doMock('@/shared/lib/device', () => ({
       useDeviceType: () => ({ isDesktop: ref(false) }),
     }))
@@ -84,17 +71,21 @@ describe('public note mobile route', () => {
     vi.doMock('@/pages/user-public-notes/ui/user-public-notes-page.vue', () => ({
       default: defineComponent({ template: '<div />' }),
     }))
-    vi.doMock('@ionic/vue', () => ({
-      IonBackButton: createIonicStub('IonBackButton'),
-      IonButtons: createIonicStub('IonButtons'),
-      IonContent: createIonicStub('IonContent'),
-      IonHeader: createIonicStub('IonHeader'),
-      IonPage: createIonicStub('IonPage'),
-      IonSkeletonText: createIonicStub('IonSkeletonText'),
-      IonToolbar: createIonicStub('IonToolbar'),
-      onIonViewDidLeave: (callback: () => void) => {
-        ionViewDidLeaveCallback = callback
+    vi.doMock('@/shared/ui/f7', () => ({
+      F7BackButton: createF7Stub('F7BackButton'),
+      F7Buttons: createF7Stub('F7Buttons'),
+      F7Content: createF7Stub('F7Content'),
+      F7Header: createF7Stub('F7Header'),
+      F7Page: createF7Stub('F7Page'),
+      F7SkeletonText: createF7Stub('F7SkeletonText'),
+      F7Toolbar: createF7Stub('F7Toolbar'),
+      onF7ViewDidLeave: (callback: () => void) => {
+        f7ViewDidLeaveCallback = callback
       },
+      useAppRoute: () => ({
+        name: 'UserNote',
+        params: { username: 'voidvon', noteId: 'note-1' },
+      }),
     }))
 
     const PublicNoteRoute = (await import('@/app/router/ui/public-note-route.vue')).default
@@ -116,7 +107,7 @@ describe('public note mobile route', () => {
     expect(wrapper.find('.note-detail-page').element).toBe(stableDetailPage)
     expect(wrapper.find('.note-detail-page').attributes('data-note-id')).toBe('note-1')
 
-    ionViewDidLeaveCallback?.()
+    f7ViewDidLeaveCallback?.()
     await flushPromises()
 
     expect(wrapper.find('.note-detail-page').exists()).toBe(true)

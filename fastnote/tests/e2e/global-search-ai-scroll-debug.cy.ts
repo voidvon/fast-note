@@ -23,31 +23,54 @@ describe('global search ai scroll debug', () => {
   })
 
   it('captures ai scroll container metrics', () => {
-    cy.get('.global-search__input').focus()
-    cy.get('button[aria-label="切换到 AI 对话"]').click()
+    cy.get('.page-current:not([aria-hidden="true"]) .global-search')
+      .filter(':visible')
+      .first()
+      .within(() => {
+        cy.get('.global-search__input input').then(($input) => {
+          const input = $input.get(0)
+          const styles = getComputedStyle(input)
+          expect(styles.display).not.to.equal('none')
+          expect(input.getBoundingClientRect().width).to.be.greaterThan(0)
+          expect(input.getBoundingClientRect().height).to.be.greaterThan(0)
+          cy.wrap(input).as('searchInputBeforeRoute')
+        })
 
-    cy.get('.ai-chat-panel ion-content').should('exist')
+        cy.get('.global-search__input input').click().should('be.focused')
+      })
 
-    cy.get('.ai-chat-panel ion-content').then(($content) => {
-      const ionContent = $content.get(0) as HTMLElement & { shadowRoot?: ShadowRoot }
-      const scrollEl = ionContent.shadowRoot?.querySelector('.inner-scroll') as HTMLElement | null
+    cy.location('search').should('include', 'overlay=search')
+    cy.get('.page-current:not([aria-hidden="true"]) .global-search')
+      .filter(':visible')
+      .first()
+      .within(() => {
+        cy.get('.global-search__input input').should('be.focused').then(($input) => {
+          cy.get('@searchInputBeforeRoute').then(($previousInput) => {
+            expect($input.get(0)).to.equal($previousInput.get(0))
+          })
+        })
+        cy.get('button[aria-label="切换到 AI 对话"]').click()
+      })
 
-      expect(scrollEl, 'ai chat inner scroll element').to.not.equal(null)
+    cy.get('.ai-chat-panel__thread').should('exist')
+
+    cy.get('.ai-chat-panel__thread').then(($content) => {
+      const scrollEl = $content.get(0)
 
       const metrics = {
-        clientHeight: scrollEl!.clientHeight,
-        scrollHeight: scrollEl!.scrollHeight,
-        scrollTop: scrollEl!.scrollTop,
+        clientHeight: scrollEl.clientHeight,
+        scrollHeight: scrollEl.scrollHeight,
+        scrollTop: scrollEl.scrollTop,
       }
 
       cy.log(JSON.stringify(metrics))
 
       expect(metrics.scrollHeight).to.be.greaterThan(metrics.clientHeight)
 
-      scrollEl!.scrollTop = 200
-      scrollEl!.dispatchEvent(new Event('scroll', { bubbles: true }))
+      scrollEl.scrollTop = 200
+      scrollEl.dispatchEvent(new Event('scroll', { bubbles: true }))
 
-      expect(scrollEl!.scrollTop).to.be.greaterThan(0)
+      expect(scrollEl.scrollTop).to.be.greaterThan(0)
     })
   })
 })

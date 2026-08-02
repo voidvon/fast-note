@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { IonButton, IonButtons, IonChip, IonIcon, IonLabel } from '@ionic/vue'
-import { refreshOutline, settingsOutline, sparklesOutline } from 'ionicons/icons'
+import { F7Button, F7Buttons, F7Chip, F7Icon, F7Label } from '@/shared/ui/f7'
+import { refreshOutline, settingsOutline, sparklesOutline } from '@/shared/ui/icons'
 
 defineProps<{
   canClear: boolean
@@ -17,32 +17,32 @@ const emit = defineEmits<{
 <template>
   <div class="ai-chat-toolbar">
     <div class="ai-chat-toolbar__meta">
-      <IonChip class="ai-chat-toolbar__mode-chip">
-        <IonIcon :icon="sparklesOutline" />
-        <IonLabel>{{ providerLabel }}</IonLabel>
-      </IonChip>
+      <F7Chip class="ai-chat-toolbar__mode-chip">
+        <F7Icon :icon="sparklesOutline" />
+        <F7Label>{{ providerLabel }}</F7Label>
+      </F7Chip>
       <span class="ai-chat-toolbar__context-percent">{{ contextRemainingPercent }}%</span>
     </div>
 
-    <IonButtons class="ai-chat-toolbar__actions">
-      <IonButton
+    <F7Buttons class="ai-chat-toolbar__actions">
+      <F7Button
         fill="clear"
         class="ai-chat-toolbar__button"
         aria-label="配置 AI"
         @click="emit('openSettings')"
       >
-        <IonIcon :icon="settingsOutline" />
-      </IonButton>
-      <IonButton
+        <F7Icon :icon="settingsOutline" />
+      </F7Button>
+      <F7Button
         fill="clear"
         class="ai-chat-toolbar__button"
         :disabled="!canClear"
         aria-label="新建对话"
         @click="emit('clear')"
       >
-        <IonIcon :icon="refreshOutline" />
-      </IonButton>
-    </IonButtons>
+        <F7Icon :icon="refreshOutline" />
+      </F7Button>
+    </F7Buttons>
   </div>
 </template>
 
@@ -70,7 +70,7 @@ const emit = defineEmits<{
   min-width: 0;
 }
 
-.ai-chat-toolbar__mode-chip ion-icon {
+.ai-chat-toolbar__mode-chip .app-icon {
   color: #7dd3fc;
 }
 

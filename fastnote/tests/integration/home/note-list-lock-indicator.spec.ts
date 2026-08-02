@@ -3,12 +3,17 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, ref } from 'vue'
 import { makeNote } from '../../factories/note.factory'
 
-function createIonicStub(name: string, tag = 'div') {
+function createF7Stub(name: string, tag = 'div') {
   return defineComponent({
     name,
     inheritAttrs: false,
     setup(_, { attrs, slots }) {
       return () => h(tag, attrs, [
+        ...(slots.list ? slots.list() : []),
+        ...(slots.media ? slots.media() : []),
+        ...(slots['before-title'] ? slots['before-title']() : []),
+        ...(slots.title ? slots.title() : []),
+        ...(slots.after ? slots.after() : []),
         ...(slots.header ? slots.header() : []),
         ...(slots.default ? slots.default() : []),
         ...(slots.content ? slots.content() : []),
@@ -29,15 +34,15 @@ async function mountNoteList(options: {
 }) {
   vi.resetModules()
   localStorage.clear()
-  document.documentElement.classList.toggle('ion-palette-dark', !!options.darkMode)
+  document.documentElement.classList.toggle('app-theme-dark', !!options.darkMode)
 
   vi.doMock('@/shared/lib/device', () => ({
     useDeviceType: () => ({
       isDesktop: ref(false),
     }),
   }))
-  vi.doMock('@/shared/lib/ionic', () => ({
-    useIonicLongPressList: vi.fn(),
+  vi.doMock('@/shared/lib/framework7', () => ({
+    useLongPressList: vi.fn(),
   }))
   vi.doMock('vue-router', () => ({
     useRoute: () => ({
@@ -53,7 +58,10 @@ async function mountNoteList(options: {
     default: createPlainStub('NoteMove'),
   }))
   vi.doMock('@/features/note-move/ui/note-move-modal.vue', () => ({
+    __isKeepAlive: false,
+    __isTeleport: false,
     default: createPlainStub('NoteMoveModal'),
+    name: 'NoteMoveModal',
   }))
   vi.doMock('@/features/note-lock', () => ({
     useNoteLockIndicatorState: () => ({
@@ -65,16 +73,17 @@ async function mountNoteList(options: {
       refreshIndicatorStates: vi.fn(),
     }),
   }))
-  vi.doMock('@ionic/vue', () => ({
-    IonAccordion: createIonicStub('IonAccordion'),
-    IonAccordionGroup: createIonicStub('IonAccordionGroup'),
-    IonIcon: createIonicStub('IonIcon', 'span'),
-    IonItem: createIonicStub('IonItem'),
-    IonLabel: createIonicStub('IonLabel'),
-    IonList: createIonicStub('IonList'),
-    IonModal: createIonicStub('IonModal'),
-    IonNote: createIonicStub('IonNote', 'span'),
-    useIonRouter: () => ({
+  vi.doMock('@/shared/ui/f7', () => ({
+    F7Accordion: createF7Stub('F7Accordion'),
+    F7AccordionGroup: createF7Stub('F7AccordionGroup'),
+    F7Icon: createF7Stub('F7Icon', 'span'),
+    F7Item: createF7Stub('F7Item'),
+    F7Label: createF7Stub('F7Label'),
+    F7List: createF7Stub('F7List'),
+    F7Modal: createF7Stub('F7Modal'),
+    F7Note: createF7Stub('F7Note', 'span'),
+    useAppRoute: () => ({ path: '/home', params: {}, name: 'Home' }),
+    useAppRouter: () => ({
       push: vi.fn(),
     }),
   }))
@@ -133,7 +142,7 @@ async function mountNoteList(options: {
 
 describe('note list lock indicator integration (t-fn-051 / tc-fn-047, tc-fn-048)', () => {
   afterEach(() => {
-    document.documentElement.classList.remove('ion-palette-dark')
+    document.documentElement.classList.remove('app-theme-dark')
     vi.clearAllMocks()
     vi.resetModules()
   })
@@ -141,9 +150,9 @@ describe('note list lock indicator integration (t-fn-051 / tc-fn-047, tc-fn-048)
   it('renders lock indicators only for note rows in a mixed list', async () => {
     const wrapper = await mountNoteList({})
 
-    expect(wrapper.findAll('[data-testid="note-leading-slot"]')).toHaveLength(3)
+    expect(wrapper.findAll('[data-testid="note-leading-slot"]')).toHaveLength(0)
     expect(wrapper.findAll('[data-testid="note-lock-icon"]')).toHaveLength(2)
-    expect(wrapper.findAll('[data-testid="note-leading-slot"]').map(item => item.attributes('data-lock-state'))).toEqual([
+    expect(wrapper.findAll('.note-list-item--note').map(item => item.attributes('data-lock-state'))).toEqual([
       'locked',
       'unlocked',
       'placeholder',
@@ -158,9 +167,9 @@ describe('note list lock indicator integration (t-fn-051 / tc-fn-047, tc-fn-048)
       darkMode: true,
     })
 
-    expect(document.documentElement.classList.contains('ion-palette-dark')).toBe(true)
+    expect(document.documentElement.classList.contains('app-theme-dark')).toBe(true)
     expect(wrapper.find('[data-testid="note-lock-icon"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="note-leading-slot"]').attributes('data-lock-state')).toBe('locked')
+    expect(wrapper.find('.note-list-item--note').attributes('data-lock-state')).toBe('locked')
     expect(wrapper.text()).toContain('被锁定的超长标题备忘录')
   })
 })

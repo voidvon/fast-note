@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { IonButton, IonIcon } from '@ionic/vue'
-import { extensionPuzzleOutline } from 'ionicons/icons'
+import { F7Button, F7Icon } from '@/shared/ui/f7'
+import { extensionPuzzleOutline } from '@/shared/ui/icons'
 
 defineEmits(['click'])
 </script>
 
 <template>
-  <IonButton fill="clear" @click="$emit('click')">
-    <IonIcon :icon="extensionPuzzleOutline" />
-  </IonButton>
+  <F7Button fill="clear" @click="$emit('click')">
+    <F7Icon :icon="extensionPuzzleOutline" />
+  </F7Button>
 </template>

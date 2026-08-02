@@ -1,9 +1,9 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, h, nextTick, ref } from 'vue'
+import { defineComponent, h, nextTick, onMounted, ref } from 'vue'
 import { getLastVisitedRouteStorageKey } from '@/processes/navigation'
 
-function createIonicStub(name: string) {
+function createF7Stub(name: string) {
   return defineComponent({
     name,
     inheritAttrs: false,
@@ -32,6 +32,7 @@ async function mountAppForRouteRestore(options: {
 }) {
   vi.resetModules()
   localStorage.clear()
+  window.history.replaceState({}, '', options.currentPath)
 
   const currentRoute = ref({
     fullPath: options.currentPath,
@@ -45,6 +46,24 @@ async function mountAppForRouteRestore(options: {
       name: fullPath === '/home' ? 'Home' : 'NoteDetail',
     }
   })
+  const routeHandlers = new Map<string, Set<(route: { url: string }) => void>>()
+  const framework7Router = {
+    currentRoute: { url: options.currentPath },
+    navigate: vi.fn((target: string) => {
+      void routerReplaceMock(target)
+      framework7Router.currentRoute = { url: target }
+      routeHandlers.get('routeChange')?.forEach(handler => handler({ url: target }))
+      routeHandlers.get('routeChanged')?.forEach(handler => handler({ url: target }))
+    }),
+    on: vi.fn((event: string, handler: (route: { url: string }) => void) => {
+      const handlers = routeHandlers.get(event) || new Set()
+      handlers.add(handler)
+      routeHandlers.set(event, handlers)
+    }),
+    off: vi.fn((event: string, handler: (route: { url: string }) => void) => {
+      routeHandlers.get(event)?.delete(handler)
+    }),
+  }
 
   if (options.savedLastRoute) {
     localStorage.setItem(getLastVisitedRouteStorageKey('user-a'), options.savedLastRoute)
@@ -57,10 +76,22 @@ async function mountAppForRouteRestore(options: {
   const authChangeMock = vi.fn(() => vi.fn())
 
   vi.doMock('vue-router', () => ({
+    RouterView: createF7Stub('RouterView'),
     useRouter: () => ({
       currentRoute,
       replace: routerReplaceMock,
       afterEach: vi.fn(() => vi.fn()),
+    }),
+  }))
+
+  vi.doMock('framework7-vue', () => ({
+    f7View: defineComponent({
+      name: 'F7View',
+      emits: ['view:init'],
+      setup(_, { attrs, emit }) {
+        onMounted(() => emit('view:init', { router: framework7Router }))
+        return () => h('div', attrs)
+      },
     }),
   }))
 
@@ -74,6 +105,11 @@ async function mountAppForRouteRestore(options: {
 
   vi.doMock('@/shared/api/pocketbase', () => ({
     PocketBaseRealtimeService: class {},
+    authService: {
+      isAuthenticated: () => options.isAuthenticated ?? true,
+      getCurrentAuthUser: () => ((options.isAuthenticated ?? true) ? { id: 'user-a' } : null),
+      onAuthChange: authChangeMock,
+    },
   }))
 
   vi.doMock('@/processes/session/model/auth-manager', async () => ({
@@ -135,9 +171,8 @@ async function mountAppForRouteRestore(options: {
     },
   }))
 
-  vi.doMock('@ionic/vue', () => ({
-    IonApp: createIonicStub('IonApp'),
-    IonRouterOutlet: createIonicStub('IonRouterOutlet'),
+  vi.doMock('@/shared/ui/f7', () => ({
+    F7App: createF7Stub('F7App'),
     alertController: {
       create: vi.fn(async () => ({
         present: vi.fn(async () => undefined),
@@ -184,6 +219,12 @@ describe('private route restore timing (t-fn-031 / tc-fn-023)', () => {
     expect(mocks.initializeNotesMock).toHaveBeenCalled()
     expect(wrapper.find('[data-testid="app-private-route-pending"]').exists()).toBe(false)
     expect(mocks.routerReplaceMock).not.toHaveBeenCalledWith('/n/private-note')
+
+    mocks.syncDeferred.reject(new Error('offline'))
+    await flushPromises()
+    await nextTick()
+
+    expect(mocks.routerReplaceMock).not.toHaveBeenCalledWith('/home')
   })
 
   it('keeps an explicit private detail route instead of restoring /home', async () => {

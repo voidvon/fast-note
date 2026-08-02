@@ -1,20 +1,20 @@
 import type { GuestDataDecision } from '@/shared/lib/storage/guest-data'
-import { alertController } from '@ionic/vue'
 import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import { authService } from '@/entities/auth'
 import { useNoteLock } from '@/features/note-lock'
 import { useLastVisitedRoute } from '@/processes/navigation'
 import { useSync } from '@/processes/sync-notes'
 import { PocketBaseRealtimeService } from '@/shared/api/pocketbase'
+import { useAppRouter } from '@/shared/lib/framework7'
 import { logger } from '@/shared/lib/logger'
 import { hasGuestData, mergeGuestDataIntoCurrent } from '@/shared/lib/storage/guest-data'
+import { alertController } from '@/shared/ui/f7'
 import { authManager } from './auth-manager'
 import { prepareSessionContext } from './prepare-session-context'
 import { realtimeManager } from './realtime-manager'
 
 export function useSessionBootstrap() {
-  const router = useRouter()
+  const router = useAppRouter()
   const {
     isDeferredPrivateRoute,
     restoreDeferredLastVisitedRoute,
@@ -161,11 +161,6 @@ export function useSessionBootstrap() {
       }
     })().catch(async (error) => {
       isPrivateRouteLocalReady.value = true
-
-      if (isDeferredPrivateRoute(router.currentRoute.value.fullPath)) {
-        await router.replace('/home')
-      }
-
       throw error
     }).finally(() => {
       sessionBootstrapPromise = null

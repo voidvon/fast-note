@@ -1,28 +1,28 @@
 <script setup lang="ts">
-import {
-  alertController,
-  IonBackButton,
-  IonButton,
-  IonButtons,
-  IonContent,
-  IonHeader,
-  IonIcon,
-  IonInput,
-  IonItem,
-  IonLabel,
-  IonPage,
-  IonSpinner,
-  IonToolbar,
-  loadingController,
-  useIonRouter,
-} from '@ionic/vue'
-import { alertCircle, checkmarkCircle } from 'ionicons/icons'
 import { ref } from 'vue'
 import { useSimpleBackButton } from '@/processes/navigation'
 import { useAuth } from '@/processes/session'
 import { useDeviceType } from '@/shared/lib/device'
+import {
+  alertController,
+  F7BackButton,
+  F7Button,
+  F7Buttons,
+  F7Content,
+  F7Header,
+  F7Icon,
+  F7Input,
+  F7Item,
+  F7Label,
+  F7Page,
+  F7Spinner,
+  F7Toolbar,
+  loadingController,
+  useAppRouter,
+} from '@/shared/ui/f7'
+import { alertCircle, checkmarkCircle } from '@/shared/ui/icons'
 
-const router = useIonRouter()
+const router = useAppRouter()
 const { isDesktop } = useDeviceType()
 const { register } = useAuth()
 
@@ -113,16 +113,16 @@ async function handleRegister() {
 </script>
 
 <template>
-  <IonPage>
-    <IonHeader :translucent="true">
-      <IonToolbar>
-        <IonButtons slot="start">
-          <IonBackButton v-bind="backButtonProps" />
-        </IonButtons>
-      </IonToolbar>
-    </IonHeader>
+  <F7Page>
+    <F7Header :translucent="true">
+      <F7Toolbar>
+        <F7Buttons position="start">
+          <F7BackButton v-bind="backButtonProps" />
+        </F7Buttons>
+      </F7Toolbar>
+    </F7Header>
 
-    <IonContent :fullscreen="true">
+    <F7Content :fullscreen="true">
       <!-- 注册表单容器 -->
       <div class="flex items-center min-h-full justify-center px-4 py-8">
         <div
@@ -145,7 +145,7 @@ async function handleRegister() {
           <div class="bg-transparent">
             <!-- 用户名输入（必填） -->
             <div class="mb-4">
-              <IonInput
+              <F7Input
                 v-model="formData.username"
                 label="用户名"
                 label-placement="floating"
@@ -160,7 +160,7 @@ async function handleRegister() {
 
             <!-- 邮箱输入 -->
             <div class="mb-4">
-              <IonInput
+              <F7Input
                 v-model="formData.email"
                 label="邮箱地址"
                 label-placement="floating"
@@ -175,7 +175,7 @@ async function handleRegister() {
 
             <!-- 密码输入 -->
             <div class="mb-4">
-              <IonInput
+              <F7Input
                 v-model="formData.password"
                 label="密码"
                 label-placement="floating"
@@ -190,7 +190,7 @@ async function handleRegister() {
 
             <!-- 确认密码输入 -->
             <div class="mb-6">
-              <IonInput
+              <F7Input
                 v-model="formData.passwordConfirm"
                 label="确认密码"
                 label-placement="floating"
@@ -206,50 +206,50 @@ async function handleRegister() {
 
             <!-- 注册按钮 -->
             <div>
-              <IonButton
+              <F7Button
                 expand="block"
                 :disabled="loading || !formData.username || !formData.email || !formData.password || !formData.passwordConfirm"
                 @click="handleRegister"
               >
-                <IonSpinner v-if="loading" name="crescent" class="mr-2" />
+                <F7Spinner v-if="loading" name="crescent" class="mr-2" />
                 {{ loading ? '注册中...' : '注册' }}
-              </IonButton>
+              </F7Button>
             </div>
 
             <!-- 错误提示 -->
             <div v-if="error" class="mt-4">
-              <IonItem color="danger" lines="none" class="rounded-lg">
-                <IonLabel class="text-center whitespace-pre-wrap">
-                  <IonIcon :icon="alertCircle" class="mr-2" />
+              <F7Item color="danger" lines="none" class="rounded-lg">
+                <F7Label class="text-center whitespace-pre-wrap">
+                  <F7Icon :icon="alertCircle" class="mr-2" />
                   {{ error }}
-                </IonLabel>
-              </IonItem>
+                </F7Label>
+              </F7Item>
             </div>
 
             <!-- 成功提示 -->
             <div v-if="message" class="mt-4">
-              <IonItem color="success" lines="none" class="rounded-lg">
-                <IonLabel class="text-center whitespace-pre-wrap">
-                  <IonIcon :icon="checkmarkCircle" class="mr-2" />
+              <F7Item color="success" lines="none" class="rounded-lg">
+                <F7Label class="text-center whitespace-pre-wrap">
+                  <F7Icon :icon="checkmarkCircle" class="mr-2" />
                   {{ message }}
-                </IonLabel>
-              </IonItem>
+                </F7Label>
+              </F7Item>
             </div>
 
             <!-- 登录链接 -->
             <div class="flex justify-center items-center">
               已有账户？
-              <IonButton
+              <F7Button
                 fill="clear"
                 :disabled="loading"
                 @click="router.replace('/login')"
               >
                 立即登录
-              </IonButton>
+              </F7Button>
             </div>
           </div>
         </div>
       </div>
-    </IonContent>
-  </IonPage>
+    </F7Content>
+  </F7Page>
 </template>

@@ -20,7 +20,8 @@ describe('global search glass controls', () => {
 
   it('keeps the field and both actions frosted in light and dark themes', () => {
     cy.get('.global-search .app-glass-circle-button').should('have.length', 2)
-    expectGlassEffect('.global-search__field-shell', 'rgba(255, 255, 255, 0.01)')
+    cy.get('.global-search__field-shell').should('not.exist')
+    expectGlassEffect('.global-search__input.searchbar input', 'rgba(255, 255, 255, 0.01)')
     expectGlassEffect('.global-search .app-glass-circle-button', 'rgba(255, 255, 255, 0.01)')
 
     cy.window().then((window) => {
@@ -28,7 +29,32 @@ describe('global search glass controls', () => {
     })
     cy.reload()
 
-    expectGlassEffect('.global-search__field-shell', 'rgba(255, 255, 255, 0.024)')
+    cy.get('.global-search__field-shell').should('not.exist')
+    expectGlassEffect('.global-search__input.searchbar input', 'rgba(255, 255, 255, 0.024)')
     expectGlassEffect('.global-search .app-glass-circle-button', 'rgba(255, 255, 255, 0.024)')
+  })
+
+  it('keeps the Framework7 search input inside the visible hit area', () => {
+    cy.get('.page-current:not([aria-hidden="true"]) .global-search__input input')
+      .should('have.attr', 'placeholder', '搜索')
+      .then(($input) => {
+        const input = $input.get(0)
+        const rect = input.getBoundingClientRect()
+        const hitTarget = input.ownerDocument.elementFromPoint(
+          rect.left + rect.width / 2,
+          rect.top + rect.height / 2,
+        )
+        expect(hitTarget, JSON.stringify({
+          bottom: rect.bottom,
+          height: rect.height,
+          left: rect.left,
+          right: rect.right,
+          top: rect.top,
+          width: rect.width,
+        })).to.equal(input)
+      })
+      .click()
+      .type('测试')
+      .should('have.value', '测试')
   })
 })

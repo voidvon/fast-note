@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest'
 const styleFiles = [
   'src/css/common.scss',
   'src/features/global-search/ui/global-search.vue',
-  'src/features/note-actions-menu/ui/note-actions-menu.vue',
 ]
 
 describe('backdrop filter declaration order', () => {

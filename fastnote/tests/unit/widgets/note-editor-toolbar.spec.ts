@@ -2,7 +2,7 @@ import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick } from 'vue'
 
-function createIonicStub(name: string, tag = 'div') {
+function createF7Stub(name: string, tag = 'div') {
   return defineComponent({
     name,
     inheritAttrs: false,
@@ -39,20 +39,20 @@ describe('note-editor-toolbar widget', () => {
   })
 
   it('opens the table format modal and notifies page state', async () => {
-    vi.doMock('@ionic/vue', () => ({
-      IonButton: createButtonStub('IonButton'),
-      IonFooter: createIonicStub('IonFooter'),
-      IonIcon: createIonicStub('IonIcon'),
-      IonToolbar: createIonicStub('IonToolbar'),
+    vi.doMock('@/shared/ui/f7', () => ({
+      F7Footer: createF7Stub('F7Footer'),
+      F7Icon: createF7Stub('F7Icon'),
+      F7Link: createButtonStub('F7Link'),
+      F7ToolbarPane: createF7Stub('F7ToolbarPane'),
     }))
     vi.doMock('@/shared/ui/icon', () => ({
-      default: createIonicStub('Icon'),
+      default: createF7Stub('Icon'),
     }))
     vi.doMock('@/widgets/note-editor-toolbar/ui/table-format-modal.vue', () => ({
-      default: createIonicStub('TableFormatModal'),
+      default: createF7Stub('TableFormatModal'),
     }))
     vi.doMock('@/widgets/note-editor-toolbar/ui/text-format-modal.vue', () => ({
-      default: createIonicStub('TextFormatModal'),
+      default: createF7Stub('TextFormatModal'),
     }))
 
     const focusSpy = vi.fn(() => ({ run: vi.fn() }))
@@ -74,6 +74,15 @@ describe('note-editor-toolbar widget', () => {
       },
     })
 
+    const tabbar = wrapper.getComponent({ name: 'F7Footer' })
+    expect(tabbar.attributes()).toHaveProperty('native')
+    expect(tabbar.attributes()).toHaveProperty('tabbar')
+    expect(tabbar.attributes()).toHaveProperty('icons')
+    expect(tabbar.attributes()).toHaveProperty('scrollable')
+    expect(wrapper.getComponent({ name: 'F7ToolbarPane' }).exists()).toBe(true)
+    expect(wrapper.findAll('[icon-only]')).toHaveLength(5)
+    expect(wrapper.findAll('[tab-link]')).toHaveLength(0)
+
     await wrapper.get('[data-testid="note-editor-toolbar-table"]').trigger('click')
     expect(host.setInputMode).toHaveBeenCalledWith('none')
 
@@ -87,20 +96,20 @@ describe('note-editor-toolbar widget', () => {
   })
 
   it('closes open panels through exposed api and restores text input mode', async () => {
-    vi.doMock('@ionic/vue', () => ({
-      IonButton: createButtonStub('IonButton'),
-      IonFooter: createIonicStub('IonFooter'),
-      IonIcon: createIonicStub('IonIcon'),
-      IonToolbar: createIonicStub('IonToolbar'),
+    vi.doMock('@/shared/ui/f7', () => ({
+      F7Footer: createF7Stub('F7Footer'),
+      F7Icon: createF7Stub('F7Icon'),
+      F7Link: createButtonStub('F7Link'),
+      F7ToolbarPane: createF7Stub('F7ToolbarPane'),
     }))
     vi.doMock('@/shared/ui/icon', () => ({
-      default: createIonicStub('Icon'),
+      default: createF7Stub('Icon'),
     }))
     vi.doMock('@/widgets/note-editor-toolbar/ui/table-format-modal.vue', () => ({
-      default: createIonicStub('TableFormatModal'),
+      default: createF7Stub('TableFormatModal'),
     }))
     vi.doMock('@/widgets/note-editor-toolbar/ui/text-format-modal.vue', () => ({
-      default: createIonicStub('TextFormatModal'),
+      default: createF7Stub('TextFormatModal'),
     }))
 
     const blurChain = { focus: () => ({ run: vi.fn() }) }

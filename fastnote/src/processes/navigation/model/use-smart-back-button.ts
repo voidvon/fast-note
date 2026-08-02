@@ -1,10 +1,10 @@
-import type { RouteLocationNormalized } from 'vue-router'
-import { isPlatform } from '@ionic/vue'
+import type { AppRouteLocation } from '@/shared/lib/framework7'
 import { computed } from 'vue'
+import { isPlatform } from '@/shared/ui/f7'
 import { useNavigationHistory } from './use-navigation-history'
 
 export function useNoteBackButton(
-  route: RouteLocationNormalized,
+  route: AppRouteLocation,
   data: { value?: { parent_id?: string } },
   username?: string,
 ) {
@@ -27,7 +27,7 @@ export function useNoteBackButton(
 }
 
 export function useFolderBackButton(
-  route: RouteLocationNormalized,
+  route: AppRouteLocation,
   isTopFolder: () => boolean,
   username?: string,
 ) {

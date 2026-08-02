@@ -1,4 +1,4 @@
-import type { RouteLocationNormalized, Router } from 'vue-router'
+import type { AppRouteLocation, AppRouter } from '@/shared/lib/framework7'
 import { computed, ref } from 'vue'
 
 interface HistoryItem {
@@ -27,7 +27,7 @@ class NavigationHistory {
     this.loadFromStorage()
   }
 
-  setRouter(router: Router) {
+  setRouter(router: AppRouter) {
     router.afterEach((to, from) => {
       if (to.fullPath !== from.fullPath) {
         this.handleNavigation(to.fullPath, from.fullPath)
@@ -153,7 +153,7 @@ class NavigationHistory {
     return null
   }
 
-  getSmartBackPath(route: RouteLocationNormalized, fallbackPath: string) {
+  getSmartBackPath(route: AppRouteLocation, fallbackPath: string) {
     const previousPath = this.getPreviousRoute(route.fullPath)
 
     if (!previousPath || previousPath === route.fullPath) {
@@ -180,9 +180,9 @@ export function useNavigationHistory() {
   return {
     history: computed(() => navigationHistory.getHistory().value),
     setStorageType: (type: StorageType) => navigationHistory.setStorageType(type),
-    setRouter: (router: Router) => navigationHistory.setRouter(router),
+    setRouter: (router: AppRouter) => navigationHistory.setRouter(router),
     getPreviousRoute: (currentPath: string) => navigationHistory.getPreviousRoute(currentPath),
-    getSmartBackPath: (route: RouteLocationNormalized, fallbackPath: string) =>
+    getSmartBackPath: (route: AppRouteLocation, fallbackPath: string) =>
       navigationHistory.getSmartBackPath(route, fallbackPath),
     clearHistory: () => navigationHistory.clearHistory(),
   }

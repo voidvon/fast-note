@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h } from 'vue'
 import { makeNote } from '../../../factories/note.factory'
 
-function createIonicStub(name: string, tag = 'div') {
+function createF7Stub(name: string, tag = 'div') {
   return defineComponent({
     name,
     inheritAttrs: false,
@@ -24,11 +24,11 @@ describe('public note access modal', () => {
     const present = vi.fn(async () => undefined)
     const createToast = vi.fn(async () => ({ present }))
 
-    vi.doMock('@ionic/vue', () => ({
-      IonButton: createIonicStub('IonButton', 'button'),
-      IonIcon: createIonicStub('IonIcon', 'span'),
-      IonModal: createIonicStub('IonModal'),
-      IonToggle: createIonicStub('IonToggle', 'input'),
+    vi.doMock('@/shared/ui/f7', () => ({
+      F7Button: createF7Stub('F7Button', 'button'),
+      F7Icon: createF7Stub('F7Icon', 'span'),
+      F7Modal: createF7Stub('F7Modal'),
+      F7Toggle: createF7Stub('F7Toggle', 'input'),
       toastController: {
         create: createToast,
       },

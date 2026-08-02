@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computed, defineComponent, h, nextTick, ref } from 'vue'
 import { getLastVisitedRouteStorageKey } from '@/processes/navigation'
 
-function createIonicStub(name: string) {
+function createF7Stub(name: string) {
   return defineComponent({
     name,
     inheritAttrs: false,
@@ -53,7 +53,7 @@ async function mountAppForImmediateRestore(options: {
 
   const syncDeferred = deferred<null>()
   const syncMock = vi.fn(async () => syncDeferred.promise)
-  const ionNavigateMock = vi.fn(async (target: string) => {
+  const appNavigateMock = vi.fn(async (target: string) => {
     currentRoute.value = {
       fullPath: target,
       name: target === '/home' ? 'Home' : 'UserHome',
@@ -61,6 +61,7 @@ async function mountAppForImmediateRestore(options: {
   })
 
   vi.doMock('vue-router', () => ({
+    RouterView: createF7Stub('RouterView'),
     useRouter: () => ({
       currentRoute,
       replace: routerReplaceMock,
@@ -139,11 +140,10 @@ async function mountAppForImmediateRestore(options: {
     },
   }))
 
-  vi.doMock('@ionic/vue', () => ({
-    IonApp: createIonicStub('IonApp'),
-    IonRouterOutlet: createIonicStub('IonRouterOutlet'),
-    useIonRouter: () => ({
-      navigate: ionNavigateMock,
+  vi.doMock('@/shared/ui/f7', () => ({
+    F7App: createF7Stub('F7App'),
+    useAppRouter: () => ({
+      navigate: appNavigateMock,
     }),
     alertController: {
       create: vi.fn(async () => ({

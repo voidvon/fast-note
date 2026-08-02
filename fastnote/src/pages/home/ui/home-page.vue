@@ -1,31 +1,15 @@
 <script setup lang="ts">
-import type {
-  AlertButton,
-} from '@ionic/vue'
 import type { CSSProperties } from 'vue'
 import type { FolderTreeNode, Note } from '@/shared/types'
-import {
-  IonAlert,
-  IonContent,
-  IonHeader,
-  IonIcon,
-  IonPage,
-  IonRefresher,
-  IonRefresherContent,
-  IonTitle,
-  IonToolbar,
-  onIonViewWillEnter,
-} from '@ionic/vue'
-import { addOutline, createOutline } from 'ionicons/icons'
 import { nanoid } from 'nanoid'
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 // import ExtensionButton from '@/shared/ui/extension-button'
 // import ExtensionManager from '@/features/extension-manager'
 import { useNote } from '@/entities/note'
 import { useDesktopPaneLayout } from '@/features/desktop-pane-layout'
 import { useExtensions } from '@/features/extension-manager'
 import GlobalSearch, { useGlobalSearch } from '@/features/global-search'
+import { promptFolderName } from '@/features/note-write'
 import DarkModeToggle from '@/features/theme-switch'
 import {
   getDesktopFolderRoutePath,
@@ -40,6 +24,15 @@ import { useAuth } from '@/processes/session'
 import { getTime } from '@/shared/lib/date'
 import { useDeviceType } from '@/shared/lib/device'
 import { NOTE_TYPE } from '@/shared/types'
+import {
+  F7Icon,
+  F7Navbar,
+  F7Page,
+  F7PageContent,
+  onF7ViewWillEnter,
+  useAppRouter,
+} from '@/shared/ui/f7'
+import { addOutline, createOutline } from '@/shared/ui/icons'
 import PaneSplitter from '@/shared/ui/pane-splitter'
 import ResponsivePagePane from '@/shared/ui/responsive-page-pane'
 import DeletedNoteList from '@/widgets/deleted-note-list'
@@ -56,7 +49,7 @@ const { showGlobalSearch } = useGlobalSearch()
 const { isExtensionEnabled, getExtensionModule } = useExtensions()
 const { getSnapshot, saveSnapshot, clearSnapshot } = useDesktopActiveNote()
 const { saveVisitedRoute } = useLastVisitedRoute()
-const router = useRouter()
+const router = useAppRouter()
 const currentUserId = computed(() => currentUser.value?.id || null)
 
 // 扩展管理器状态
@@ -135,44 +128,23 @@ const deletedNotes = computed(() => {
   return notes.value.filter(note => note.is_deleted === 1 && note.updated >= thirtyDaysAgo)
 })
 const presentingElement = ref()
-const showAddFolderAlert = ref(false)
-function focusFolderAlertInput(event: CustomEvent) {
-  const alert = event.target as HTMLElement | null
 
-  window.setTimeout(() => {
-    const input = alert?.querySelector('input.alert-input') as HTMLInputElement | null
-    if (!input) {
-      return
-    }
-
-    input.focus()
-    const end = input.value.length
-    input.setSelectionRange(end, end)
-  }, 50)
+async function handleAddFolder(name: string) {
+  const isoTime = getTime()
+  await addNote({
+    title: name,
+    created: isoTime,
+    content: '',
+    updated: isoTime,
+    item_type: NOTE_TYPE.FOLDER,
+    parent_id: '',
+    id: nanoid(12),
+    note_count: 0,
+    is_deleted: 0,
+    is_locked: 0,
+  })
+  init()
 }
-
-const addButtons: AlertButton[] = [
-  { text: '取消', role: 'cancel' },
-  {
-    text: '确认',
-    handler: async (d) => {
-      const isoTime = getTime()
-      await addNote({
-        title: d.newFolderName,
-        created: getTime(),
-        content: '',
-        updated: isoTime,
-        item_type: NOTE_TYPE.FOLDER,
-        parent_id: '',
-        id: nanoid(12),
-        note_count: 0,
-        is_deleted: 0,
-        is_locked: 0,
-      })
-      init()
-    },
-  },
-]
 const state = reactive({
   folerId: isDesktop.value ? 'allnotes' : '', // 桌面端默认选中全部备忘录
   noteId: '',
@@ -531,9 +503,13 @@ async function resetDesktopSelectionForUserScope() {
   await init({ preferPersistedSelection: true })
 }
 
-async function refresh(ev: CustomEvent) {
-  await init()
-  ev.detail.complete()
+async function refresh(done: () => void) {
+  try {
+    await init()
+  }
+  finally {
+    done()
+  }
 }
 
 async function init(options: { preferPersistedSelection?: boolean } = {}) {
@@ -571,7 +547,8 @@ function handleFolderSelected(id: string) {
     return
   }
 
-  state.folerId = id
+  const targetPath = id === 'deleted' ? '/deleted' : `/f/${id}`
+  void router.push(targetPath)
 }
 
 function handleNoteSelected(id: string) {
@@ -581,8 +558,7 @@ function handleNoteSelected(id: string) {
     return
   }
 
-  state.parentId = ''
-  state.noteId = id
+  void router.push(`/n/${id}`)
 }
 
 async function handleAiOpenNote(payload: { isDeleted?: boolean, noteId: string, parentId?: string }) {
@@ -634,11 +610,15 @@ function handleFooterCreateAction() {
   handleMobileCreateNavigation()
 }
 
-function openAddFolderAlert() {
-  showAddFolderAlert.value = true
+async function openAddFolderDialog() {
+  const name = await promptFolderName()
+  if (name === null)
+    return
+
+  await handleAddFolder(name)
 }
 
-onIonViewWillEnter(() => {
+onF7ViewWillEnter(() => {
   void init({ preferPersistedSelection: true })
 })
 
@@ -704,7 +684,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <IonPage ref="page" :class="{ 'note-desktop': isDesktop }" :style="desktopLayoutStyle">
+  <F7Page ref="page" :class="{ 'note-desktop': isDesktop }" :style="desktopLayoutStyle">
     <ResponsivePagePane
       id="home-navigation-pane"
       :desktop="isDesktop"
@@ -712,42 +692,35 @@ onUnmounted(() => {
       :class="{ 'home-navigation--search-active': showGlobalSearch }"
       data-global-search-container
     >
-      <IonHeader :translucent="true">
-        <IonToolbar />
-      </IonHeader>
+      <F7Navbar
+        class="app-navbar home-navbar"
+        title="备忘录"
+        title-large="备忘录"
+        large
+      />
 
-      <IonContent
-        class="home-navigation-content"
-        :fullscreen="true"
-        :scroll-y="!showGlobalSearch"
+      <F7PageContent
+        class="app-content home-navigation-content"
+        :ptr="!showGlobalSearch"
+        ptr-preloader
+        @ptr:refresh="refresh"
       >
-        <IonRefresher slot="fixed" :disabled="showGlobalSearch" @ion-refresh="refresh($event)">
-          <IonRefresherContent />
-        </IonRefresher>
-
-        <IonHeader collapse="condense">
-          <IonToolbar>
-            <IonTitle size="large">
-              备忘录
-            </IonTitle>
-          </IonToolbar>
-          <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 16px;">
-            <div class="flex items-center">
-              <!-- 使用扩展渲染器动态渲染同步组件 -->
-              <ExtensionRenderer
-                extension-id="sync"
-                component-name="SyncState"
-                :component-props="{}"
-              />
-              <!-- 用户信息组件 - 核心组件 -->
-              <UserProfile />
-            </div>
-            <div class="flex items-center">
-              <!-- <ExtensionButton @click="showExtensionManager = true" /> -->
-              <DarkModeToggle />
-            </div>
+        <div class="home-navigation-meta">
+          <div class="flex items-center">
+            <!-- 使用扩展渲染器动态渲染同步组件 -->
+            <ExtensionRenderer
+              extension-id="sync"
+              component-name="SyncState"
+              :component-props="{}"
+            />
+            <!-- 用户信息组件 - 核心组件 -->
+            <UserProfile />
           </div>
-        </IonHeader>
+          <div class="flex items-center">
+            <!-- <ExtensionButton @click="showExtensionManager = true" /> -->
+            <DarkModeToggle />
+          </div>
+        </div>
 
         <NoteList
           :note-uuid="state.folerId"
@@ -757,14 +730,14 @@ onUnmounted(() => {
           :deleted-note-count="deletedNotes.length"
           expanded-state-key="home:private"
           :presenting-element="presentingElement"
-          :disabled-route="isDesktop"
+          :disabled-route="true"
           show-all-notes
           show-unfiled-notes
           show-delete
           @refresh="init"
           @selected="handleFolderSelected"
         />
-      </IonContent>
+      </F7PageContent>
       <GlobalSearch
         class="home-global-search"
         :sync-with-route="!isDesktop"
@@ -777,9 +750,9 @@ onUnmounted(() => {
             id="add-folder"
             type="button"
             class="app-glass-circle-button"
-            @click="openAddFolderAlert"
+            @click="openAddFolderDialog"
           >
-            <IonIcon :icon="addOutline" />
+            <F7Icon :icon="addOutline" />
           </button>
         </template>
 
@@ -790,19 +763,10 @@ onUnmounted(() => {
             class="app-glass-circle-button"
             @click="handleFooterCreateAction"
           >
-            <IonIcon :icon="createOutline" />
+            <F7Icon :icon="createOutline" />
           </button>
         </template>
       </GlobalSearch>
-      <IonAlert
-        :is-open="showAddFolderAlert"
-        :keyboard-close="false"
-        header="请输入文件夹名称"
-        :buttons="addButtons"
-        :inputs="[{ name: 'newFolderName', placeholder: '请输入文件夹名称' }]"
-        @did-present="focusFolderAlertInput"
-        @did-dismiss="showAddFolderAlert = false"
-      />
     </ResponsivePagePane>
 
     <!-- 扩展管理器 -->
@@ -858,7 +822,7 @@ onUnmounted(() => {
         data-testid="home-empty-detail-create"
         @click="handleCreateNote()"
       >
-        <IonIcon :icon="createOutline" class="home-detail-empty__icon" />
+        <F7Icon :icon="createOutline" class="home-detail-empty__icon" />
         <div class="home-detail-empty__title">
           点击开始新建备忘录
         </div>
@@ -867,7 +831,7 @@ onUnmounted(() => {
         </div>
       </button>
     </div>
-  </IonPage>
+  </F7Page>
 </template>
 
 <style lang="scss">
@@ -886,7 +850,18 @@ onUnmounted(() => {
 
 .home-navigation-content {
   --background: var(--c-page-background);
-  --padding-bottom: calc(68px + env(safe-area-inset-bottom));
+  --padding-bottom: 68px;
+}
+
+.home-navigation--search-active .home-navigation-content {
+  overflow: hidden;
+}
+
+.home-navigation-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
 }
 
 .note-desktop {
@@ -942,7 +917,7 @@ onUnmounted(() => {
 
 .home-detail-empty__icon {
   font-size: 28px;
-  color: var(--ion-color-primary, #007aff);
+  color: var(--app-color-primary);
 }
 
 .home-detail-empty__title {

@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import type { FolderTreeNode } from '@/shared/types'
-import {
-  IonBackButton,
-  IonButtons,
-  IonContent,
-  IonFooter,
-  IonHeader,
-  IonPage,
-  IonTitle,
-  IonToolbar,
-} from '@ionic/vue'
 import { computed, onMounted, onUnmounted, reactive } from 'vue'
 import { useNote } from '@/entities/note'
 import { useSimpleBackButton } from '@/processes/navigation'
 import { useDeviceType } from '@/shared/lib/device'
+import {
+  F7BackButton,
+  F7Buttons,
+  F7Content,
+  F7Footer,
+  F7Header,
+  F7Page,
+  F7Title,
+  F7Toolbar,
+} from '@/shared/ui/f7'
 import NoteList from '@/widgets/note-list'
 
 const props = withDefaults(defineProps<{
@@ -58,37 +58,38 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <IonPage>
-    <IonHeader v-if="!isDesktop" :translucent="true">
-      <IonToolbar>
-        <IonButtons slot="start">
-          <IonBackButton v-bind="backButtonProps" />
-        </IonButtons>
-      </IonToolbar>
-    </IonHeader>
+  <F7Page>
+    <F7Header v-if="!isDesktop" :translucent="true">
+      <F7Toolbar>
+        <F7Buttons position="start">
+          <F7BackButton v-bind="backButtonProps" />
+        </F7Buttons>
+      </F7Toolbar>
+    </F7Header>
 
-    <IonContent :fullscreen="true">
-      <IonHeader collapse="condense">
-        <IonToolbar>
-          <IonTitle size="large">
+    <F7Content :fullscreen="true">
+      <F7Header collapse="condense">
+        <F7Toolbar>
+          <F7Title size="large">
             最近删除
-          </IonTitle>
-        </IonToolbar>
-      </IonHeader>
+          </F7Title>
+        </F7Toolbar>
+      </F7Header>
 
       <NoteList
         :note-uuid="props.selectedNoteId"
         :data-list="dataList"
         :press-items="[{ type: 'restore' }, { type: 'deleteNow' }]"
+        media-list
         @selected="$emit('selected', $event)"
       />
-    </IonContent>
-    <IonFooter v-if="!isDesktop">
-      <IonToolbar>
-        <IonTitle>
+    </F7Content>
+    <F7Footer v-if="!isDesktop">
+      <F7Toolbar>
+        <F7Title>
           {{ dataList.length > 0 ? `${dataList.length}个备忘录` : '无备忘录' }}
-        </IonTitle>
-      </IonToolbar>
-    </IonFooter>
-  </IonPage>
+        </F7Title>
+      </F7Toolbar>
+    </F7Footer>
+  </F7Page>
 </template>

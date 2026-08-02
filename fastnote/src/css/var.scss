@@ -46,6 +46,9 @@
 
   --c-page-background: var(--c-blue-gray-800);
   --c-list-background: var(--c-gray-1000);
+  --c-list-group-background: var(--c-gray-1000);
+  --f7-list-strong-bg-color: var(--c-list-group-background);
+  --f7-block-strong-bg-color: var(--c-list-group-background);
   --c-modal-background: #f5f5f7;
   --c-list-hover-background: #fafafa;
   --c-list-active-background: #f6f6f6;
@@ -74,7 +77,7 @@
   --bg-active: var(--c-blue-gray-700);
 }
 
-.ion-palette-dark {
+.app-theme-dark {
   --danger: theme('colors.dark-red.500');
   --primary: theme('colors.dark-yellow.500');
   --scrollbar-track: transparent;
@@ -117,13 +120,14 @@
   --c-purple-gray-850: theme('colors.dark-purple-gray.850');
   --c-purple-gray-900: theme('colors.dark-purple-gray.900');
 
-  --c-page-background: var(--ion-background-color);
+  --c-page-background: var(--c-blue-gray-950);
   --c-list-background: var(--c-blue-gray-950);
+  --c-list-group-background: var(--c-blue-gray-900);
   --c-modal-background: #222;
   --c-list-hover-background: #252527;
   --c-list-active-background: var(--bg-active);
   --c-pane-divider: var(--c-purple-gray-700);
-  --c-note-detail-toolbar-background: var(--ion-background-color);
+  --c-note-detail-toolbar-background: var(--c-blue-gray-950);
   --c-code-inline-background: #202329;
   --c-code-block-background: #161b22;
   --c-code-text: var(--c-text-primary);
@@ -133,4 +137,15 @@
   --c-global-search-control-border: rgba(255, 255, 255, 0.12);
   --c-global-search-control-highlight: rgba(255, 255, 255, 0.08);
   --c-global-search-control-shadow: rgba(0, 0, 0, 0.14);
+}
+
+// Keep Framework7 strong surfaces distinct from the page background in both themes.
+.ios,
+.ios.dark,
+.ios .dark,
+.md,
+.md.dark,
+.md .dark {
+  --f7-list-strong-bg-color: var(--c-list-group-background);
+  --f7-block-strong-bg-color: var(--c-list-group-background);
 }

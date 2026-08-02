@@ -2,15 +2,14 @@
 import type { DefineComponent, Ref } from 'vue'
 import type { FolderTreeNode } from '@/entities/note'
 import type { NoteActionMenuItem } from '@/features/note-actions-menu'
-import { IonAccordionGroup, IonList } from '@ionic/vue'
-import { computed, onMounted, onUnmounted, ref, toRef, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, toRef, watch } from 'vue'
 import { NOTE_TYPE } from '@/entities/note'
 import { useGlobalSearch } from '@/features/global-search'
 import NoteActionsMenu from '@/features/note-actions-menu'
 import { useNoteLockIndicatorState } from '@/features/note-lock'
-import NoteMoveModal from '@/features/note-move/ui/note-move-modal.vue'
 import { useDeviceType } from '@/shared/lib/device'
-import { useIonicLongPressList } from '@/shared/lib/ionic'
+import { useLongPressList } from '@/shared/lib/framework7'
+import { F7AccordionGroup, F7List } from '@/shared/ui/f7'
 import NoteListItem from './note-list-item.vue'
 
 const props = withDefaults(
@@ -29,6 +28,7 @@ const props = withDefaults(
     disabledRoute?: boolean
     disabledLongPress?: boolean
     expandedStateKey?: string
+    mediaList?: boolean
   }>(),
   {
     allNotesCount: 0,
@@ -43,9 +43,13 @@ const props = withDefaults(
     disabledRoute: false,
     disabledLongPress: false,
     expandedStateKey: '',
+    mediaList: false,
   },
 )
 const emit = defineEmits(['refresh', 'update:noteUuid', 'selected'])
+const NoteMoveModal: DefineComponent = defineAsyncComponent(
+  () => import('@/features/note-move/ui/note-move-modal.vue').then(module => module.default),
+) as unknown as DefineComponent
 const { isDesktop } = useDeviceType()
 const { showGlobalSearch } = useGlobalSearch()
 const EXPANDED_STATE_STORAGE_PREFIX = 'note-list-expanded:'
@@ -144,8 +148,8 @@ function persistExpandedItems(items: string[]) {
 }
 
 if (!props.disabledLongPress) {
-  useIonicLongPressList(listRef as Ref<DefineComponent>, {
-    itemSelector: 'ion-item',
+  useLongPressList(listRef as Ref<DefineComponent>, {
+    itemSelector: '.app-list-item',
     duration: 500,
     pressedClass: 'item-long-press',
     isDesktop: isDesktop.value,
@@ -207,12 +211,11 @@ onMounted(() => {
     return
 
   handleWheel = (e: WheelEvent) => {
-    const ionContent = (e.currentTarget as HTMLElement).closest('ion-content')
-    if (!ionContent)
+    const pageContent = (e.currentTarget as HTMLElement).closest('.page-content')
+    if (!pageContent)
       return
 
-    const scrollElement = ionContent.shadowRoot?.querySelector('.inner-scroll') || ionContent
-    scrollElement.scrollTop += e.deltaY
+    pageContent.scrollTop += e.deltaY
     e.preventDefault()
   }
 
@@ -235,92 +238,101 @@ defineExpose({
 </script>
 
 <template>
-  <IonList ref="listRef" inset>
+  <F7List
+    ref="listRef"
+    inset
+    accordion-list
+    :media-list
+    :strong="mediaList"
+    :class="{ 'note-list--media': mediaList }"
+  >
     <slot name="header" />
-    <IonAccordionGroup :value="expandedItems" multiple @ion-change="(event: CustomEvent) => setExpandedItems(event.detail.value)">
-      <NoteListItem
-        v-if="showAllNotes"
-        key="allnotes"
-        :data="{
-          originNote: {
-            id: 'allnotes',
-            title: '全部备忘录',
-            item_type: NOTE_TYPE.FOLDER,
-            parent_id: '',
-            note_count: allNotesCount,
-            created: '',
-            content: '',
-            updated: '',
-            is_deleted: 0,
-            is_locked: 0,
-            summary: '',
-          },
-          children: [],
-        } as FolderTreeNode"
-        :class="{ active: noteUuid === 'allnotes' }"
-        :disabled-route
-        :lock-indicator-state-map="indicatorStateMap"
-        @selected="onSelected('allnotes')"
-      />
-      <NoteListItem
-        v-if="showUnfiledNotes"
-        key="unfilednotes"
-        :data="{
-          originNote: {
-            id: 'unfilednotes',
-            title: '备忘录',
-            item_type: NOTE_TYPE.FOLDER,
-            parent_id: '',
-            note_count: unfiledNotesCount,
-            created: '',
-            content: '',
-            updated: '',
-            is_deleted: 0,
-            is_locked: 0,
-            summary: '',
-          },
-          children: [],
-        } as FolderTreeNode"
-        :class="{ active: noteUuid === 'unfilednotes' }"
-        :disabled-route
-        :lock-indicator-state-map="indicatorStateMap"
-        @selected="onSelected('unfilednotes')"
-      />
-      <NoteListItem
-        v-for="d in dataList"
-        :key="d.originNote.id"
-        :data="d"
-        :class="{ active: noteUuid === d.originNote.id }"
-        :show-parent-folder
-        :disabled-route
-        :lock-indicator-state-map="indicatorStateMap"
-        @selected="onSelected($event)"
-      />
-      <NoteListItem
-        v-if="showDelete && deletedNoteCount > 0"
-        :data="{
-          originNote: {
-            id: 'deleted',
-            title: '最近删除',
-            item_type: NOTE_TYPE.FOLDER,
-            parent_id: '',
-            note_count: deletedNoteCount,
-            created: '',
-            content: '',
-            updated: '',
-            is_deleted: 0,
-            is_locked: 0,
-            summary: '',
-          },
-          children: [],
-        } as FolderTreeNode"
-        :class="{ active: noteUuid === 'deleted' }"
-        :disabled-route
-        :lock-indicator-state-map="indicatorStateMap"
-        @selected="onSelected('deleted')"
-      />
-    </IonAccordionGroup>
-  </IonList>
+    <template #list>
+      <F7AccordionGroup :value="expandedItems" multiple @f7-change="(event: CustomEvent) => setExpandedItems(event.detail.value)">
+        <NoteListItem
+          v-if="showAllNotes"
+          key="allnotes"
+          :data="{
+            originNote: {
+              id: 'allnotes',
+              title: '全部备忘录',
+              item_type: NOTE_TYPE.FOLDER,
+              parent_id: '',
+              note_count: allNotesCount,
+              created: '',
+              content: '',
+              updated: '',
+              is_deleted: 0,
+              is_locked: 0,
+              summary: '',
+            },
+            children: [],
+          } as FolderTreeNode"
+          :class="{ active: noteUuid === 'allnotes' }"
+          :disabled-route
+          :lock-indicator-state-map="indicatorStateMap"
+          @selected="onSelected('allnotes')"
+        />
+        <NoteListItem
+          v-if="showUnfiledNotes"
+          key="unfilednotes"
+          :data="{
+            originNote: {
+              id: 'unfilednotes',
+              title: '备忘录',
+              item_type: NOTE_TYPE.FOLDER,
+              parent_id: '',
+              note_count: unfiledNotesCount,
+              created: '',
+              content: '',
+              updated: '',
+              is_deleted: 0,
+              is_locked: 0,
+              summary: '',
+            },
+            children: [],
+          } as FolderTreeNode"
+          :class="{ active: noteUuid === 'unfilednotes' }"
+          :disabled-route
+          :lock-indicator-state-map="indicatorStateMap"
+          @selected="onSelected('unfilednotes')"
+        />
+        <NoteListItem
+          v-for="d in dataList"
+          :key="d.originNote.id"
+          :data="d"
+          :class="{ active: noteUuid === d.originNote.id }"
+          :show-parent-folder
+          :disabled-route
+          :lock-indicator-state-map="indicatorStateMap"
+          @selected="onSelected($event)"
+        />
+        <NoteListItem
+          v-if="showDelete && deletedNoteCount > 0"
+          :data="{
+            originNote: {
+              id: 'deleted',
+              title: '最近删除',
+              item_type: NOTE_TYPE.FOLDER,
+              parent_id: '',
+              note_count: deletedNoteCount,
+              created: '',
+              content: '',
+              updated: '',
+              is_deleted: 0,
+              is_locked: 0,
+              summary: '',
+            },
+            children: [],
+          } as FolderTreeNode"
+          :class="{ active: noteUuid === 'deleted' }"
+          :disabled-route
+          :lock-indicator-state-map="indicatorStateMap"
+          @selected="onSelected('deleted')"
+        />
+      </F7AccordionGroup>
+    </template>
+  </F7List>
   <NoteActionsMenu
     :id="longPressId"
     ref="longPressMenuRef"
@@ -340,3 +352,13 @@ defineExpose({
     @refresh="$emit('refresh')"
   />
 </template>
+
+<style lang="scss" scoped>
+.note-list--media {
+  --f7-list-strong-bg-color: var(--c-list-group-background);
+
+  :deep(> ul > .note-list-item--note > .item-content) {
+    background: transparent;
+  }
+}
+</style>
