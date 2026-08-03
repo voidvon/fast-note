@@ -8,7 +8,7 @@ import {
   f7PageContent as F7PageContent,
   f7Toolbar as F7Toolbar,
 } from 'framework7-vue'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useNote } from '@/entities/note'
 import { useNoteDelete } from '@/features/note-delete'
 import { NoteLockManageModal, NoteLockSetupModal, useNoteLockModalFlow } from '@/features/note-lock'
@@ -16,15 +16,20 @@ import { PublicNoteAccessModal } from '@/features/public-note-share'
 import { useAuth } from '@/processes/session'
 import { useSync } from '@/processes/sync-notes'
 import { cleanupOverlayLocksAsync, useAppRoute } from '@/shared/lib/framework7'
-import { alertController, F7Modal, toastController, useAppRouter } from '@/shared/ui/f7'
+import { alertController, F7Modal, F7Popover, toastController, useAppRouter } from '@/shared/ui/f7'
 import { globeOutline, lockClosed, lockOpen, trashOutline } from '@/shared/ui/icons'
 
 const props = withDefaults(defineProps<{
   isOpen: boolean
   note?: Note
   noteId?: string
+  presentation?: 'popover' | 'sheet'
   prepareForLock: () => Promise<void>
-}>(), {})
+  targetEl?: string
+}>(), {
+  presentation: 'sheet',
+  targetEl: '#note-more-trigger',
+})
 
 const emit = defineEmits(['noteLockUpdated', 'update:isOpen'])
 
@@ -57,6 +62,12 @@ async function onWillPresent() {
     note.value = result
   }
 }
+
+watch(() => props.isOpen, (isOpen) => {
+  if (isOpen) {
+    void onWillPresent()
+  }
+}, { immediate: true })
 
 function getCurrentNote() {
   if (note.value?.id) {
@@ -204,16 +215,18 @@ async function onDelete() {
 </script>
 
 <template>
-  <F7Modal
+  <component
+    :is="presentation === 'popover' ? F7Popover : F7Modal"
     v-bind="$attrs"
     :is-open="isOpen"
-    :initial-breakpoint="1"
-    :breakpoints="[0, 1]"
-    class="note-more-modal note-more-modal--sheet"
-    @will-present="onWillPresent"
+    :target-el="presentation === 'popover' ? targetEl : undefined"
+    :initial-breakpoint="presentation === 'sheet' ? 1 : undefined"
+    :breakpoints="presentation === 'sheet' ? [0, 1] : undefined"
+    class="note-more-modal"
+    :class="`note-more-modal--${presentation}`"
     @did-dismiss="onMoreModalDidDismiss"
   >
-    <F7Toolbar top class="note-more-sheet__toolbar">
+    <F7Toolbar v-if="presentation === 'sheet'" top class="note-more-sheet__toolbar">
       <div class="left note-more-sheet__title">
         备忘录操作
       </div>
@@ -224,7 +237,11 @@ async function onDelete() {
       </div>
     </F7Toolbar>
 
-    <F7PageContent class="note-more-sheet">
+    <component
+      :is="presentation === 'popover' ? 'div' : F7PageContent"
+      class="note-more-content"
+      :class="{ 'note-more-sheet': presentation === 'sheet' }"
+    >
       <F7List strong inset dividers>
         <F7ListItem
           link
@@ -276,8 +293,8 @@ async function onDelete() {
           </template>
         </F7ListItem>
       </F7List>
-    </F7PageContent>
-  </F7Modal>
+    </component>
+  </component>
   <PublicNoteAccessModal
     v-if="note?.id"
     v-model:is-open="publicAccessOpen"
@@ -311,6 +328,14 @@ async function onDelete() {
 .note-more-modal--sheet {
   --f7-sheet-height: min(360px, 60vh);
   --f7-sheet-border-radius: 24px;
+}
+
+.note-more-modal--popover {
+  --f7-popover-width: 240px;
+}
+
+.note-more-modal--popover .note-more-content {
+  overflow: hidden;
 }
 
 .note-more-sheet {

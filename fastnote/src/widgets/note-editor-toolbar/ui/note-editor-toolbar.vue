@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Editor } from '@tiptap/vue-3'
-import { ref, watch } from 'vue'
+import { ref, useId, watch } from 'vue'
 import { F7Footer, F7Icon, F7Link, F7ToolbarPane } from '@/shared/ui/f7'
 import Icon from '@/shared/ui/icon'
 import { attachOutline, checkmarkCircleOutline, textOutline } from '@/shared/ui/icons'
@@ -26,30 +26,44 @@ const fileInputRef = ref<HTMLInputElement | null>(null)
 const imageInputRef = ref<HTMLInputElement | null>(null)
 const showFormat = ref(false)
 const showTableFormat = ref(false)
+const tableTriggerId = `note-editor-toolbar-table-trigger-${useId().replaceAll(':', '')}`
+let editorBlurTimer: ReturnType<typeof setTimeout> | undefined
+let editorFocusTimer: ReturnType<typeof setTimeout> | undefined
 
-watch(showTableFormat, (next) => {
-  emit('update:isFormatModalOpen', next || showFormat.value)
-  changeFormatModal(next)
-})
+watch([showTableFormat, showFormat], ([tableOpen, textOpen], [wasTableOpen, wasTextOpen]) => {
+  const isOpen = tableOpen || textOpen
+  emit('update:isFormatModalOpen', isOpen)
 
-watch(showFormat, (next) => {
-  emit('update:isFormatModalOpen', next || showTableFormat.value)
-  changeFormatModal(next)
-})
-
-function changeFormatModal(isOpen: boolean) {
   if (isOpen) {
+    clearEditorRestoreTimers()
     props.editorHost?.setInputMode?.('none')
-    setTimeout(() => {
-      props.editorHost?.editor?.chain().focus()
-    }, 500)
     return
   }
 
+  if (wasTableOpen || wasTextOpen) {
+    restoreEditorInput()
+  }
+})
+
+function clearEditorRestoreTimers() {
+  if (editorBlurTimer) {
+    clearTimeout(editorBlurTimer)
+    editorBlurTimer = undefined
+  }
+  if (editorFocusTimer) {
+    clearTimeout(editorFocusTimer)
+    editorFocusTimer = undefined
+  }
+}
+
+function restoreEditorInput() {
+  clearEditorRestoreTimers()
   props.editorHost?.setInputMode?.('text')
-  setTimeout(() => {
+  editorBlurTimer = setTimeout(() => {
+    editorBlurTimer = undefined
     props.editorHost?.editor?.chain().blur()
-    setTimeout(() => {
+    editorFocusTimer = setTimeout(() => {
+      editorFocusTimer = undefined
       props.editorHost?.editor?.chain().focus()
     }, 300)
   }, 10)
@@ -68,20 +82,17 @@ function onInsertTodo() {
 }
 
 function openTableFormatModal() {
-  props.editorHost?.setInputMode?.('none')
-  setTimeout(() => {
-    showTableFormat.value = true
-  }, 300)
+  showFormat.value = false
+  showTableFormat.value = !showTableFormat.value
 }
 
 function openTextFormatModal() {
-  props.editorHost?.setInputMode?.('none')
-  setTimeout(() => {
-    showFormat.value = true
-  }, 300)
+  showTableFormat.value = false
+  showFormat.value = !showFormat.value
 }
 
 function closePanels() {
+  clearEditorRestoreTimers()
   showFormat.value = false
   showTableFormat.value = false
 }
@@ -95,6 +106,7 @@ defineExpose({
   <F7Footer native tabbar icons scrollable class="note-editor-toolbar">
     <F7ToolbarPane>
       <F7Link
+        :id="tableTriggerId"
         class="link note-editor-toolbar__action"
         data-testid="note-editor-toolbar-table"
         :href="false"
@@ -102,7 +114,6 @@ defineExpose({
         role="button"
         tabindex="0"
         tooltip="表格格式"
-        @touchstart.prevent="openTableFormatModal"
         @click="openTableFormatModal"
         @keydown.enter.prevent="openTableFormatModal"
         @keydown.space.prevent="openTableFormatModal"
@@ -117,7 +128,6 @@ defineExpose({
         role="button"
         tabindex="0"
         tooltip="文本格式"
-        @touchstart.prevent="openTextFormatModal"
         @click="openTextFormatModal"
         @keydown.enter.prevent="openTextFormatModal"
         @keydown.space.prevent="openTextFormatModal"
@@ -190,6 +200,7 @@ defineExpose({
   <TableFormatModal
     v-model:is-open="showTableFormat"
     :editor="((editorHost?.editor || {}) as Editor)"
+    :target-el="`#${tableTriggerId}`"
   />
   <TextFormatModal
     v-model:is-open="showFormat"

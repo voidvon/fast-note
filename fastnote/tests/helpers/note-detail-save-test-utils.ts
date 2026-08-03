@@ -36,6 +36,10 @@ const F7NavbarStub = defineComponent({
 const NoteMoreStub = defineComponent({
   name: 'NoteMore',
   props: {
+    presentation: {
+      type: String,
+      default: 'sheet',
+    },
     prepareForLock: {
       type: Function,
       default: undefined,

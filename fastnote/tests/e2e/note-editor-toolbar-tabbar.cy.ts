@@ -84,6 +84,45 @@ describe('note editor Framework7 tabbar', () => {
     assertNativeTabbar()
   })
 
+  it('uses a popover instead of a sheet for table actions on mobile', () => {
+    seedNoteAndVisit(390, 844)
+    cy.get('[data-testid="note-editor-toolbar-table"]').click()
+
+    cy.get('.table-format-popover.popover.modal-in').should('exist')
+    cy.get('.table-format-popover').should('not.have.class', 'sheet-modal')
+    cy.get('.sheet-modal.table-format-popover').should('not.exist')
+  })
+
+  it('anchors the table actions beside the toolbar button on desktop', () => {
+    seedNoteAndVisit(1280, 800)
+    cy.get('#home-note-detail-pane [data-testid="note-editor-toolbar-table"]').click()
+
+    cy.get('.table-format-popover.popover.modal-in')
+      .should('be.visible')
+      .then(($popover) => {
+        const popoverRect = $popover[0].getBoundingClientRect()
+
+        cy.get('#home-note-detail-pane [data-testid="note-editor-toolbar-table"]').then(($trigger) => {
+          const triggerRect = $trigger[0].getBoundingClientRect()
+
+          expect(popoverRect.left).to.be.greaterThan(triggerRect.left - popoverRect.width - 40)
+          expect(popoverRect.left).to.be.lessThan(triggerRect.right + 40)
+          expect(popoverRect.top).to.be.greaterThan(triggerRect.top - popoverRect.height - 40)
+          expect(popoverRect.top).to.be.lessThan(triggerRect.bottom + 40)
+        })
+      })
+    cy.contains('.table-format-popover .item-content', '插入表格').should('be.visible')
+    cy.contains('.table-format-popover .item-content', '插入列').should('be.visible')
+    cy.contains('.table-format-popover .item-content', '插入行').should('be.visible')
+
+    cy.get('body').type('{esc}')
+    cy.get('.table-format-popover').should('not.be.visible')
+    cy.get('#home-note-detail-pane .app-page-embedded.note-detail')
+      .should(($detail) => {
+        expect($detail.get(0).scrollTop).to.equal(0)
+      })
+  })
+
   it('keeps the native iOS 26 tabbar in the embedded desktop pane', () => {
     seedNoteAndVisit(1280, 800)
     cy.get('#home-note-detail-pane .app-pane-footer').should('not.exist')
@@ -103,8 +142,25 @@ describe('note editor Framework7 tabbar', () => {
     cy.get('#home-note-detail-pane [data-testid="note-more-trigger"]')
       .should('be.visible')
       .click()
-    cy.get('.note-more-modal.sheet-modal.modal-in')
+    cy.get('.note-more-modal.popover.modal-in')
       .should('be.visible')
+      .then(($popover) => {
+        const popoverRect = $popover[0].getBoundingClientRect()
+
+        cy.get('#home-note-detail-pane [data-testid="note-more-trigger"]').then(($trigger) => {
+          const triggerRect = $trigger[0].getBoundingClientRect()
+
+          expect(popoverRect.left).to.be.greaterThan(triggerRect.left - popoverRect.width - 40)
+          expect(popoverRect.left).to.be.lessThan(triggerRect.right + 40)
+          expect(popoverRect.top).to.be.greaterThan(triggerRect.top - popoverRect.height - 40)
+          expect(popoverRect.top).to.be.lessThan(triggerRect.bottom + 40)
+        })
+      })
+
+    cy.get('body').type('{esc}')
+    cy.get('.note-more-modal.popover').should('not.be.visible')
+    cy.get('#home-note-detail-pane [data-testid="note-more-trigger"]').click()
+    cy.get('.note-more-modal.popover.modal-in').should('be.visible')
   })
 
   it('restores the more action when resizing a note route into desktop mode', () => {

@@ -86,13 +86,13 @@ describe('note-editor-toolbar widget', () => {
     await wrapper.get('[data-testid="note-editor-toolbar-table"]').trigger('click')
     expect(host.setInputMode).toHaveBeenCalledWith('none')
 
-    vi.advanceTimersByTime(300)
+    await vi.advanceTimersByTimeAsync(300)
     await nextTick()
 
     expect(wrapper.emitted('update:isFormatModalOpen')).toContainEqual([true])
 
     vi.advanceTimersByTime(500)
-    expect(focusSpy).toHaveBeenCalled()
+    expect(focusSpy).not.toHaveBeenCalled()
   })
 
   it('closes open panels through exposed api and restores text input mode', async () => {

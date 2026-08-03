@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import type { Editor } from '@tiptap/vue-3'
-import { onMounted, ref } from 'vue'
-import { F7Icon, F7Item, F7Label, F7List, F7Modal } from '@/shared/ui/f7'
+import { F7Icon, F7Item, F7Label, F7List, F7Popover } from '@/shared/ui/f7'
 import Icon from '@/shared/ui/icon'
 import { trashOutline } from '@/shared/ui/icons'
 
 const props = withDefaults(defineProps<{
   isOpen: boolean
   editor: Editor
-}>(), {})
+  targetEl?: string
+  verticalPosition?: 'auto' | 'bottom' | 'top'
+}>(), {
+  verticalPosition: 'auto',
+})
 
 const emit = defineEmits(['update:isOpen'])
 
@@ -27,14 +30,6 @@ const emit = defineEmits(['update:isOpen'])
  * 11. 粘贴行
  * 12. 粘贴列
  */
-
-const modalHeight = 420
-const modalHeightPecent = ref(0.35)
-const modalRef = ref()
-
-onMounted(() => {
-  modalHeightPecent.value = modalHeight / window.innerHeight
-})
 
 function onClick(type: string) {
   switch (type) {
@@ -62,17 +57,15 @@ function onClick(type: string) {
 </script>
 
 <template>
-  <F7Modal
-    ref="modalRef"
+  <F7Popover
     v-bind="$attrs"
     :is-open
-    :initial-breakpoint="modalHeightPecent"
-    :breakpoints="[0, modalHeightPecent]"
-    :backdrop-breakpoint="0.75"
-    class="table-format-modal"
+    :target-el
+    :vertical-position
+    class="table-format-popover"
     @did-dismiss="$emit('update:isOpen', false)"
   >
-    <div>
+    <div class="table-format-popover-content">
       <F7List class="table-format-modal-list" inset>
         <F7Item @click="onClick('insert-table')">
           <F7Label>插入表格</F7Label>
@@ -88,8 +81,6 @@ function onClick(type: string) {
             <F7Icon :icon="trashOutline" color="danger" />
           </template>
         </F7Item>
-      </F7List>
-      <F7List class="table-format-modal-list" inset>
         <F7Item @click="onClick('add-column-after')">
           <F7Label>插入列</F7Label>
           <template #after>
@@ -104,8 +95,6 @@ function onClick(type: string) {
             <Icon name="remove-column" color="danger" />
           </template>
         </F7Item>
-      </F7List>
-      <F7List class="table-format-modal-list" inset>
         <F7Item @click="onClick('add-row-after')">
           <F7Label>插入行</F7Label>
           <template #after>
@@ -122,12 +111,19 @@ function onClick(type: string) {
         </F7Item>
       </F7List>
     </div>
-  </F7Modal>
+  </F7Popover>
 </template>
 
 <style lang="scss">
-.table-format-modal {
+.table-format-popover {
   --background: var(--c-modal-background);
+  --f7-popover-width: 260px;
+}
+.table-format-popover-content {
+  max-height: min(520px, calc(100dvh - 140px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 .table-format-modal-list {
   .app-list-item {

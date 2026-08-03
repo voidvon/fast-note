@@ -26,6 +26,7 @@ onMounted(() => {
     ref="modalRef"
     v-bind="$attrs"
     :is-open
+    :backdrop="false"
     :initial-breakpoint="modalHeightPecent"
     :breakpoints="[0, modalHeightPecent]"
     :backdrop-breakpoint="0.75"

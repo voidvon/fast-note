@@ -459,6 +459,10 @@ export const F7Modal = defineComponent({
   inheritAttrs: false,
   props: {
     isOpen: Boolean,
+    backdrop: {
+      type: Boolean,
+      default: true,
+    },
     canDismiss: {
       type: [Boolean, Function] as PropType<boolean | ((data?: unknown, role?: string) => boolean | Promise<boolean>)>,
       default: undefined,
@@ -510,8 +514,10 @@ export const F7Modal = defineComponent({
         'ref': setElement,
         'opened': opened.value,
         'class': ['app-modal', attrs.class],
-        'backdrop': true,
-        'closeByBackdropClick': props.canDismiss !== false && typeof props.canDismiss !== 'function',
+        'backdrop': props.backdrop,
+        'closeByBackdropClick': props.backdrop
+          && props.canDismiss !== false
+          && typeof props.canDismiss !== 'function',
         'closeOnEscape': props.canDismiss !== false && typeof props.canDismiss !== 'function',
         'swipeToClose': props.canDismiss !== false && typeof props.canDismiss !== 'function',
         'swipeHandler': '.app-sheet-handle',
@@ -548,17 +554,22 @@ export const F7Modal = defineComponent({
 export const F7Popover = defineComponent({
   name: 'F7Popover',
   inheritAttrs: false,
-  props: { isOpen: Boolean },
-  emits: ['did-dismiss'],
+  props: {
+    isOpen: Boolean,
+    targetEl: [String, Object],
+  },
+  emits: ['did-dismiss', 'update:isOpen'],
   setup(props, { attrs, emit, slots }) {
     return () => h(f7Popover, mergeProps(attrs, {
-      opened: props.isOpen,
-      backdrop: true,
-      closeByBackdropClick: true,
-      closeByOutsideClick: true,
-      closeOnEscape: true,
-      class: ['app-popover', attrs.class],
-      onPopoverClosed: () => emit('did-dismiss'),
+      'opened': props.isOpen,
+      'targetEl': props.targetEl,
+      'backdrop': true,
+      'closeByBackdropClick': true,
+      'closeByOutsideClick': true,
+      'closeOnEscape': true,
+      'class': ['app-popover', attrs.class],
+      'onUpdate:opened': (opened: boolean) => emit('update:isOpen', opened),
+      'onPopover:closed': () => emit('did-dismiss'),
     }), slots)
   },
 })

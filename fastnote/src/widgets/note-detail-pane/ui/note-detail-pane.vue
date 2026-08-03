@@ -186,6 +186,10 @@ const isUserContext = computed(() => !!username.value)
 const canShowHeaderActions = computed(() => {
   return canPersistPrivateNote && !!(props.noteId || idFromRoute.value || retainedEffectiveUuid.value || data.value?.id)
 })
+const shouldRenderHeaderAction = computed(() => {
+  return canShowHeaderActions.value || (isDesktop.value && canPersistPrivateNote)
+})
+const isHeaderActionDisabled = computed(() => !canShowHeaderActions.value)
 const privateNoteDetail = useNoteDetailPrivate({
   getNote,
   onLoaded: applyPrivateNoteState,
@@ -521,14 +525,17 @@ async function handleNoteLockUpdated(updatedNote: Note) {
           name="crescent"
         />
         <F7Link
-          v-if="canShowHeaderActions"
-          :key="effectiveUuid || props.noteId || idFromRoute"
+          v-if="shouldRenderHeaderAction"
+          :id="isDesktop ? 'desktop-note-more-trigger' : 'mobile-note-more-trigger'"
           icon-only
+          :class="{ disabled: isHeaderActionDisabled }"
           data-testid="note-more-trigger"
           aria-label="更多操作"
+          :aria-disabled="isHeaderActionDisabled || undefined"
+          :tabindex="isHeaderActionDisabled ? -1 : undefined"
           tooltip="更多操作"
           :href="false"
-          @click="state.showNoteMore = true"
+          @click="!isHeaderActionDisabled && (state.showNoteMore = true)"
         >
           <F7Icon :icon="ellipsisHorizontalCircleOutline" />
         </F7Link>
@@ -578,7 +585,7 @@ async function handleNoteLockUpdated(updatedNote: Note) {
       </div> -->
     </F7Content>
     <NoteEditorToolbar
-      v-if="!isEditorBlocked"
+      v-if="effectiveUuid && !isEditorBlocked"
       ref="editorToolbarRef"
       :editor-host="editorRef"
       :is-ios="isIos"
@@ -589,6 +596,8 @@ async function handleNoteLockUpdated(updatedNote: Note) {
       v-model:is-open="state.showNoteMore"
       :note="data"
       :note-id="effectiveUuid || ''"
+      :presentation="isDesktop ? 'popover' : 'sheet'"
+      :target-el="isDesktop ? '#desktop-note-more-trigger' : '#mobile-note-more-trigger'"
       :prepare-for-lock="persistEditorBeforeLock"
       @note-lock-updated="handleNoteLockUpdated"
     />
@@ -631,6 +640,7 @@ async function handleNoteLockUpdated(updatedNote: Note) {
 .app-page-embedded.note-detail {
   position: relative;
   display: block;
+  overflow: clip;
 }
 
 .note-detail__content {
