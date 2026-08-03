@@ -631,6 +631,7 @@ async function handleNoteLockUpdated(updatedNote: Note) {
 }
 
 .note-detail {
+  --note-editor-toolbar-height: 64px;
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -651,7 +652,7 @@ async function handleNoteLockUpdated(updatedNote: Note) {
   height: 100%;
   min-height: 0;
   padding-top: 0;
-  padding-bottom: calc(var(--f7-toolbar-height) + var(--f7-safe-area-bottom));
+  padding-bottom: calc(var(--note-editor-toolbar-height) + var(--f7-safe-area-bottom));
   background: var(--c-page-background);
 }
 
@@ -662,7 +663,7 @@ async function handleNoteLockUpdated(updatedNote: Note) {
   right: 0;
   bottom: 0;
   left: 0;
-  min-height: calc(var(--f7-toolbar-height) + var(--f7-safe-area-bottom));
+  min-height: calc(var(--note-editor-toolbar-height) + var(--f7-safe-area-bottom));
 }
 
 .note-detail__saving-spinner {

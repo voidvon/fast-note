@@ -306,6 +306,7 @@ defineExpose({
           :class="{ active: noteUuid === d.originNote.id }"
           :show-parent-folder
           :disabled-route
+          :selected-id="noteUuid"
           :lock-indicator-state-map="indicatorStateMap"
           @selected="onSelected($event)"
         />

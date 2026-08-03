@@ -28,15 +28,18 @@ export function useNoteBackButton(
 
 export function useFolderBackButton(
   route: AppRouteLocation,
-  isTopFolder: () => boolean,
   username?: string,
 ) {
-  const { getSmartBackPath } = useNavigationHistory()
+  const isTopFolder = computed(() => {
+    const segments = route.path.split('/').filter(Boolean)
+    const folderMarkerIndex = segments.indexOf('f')
+    return folderMarkerIndex < 0 || segments.length === folderMarkerIndex + 2
+  })
 
   const fallbackPath = computed(() => {
-    if (username && isTopFolder())
+    if (username && isTopFolder.value)
       return `/${username}`
-    if (isTopFolder())
+    if (isTopFolder.value)
       return '/home'
 
     const path = route.path
@@ -47,7 +50,8 @@ export function useFolderBackButton(
   return {
     backButtonProps: computed(() => ({
       text: '返回',
-      defaultHref: getSmartBackPath(route, fallbackPath.value),
+      defaultHref: fallbackPath.value,
+      deterministic: true,
     })),
   }
 }

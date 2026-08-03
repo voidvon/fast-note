@@ -1,3 +1,4 @@
+import type { FolderTreeNode } from '@/entities/note'
 import { mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, ref } from 'vue'
@@ -9,6 +10,12 @@ function createF7Stub(name: string, tag = 'div') {
     inheritAttrs: false,
     setup(_, { attrs, slots }) {
       return () => h(tag, attrs, [
+        ...(name === 'F7Accordion'
+          ? [h('span', {
+              class: 'folder-accordion-toggle',
+              onClick: () => attrs.expandable === false && (attrs.onLeafClick as (() => void) | undefined)?.(),
+            })]
+          : []),
         ...(slots.media ? slots.media() : []),
         ...(slots['before-title'] ? slots['before-title']() : []),
         h('div', { class: 'item-title' }, slots.title ? slots.title() : []),
@@ -27,6 +34,8 @@ function createF7Stub(name: string, tag = 'div') {
 async function mountNoteListItem(options: {
   lockIndicatorStateMap?: Record<string, 'locked' | 'unlocked' | 'placeholder'>
   note?: Record<string, unknown>
+  children?: FolderTreeNode[]
+  selectedId?: string
 }) {
   vi.resetModules()
 
@@ -66,9 +75,10 @@ async function mountNoteListItem(options: {
           summary: '摘要内容',
           is_locked: 1,
         }),
-        children: [],
+        children: options.children ?? [],
       },
       lockIndicatorStateMap: options.lockIndicatorStateMap,
+      selectedId: options.selectedId,
     },
   })
 
@@ -162,5 +172,104 @@ describe('note list item lock indicator (t-fn-050 / tc-fn-045, tc-fn-046)', () =
 
     expect(legacyWrapper.get('.note-list-item--note').attributes('data-lock-state')).toBe('placeholder')
     expect(legacyWrapper.find('[data-testid="note-lock-icon"]').exists()).toBe(false)
+  })
+
+  it('selects a folder from its title without passing the click to the accordion', async () => {
+    const wrapper = await mountNoteListItem({
+      note: makeNote({
+        id: 'folder-1',
+        title: '工作',
+        item_type: 1,
+      }),
+    })
+    const event = new MouseEvent('click', { bubbles: true, cancelable: true })
+
+    wrapper.get('.folder-item-title').element.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(wrapper.emitted('selected')).toEqual([['folder-1']])
+  })
+
+  it('reserves folder expansion for the accordion toggle icon', async () => {
+    const wrapper = await mountNoteListItem({
+      note: makeNote({
+        id: 'folder-1',
+        title: '工作',
+        item_type: 1,
+      }),
+      children: [{
+        originNote: makeNote({
+          id: 'child-folder',
+          title: '子文件夹',
+          item_type: 1,
+        }),
+        children: [],
+      }],
+    })
+    const event = new MouseEvent('click', { bubbles: true, cancelable: true })
+
+    wrapper.get('.folder-accordion-toggle').element.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(false)
+    expect(wrapper.emitted('selected')).toBeUndefined()
+  })
+
+  it('opens a folder without children when its arrow is clicked', async () => {
+    const wrapper = await mountNoteListItem({
+      note: makeNote({
+        id: 'empty-folder',
+        title: '空文件夹',
+        item_type: 1,
+      }),
+    })
+
+    await wrapper.get('.folder-accordion-toggle').trigger('click')
+
+    expect(wrapper.emitted('selected')).toEqual([['empty-folder']])
+  })
+
+  it('does not let a parent folder capture a child folder selection', async () => {
+    const wrapper = await mountNoteListItem({
+      note: makeNote({
+        id: 'parent-folder',
+        title: '父文件夹',
+        item_type: 1,
+      }),
+      children: [{
+        originNote: makeNote({
+          id: 'child-folder',
+          title: '子文件夹',
+          item_type: 1,
+        }),
+        children: [],
+      }],
+    })
+
+    await wrapper.findAll('.folder-item-title')[1].trigger('click')
+
+    expect(wrapper.emitted('selected')).toEqual([['child-folder']])
+  })
+
+  it('applies the active state to a selected child folder', async () => {
+    const wrapper = await mountNoteListItem({
+      selectedId: 'child-folder',
+      note: makeNote({
+        id: 'parent-folder',
+        title: '父文件夹',
+        item_type: 1,
+      }),
+      children: [{
+        originNote: makeNote({
+          id: 'child-folder',
+          title: '子文件夹',
+          item_type: 1,
+        }),
+        children: [],
+      }],
+    })
+    const folders = wrapper.findAll('.message-list-item')
+
+    expect(folders[0].classes()).not.toContain('active')
+    expect(folders[1].classes()).toContain('active')
   })
 })

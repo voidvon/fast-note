@@ -14,7 +14,15 @@ import { resolveAiChatTarget } from '@/features/ai-chat/model/target-resolution'
 import { useDesktopActiveNote } from '@/processes/navigation/model/use-desktop-active-note'
 import { cleanupOverlayLocks, useAppRoute, useAppRouter } from '@/shared/lib/framework7'
 import ChatMessageCardItemView from '@/shared/ui/chat-message/ui/chat-message-card-item.vue'
-import { F7Button, F7Content, F7Icon, F7Searchbar, F7Textarea } from '@/shared/ui/f7'
+import {
+  F7Button,
+  F7Content,
+  F7Icon,
+  F7Searchbar,
+  F7Textarea,
+  F7Toolbar,
+  F7ToolbarPane,
+} from '@/shared/ui/f7'
 import { arrowUpOutline, closeOutline, searchOutline, sparklesOutline, stop } from '@/shared/ui/icons'
 import NoteList from '@/widgets/note-list'
 import { isOpenGlobalSearchShortcut } from '../lib/keyboard-shortcuts'
@@ -1058,103 +1066,109 @@ onUnmounted(() => {
 
 <template>
   <div ref="dockRef" class="global-search">
-    <div class="global-search__dock">
-      <div
-        v-if="!showGlobalSearch"
-        class="global-search__slot-button"
-      >
-        <slot name="leading" :panel-visible="showGlobalSearch" />
-      </div>
-
-      <F7Button
-        v-if="showGlobalSearch"
-        href="false"
-        class="app-glass-circle-button"
-        :aria-label="currentToggleLabel"
-        @pointerdown.prevent
-        @click="toggleInputMode"
-      >
-        <F7Icon :icon="currentToggleIcon" />
-      </F7Button>
-
-      <div class="global-search__field">
-        <F7Searchbar
-          v-if="isSearchMode"
-          ref="searchInputRef"
-          :value="currentDraft"
-          :clear-button="hasInputValue"
-          :custom-search="true"
-          :disable-button="false"
-          :form="false"
-          :inline="true"
-          :outline="false"
-          autocomplete="off"
-          :placeholder="currentPlaceholder"
-          :spellcheck="false"
-          class="global-search__input"
-          @focus="onFocus"
-          @input="onSearchbarInput"
-          @keydown="onKeydown"
-          @compositionstart="handleCompositionStart"
-          @compositionend="handleCompositionEnd"
-          @click:clear="onClear"
-        />
+    <F7Toolbar class="global-search__toolbar" position="bottom">
+      <F7ToolbarPane class="global-search__action-pane global-search__action-pane--leading">
         <div
-          v-else
-          :class="{ 'global-search__field-shell--panel-visible': shouldCollapseFieldIcon }"
-          class="global-search__field-shell"
+          v-if="!showGlobalSearch"
+          class="global-search__slot-button"
         >
-          <F7Icon
-            :icon="sparklesOutline"
-            class="global-search__search-icon"
-          />
-          <F7Textarea
-            ref="aiInputRef"
+          <slot name="leading" :panel-visible="showGlobalSearch" />
+        </div>
+
+        <F7Button
+          v-if="showGlobalSearch"
+          href="false"
+          class="app-glass-circle-button"
+          :aria-label="currentToggleLabel"
+          @pointerdown.prevent
+          @click="toggleInputMode"
+        >
+          <F7Icon :icon="currentToggleIcon" />
+        </F7Button>
+      </F7ToolbarPane>
+
+      <div class="global-search__field-pane">
+        <div class="global-search__field">
+          <F7Searchbar
+            v-if="isSearchMode"
+            ref="searchInputRef"
             :value="currentDraft"
-            auto-grow
-            :inputmode="currentInputMode"
-            :enterkeyhint="currentEnterKeyHint"
+            :clear-button="hasInputValue"
+            :custom-search="true"
+            :disable-button="false"
+            :form="false"
+            :inline="true"
+            :outline="false"
             autocomplete="off"
             :placeholder="currentPlaceholder"
-            :rows="1"
             :spellcheck="false"
             class="global-search__input"
-            style="--padding-top: 5px; --padding-bottom: 5px;"
-            @f7-focus="onFocus"
-            @f7-input="onInput"
+            @focus="onFocus"
+            @input="onSearchbarInput"
             @keydown="onKeydown"
             @compositionstart="handleCompositionStart"
             @compositionend="handleCompositionEnd"
+            @click:clear="onClear"
           />
+          <div
+            v-else
+            :class="{ 'global-search__field-shell--panel-visible': shouldCollapseFieldIcon }"
+            class="global-search__field-shell"
+          >
+            <F7Icon
+              :icon="sparklesOutline"
+              class="global-search__search-icon"
+            />
+            <F7Textarea
+              ref="aiInputRef"
+              :value="currentDraft"
+              auto-grow
+              :inputmode="currentInputMode"
+              :enterkeyhint="currentEnterKeyHint"
+              autocomplete="off"
+              :placeholder="currentPlaceholder"
+              :rows="1"
+              :spellcheck="false"
+              class="global-search__input"
+              style="--padding-top: 5px; --padding-bottom: 5px;"
+              @f7-focus="onFocus"
+              @f7-input="onInput"
+              @keydown="onKeydown"
+              @compositionstart="handleCompositionStart"
+              @compositionend="handleCompositionEnd"
+            />
+          </div>
         </div>
       </div>
 
-      <F7Button
-        v-if="showGlobalSearch && shouldShowCloseButton"
-        href="false"
-        class="app-glass-circle-button"
-        aria-label="关闭搜索"
-        @click="onCancel"
-      >
-        <F7Icon :icon="closeOutline" />
-      </F7Button>
-      <F7Button
-        v-else-if="showGlobalSearch && showAiActionButton"
-        href="false"
-        class="app-glass-circle-button"
-        :aria-label="currentActionLabel"
-        @click="onAiAction"
-      >
-        <F7Icon :icon="currentActionIcon" />
-      </F7Button>
+      <F7ToolbarPane class="global-search__action-pane global-search__action-pane--trailing">
+        <F7Button
+          v-if="showGlobalSearch && shouldShowCloseButton"
+          href="false"
+          class="app-glass-circle-button"
+          aria-label="关闭搜索"
+          @click="onCancel"
+        >
+          <F7Icon :icon="closeOutline" />
+        </F7Button>
+        <F7Button
+          v-else-if="showGlobalSearch && showAiActionButton"
+          href="false"
+          class="app-glass-circle-button"
+          :aria-label="currentActionLabel"
+          @click="onAiAction"
+        >
+          <F7Icon :icon="currentActionIcon" />
+        </F7Button>
 
-      <div
-        v-if="!showGlobalSearch"
-        class="global-search__slot-button"
-      >
-        <slot name="trailing" :panel-visible="showGlobalSearch" />
-      </div>
-    </div>
+        <div
+          v-if="!showGlobalSearch"
+          class="global-search__slot-button"
+        >
+          <slot name="trailing" :panel-visible="showGlobalSearch" />
+        </div>
+      </F7ToolbarPane>
+    </F7Toolbar>
 
     <div
       v-if="shouldRenderPanel"
@@ -1261,19 +1275,35 @@ onUnmounted(() => {
 .global-search {
   display: flex;
   align-items: flex-end;
-  min-height: 44px;
+  min-height: 64px;
   padding: 0;
   position: relative;
   z-index: 1002;
 
-  &__dock {
-    display: flex;
-    align-items: flex-end;
-    gap: 12px;
-    width: 100%;
-    min-height: 44px;
+  &__action-pane {
+    align-items: center;
+    height: 100%;
     position: relative;
     z-index: 2;
+  }
+
+  &__action-pane {
+    width: 48px;
+    min-width: 48px;
+    flex: 0 0 48px;
+  }
+
+  &__field-pane {
+    display: flex;
+    align-items: center;
+    height: 48px;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  &__toolbar {
+    --f7-toolbar-height: 64px;
+    width: 100%;
   }
 
   &__slot-button {
@@ -1285,7 +1315,7 @@ onUnmounted(() => {
     flex: 1;
     min-width: 0;
     display: flex;
-    align-items: flex-end;
+    align-items: center;
   }
 
   &__field-shell {
@@ -1296,7 +1326,7 @@ onUnmounted(() => {
     min-width: 0;
     gap: 8px;
     height: auto;
-    min-height: 44px;
+    min-height: 48px;
     padding: 0 12px;
     border-radius: 24px;
     border: 1px solid var(--c-global-search-control-border);
@@ -1363,6 +1393,9 @@ onUnmounted(() => {
 
   &__input.searchbar {
     --f7-searchbar-bg-color: transparent;
+    --f7-searchbar-height: 48px;
+    --f7-searchbar-input-height: 48px;
+    --f7-searchbar-inline-input-height: 48px;
     --f7-searchbar-input-bg-color: var(--c-global-search-control-background);
     --f7-searchbar-input-text-color: var(--c-text-primary);
     --f7-searchbar-placeholder-color: var(--c-placeholder);

@@ -87,6 +87,19 @@ const genericStub = defineComponent({
   },
 })
 
+const F7ToolbarStub = defineComponent({
+  name: 'F7Toolbar',
+  props: {
+    position: String,
+  },
+  setup(props, { slots, attrs }) {
+    return () => h('div', {
+      ...attrs,
+      class: ['toolbar', `toolbar-${props.position}`, attrs.class],
+    }, slots.default?.())
+  },
+})
+
 const NoteListStub = defineComponent({
   name: 'NoteList',
   setup() {
@@ -94,10 +107,10 @@ const NoteListStub = defineComponent({
   },
 })
 
-function mountFolderPage() {
+function mountFolderPage(currentFolder = 'folder-1') {
   return mount(FolderPage, {
     props: {
-      currentFolder: 'folder-1',
+      currentFolder,
       selectedNoteId: '',
     },
     global: {
@@ -111,7 +124,7 @@ function mountFolderPage() {
         F7Icon: genericStub,
         F7Page: genericStub,
         F7Title: genericStub,
-        F7Toolbar: genericStub,
+        F7Toolbar: F7ToolbarStub,
         NoteList: NoteListStub,
       },
     },
@@ -148,10 +161,13 @@ describe('folderPage desktop add-folder alert regression', () => {
     const wrapper = mountFolderPage()
     await flushPromises()
 
-    const buttons = wrapper.findAll('button')
-    expect(buttons.length).toBeGreaterThan(0)
+    const folderButton = wrapper.find('.folder-create-button')
+    const noteButton = wrapper.find('.note-create-button')
+    expect(wrapper.find('.folder-create-toolbar').classes()).toContain('toolbar-bottom')
+    expect(folderButton.attributes('aria-label')).toBe('新建文件夹')
+    expect(noteButton.attributes('aria-label')).toBe('新建备忘录')
 
-    await buttons[0].trigger('click')
+    await folderButton.trigger('click')
     await flushPromises()
 
     expect(promptFolderNameMock).toHaveBeenCalledTimes(1)
@@ -160,5 +176,25 @@ describe('folderPage desktop add-folder alert regression', () => {
       parent_id: 'folder-1',
       item_type: NOTE_TYPE.FOLDER,
     }))
+  })
+
+  it('keeps desktop toolbar creation buttons visible in all-notes and regular folders', async () => {
+    const wrapper = mountFolderPage('allnotes')
+    await flushPromises()
+    expect(wrapper.find('.folder-create-button').exists()).toBe(true)
+    expect(wrapper.find('.note-create-button').exists()).toBe(true)
+
+    await wrapper.find('.folder-create-button').trigger('click')
+    await flushPromises()
+    expect(addNoteMock).toHaveBeenCalledWith(expect.objectContaining({
+      parent_id: '',
+      item_type: NOTE_TYPE.FOLDER,
+    }))
+
+    getNoteMock.mockReturnValue(new Promise(() => {}))
+    await wrapper.setProps({ currentFolder: 'folder-1' })
+
+    expect(wrapper.find('.folder-create-button').exists()).toBe(true)
+    expect(wrapper.find('.note-create-button').exists()).toBe(true)
   })
 })

@@ -228,6 +228,15 @@ export function useAppRouter() {
       const router = await getRouter()
       router.back(undefined, { animate: true })
     },
+    backTo: async (target: string | AppRouteTarget) => {
+      const router = await getRouter()
+      const options = {
+        animate: true,
+        force: true,
+        replaceState: true,
+      }
+      router.back(buildTargetUrl(target), options)
+    },
     navigate: async (path: string, _direction?: string, action?: string) => {
       const router = await getRouter()
       router.navigate(path, action === 'replace'

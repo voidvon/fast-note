@@ -103,7 +103,7 @@ defineExpose({
 </script>
 
 <template>
-  <F7Footer native tabbar icons scrollable class="note-editor-toolbar">
+  <F7Footer native scrollable class="note-editor-toolbar">
     <F7ToolbarPane>
       <F7Link
         :id="tableTriggerId"
@@ -209,6 +209,10 @@ defineExpose({
 </template>
 
 <style scoped>
+.note-editor-toolbar {
+  --f7-toolbar-height: var(--note-editor-toolbar-height, 64px);
+}
+
 .note-editor-toolbar__action {
   aspect-ratio: 1;
 }

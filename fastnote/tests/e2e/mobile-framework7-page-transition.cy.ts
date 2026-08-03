@@ -33,6 +33,42 @@ describe('mobile Framework7 pages', () => {
     cy.get('.login-screen.modal-in').should('not.exist')
   })
 
+  it('keeps mobile folder creation buttons 48px square with white icons', () => {
+    const folderId = 'framework7-mobile-toolbar-folder'
+
+    cy.visit('/home')
+    cy.get('#app-loading').should('not.exist')
+    cy.window().then(async (window: Window & { db: any }) => {
+      await window.db.notes.put({
+        id: folderId,
+        title: '移动端工具栏测试',
+        summary: '',
+        content: '',
+        created: '2026-08-03 12:00:00.000Z',
+        updated: '2026-08-03 12:00:00.000Z',
+        item_type: 1,
+        parent_id: '',
+        is_deleted: 0,
+        is_locked: 0,
+        note_count: 0,
+        version: 1,
+        files: [],
+      })
+      const view = window.document.querySelector<HTMLElement>('.view-main')?.f7View
+      view?.router.navigate(`/f/${folderId}`, { animate: false })
+    })
+
+    cy.get('.page-current .folder-create-button, .page-current .note-create-button')
+      .should('have.length', 2)
+      .and('have.class', 'text-color-white')
+      .each(($button) => {
+        const { width, height } = $button.get(0).getBoundingClientRect()
+        expect(width).to.equal(48)
+        expect(height).to.equal(48)
+        expect(getComputedStyle($button.get(0)).color).to.equal('rgb(255, 255, 255)')
+      })
+  })
+
   it('opens note actions as a swipe-to-close Framework7 sheet', () => {
     const noteId = 'framework7-sheet-note'
     const now = '2026-08-02 12:00:00.000Z'
@@ -290,6 +326,94 @@ describe('mobile Framework7 pages', () => {
       const transitionWindow = window as typeof window & { __f7TransitionClasses?: string[], __f7TransitionObserver?: MutationObserver }
       transitionWindow.__f7TransitionObserver?.disconnect()
       expect(transitionWindow.__f7TransitionClasses, 'Framework7 forward transition').to.have.length.greaterThan(0)
+    })
+  })
+
+  it('returns to the hierarchical parent after refreshing a nested folder', () => {
+    const parentId = 'framework7-back-parent'
+    const childId = 'framework7-back-child'
+    const siblingId = 'framework7-back-sibling'
+    const now = '2026-08-03 12:00:00.000Z'
+
+    cy.visit('/home')
+    cy.get('#app-loading').should('not.exist')
+    cy.window().then(async (window: Window & { db: any }) => {
+      await window.db.notes.bulkPut([
+        {
+          id: parentId,
+          title: '返回目标父文件夹',
+          summary: '',
+          content: '',
+          created: now,
+          updated: now,
+          item_type: 1,
+          parent_id: '',
+          is_deleted: 0,
+          is_locked: 0,
+          note_count: 2,
+          version: 1,
+          files: [],
+        },
+        {
+          id: childId,
+          title: '刷新后的当前文件夹',
+          summary: '',
+          content: '',
+          created: now,
+          updated: now,
+          item_type: 1,
+          parent_id: parentId,
+          is_deleted: 0,
+          is_locked: 0,
+          note_count: 0,
+          version: 1,
+          files: [],
+        },
+        {
+          id: siblingId,
+          title: '旧历史同级文件夹',
+          summary: '',
+          content: '',
+          created: now,
+          updated: now,
+          item_type: 1,
+          parent_id: parentId,
+          is_deleted: 0,
+          is_locked: 0,
+          note_count: 0,
+          version: 1,
+          files: [],
+        },
+      ])
+      window.localStorage.setItem('app_navigation_history', JSON.stringify([
+        { path: `/f/${parentId}/${siblingId}`, timestamp: Date.now() - 1 },
+        { path: `/f/${parentId}/${childId}`, timestamp: Date.now() },
+      ]))
+    })
+
+    cy.visit(`/f/${parentId}/${childId}`)
+    cy.get('.view-main > .page.page-current .folder-navbar .title-large')
+      .should('contain.text', '刷新后的当前文件夹')
+    cy.window().then((window) => {
+      const view = window.document.querySelector('.view-main')
+      const transitionClasses: string[] = []
+      const observer = new window.MutationObserver(() => {
+        if (view?.classList.contains('router-transition-backward'))
+          transitionClasses.push(view.className)
+      })
+      observer.observe(view!, { attributeFilter: ['class'], attributes: true })
+      ;(window as typeof window & { __folderBackTransitionClasses?: string[], __folderBackTransitionObserver?: MutationObserver }).__folderBackTransitionClasses = transitionClasses
+      ;(window as typeof window & { __folderBackTransitionClasses?: string[], __folderBackTransitionObserver?: MutationObserver }).__folderBackTransitionObserver = observer
+    })
+    cy.get('.view-main > .page.page-current .folder-navbar .app-back-button').click()
+
+    cy.location('pathname').should('equal', `/f/${parentId}`)
+    cy.get('.view-main > .page.page-current .folder-navbar .title-large')
+      .should('contain.text', '返回目标父文件夹')
+    cy.window().then((window) => {
+      const transitionWindow = window as typeof window & { __folderBackTransitionClasses?: string[], __folderBackTransitionObserver?: MutationObserver }
+      transitionWindow.__folderBackTransitionObserver?.disconnect()
+      expect(transitionWindow.__folderBackTransitionClasses, 'Framework7 backward transition').to.have.length.greaterThan(0)
     })
   })
 

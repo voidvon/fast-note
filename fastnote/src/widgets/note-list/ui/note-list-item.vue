@@ -18,11 +18,13 @@ const props = withDefaults(
     lockIndicatorStateMap?: Partial<Record<string, NoteLockIndicatorState>>
     showParentFolder?: boolean
     disabledRoute?: boolean
+    selectedId?: string
   }>(),
   {
     lockIndicatorStateMap: () => ({}),
     showParentFolder: false,
     disabledRoute: false,
+    selectedId: '',
   },
 )
 
@@ -90,40 +92,59 @@ function onClick() {
   if (!props.disabledRoute && routerLink.value)
     void router.push(routerLink.value)
 }
+
+function onFolderClickCapture(event: MouseEvent) {
+  const target = event.target
+  const currentTarget = event.currentTarget
+  if (!(target instanceof Element) || !(currentTarget instanceof Element))
+    return
+  if (target.closest('.message-list-item') !== currentTarget)
+    return
+  if (target.closest('.folder-accordion-toggle'))
+    return
+
+  event.preventDefault()
+  event.stopPropagation()
+  onClick()
+}
 </script>
 
 <template>
   <F7Accordion
     v-if="noteData.item_type === NOTE_TYPE.FOLDER"
     :value="noteData.id"
+    :expandable="childrenData.length > 0"
     :data-id="noteData.id"
-    :class="{ 'no-children': !childrenData.length }"
+    :class="{
+      'active': selectedId === noteData.id,
+      'no-children': !childrenData.length,
+    }"
     class="message-list-item"
+    @leaf-click="onClick"
+    @click.capture="onFolderClickCapture"
   >
     <template #media>
       <F7Icon
         :icon="noteData.id === 'deleted' ? trashOutline : folderOutline"
         class="folder-icon primary"
-        @click.stop="onClick"
       />
     </template>
     <template #title>
       <div
         :data-id="noteData.id"
         class="folder-item-title app-text-wrap"
-        @click.stop="onClick"
       >
         <span>{{ noteData.title }}</span>
       </div>
     </template>
     <template #after>
-      <F7Note class="text-gray-400 text-base font-semibold" @click.stop="onClick">
+      <F7Note class="text-gray-400 text-base font-semibold">
         {{ noteData.note_count }}
       </F7Note>
     </template>
     <template #content>
       <F7List v-if="childrenData.length" class="child-note-list">
-        <NoteListItem v-for="d in childrenData" :key="d.originNote.id" :data="d" :lock-indicator-state-map="lockIndicatorStateMap" :disabled-route class="child-list-item" @selected="$emit('selected', $event)" />
+        <NoteListItem v-for="d in childrenData" :key="d.originNote.id" :data="d" :lock-indicator-state-map="lockIndicatorStateMap" :selected-id :disabled-route class="child-list-item" @selected="$emit('selected', $event)" />
       </F7List>
     </template>
   </F7Accordion>
@@ -132,6 +153,7 @@ function onClick() {
     :detail="false"
     :data-id="noteData.id"
     :data-lock-state="resolvedLockIndicatorState"
+    :class="{ active: selectedId === noteData.id }"
     class="list-item note-list-item--note"
     lines="inset"
     media-item
@@ -160,6 +182,34 @@ function onClick() {
 
 <style lang="scss">
 .message-list-item {
+  > .item-link > .item-content > .item-inner {
+    position: relative;
+  }
+
+  .folder-accordion-toggle {
+    position: absolute;
+    z-index: 1;
+    top: 0;
+    right: 0;
+    width: 44px;
+    height: 100%;
+    cursor: pointer;
+  }
+
+  > .item-link > .item-content > .item-inner::before {
+    content: var(--f7-accordion-chevron-icon-down) !important;
+    color: var(--primary);
+    transform: rotate(-90deg);
+  }
+
+  &.accordion-item-opened > .item-link > .item-content > .item-inner::before {
+    transform: rotate(0deg);
+  }
+
+  &.no-children > .item-link > .item-content > .item-inner::before {
+    color: var(--c-purple-gray-550);
+  }
+
   .folder-item-title {
     cursor: pointer;
     width: 100%;
@@ -169,12 +219,6 @@ function onClick() {
     flex: 1;
   }
 
-  &.no-children {
-    .accordion-item-toggle-icon {
-      transform: rotate(270deg) !important;
-      color: var(--c-purple-gray-550);
-    }
-  }
   .child-list-item {
     .folder-icon {
       --uno: pl-8;

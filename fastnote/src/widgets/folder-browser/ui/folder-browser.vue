@@ -105,6 +105,13 @@ const folderId = computed(() => {
   return activeMobileFolderId.value
 })
 
+const creationParentId = computed(() => {
+  if (folderId.value === 'allnotes' || folderId.value === 'unfilednotes')
+    return ''
+
+  return folderId.value || ''
+})
+
 // 将 folderList 和 noteList 改为计算属性，自动响应 notes 变化
 const folderList = computed(() => {
   if (!folderId.value)
@@ -160,7 +167,7 @@ async function handleAddFolder(name: string) {
     created: isoTime,
     updated: isoTime,
     item_type: NOTE_TYPE.FOLDER,
-    parent_id: folderId.value,
+    parent_id: creationParentId.value,
     id: nanoid(12),
     version: 1,
     content: '',
@@ -178,13 +185,6 @@ async function openAddFolderDialog() {
 
   await handleAddFolder(name)
 }
-
-const isTopFolder = computed(() => {
-  const path = isDesktop.value ? route.path : activeMobileFolderPath.value
-  const lastId = path.split('/')
-  lastId.pop()
-  return !/^\d+$/.test(lastId[lastId.length - 1])
-})
 
 const folders = computed(() => {
   return folderList.value.toSorted((a, b) => {
@@ -237,7 +237,6 @@ const { resolveFolderEnterMode, shouldSaveFolderLeave } = useRouteStateRestore()
 // 智能返回按钮
 const { backButtonProps } = useFolderBackButton(
   route,
-  () => isTopFolder.value,
   username.value,
 )
 
@@ -434,8 +433,13 @@ defineExpose({
     </F7Content>
     <F7Footer v-if="!isDesktop">
       <F7Toolbar>
-        <F7Buttons v-if="data.id !== 'allnotes' && !isUserContext" position="start">
-          <F7Button @click="openAddFolderDialog">
+        <F7Buttons v-if="!isUserContext" position="start">
+          <F7Button
+            class="folder-create-button"
+            aria-label="新建文件夹"
+            text-color="white"
+            @click="openAddFolderDialog"
+          >
             <F7Icon :icon="addOutline" />
           </F7Button>
         </F7Buttons>
@@ -443,31 +447,49 @@ defineExpose({
           {{ folders.length > 0 ? `${folders.length}个文件夹 ·` : '' }}
           {{ noteList.length > 0 ? `${noteList.length}个备忘录` : '无备忘录' }}
         </F7Title>
-        <F7Buttons v-if="data.id !== 'allnotes' && !isUserContext" position="end">
-          <F7Button :router-link="`/n/0?parent_id=${folderId}`" router-direction="forward">
+        <F7Buttons v-if="!isUserContext" position="end">
+          <F7Button
+            class="note-create-button"
+            aria-label="新建备忘录"
+            text-color="white"
+            :router-link="`/n/0?parent_id=${creationParentId}`"
+            router-direction="forward"
+          >
             <F7Icon :icon="createOutline" />
           </F7Button>
         </F7Buttons>
       </F7Toolbar>
     </F7Footer>
-    <F7Footer v-else-if="isDesktop && data.id !== 'allnotes' && !isUserContext">
-      <F7Toolbar>
-        <F7Buttons position="start">
-          <F7Button @click="openAddFolderDialog">
-            <F7Icon :icon="addOutline" />
-          </F7Button>
-        </F7Buttons>
-        <F7Title>
-          {{ folders.length > 0 ? `${folders.length}个文件夹 ·` : '' }}
-          {{ noteList.length > 0 ? `${noteList.length}个备忘录` : '无备忘录' }}
-        </F7Title>
-        <F7Buttons position="end">
-          <F7Button @click="$emit('createNote', folderId)">
-            <F7Icon :icon="createOutline" />
-          </F7Button>
-        </F7Buttons>
-      </F7Toolbar>
-    </F7Footer>
+    <F7Toolbar
+      v-if="isDesktop && !isUserContext"
+      class="folder-create-toolbar"
+      position="bottom"
+    >
+      <F7Buttons position="start">
+        <F7Button
+          class="folder-create-button"
+          aria-label="新建文件夹"
+          text-color="white"
+          @click="openAddFolderDialog"
+        >
+          <F7Icon :icon="addOutline" />
+        </F7Button>
+      </F7Buttons>
+      <F7Title>
+        {{ folders.length > 0 ? `${folders.length}个文件夹 ·` : '' }}
+        {{ noteList.length > 0 ? `${noteList.length}个备忘录` : '无备忘录' }}
+      </F7Title>
+      <F7Buttons position="end">
+        <F7Button
+          class="note-create-button"
+          aria-label="新建备忘录"
+          text-color="white"
+          @click="$emit('createNote', creationParentId)"
+        >
+          <F7Icon :icon="createOutline" />
+        </F7Button>
+      </F7Buttons>
+    </F7Toolbar>
   </F7Page>
 </template>
 
@@ -485,6 +507,16 @@ defineExpose({
   flex: 1;
   display: flex;
   flex-direction: column;
+}
+
+.folder-create-button,
+.note-create-button {
+  width: 48px;
+  min-width: 48px;
+  height: 48px;
+  padding: 0;
+  box-sizing: border-box;
+  flex: 0 0 48px;
 }
 
 .folder-empty-state {

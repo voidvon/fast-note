@@ -1,6 +1,7 @@
 describe('note editor Framework7 tabbar', () => {
   const noteId = 'framework7-editor-toolbar-note'
   const secondNoteId = 'framework7-editor-toolbar-note-2'
+  const folderId = 'framework7-home-folder'
 
   function seedNoteAndVisit(width: number, height: number) {
     cy.viewport(width, height)
@@ -39,21 +40,54 @@ describe('note editor Framework7 tabbar', () => {
         version: 1,
         files: [],
       })
+      await window.db.notes.put({
+        id: folderId,
+        title: 'Framework7 文件夹',
+        summary: '',
+        content: '',
+        created: '2024-01-04 03:04:05.000Z',
+        updated: '2024-01-04 03:04:05.000Z',
+        item_type: 1,
+        parent_id: '',
+        is_deleted: 0,
+        is_locked: 0,
+        note_count: 1,
+        version: 1,
+        files: [],
+      })
+      await window.db.notes.put({
+        id: 'framework7-child-folder',
+        title: '子文件夹',
+        summary: '',
+        content: '',
+        created: '2024-01-05 03:04:05.000Z',
+        updated: '2024-01-05 03:04:05.000Z',
+        item_type: 1,
+        parent_id: folderId,
+        is_deleted: 0,
+        is_locked: 0,
+        note_count: 0,
+        version: 1,
+        files: [],
+      })
     })
     cy.visit(`/n/${noteId}`)
     cy.get('#app-loading').should('not.exist')
   }
 
-  function assertNativeTabbar() {
-    cy.get('.note-editor-toolbar.toolbar.tabbar.tabbar-icons.tabbar-scrollable.toolbar-bottom')
+  function assertNativeToolbar() {
+    cy.get('.note-editor-toolbar.toolbar.tabbar-scrollable.toolbar-bottom')
       .should('be.visible')
       .and('not.have.class', 'app-pane-footer')
+      .and('not.have.class', 'tabbar')
+      .and('not.have.class', 'tabbar-icons')
       .then(($toolbar) => {
-        expect(getComputedStyle($toolbar.get(0)).height).to.equal('80px')
+        expect(getComputedStyle($toolbar.get(0)).height).to.equal('64px')
       })
 
     cy.get('.note-editor-toolbar > .toolbar-inner > .toolbar-pane').then(($pane) => {
       const style = getComputedStyle($pane.get(0))
+      expect($pane.get(0).getBoundingClientRect().height).to.equal(48)
       expect(style.borderRadius).to.equal('32px')
       expect(style.backdropFilter).not.to.equal('none')
       expect(style.backgroundColor).not.to.equal('rgba(0, 0, 0, 0)')
@@ -79,9 +113,9 @@ describe('note editor Framework7 tabbar', () => {
       .should('not.exist')
   }
 
-  it('renders the native iOS 26 tabbar on mobile', () => {
+  it('renders the native iOS toolbar with a 48px visible pane on mobile', () => {
     seedNoteAndVisit(390, 844)
-    assertNativeTabbar()
+    assertNativeToolbar()
   })
 
   it('uses a popover instead of a sheet for table actions on mobile', () => {
@@ -163,7 +197,54 @@ describe('note editor Framework7 tabbar', () => {
     cy.get('.home-navigation-content .sheet-modal').should('not.exist')
   })
 
-  it('keeps the native iOS 26 tabbar in the embedded desktop pane', () => {
+  it('expands homepage folders only from the arrow control', () => {
+    seedNoteAndVisit(1280, 800)
+
+    cy.get('.home-navigation-content .message-list-item.no-children:visible')
+      .first()
+      .as('emptyFolder')
+      .find('.folder-accordion-toggle')
+      .should('exist')
+      .and('have.attr', 'aria-label', '打开文件夹')
+      .click()
+    cy.get('@emptyFolder')
+      .should('have.class', 'active')
+      .and('not.have.class', 'accordion-item-opened')
+
+    cy.get(`.home-navigation-content .message-list-item[data-id="${folderId}"]`)
+      .filter(':visible')
+      .first()
+      .as('folder')
+      .should('not.have.class', 'accordion-item-opened')
+      .find('.folder-item-title')
+      .first()
+      .click()
+    cy.get('@folder').should('not.have.class', 'accordion-item-opened')
+
+    cy.get('@folder').find('.folder-accordion-toggle').first().click()
+    cy.get('@folder').should('have.class', 'accordion-item-opened')
+
+    cy.get('@folder')
+      .find(`[data-id="framework7-child-folder"] .folder-item-title`)
+      .first()
+      .click()
+    cy.url().should('include', `/f/${folderId}/framework7-child-folder`)
+    cy.get('#home-note-list-pane .app-large-title').should('contain.text', '子文件夹')
+    cy.get('@folder')
+      .find(`[data-id="framework7-child-folder"]`)
+      .first()
+      .should('have.class', 'active')
+    cy.get('@folder').should('have.class', 'accordion-item-opened')
+
+    cy.get('@emptyFolder').find('.folder-item-title').first().click()
+    cy.get('@folder')
+      .should('have.class', 'accordion-item-opened')
+      .find('.folder-accordion-toggle')
+      .first()
+      .should('have.attr', 'aria-label', '收起文件夹')
+  })
+
+  it('keeps the native iOS toolbar with a 48px visible pane on desktop', () => {
     seedNoteAndVisit(1280, 800)
     cy.get('#home-note-detail-pane .app-pane-footer').should('not.exist')
     cy.get('#home-note-detail-pane').within(() => {
@@ -171,7 +252,7 @@ describe('note editor Framework7 tabbar', () => {
         .should('be.visible')
         .find('svg, i')
         .should('be.visible')
-      assertNativeTabbar()
+      assertNativeToolbar()
     })
   })
 

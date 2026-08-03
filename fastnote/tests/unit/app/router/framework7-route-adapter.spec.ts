@@ -107,4 +107,18 @@ describe('framework7 route adapter', () => {
     expect(useAppRoute().query).toEqual({})
     expect(fake.router.navigate).not.toHaveBeenCalled()
   })
+
+  it('backs to an explicit route without consuming stale browser history', async () => {
+    const { setFramework7Router, useAppRouter } = await import('@/shared/lib/framework7/router')
+    const fake = createRouter('/f/parent-folder/current-folder')
+    setFramework7Router(fake.router as unknown as Parameters<typeof setFramework7Router>[0])
+
+    await useAppRouter().backTo('/f/parent-folder')
+
+    expect(fake.router.back).toHaveBeenCalledWith('/f/parent-folder', {
+      animate: true,
+      force: true,
+      replaceState: true,
+    })
+  })
 })

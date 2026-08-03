@@ -20,4 +20,19 @@ describe('f7 back button', () => {
     expect(link.props('text')).toBeUndefined()
     expect(link.attributes('aria-label')).toBe('返回备忘录')
   })
+
+  it('disables native history back for deterministic destination links', () => {
+    const wrapper = shallowMount(F7BackButton, {
+      props: {
+        defaultHref: '/f/parent-folder',
+        deterministic: true,
+        text: '返回',
+      },
+    })
+
+    const link = wrapper.findComponent({ name: 'f7-link' })
+
+    expect(link.props('href')).toBe(false)
+    expect(link.props('back')).toBe(false)
+  })
 })

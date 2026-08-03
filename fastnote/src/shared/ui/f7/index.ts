@@ -47,6 +47,7 @@ import {
   ref,
   watch,
 } from 'vue'
+import { useAppRouter as useFramework7AppRouter } from '@/shared/lib/framework7'
 
 export { useAppRoute, useAppRouter } from '@/shared/lib/framework7'
 export { f7App as F7App } from 'framework7-vue'
@@ -305,15 +306,27 @@ export const F7BackButton = defineComponent({
   props: {
     text: String,
     defaultHref: String,
+    deterministic: Boolean,
   },
   setup(props, { attrs }) {
+    const router = useFramework7AppRouter()
+    const handleClick = (event: MouseEvent) => {
+      if (!props.deterministic)
+        return
+
+      event.preventDefault()
+      event.stopPropagation()
+      void router.backTo(props.defaultHref || '/home')
+    }
+
     return () => h(f7Link, mergeProps(attrs, {
-      'href': props.defaultHref || '/home',
-      'back': true,
+      'href': props.deterministic ? false : props.defaultHref || '/home',
+      'back': !props.deterministic,
       'icon': 'icon-back',
       'iconOnly': true,
       'class': ['app-back-button', attrs.class],
       'aria-label': attrs['aria-label'] || props.text || '返回',
+      'onClick': handleClick,
     }))
   },
 })
@@ -630,20 +643,71 @@ export const F7AccordionGroup = defineComponent({
 
 export const F7Accordion = defineComponent({
   name: 'f7-list-item-accordion-adapter',
-  props: { value: { type: String, required: true } },
-  setup(props, { attrs, slots }) {
+  props: {
+    value: { type: String, required: true },
+    expandable: { type: Boolean, default: true },
+  },
+  emits: ['leaf-click'],
+  setup(props, { attrs, emit, slots }) {
     const group = inject(accordionKey)
     const open = computed(() => group?.expanded.value.includes(props.value) ?? false)
+    const element = ref<HTMLElement>()
+    let allowToggle = false
+    const setElement = (instance: Element | ComponentPublicInstance | null) => {
+      element.value = (instance instanceof Element ? instance : instance?.$el) as HTMLElement | undefined
+    }
+    const guardToggle = (prevent: () => void) => {
+      if (!allowToggle)
+        prevent()
+      allowToggle = false
+    }
+    const toggleFromControl = (event: MouseEvent) => {
+      event.preventDefault()
+      event.stopPropagation()
+      if (!props.expandable) {
+        emit('leaf-click')
+        return
+      }
+      allowToggle = true
+      if (element.value && f7?.accordion) {
+        f7.accordion.toggle(element.value)
+        return
+      }
+      group?.setOpened(props.value, !open.value)
+    }
+    const onToggleKeydown = (event: KeyboardEvent) => {
+      if (event.key !== 'Enter' && event.key !== ' ')
+        return
+      event.preventDefault()
+      ;(event.currentTarget as HTMLElement).click()
+    }
     return () => h(f7ListItem, mergeProps(attrs, {
-      accordionItem: true,
-      accordionItemOpened: open.value,
-      class: ['app-list-item', 'app-accordion', attrs.class],
-      onAccordionOpened: () => group?.setOpened(props.value, true),
-      onAccordionClosed: () => group?.setOpened(props.value, false),
+      'accordionItem': true,
+      'accordionItemOpened': open.value,
+      'class': ['app-list-item', 'app-accordion', attrs.class],
+      'ref': setElement,
+      'onAccordion:beforeopen': guardToggle,
+      'onAccordion:beforeclose': guardToggle,
+      'onAccordion:open': () => group?.setOpened(props.value, true),
+      'onAccordion:close': () => group?.setOpened(props.value, false),
+      'onAccordion:opened': () => group?.setOpened(props.value, true),
+      'onAccordion:closed': () => group?.setOpened(props.value, false),
     }), {
       media: slots.media,
       title: slots.title || slots.header,
-      after: slots.after,
+      after: () => [
+        slots.after?.(),
+        h('span', {
+          'class': 'folder-accordion-toggle',
+          'role': 'button',
+          'tabindex': 0,
+          'aria-label': props.expandable
+            ? open.value ? '收起文件夹' : '展开文件夹'
+            : '打开文件夹',
+          'onClick': toggleFromControl,
+          'onKeydown': onToggleKeydown,
+        }),
+      ],
       default: () => h(f7AccordionContent, null, slots.content),
     })
   },

@@ -84,21 +84,19 @@ body,
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  min-width: 44px;
-  height: 44px;
+  width: 48px;
+  min-width: 48px;
+  height: 48px;
   padding: 0;
   margin: 0;
-  border: 1px solid var(--c-global-search-control-border);
+  border: 0;
   border-radius: 50%;
-  background: var(--c-global-search-control-background);
+  background: transparent;
   color: var(--c-text-primary);
-  box-shadow:
-    inset 0 1px 0 var(--c-global-search-control-highlight),
-    0 8px 20px var(--c-global-search-control-shadow);
-  -webkit-backdrop-filter: blur(14px) saturate(150%) contrast(102%);
-  backdrop-filter: blur(14px) saturate(150%) contrast(102%);
-  flex: 0 0 44px;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  flex: 0 0 48px;
   line-height: 1;
   appearance: none;
   -webkit-appearance: none;

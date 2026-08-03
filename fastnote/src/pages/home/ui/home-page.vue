@@ -937,7 +937,7 @@ onUnmounted(() => {
   left: 0;
   z-index: 1300;
   width: 100%;
-  padding: 0 12px calc(12px + env(safe-area-inset-bottom));
+  padding: 0 0 env(safe-area-inset-bottom);
   box-sizing: border-box;
 }
 </style>
