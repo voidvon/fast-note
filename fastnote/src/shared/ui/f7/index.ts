@@ -39,6 +39,7 @@ import {
   h,
   inject,
   mergeProps,
+  nextTick,
   normalizeClass,
   onBeforeUnmount,
   onMounted,
@@ -469,24 +470,41 @@ export const F7Modal = defineComponent({
     },
     breakpoints: Array as PropType<number[]>,
     initialBreakpoint: Number,
+    keepMounted: Boolean,
   },
   emits: ['did-dismiss', 'will-present', 'update:isOpen'],
   setup(props, { attrs, emit, expose, slots }) {
-    const opened = ref(props.isOpen)
+    const opened = ref(false)
+    const shellMounted = ref(props.keepMounted)
     const contentMounted = ref(props.isOpen)
+    let presented = false
+    let openSequence = 0
     let dismissDetail: { data?: unknown, role?: string } | undefined
     const setElement = (instance: Element | ComponentPublicInstance | null) => {
       const element = instance instanceof Element ? instance : instance?.$el as HTMLElement | undefined
       if (element)
         Object.assign(element, { dismiss })
     }
-    watch(() => props.isOpen, (value) => {
+    watch(() => props.isOpen, async (value) => {
+      const sequence = ++openSequence
       if (value) {
+        shellMounted.value = true
         contentMounted.value = true
         dismissDetail = undefined
         emit('will-present')
+        await nextTick()
+        if (sequence !== openSequence || !props.isOpen)
+          return
+        presented = true
+        opened.value = true
+        return
       }
+
       opened.value = value
+      if (!presented && !props.keepMounted) {
+        contentMounted.value = false
+        shellMounted.value = false
+      }
     }, { immediate: true })
 
     async function dismiss(data?: unknown, role?: string) {
@@ -501,6 +519,9 @@ export const F7Modal = defineComponent({
     expose({ dismiss })
 
     return () => {
+      if (!shellMounted.value)
+        return null
+
       const nextAttrs = { ...attrs }
       delete nextAttrs['focus-trap']
       delete nextAttrs.focusTrap
@@ -537,7 +558,10 @@ export const F7Modal = defineComponent({
           const detail = dismissDetail || {}
           dismissDetail = undefined
           emit('did-dismiss', new CustomEvent('did-dismiss', { detail }))
+          presented = false
           contentMounted.value = false
+          if (!props.keepMounted)
+            shellMounted.value = false
         },
       }), {
         default: () => contentMounted.value

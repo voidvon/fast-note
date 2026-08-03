@@ -42,9 +42,14 @@ defineEmits<{
 <style lang="scss">
 .app-dropdown {
   --background: var(--c-modal-background);
+  --f7-popover-bg-color: var(--c-modal-background);
   --f7-popover-width: max-content;
 
   max-width: min(280px, calc(100vw - 24px));
+}
+
+.app-theme-dark .app-dropdown {
+  --f7-glass-bg-color: #000;
 }
 
 .app-dropdown__content {

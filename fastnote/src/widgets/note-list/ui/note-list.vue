@@ -28,6 +28,7 @@ const props = withDefaults(
     disabledRoute?: boolean
     disabledLongPress?: boolean
     expandedStateKey?: string
+    inset?: boolean
     mediaList?: boolean
   }>(),
   {
@@ -43,6 +44,7 @@ const props = withDefaults(
     disabledRoute: false,
     disabledLongPress: false,
     expandedStateKey: '',
+    inset: true,
     mediaList: false,
   },
 )
@@ -240,10 +242,10 @@ defineExpose({
 <template>
   <F7List
     ref="listRef"
-    inset
+    :inset
+    strong
     accordion-list
     :media-list
-    :strong="mediaList"
     :class="{ 'note-list--media': mediaList }"
   >
     <slot name="header" />

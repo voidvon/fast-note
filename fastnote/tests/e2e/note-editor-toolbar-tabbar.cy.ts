@@ -131,6 +131,38 @@ describe('note editor Framework7 tabbar', () => {
       })
   })
 
+  it('uses true black page and dropdown surfaces in dark mode', () => {
+    seedNoteAndVisit(1280, 800)
+    cy.document().then((document) => {
+      document.documentElement.classList.add('app-theme-dark', 'dark')
+    })
+
+    cy.get('#home-note-detail-pane .note-detail__content').should(($detail) => {
+      expect(getComputedStyle($detail[0]).backgroundColor).to.equal('rgb(0, 0, 0)')
+    })
+    cy.get('.home-navigation-content .list.accordion-list.list-strong.inset > ul').should(($list) => {
+      expect(getComputedStyle($list[0]).backgroundColor).to.equal('rgb(28, 28, 29)')
+      expect(getComputedStyle($list[0]).borderRadius).not.to.equal('0px')
+    })
+
+    cy.get('#home-note-detail-pane [data-testid="note-editor-toolbar-table"]').click()
+    cy.get('.table-format-popover.popover.modal-in .popover-inner').should(($inner) => {
+      expect(getComputedStyle($inner[0]).backgroundColor).to.equal('rgb(0, 0, 0)')
+    })
+  })
+
+  it('does not mount closed sheets inside pull-to-refresh content', () => {
+    seedNoteAndVisit(1280, 800)
+
+    cy.get('.home-navigation-content .sheet-modal').should('not.exist')
+    cy.get('.home-navigation-content').then(($content) => {
+      for (const child of $content[0].children) {
+        (child as HTMLElement).style.transform = 'translate3d(0, 44px, 0)'
+      }
+    })
+    cy.get('.home-navigation-content .sheet-modal').should('not.exist')
+  })
+
   it('keeps the native iOS 26 tabbar in the embedded desktop pane', () => {
     seedNoteAndVisit(1280, 800)
     cy.get('#home-note-detail-pane .app-pane-footer').should('not.exist')

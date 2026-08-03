@@ -24,6 +24,7 @@ onMounted(() => {
 <template>
   <F7Modal
     ref="modalRef"
+    keep-mounted
     v-bind="$attrs"
     :is-open
     :backdrop="false"
