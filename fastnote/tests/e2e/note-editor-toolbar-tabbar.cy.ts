@@ -102,6 +102,14 @@ describe('note editor Framework7 tabbar', () => {
       .then(($popover) => {
         const popoverRect = $popover[0].getBoundingClientRect()
 
+        expect($popover[0].offsetWidth).to.be.greaterThan(0)
+        expect($popover[0].offsetWidth).to.be.lessThan(240)
+
+        const title = $popover[0].querySelector<HTMLElement>('.item-title')
+        expect(title).not.to.equal(null)
+        expect(getComputedStyle(title!).fontSize).to.equal('15px')
+        expect(getComputedStyle(title!).fontWeight).to.equal('500')
+
         cy.get('#home-note-detail-pane [data-testid="note-editor-toolbar-table"]').then(($trigger) => {
           const triggerRect = $trigger[0].getBoundingClientRect()
 

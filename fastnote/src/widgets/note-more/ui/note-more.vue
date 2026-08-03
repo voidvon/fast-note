@@ -16,7 +16,8 @@ import { PublicNoteAccessModal } from '@/features/public-note-share'
 import { useAuth } from '@/processes/session'
 import { useSync } from '@/processes/sync-notes'
 import { cleanupOverlayLocksAsync, useAppRoute } from '@/shared/lib/framework7'
-import { alertController, F7Modal, F7Popover, toastController, useAppRouter } from '@/shared/ui/f7'
+import Dropdown from '@/shared/ui/dropdown'
+import { alertController, F7Modal, toastController, useAppRouter } from '@/shared/ui/f7'
 import { globeOutline, lockClosed, lockOpen, trashOutline } from '@/shared/ui/icons'
 
 const props = withDefaults(defineProps<{
@@ -216,10 +217,11 @@ async function onDelete() {
 
 <template>
   <component
-    :is="presentation === 'popover' ? F7Popover : F7Modal"
+    :is="presentation === 'popover' ? Dropdown : F7Modal"
     v-bind="$attrs"
     :is-open="isOpen"
     :target-el="presentation === 'popover' ? targetEl : undefined"
+    :size="presentation === 'popover' ? 'compact' : undefined"
     :initial-breakpoint="presentation === 'sheet' ? 1 : undefined"
     :breakpoints="presentation === 'sheet' ? [0, 1] : undefined"
     class="note-more-modal"
@@ -242,7 +244,11 @@ async function onDelete() {
       class="note-more-content"
       :class="{ 'note-more-sheet': presentation === 'sheet' }"
     >
-      <F7List strong inset dividers>
+      <F7List
+        strong
+        inset
+        :class="{ 'app-dropdown__list': presentation === 'popover' }"
+      >
         <F7ListItem
           link
           :href="false"
@@ -254,7 +260,7 @@ async function onDelete() {
           <template #media>
             <component
               :is="note?.is_locked === 1 ? lockOpen : lockClosed"
-              class="note-more-sheet__icon note-more-sheet__icon--primary"
+              class="note-more-sheet__icon app-dropdown__icon"
               aria-hidden="true"
             />
           </template>
@@ -270,7 +276,7 @@ async function onDelete() {
           <template #media>
             <component
               :is="globeOutline"
-              class="note-more-sheet__icon note-more-sheet__icon--success"
+              class="note-more-sheet__icon app-dropdown__icon app-dropdown__icon--success"
               aria-hidden="true"
             />
           </template>
@@ -287,7 +293,7 @@ async function onDelete() {
           <template #media>
             <component
               :is="trashOutline"
-              class="note-more-sheet__icon note-more-sheet__icon--danger"
+              class="note-more-sheet__icon app-dropdown__icon app-dropdown__icon--danger"
               aria-hidden="true"
             />
           </template>
@@ -330,14 +336,6 @@ async function onDelete() {
   --f7-sheet-border-radius: 24px;
 }
 
-.note-more-modal--popover {
-  --f7-popover-width: 240px;
-}
-
-.note-more-modal--popover .note-more-content {
-  overflow: hidden;
-}
-
 .note-more-sheet {
   --f7-page-toolbar-top-offset: var(--f7-toolbar-height);
 
@@ -360,17 +358,5 @@ async function onDelete() {
 .note-more-sheet__icon {
   width: 24px;
   height: 24px;
-}
-
-.note-more-sheet__icon--primary {
-  color: var(--f7-theme-color);
-}
-
-.note-more-sheet__icon--success {
-  color: var(--app-color-success);
-}
-
-.note-more-sheet__icon--danger {
-  color: var(--f7-color-red);
 }
 </style>

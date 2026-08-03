@@ -19,12 +19,15 @@ describe('table format modal', () => {
   })
 
   it('renders all table actions in a scrollable content area', async () => {
+    vi.doMock('framework7-vue', () => ({
+      f7ListItem: createStub('F7ListItem', 'button'),
+    }))
+    vi.doMock('@/shared/ui/dropdown', () => ({
+      default: createStub('AppDropdown'),
+    }))
     vi.doMock('@/shared/ui/f7', () => ({
       F7Icon: createStub('F7Icon'),
-      F7Item: createStub('F7Item', 'button'),
-      F7Label: createStub('F7Label', 'span'),
       F7List: createStub('F7List'),
-      F7Popover: createStub('F7Popover'),
     }))
     vi.doMock('@/shared/ui/icon', () => ({
       default: createStub('Icon'),
@@ -54,7 +57,6 @@ describe('table format modal', () => {
       },
     })
 
-    expect(wrapper.get('.table-format-popover-content').exists()).toBe(true)
     expect(wrapper.get('.table-format-popover').exists()).toBe(true)
     expect(wrapper.findAll('.table-format-modal-list')).toHaveLength(1)
 
@@ -68,9 +70,8 @@ describe('table format modal', () => {
     ] as const
 
     for (const [label, command] of actions) {
-      const item = wrapper.findAll('button').find(button => button.text().includes(label))
-      expect(item, `${label} should be rendered`).toBeDefined()
-      await item!.trigger('click')
+      const item = wrapper.get(`button[title="${label}"]`)
+      await item.trigger('click')
       expect(chain[command]).toHaveBeenCalledTimes(1)
     }
 

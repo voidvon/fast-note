@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import type { Editor } from '@tiptap/vue-3'
-import { F7Icon, F7Item, F7Label, F7List, F7Popover } from '@/shared/ui/f7'
+import { f7ListItem as F7ListItem } from 'framework7-vue'
+import Dropdown from '@/shared/ui/dropdown'
+import { F7Icon, F7List } from '@/shared/ui/f7'
 import Icon from '@/shared/ui/icon'
 import { trashOutline } from '@/shared/ui/icons'
 
 const props = withDefaults(defineProps<{
   isOpen: boolean
   editor: Editor
-  targetEl?: string
+  targetEl: string
   verticalPosition?: 'auto' | 'bottom' | 'top'
 }>(), {
   verticalPosition: 'auto',
@@ -57,90 +59,46 @@ function onClick(type: string) {
 </script>
 
 <template>
-  <F7Popover
+  <Dropdown
     v-bind="$attrs"
     :is-open
     :target-el
     :vertical-position
+    size="compact"
     class="table-format-popover"
     @did-dismiss="$emit('update:isOpen', false)"
   >
-    <div class="table-format-popover-content">
-      <F7List class="table-format-modal-list" inset>
-        <F7Item @click="onClick('insert-table')">
-          <F7Label>插入表格</F7Label>
-          <template #after>
-            <Icon name="table" />
-          </template>
-        </F7Item>
-        <F7Item @click="onClick('delete-table')">
-          <F7Label style="color: var(--danger)">
-            删除表格
-          </F7Label>
-          <template #after>
-            <F7Icon :icon="trashOutline" color="danger" />
-          </template>
-        </F7Item>
-        <F7Item @click="onClick('add-column-after')">
-          <F7Label>插入列</F7Label>
-          <template #after>
-            <Icon name="insert-right-column" />
-          </template>
-        </F7Item>
-        <F7Item @click="onClick('delete-column')">
-          <F7Label style="color: var(--danger)">
-            删除列
-          </F7Label>
-          <template #after>
-            <Icon name="remove-column" color="danger" />
-          </template>
-        </F7Item>
-        <F7Item @click="onClick('add-row-after')">
-          <F7Label>插入行</F7Label>
-          <template #after>
-            <Icon name="insert-bottom-row" />
-          </template>
-        </F7Item>
-        <F7Item @click="onClick('delete-row')">
-          <F7Label style="color: var(--danger)">
-            删除行
-          </F7Label>
-          <template #after>
-            <Icon name="remove-row" color="danger" />
-          </template>
-        </F7Item>
-      </F7List>
-    </div>
-  </F7Popover>
+    <F7List class="app-dropdown__list table-format-modal-list" strong inset>
+      <F7ListItem link :href="false" no-chevron title="插入表格" @click="onClick('insert-table')">
+        <template #media>
+          <Icon name="table" class="app-dropdown__icon" />
+        </template>
+      </F7ListItem>
+      <F7ListItem link :href="false" no-chevron title="删除表格" text-color="red" @click="onClick('delete-table')">
+        <template #media>
+          <F7Icon :icon="trashOutline" class="app-dropdown__icon app-dropdown__icon--danger" />
+        </template>
+      </F7ListItem>
+      <F7ListItem link :href="false" no-chevron title="插入列" @click="onClick('add-column-after')">
+        <template #media>
+          <Icon name="insert-right-column" class="app-dropdown__icon" />
+        </template>
+      </F7ListItem>
+      <F7ListItem link :href="false" no-chevron title="删除列" text-color="red" @click="onClick('delete-column')">
+        <template #media>
+          <Icon name="remove-column" class="app-dropdown__icon app-dropdown__icon--danger" />
+        </template>
+      </F7ListItem>
+      <F7ListItem link :href="false" no-chevron title="插入行" @click="onClick('add-row-after')">
+        <template #media>
+          <Icon name="insert-bottom-row" class="app-dropdown__icon" />
+        </template>
+      </F7ListItem>
+      <F7ListItem link :href="false" no-chevron title="删除行" text-color="red" @click="onClick('delete-row')">
+        <template #media>
+          <Icon name="remove-row" class="app-dropdown__icon app-dropdown__icon--danger" />
+        </template>
+      </F7ListItem>
+    </F7List>
+  </Dropdown>
 </template>
-
-<style lang="scss">
-.table-format-popover {
-  --background: var(--c-modal-background);
-  --f7-popover-width: 260px;
-}
-.table-format-popover-content {
-  max-height: min(520px, calc(100dvh - 140px));
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-}
-.table-format-modal-list {
-  .app-list-item {
-    --background: var(--c-list-background);
-    --color: var(--c-text-primary);
-    font-size: 18px;
-    .app-label {
-      margin-top: 14px;
-      margin-bottom: 14px;
-      font-weight: 500;
-    }
-    .app-icon {
-      font-size: 28px;
-    }
-    .icon {
-      font-size: 30px;
-    }
-  }
-}
-</style>
