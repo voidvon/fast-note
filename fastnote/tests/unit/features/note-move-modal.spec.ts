@@ -27,6 +27,16 @@ describe('note move modal', () => {
     vi.doMock('@/widgets/note-list/ui/note-list.vue', () => ({
       default: defineComponent({
         name: 'NoteList',
+        props: {
+          forwardWheel: {
+            type: Boolean,
+            default: true,
+          },
+          inset: {
+            type: Boolean,
+            default: true,
+          },
+        },
         setup(_, { expose }) {
           expose({ setExpandedItems })
           return () => h('div')
@@ -42,26 +52,32 @@ describe('note move modal', () => {
       })
       const F7Modal = defineComponent({
         name: 'F7Modal',
+        props: {
+          backdrop: {
+            type: Boolean,
+            default: true,
+          },
+          isOpen: Boolean,
+          push: Boolean,
+        },
         emits: ['will-present'],
         setup(_, { emit, slots }) {
           emit('will-present')
-          return () => h('div', slots.default?.())
+          return () => h('div', [slots.fixed?.(), slots.default?.()])
         },
       })
 
       return {
         F7Button: passthrough('F7Button'),
-        F7Buttons: passthrough('F7Buttons'),
-        F7Content: passthrough('F7Content'),
-        F7Header: passthrough('F7Header'),
+        F7Icon: passthrough('F7Icon'),
         F7Modal,
-        F7Title: passthrough('F7Title'),
+        F7PageContent: passthrough('F7PageContent'),
         F7Toolbar: passthrough('F7Toolbar'),
       }
     })
 
     const NoteMoveModal = (await import('@/features/note-move/ui/note-move-modal.vue')).default
-    mount(NoteMoveModal, {
+    const wrapper = mount(NoteMoveModal, {
       props: {
         id: 'note-1',
         isOpen: true,
@@ -71,5 +87,12 @@ describe('note move modal', () => {
     await nextTick()
 
     expect(setExpandedItems).toHaveBeenCalledWith(['root'])
+    expect(wrapper.getComponent({ name: 'F7Modal' }).props('backdrop')).toBe(true)
+    expect(wrapper.getComponent({ name: 'F7Modal' }).props('push')).toBe(true)
+    expect(wrapper.find('.note-move-header').exists()).toBe(true)
+    expect(wrapper.find('.note-move-content').exists()).toBe(true)
+    expect(wrapper.getComponent({ name: 'F7PageContent' }).exists()).toBe(true)
+    expect(wrapper.getComponent({ name: 'NoteList' }).props('inset')).toBe(true)
+    expect(wrapper.getComponent({ name: 'NoteList' }).props('forwardWheel')).toBe(false)
   })
 })

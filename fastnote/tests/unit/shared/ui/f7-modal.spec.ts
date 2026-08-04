@@ -1,6 +1,6 @@
 import { shallowMount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
-import { nextTick } from 'vue'
+import { h, nextTick } from 'vue'
 import { F7Modal } from '@/shared/ui/f7'
 
 describe('f7 modal', () => {
@@ -68,5 +68,30 @@ describe('f7 modal', () => {
 
     expect(sheet.props('backdrop')).toBe(false)
     expect(sheet.props('closeByBackdropClick')).toBe(false)
+  })
+
+  it('passes push mode to the underlying sheet', () => {
+    const wrapper = shallowMount(F7Modal, {
+      props: {
+        isOpen: true,
+        push: true,
+      },
+    })
+    const sheet = wrapper.getComponent({ name: 'f7-sheet' })
+
+    expect(sheet.props('push')).toBe(true)
+    expect(sheet.props('closeByBackdropClick')).toBe(true)
+  })
+
+  it('forwards fixed content to the underlying sheet fixed slot', () => {
+    const wrapper = shallowMount(F7Modal, {
+      props: { isOpen: true },
+      slots: {
+        fixed: () => h('header', 'Fixed header'),
+      },
+    })
+    const fixedContent = wrapper.getComponent({ name: 'f7-sheet' }).vm.$slots.fixed?.()
+
+    expect(fixedContent?.[0].children).toBe('Fixed header')
   })
 })

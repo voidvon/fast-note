@@ -518,6 +518,7 @@ export const F7Modal = defineComponent({
     breakpoints: Array as PropType<number[]>,
     initialBreakpoint: Number,
     keepMounted: Boolean,
+    push: Boolean,
   },
   emits: ['did-dismiss', 'will-present', 'update:isOpen'],
   setup(props, { attrs, emit, expose, slots }) {
@@ -583,6 +584,7 @@ export const F7Modal = defineComponent({
         'opened': opened.value,
         'class': ['app-modal', attrs.class],
         'backdrop': props.backdrop,
+        'push': props.push,
         'closeByBackdropClick': props.backdrop
           && props.canDismiss !== false
           && typeof props.canDismiss !== 'function',
@@ -617,6 +619,7 @@ export const F7Modal = defineComponent({
               slots.default?.(),
             ]
           : undefined,
+        fixed: () => contentMounted.value ? slots.fixed?.() : undefined,
       })
     }
   },

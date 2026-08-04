@@ -33,6 +33,7 @@ const props = withDefaults(
     mediaList?: boolean
     virtualNotes?: boolean
     scrollableParentEl?: HTMLElement | string
+    forwardWheel?: boolean
   }>(),
   {
     allNotesCount: 0,
@@ -50,6 +51,7 @@ const props = withDefaults(
     inset: true,
     mediaList: false,
     virtualNotes: false,
+    forwardWheel: true,
   },
 )
 const emit = defineEmits(['refresh', 'update:noteUuid', 'selected'])
@@ -66,6 +68,7 @@ const listRef = ref<DefineComponent>()
 const virtualListRef = ref<DefineComponent>()
 const longPressId = ref('')
 const longPressMenuOpen = ref(false)
+const moveModalPending = ref(false)
 const showMoveModal = ref(false)
 const moveNoteId = ref('')
 const expandedItems = ref<string[]>([])
@@ -220,6 +223,9 @@ function onSelected(id: string) {
 }
 
 function onMove(id: string) {
+  if (!id)
+    return
+
   moveNoteId.value = id
   if (longPressMenuRef.value?.$el) {
     movePresentingElement.value = longPressMenuRef.value.$el
@@ -227,9 +233,18 @@ function onMove(id: string) {
   else {
     movePresentingElement.value = props.presentingElement
   }
-  setTimeout(() => {
-    showMoveModal.value = true
-  }, 300)
+  moveModalPending.value = true
+  longPressMenuOpen.value = false
+}
+
+async function onLongPressMenuDismiss() {
+  longPressMenuOpen.value = false
+  if (!moveModalPending.value)
+    return
+
+  moveModalPending.value = false
+  await nextTick()
+  showMoveModal.value = true
 }
 
 function setExpandedItems(items: string[] | string | undefined) {
@@ -268,7 +283,7 @@ watch(virtualNoteItems, async (items) => {
 onMounted(() => {
   restoreExpandedItems()
 
-  if (!isDesktop.value)
+  if (!isDesktop.value || !props.forwardWheel)
     return
 
   handleWheel = (e: WheelEvent) => {
@@ -432,7 +447,7 @@ defineExpose({
     :is-open="longPressMenuOpen"
     :items="pressItems"
     :presenting-element
-    @did-dismiss="() => longPressMenuOpen = false"
+    @did-dismiss="onLongPressMenuDismiss"
     @move="onMove"
     @refresh="$emit('refresh')"
   />
