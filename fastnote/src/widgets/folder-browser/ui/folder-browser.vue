@@ -511,6 +511,8 @@ defineExpose({
 
 .folder-create-button,
 .note-create-button {
+  --f7-button-text-color: var(--c-text-primary);
+
   width: 48px;
   min-width: 48px;
   height: 48px;
