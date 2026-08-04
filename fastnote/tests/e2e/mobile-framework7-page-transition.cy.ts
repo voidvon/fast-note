@@ -232,6 +232,22 @@ describe('mobile Framework7 pages', () => {
   })
 
   it('renders the user profile sheet with native Framework7 form components', () => {
+    cy.intercept('POST', '**/api/collections/users/auth-refresh', (request) => {
+      request.reply({
+        statusCode: 200,
+        body: {
+          token: request.headers.authorization?.replace('Bearer ', '') || '',
+          record: {
+            id: 'framework7-profile-user',
+            email: 'framework7@example.com',
+            username: 'Framework7 用户',
+            avatar: '',
+            created: '2026-08-02 12:00:00.000Z',
+            updated: '2026-08-02 12:00:00.000Z',
+          },
+        },
+      })
+    })
     cy.visit('/home')
     cy.window().then((window: Window & { pb: any }) => {
       const payload = window.btoa(JSON.stringify({ exp: 4102444800 }))
@@ -256,7 +272,10 @@ describe('mobile Framework7 pages', () => {
         cy.get('.block-title').should('have.length', 3)
         cy.get('.list.list-strong.inset').should('have.length', 3)
         cy.get('.list-item, .item-content').should('have.length.greaterThan', 0)
-        cy.get('.block .button').should('have.length', 2)
+        cy.get('.user-profile-modal__actions').scrollIntoView()
+        cy.get('.user-profile-modal__actions .button')
+          .should('have.length', 2)
+          .and('be.visible')
         cy.get('.app-grid, .app-row, .app-col, .app-label, .app-avatar').should('not.exist')
         cy.contains('.link', '完成').click()
       })

@@ -9,6 +9,7 @@ const { currentMode, isDarkMode, setThemeMode } = useTheme()
 
 // 是否显示弹出菜单
 const showPopover = ref(false)
+const triggerEl = ref<HTMLElement | null>(null)
 
 // 计算当前图标
 const currentIcon = computed(() => {
@@ -45,9 +46,8 @@ function togglePopover() {
 </script>
 
 <template>
-  <div class="dark-mode-toggle">
+  <div ref="triggerEl" class="dark-mode-toggle">
     <F7Button
-      id="theme-mode-button"
       fill="clear"
       size="small"
       :title="buttonTitle"
@@ -56,7 +56,12 @@ function togglePopover() {
       <F7Icon :icon="currentIcon" />
     </F7Button>
 
-    <F7Popover target-el="#theme-mode-button" :is-open="showPopover" @did-dismiss="showPopover = false">
+    <F7Popover
+      v-if="triggerEl"
+      :target-el="triggerEl"
+      :is-open="showPopover"
+      @did-dismiss="showPopover = false"
+    >
       <F7List>
         <F7Item button :detail="false" @click="handleSetThemeMode(ThemeMode.Auto)">
           <template #media>

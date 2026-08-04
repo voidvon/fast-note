@@ -441,7 +441,6 @@ defineExpose({
           <F7Button
             class="folder-create-button"
             aria-label="新建文件夹"
-            text-color="white"
             @click="openAddFolderDialog"
           >
             <F7Icon :icon="addOutline" />
@@ -455,7 +454,6 @@ defineExpose({
           <F7Button
             class="note-create-button"
             aria-label="新建备忘录"
-            text-color="white"
             :router-link="`/n/0?parent_id=${creationParentId}`"
             router-direction="forward"
           >
@@ -473,7 +471,6 @@ defineExpose({
         <F7Button
           class="folder-create-button"
           aria-label="新建文件夹"
-          text-color="white"
           @click="openAddFolderDialog"
         >
           <F7Icon :icon="addOutline" />
@@ -487,7 +484,6 @@ defineExpose({
         <F7Button
           class="note-create-button"
           aria-label="新建备忘录"
-          text-color="white"
           @click="$emit('createNote', creationParentId)"
         >
           <F7Icon :icon="createOutline" />
