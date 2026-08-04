@@ -719,7 +719,7 @@ async function handleNoteLockUpdated(updatedNote: Note) {
   position: relative;
   box-sizing: border-box;
   min-height: 100%;
-  padding-top: calc(var(--f7-navbar-height) + var(--f7-safe-area-top));
+  padding-top: 0;
 }
 
 .note-detail__unlock-overlay {

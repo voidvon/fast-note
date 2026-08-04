@@ -47,15 +47,18 @@ describe('home global search scroll clearance', () => {
 
     cy.get('.global-search__panel').then(($panel) => {
       const panelRect = $panel.get(0).getBoundingClientRect()
+      let contentPaddingTop = 0
+      let contentPaddingBottom = 0
 
       cy.get('.global-search__panel-content').then(($content) => {
         const content = $content.get(0)
         const contentRect = content.getBoundingClientRect()
+        const contentStyles = getComputedStyle(content)
+        contentPaddingTop = Number.parseFloat(contentStyles.paddingTop)
+        contentPaddingBottom = Number.parseFloat(contentStyles.paddingBottom)
 
         expect(contentRect.top).to.equal(panelRect.top)
         expect(contentRect.bottom).to.equal(panelRect.bottom)
-        expect(Number.parseFloat(getComputedStyle(content).paddingTop)).to.be.greaterThan(0)
-        expect(Number.parseFloat(getComputedStyle(content).paddingBottom)).to.be.greaterThan(44)
       })
 
       cy.get('.global-search__panel-header').then(($header) => {
@@ -63,13 +66,15 @@ describe('home global search scroll clearance', () => {
 
         expect(headerRect.top).to.equal(panelRect.top)
         expect(headerRect.bottom).to.be.greaterThan(panelRect.top)
+        expect(contentPaddingTop).to.equal(headerRect.height)
       })
 
-      cy.get('.global-search__dock').then(($dock) => {
-        const dockRect = $dock.get(0).getBoundingClientRect()
+      cy.get('.global-search__toolbar').then(($toolbar) => {
+        const toolbarRect = $toolbar.get(0).getBoundingClientRect()
 
-        expect(dockRect.top).to.be.lessThan(panelRect.bottom)
-        expect(dockRect.bottom).to.be.greaterThan(panelRect.top)
+        expect(toolbarRect.top).to.be.lessThan(panelRect.bottom)
+        expect(toolbarRect.bottom).to.be.greaterThan(panelRect.top)
+        expect(contentPaddingBottom).to.equal(panelRect.bottom - toolbarRect.top + 12)
       })
     })
   })

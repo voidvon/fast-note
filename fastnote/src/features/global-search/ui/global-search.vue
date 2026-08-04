@@ -1213,7 +1213,6 @@ onUnmounted(() => {
             <div v-else class="global-search__empty global-search__empty--idle">
               {{ panelIdleMessage }}
             </div>
-            <div class="h-4" />
           </F7Content>
 
           <AiChatPanel
@@ -1522,8 +1521,20 @@ onUnmounted(() => {
     width: 100%;
     height: 100%;
     --background: transparent;
+    --f7-page-navbar-offset: 0px;
+    --f7-page-toolbar-top-offset: 0px;
+    --f7-page-subnavbar-offset: 0px;
+    --f7-page-searchbar-offset: 0px;
+    --f7-page-content-extra-padding-top: 0px;
+    --f7-page-toolbar-bottom-offset: 0px;
+    --f7-page-content-extra-padding-bottom: 0px;
+    --f7-safe-area-bottom: 0px;
     --padding-top: var(--global-search-panel-header-height);
     --padding-bottom: calc(var(--global-search-panel-bottom-inset) + 12px);
+  }
+
+  &__panel-content .note-list-container > .list {
+    --f7-list-margin-vertical: 8px;
   }
 
   &__ai-panel {
