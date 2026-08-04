@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { FolderTreeNode } from '@/entities/note'
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { F7Button, F7Buttons, F7Content, F7Header, F7Modal, F7Title, F7Toolbar } from '@/shared/ui/f7'
 import NoteList from '@/widgets/note-list/ui/note-list.vue'
 import { useNoteMove } from '../model/use-note-move'
@@ -30,15 +30,16 @@ async function onSelected(id: string) {
   emit('refresh')
 }
 
-function onWillPersent() {
+async function onWillPresent() {
   dataList.value = createMoveTree()
   const folderIds = findFoldersWithChildren(dataList.value)
-  noteListRef.value.setExpandedItems(folderIds)
+  await nextTick()
+  noteListRef.value?.setExpandedItems(folderIds)
 }
 </script>
 
 <template>
-  <F7Modal ref="modalRef" :is-open v-bind="$attrs" @will-present="onWillPersent">
+  <F7Modal ref="modalRef" :is-open v-bind="$attrs" @will-present="onWillPresent">
     <F7Header>
       <F7Toolbar>
         <F7Title>选择文件夹</F7Title>

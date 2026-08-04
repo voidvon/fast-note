@@ -23,6 +23,7 @@ import {
 import { useAuth } from '@/processes/session'
 import { getTime } from '@/shared/lib/date'
 import { useDeviceType } from '@/shared/lib/device'
+import { bindLargeNavbarScroll } from '@/shared/lib/framework7'
 import { NOTE_TYPE } from '@/shared/types'
 import {
   F7Icon,
@@ -85,8 +86,11 @@ onUnmounted(() => {
 })
 
 const page = ref()
+const homeNavigationPaneRef = ref()
+const homeNavbarRef = ref()
 const folderPageRef = ref()
 let desktopResizeObserver: ResizeObserver | null = null
+let detachDesktopLargeNavbarScroll: (() => void) | null = null
 const desktopContainerWidth = ref(typeof window === 'undefined' ? 0 : window.innerWidth)
 const desktopPaneLayout = useDesktopPaneLayout(desktopContainerWidth)
 const desktopLayoutStyle = computed<CSSProperties | undefined>(() => isDesktop.value
@@ -618,6 +622,21 @@ async function openAddFolderDialog() {
   await handleAddFolder(name)
 }
 
+async function syncDesktopLargeNavbarScroll() {
+  detachDesktopLargeNavbarScroll?.()
+  detachDesktopLargeNavbarScroll = null
+
+  if (!isDesktop.value)
+    return
+
+  await nextTick()
+  const paneElement = homeNavigationPaneRef.value?.$el as HTMLElement | undefined
+  const navbarElement = homeNavbarRef.value?.$el as HTMLElement | undefined
+  if (paneElement && navbarElement) {
+    detachDesktopLargeNavbarScroll = bindLargeNavbarScroll(paneElement, navbarElement)
+  }
+}
+
 onF7ViewWillEnter(() => {
   void init({ preferPersistedSelection: true })
 })
@@ -636,11 +655,16 @@ onMounted(() => {
   }
   refreshDesktopRouteState()
   void init({ preferPersistedSelection: true })
+  void syncDesktopLargeNavbarScroll()
 
   if (typeof window !== 'undefined') {
     window.addEventListener('popstate', refreshDesktopRouteState)
   }
 })
+
+watch(isDesktop, () => {
+  void syncDesktopLargeNavbarScroll()
+}, { flush: 'post' })
 
 watch(
   () => desktopRouteFullPath.value,
@@ -675,6 +699,8 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
 }
 
 onUnmounted(() => {
+  detachDesktopLargeNavbarScroll?.()
+  detachDesktopLargeNavbarScroll = null
   desktopResizeObserver?.disconnect()
   desktopResizeObserver = null
   if (typeof window !== 'undefined') {
@@ -687,15 +713,16 @@ onUnmounted(() => {
   <F7Page ref="page" :class="{ 'note-desktop': isDesktop }" :style="desktopLayoutStyle">
     <ResponsivePagePane
       id="home-navigation-pane"
+      ref="homeNavigationPaneRef"
       :desktop="isDesktop"
       class="home-navigation"
       :class="{ 'home-navigation--search-active': showGlobalSearch }"
       data-global-search-container
     >
       <F7Navbar
+        ref="homeNavbarRef"
         class="app-navbar home-navbar"
         title="备忘录"
-        title-large="备忘录"
         large
       />
 

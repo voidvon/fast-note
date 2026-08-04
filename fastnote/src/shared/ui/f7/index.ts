@@ -72,7 +72,7 @@ function passthroughComponent(name: string, tag: string, className: string) {
 }
 
 interface NavigationBarContext {
-  kind: 'navbar' | 'footer'
+  kind: 'navbar' | 'footer' | 'large-title'
   toolbarClass: Ref<unknown>
 }
 const navigationBarContextKey: InjectionKey<NavigationBarContext> = Symbol('f7-navigation-bar')
@@ -107,7 +107,11 @@ export const F7Header = defineComponent({
   setup(props, { attrs, slots }) {
     const embedded = inject(pageSurfaceContextKey, undefined) === 'embedded'
     const toolbarClass = ref<unknown>()
-    provide(navigationBarContextKey, { kind: 'navbar', toolbarClass })
+    const condensed = attrs.collapse === 'condense'
+    provide(navigationBarContextKey, {
+      kind: condensed ? 'large-title' : 'navbar',
+      toolbarClass,
+    })
     return () => {
       const nextAttrs = { ...attrs }
       const collapse = nextAttrs.collapse
@@ -115,7 +119,7 @@ export const F7Header = defineComponent({
       delete nextAttrs.native
       if (collapse === 'condense') {
         return h('div', mergeProps(nextAttrs, {
-          class: ['app-large-title', toolbarClass.value, attrs.class],
+          class: ['title-large', toolbarClass.value, attrs.class],
         }), slots.default?.())
       }
       if (embedded && !props.native) {
@@ -212,6 +216,11 @@ export const F7Title = defineComponent({
           class: ['app-title', attrs.class],
         }), slots)
       }
+      if (context?.kind === 'large-title' && large) {
+        return h('div', mergeProps(nextAttrs, {
+          class: ['title-large-text', attrs.class],
+        }), slots.default?.())
+      }
       return h('div', mergeProps(nextAttrs, {
         class: [large ? 'app-title--large' : 'title', 'app-title', attrs.class],
       }), slots.default?.())
@@ -236,7 +245,32 @@ export const F7Actions = f7Actions
 export const F7ActionsButton = f7ActionsButton
 export const F7ActionsGroup = f7ActionsGroup
 export const F7ActionsLabel = f7ActionsLabel
-export const F7Navbar = f7Navbar
+export const F7Navbar = defineComponent({
+  name: 'F7Navbar',
+  inheritAttrs: false,
+  setup(_, { attrs, slots }) {
+    const navbarRef = ref<ComponentPublicInstance | HTMLElement>()
+
+    function resizeNavbar() {
+      const element = navbarRef.value instanceof HTMLElement
+        ? navbarRef.value
+        : navbarRef.value?.$el
+      if (element)
+        f7?.navbar.size(element)
+    }
+
+    onMounted(() => {
+      void nextTick(resizeNavbar)
+    })
+
+    watch(
+      () => [attrs.title, attrs.titleLarge, attrs.large],
+      () => void nextTick(resizeNavbar),
+    )
+
+    return () => h(f7Navbar, mergeProps(attrs, { ref: navbarRef }), slots)
+  },
+})
 export const F7PageContent = f7PageContent
 export const F7Spinner = f7Preloader
 export const F7Searchbar = f7Searchbar

@@ -1,3 +1,4 @@
+export { bindLargeNavbarScroll } from './bind-large-navbar-scroll'
 export { cleanupOverlayLocks, cleanupOverlayLocksAsync } from './cleanup-overlay-locks'
 export * from './router'
 export { useLongPressList } from './use-long-press-list'

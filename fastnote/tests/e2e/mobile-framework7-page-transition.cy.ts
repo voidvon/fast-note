@@ -267,9 +267,10 @@ describe('mobile Framework7 pages', () => {
   it('opens folders from the row and expands only from the chevron', () => {
     cy.visit('/home')
     cy.get('#app-loading').should('not.exist')
-    cy.get('.app-navbar.navbar-large .title-large')
+    cy.get('.home-navbar.navbar-large .title-large')
       .should('be.visible')
       .and('contain.text', '备忘录')
+    cy.get('.home-navbar .title').should('contain.text', '备忘录')
     cy.get('.home-navigation-meta .app-button').each(($button) => {
       const buttonRect = $button.get(0).getBoundingClientRect()
       const iconRect = $button.get(0).querySelector('svg')!.getBoundingClientRect()
@@ -277,8 +278,8 @@ describe('mobile Framework7 pages', () => {
       expect(iconRect.top).to.be.at.least(buttonRect.top)
       expect(iconRect.bottom).to.be.at.most(buttonRect.bottom)
     })
-    cy.get('.home-navigation-content .app-large-title').should('not.exist')
-    cy.get('.app-navbar.navbar-large .title-large').then(($title) => {
+    cy.get('.home-navigation-content > .title-large').should('not.exist')
+    cy.get('.home-navbar .title-large').then(($title) => {
       const titleRect = $title.get(0).getBoundingClientRect()
       cy.get('.home-navigation-content').then(($content) => {
         const content = $content.get(0)

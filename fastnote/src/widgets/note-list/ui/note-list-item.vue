@@ -19,12 +19,16 @@ const props = withDefaults(
     showParentFolder?: boolean
     disabledRoute?: boolean
     selectedId?: string
+    virtualListIndex?: number
+    virtualRowHeight?: number
   }>(),
   {
     lockIndicatorStateMap: () => ({}),
     showParentFolder: false,
     disabledRoute: false,
     selectedId: '',
+    virtualListIndex: undefined,
+    virtualRowHeight: undefined,
   },
 )
 
@@ -157,6 +161,8 @@ function onFolderClickCapture(event: MouseEvent) {
     class="list-item note-list-item--note"
     lines="inset"
     media-item
+    :virtual-list-index
+    :style="virtualRowHeight ? { height: `${virtualRowHeight}px` } : undefined"
     @click="onClick"
   >
     <template v-if="showLockIcon" #before-title>
@@ -200,6 +206,8 @@ function onFolderClickCapture(event: MouseEvent) {
     content: var(--f7-accordion-chevron-icon-down) !important;
     color: var(--primary);
     transform: rotate(-90deg);
+    transform-origin: center;
+    transition: transform 180ms ease;
   }
 
   &.accordion-item-opened > .item-link > .item-content > .item-inner::before {
@@ -253,6 +261,13 @@ function onFolderClickCapture(event: MouseEvent) {
     }
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .message-list-item > .item-link > .item-content > .item-inner::before {
+    transition: none;
+  }
+}
+
 .list-item {
   .accordion-item-toggle-icon {
     font-size: 1.125rem;

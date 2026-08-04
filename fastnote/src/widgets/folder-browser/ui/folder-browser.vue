@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { FolderTreeNode, Note } from '@/shared/types'
 import { nanoid } from 'nanoid'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { useNote } from '@/entities/note'
 import { useUserPublicNotes } from '@/entities/public-note'
 import { promptFolderName } from '@/features/note-write'
@@ -50,6 +50,7 @@ const { isDesktop } = useDeviceType()
 
 const data = ref<Note>({} as Note)
 const contentRef = ref()
+const contentElementId = `folder-content-${useId().replace(/[^\w-]/g, '-')}`
 const publicPage = ref(0)
 const publicTotalPages = ref(0)
 const publicPageLoading = ref(false)
@@ -390,6 +391,7 @@ defineExpose({
     </F7Navbar>
 
     <F7Content
+      :id="contentElementId"
       ref="contentRef"
       class="folder-page-content"
       :fullscreen="true"
@@ -423,6 +425,8 @@ defineExpose({
           :show-parent-folder="data.id === 'allnotes'"
           :expanded-state-key="expandedStateKey"
           media-list
+          virtual-notes
+          :scrollable-parent-el="`#${contentElementId}`"
           @selected="$emit('selected', $event)"
         />
 

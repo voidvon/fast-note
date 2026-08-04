@@ -31,6 +31,8 @@ function createPlainStub(name: string) {
 
 async function mountNoteList(options: {
   darkMode?: boolean
+  virtualNotes?: boolean
+  dataList?: ReturnType<typeof createNoteListData>
 }) {
   vi.resetModules()
   localStorage.clear()
@@ -92,52 +94,57 @@ async function mountNoteList(options: {
   const wrapper = mount(NoteList, {
     props: {
       allNotesCount: 4,
-      dataList: [
-        {
-          originNote: makeNote({
-            id: 'folder-1',
-            title: '工作',
-            item_type: 1,
-            note_count: 2,
-          }),
-          children: [],
-        },
-        {
-          originNote: makeNote({
-            id: 'locked-note',
-            title: '被锁定的超长标题备忘录，用来验证列表首行布局稳定',
-            summary: '锁定项摘要',
-            is_locked: 1,
-          }),
-          children: [],
-        },
-        {
-          originNote: makeNote({
-            id: 'unlocked-note',
-            title: '已解锁的备忘录',
-            summary: '应显示解锁图标',
-            is_locked: 1,
-          }),
-          children: [],
-        },
-        {
-          originNote: makeNote({
-            id: 'legacy-note',
-            title: '旧数据未锁定',
-            summary: '缺失锁字段时也需要占位',
-          }),
-          children: [],
-        },
-      ],
+      dataList: options.dataList ?? createNoteListData(),
       deletedNoteCount: 1,
       disabledLongPress: true,
       showAllNotes: true,
       showDelete: true,
       showUnfiledNotes: true,
+      virtualNotes: options.virtualNotes,
     },
   })
 
   return wrapper
+}
+
+function createNoteListData() {
+  return [
+    {
+      originNote: makeNote({
+        id: 'folder-1',
+        title: '工作',
+        item_type: 1,
+        note_count: 2,
+      }),
+      children: [],
+    },
+    {
+      originNote: makeNote({
+        id: 'locked-note',
+        title: '被锁定的超长标题备忘录，用来验证列表首行布局稳定',
+        summary: '锁定项摘要',
+        is_locked: 1,
+      }),
+      children: [],
+    },
+    {
+      originNote: makeNote({
+        id: 'unlocked-note',
+        title: '已解锁的备忘录',
+        summary: '应显示解锁图标',
+        is_locked: 1,
+      }),
+      children: [],
+    },
+    {
+      originNote: makeNote({
+        id: 'legacy-note',
+        title: '旧数据未锁定',
+        summary: '缺失锁字段时也需要占位',
+      }),
+      children: [],
+    },
+  ]
 }
 
 describe('note list lock indicator integration (t-fn-051 / tc-fn-047, tc-fn-048)', () => {
@@ -171,5 +178,49 @@ describe('note list lock indicator integration (t-fn-051 / tc-fn-047, tc-fn-048)
     expect(wrapper.find('[data-testid="note-lock-icon"]').exists()).toBe(true)
     expect(wrapper.find('.note-list-item--note').attributes('data-lock-state')).toBe('locked')
     expect(wrapper.text()).toContain('被锁定的超长标题备忘录')
+  })
+
+  it('renders folders normally and only mounts the virtual note window', async () => {
+    const notes = Array.from({ length: 250 }, (_, index) => ({
+      originNote: makeNote({
+        id: `virtual-note-${index}`,
+        title: `虚拟备忘录 ${index}`,
+      }),
+      children: [],
+    }))
+    const wrapper = await mountNoteList({
+      virtualNotes: true,
+      dataList: [createNoteListData()[0], ...notes],
+    })
+    const lists = wrapper.findAllComponents({ name: 'F7List' })
+    const virtualList = lists.find(list => list.classes().includes('note-list--virtual'))
+    const foldersList = lists.find(list => list.classes().includes('note-list--folders'))
+
+    expect(virtualList).toBeDefined()
+    expect(foldersList?.text()).toContain('工作')
+    expect(foldersList?.text()).not.toContain('虚拟备忘录 0')
+
+    const virtualListParams = virtualList!.vm.$attrs['virtual-list-params'] as {
+      height: number
+      items: typeof notes
+      renderExternal: (virtualList: unknown, data: {
+        fromIndex: number
+        items: typeof notes
+        topPosition: number
+      }) => void
+    }
+    expect(virtualListParams.items).toHaveLength(250)
+    expect(virtualListParams.height).toBe(68)
+
+    virtualListParams.renderExternal(undefined, {
+      fromIndex: 96,
+      items: notes.slice(96, 112),
+      topPosition: 96 * 68,
+    })
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.findAll('.note-list--virtual .note-list-item--note')).toHaveLength(16)
+    expect(wrapper.text()).toContain('虚拟备忘录 96')
+    expect(wrapper.text()).not.toContain('虚拟备忘录 0')
   })
 })
