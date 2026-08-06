@@ -117,6 +117,8 @@ export function useNoteEditor(options: {
   function buildEditorProps(): EditorProps {
     return {
       attributes: {
+        // Framework7 active-state DOM mutations break native caret placement in ProseMirror.
+        class: 'no-active-state',
         inputmode: inputMode.value,
       },
       handleClick: handleEditableLinkClick,
