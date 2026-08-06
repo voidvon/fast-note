@@ -710,6 +710,10 @@ async function handleNoteLockUpdated(updatedNote: Note) {
   padding-top: 0;
 }
 
+.note-detail__content-shell > .app-padding {
+  padding-top: 0;
+}
+
 .note-detail__unlock-overlay {
   position: absolute;
   inset: 0;

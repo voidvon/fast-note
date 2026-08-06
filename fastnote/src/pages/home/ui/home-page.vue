@@ -35,7 +35,6 @@ import {
 } from '@/shared/ui/f7'
 import { addOutline, createOutline } from '@/shared/ui/icons'
 import PaneSplitter from '@/shared/ui/pane-splitter'
-import ResponsivePagePane from '@/shared/ui/responsive-page-pane'
 import DeletedNoteList from '@/widgets/deleted-note-list'
 import ExtensionRenderer from '@/widgets/extension-renderer'
 import FolderBrowser from '@/widgets/folder-browser'
@@ -86,7 +85,7 @@ onUnmounted(() => {
 })
 
 const page = ref()
-const homeNavigationPaneRef = ref()
+const homeNavigationPaneRef = ref<HTMLElement>()
 const homeNavbarRef = ref()
 const folderPageRef = ref()
 let desktopResizeObserver: ResizeObserver | null = null
@@ -630,7 +629,7 @@ async function syncDesktopLargeNavbarScroll() {
     return
 
   await nextTick()
-  const paneElement = homeNavigationPaneRef.value?.$el as HTMLElement | undefined
+  const paneElement = homeNavigationPaneRef.value
   const navbarElement = homeNavbarRef.value?.$el as HTMLElement | undefined
   if (paneElement && navbarElement) {
     detachDesktopLargeNavbarScroll = bindLargeNavbarScroll(paneElement, navbarElement)
@@ -711,10 +710,9 @@ onUnmounted(() => {
 
 <template>
   <F7Page ref="page" :class="{ 'note-desktop': isDesktop }" :style="desktopLayoutStyle">
-    <ResponsivePagePane
+    <div
       id="home-navigation-pane"
       ref="homeNavigationPaneRef"
-      :desktop="isDesktop"
       class="home-navigation"
       :class="{ 'home-navigation--search-active': showGlobalSearch }"
       data-global-search-container
@@ -794,7 +792,7 @@ onUnmounted(() => {
           </button>
         </template>
       </GlobalSearch>
-    </ResponsivePagePane>
+    </div>
 
     <!-- 扩展管理器 -->
     <!-- <ExtensionManager
@@ -878,7 +876,21 @@ onUnmounted(() => {
 .home-navigation-content {
   --background: var(--c-page-background);
   --f7-list-margin-vertical: 8px;
+  --f7-page-toolbar-top-offset: 0px;
+  --f7-page-subnavbar-offset: 0px;
+  --f7-page-searchbar-offset: 0px;
+  --f7-page-content-extra-padding-top: 0px;
+  --f7-page-navbar-offset: var(--f7-navbar-large-title-height);
+  --padding-top: 0px;
   --padding-bottom: 68px;
+
+  height: auto;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.home-navigation-content.page-content {
+  padding-top: var(--f7-navbar-large-title-height);
 }
 
 .home-navigation--search-active .home-navigation-content {

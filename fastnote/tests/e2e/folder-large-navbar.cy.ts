@@ -21,4 +21,21 @@ describe('folder large navbar', () => {
       })
     })
   })
+
+  it('collapses the desktop large title into the middle-pane navbar', () => {
+    cy.viewport(1280, 800)
+    cy.visit('/f/allnotes')
+    cy.get('#app-loading').should('not.exist')
+
+    cy.get('.home-list .folder-page-content').then(($content) => {
+      const spacer = document.createElement('div')
+      spacer.style.height = '1000px'
+      $content.get(0).append(spacer)
+    })
+    cy.get('.home-list .folder-page-content').scrollTo(0, 100, { duration: 0 })
+    cy.get('.home-list .folder-navbar.navbar-large-collapsed')
+      .should('be.visible')
+      .find('.title')
+      .should('contain.text', '全部备忘录')
+  })
 })

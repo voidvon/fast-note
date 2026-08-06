@@ -10,6 +10,7 @@ import {
   F7Content,
   F7Footer,
   F7Header,
+  F7Navbar,
   F7Page,
   F7Title,
   F7Toolbar,
@@ -58,7 +59,13 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <F7Page>
+  <F7Page :class="{ 'deleted-note-page--desktop': isDesktop }">
+    <F7Navbar
+      v-if="isDesktop"
+      class="deleted-note-navbar"
+      title="最近删除"
+    />
+
     <F7Header v-if="!isDesktop" :translucent="true">
       <F7Toolbar>
         <F7Buttons position="start">
@@ -67,8 +74,8 @@ onUnmounted(() => {
       </F7Toolbar>
     </F7Header>
 
-    <F7Content :fullscreen="true">
-      <F7Header collapse="condense">
+    <F7Content class="deleted-note-content" :fullscreen="true">
+      <F7Header v-if="!isDesktop" collapse="condense">
         <F7Toolbar>
           <F7Title size="large">
             最近删除
@@ -93,3 +100,25 @@ onUnmounted(() => {
     </F7Footer>
   </F7Page>
 </template>
+
+<style lang="scss">
+.app-page-embedded.deleted-note-page--desktop {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.deleted-note-page--desktop > .deleted-note-navbar,
+.deleted-note-page--desktop > .deleted-note-content {
+  grid-area: 1 / 1;
+}
+
+.deleted-note-page--desktop > .deleted-note-navbar {
+  z-index: 20;
+  align-self: start;
+}
+
+.deleted-note-page--desktop > .deleted-note-content {
+  --f7-page-navbar-offset: calc(var(--f7-navbar-height) + var(--f7-safe-area-top));
+}
+</style>

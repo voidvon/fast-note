@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { FolderTreeNode, Note } from '@/shared/types'
 import { nanoid } from 'nanoid'
-import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { useNote } from '@/entities/note'
 import { useUserPublicNotes } from '@/entities/public-note'
 import { promptFolderName } from '@/features/note-write'
@@ -9,7 +9,7 @@ import { useFolderBackButton, useRouteStateRestore } from '@/processes/navigatio
 import { loadPublicFolderNotes } from '@/processes/public-notes'
 import { getTime } from '@/shared/lib/date'
 import { useDeviceType } from '@/shared/lib/device'
-import { useAppRoute, useAppRouter, usePageScrollMemory } from '@/shared/lib/framework7'
+import { bindLargeNavbarScroll, useAppRoute, useAppRouter, usePageScrollMemory } from '@/shared/lib/framework7'
 import { NOTE_TYPE } from '@/shared/types'
 import {
   F7BackButton,
@@ -17,7 +17,6 @@ import {
   F7Buttons,
   F7Content,
   F7Footer,
-  F7Header,
   F7Icon,
   F7Navbar,
   F7Page,
@@ -50,11 +49,29 @@ const { isDesktop } = useDeviceType()
 
 const data = ref<Note>({} as Note)
 const contentRef = ref()
+const folderPageRef = ref()
+const folderNavbarRef = ref()
 const contentElementId = `folder-content-${useId().replace(/[^\w-]/g, '-')}`
 const publicPage = ref(0)
 const publicTotalPages = ref(0)
 const publicPageLoading = ref(false)
 let loadedPublicFolderId = ''
+let detachDesktopLargeNavbarScroll: (() => void) | null = null
+
+async function syncDesktopLargeNavbarScroll() {
+  detachDesktopLargeNavbarScroll?.()
+  detachDesktopLargeNavbarScroll = null
+
+  if (!isDesktop.value)
+    return
+
+  await nextTick()
+  const pageElement = folderPageRef.value?.$el as HTMLElement | undefined
+  const navbarElement = folderNavbarRef.value?.$el as HTMLElement | undefined
+  if (pageElement && navbarElement) {
+    detachDesktopLargeNavbarScroll = bindLargeNavbarScroll(pageElement, navbarElement)
+  }
+}
 
 const routeUsername = computed(() => route.params.username as string)
 const activeMobileFolderPath = ref('')
@@ -268,7 +285,12 @@ onMounted(() => {
     syncActiveMobileFolderRoute()
     init()
   }
+  void syncDesktopLargeNavbarScroll()
 })
+
+watch(isDesktop, () => {
+  void syncDesktopLargeNavbarScroll()
+}, { flush: 'post' })
 
 async function init() {
   if (!isDesktop.value && !syncActiveMobileFolderRoute() && !activeMobileFolderId.value)
@@ -368,7 +390,11 @@ const removeRouteAfterEach = appRouter.afterEach(async (to, from) => {
   }
 })
 
-onBeforeUnmount(removeRouteAfterEach)
+onBeforeUnmount(() => {
+  removeRouteAfterEach()
+  detachDesktopLargeNavbarScroll?.()
+  detachDesktopLargeNavbarScroll = null
+})
 
 // 暴露 refresh 方法给父组件
 defineExpose({
@@ -377,15 +403,21 @@ defineExpose({
 </script>
 
 <template>
-  <F7Page :class="{ 'folder-page--desktop-toolbar': isDesktop && !isUserContext }">
+  <F7Page
+    ref="folderPageRef"
+    :class="{
+      'folder-page--desktop': isDesktop,
+      'folder-page--desktop-toolbar': isDesktop && !isUserContext,
+    }"
+  >
     <F7Navbar
-      v-if="!isDesktop"
+      ref="folderNavbarRef"
       class="app-navbar folder-navbar"
       :title="title"
       :title-large="title"
       large
     >
-      <template #nav-left>
+      <template v-if="!isDesktop" #nav-left>
         <F7BackButton v-bind="backButtonProps" text="返回" />
       </template>
     </F7Navbar>
@@ -393,21 +425,13 @@ defineExpose({
     <F7Content
       :id="contentElementId"
       ref="contentRef"
-      class="folder-page-content"
+      class="page-content folder-page-content"
       :fullscreen="true"
       :infinite="isUserContext && hasMorePublicNotes"
       :infinite-preloader="isUserContext && publicPageLoading"
       :infinite-distance="100"
       @infinite="loadMorePublicNotes"
     >
-      <F7Header v-if="isDesktop" collapse="condense">
-        <F7Toolbar>
-          <F7Title size="large">
-            {{ title }}
-          </F7Title>
-        </F7Toolbar>
-      </F7Header>
-
       <div class="folder-page-content__body">
         <div v-if="publicPageLoading && !hasChildItems" class="folder-loading-state" aria-label="正在加载文件夹">
           <div class="folder-loading-state__row">
@@ -481,6 +505,7 @@ defineExpose({
 <style lang="scss">
 .folder-page-content {
   --background: var(--c-page-background);
+  --f7-list-margin-vertical: 8px;
 }
 
 .folder-page-content::part(scroll) {
@@ -492,6 +517,28 @@ defineExpose({
   flex: 1;
   display: flex;
   flex-direction: column;
+}
+
+.app-page-embedded.folder-page--desktop {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.folder-page--desktop > .folder-navbar,
+.folder-page--desktop > .folder-page-content {
+  grid-area: 1 / 1;
+}
+
+.folder-page--desktop > .folder-navbar {
+  z-index: 20;
+  align-self: start;
+}
+
+.folder-page--desktop > .folder-page-content {
+  --f7-page-navbar-offset: calc(
+    var(--f7-navbar-height) + var(--f7-navbar-large-title-height) + var(--f7-safe-area-top)
+  );
 }
 
 .app-page-embedded > .folder-create-toolbar {
