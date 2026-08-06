@@ -877,6 +877,7 @@ onUnmounted(() => {
 
 .home-navigation-content {
   --background: var(--c-page-background);
+  --f7-list-margin-vertical: 8px;
   --padding-bottom: 68px;
 }
 

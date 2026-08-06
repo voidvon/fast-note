@@ -87,6 +87,19 @@ const genericStub = defineComponent({
   },
 })
 
+const F7FooterStub = defineComponent({
+  name: 'F7Footer',
+  props: {
+    native: Boolean,
+  },
+  setup(props, { attrs, slots }) {
+    return () => h('div', {
+      ...attrs,
+      class: ['toolbar', props.native ? 'toolbar-bottom' : 'footer', attrs.class],
+    }, slots.default?.())
+  },
+})
+
 const F7ToolbarStub = defineComponent({
   name: 'F7Toolbar',
   props: {
@@ -119,7 +132,7 @@ function mountFolderPage(currentFolder = 'folder-1') {
         F7Button: F7ButtonStub,
         F7Buttons: genericStub,
         F7Content: genericStub,
-        F7Footer: genericStub,
+        F7Footer: F7FooterStub,
         F7Header: genericStub,
         F7Icon: genericStub,
         F7Page: genericStub,

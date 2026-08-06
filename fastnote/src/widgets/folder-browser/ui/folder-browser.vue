@@ -377,7 +377,7 @@ defineExpose({
 </script>
 
 <template>
-  <F7Page>
+  <F7Page :class="{ 'folder-page--desktop-toolbar': isDesktop && !isUserContext }">
     <F7Navbar
       v-if="!isDesktop"
       class="app-navbar folder-navbar"
@@ -435,7 +435,11 @@ defineExpose({
         </div>
       </div>
     </F7Content>
-    <F7Footer v-if="!isDesktop">
+    <F7Footer
+      v-if="!isDesktop || !isUserContext"
+      :native="isDesktop"
+      class="folder-create-toolbar"
+    >
       <F7Toolbar>
         <F7Buttons v-if="!isUserContext" position="start">
           <F7Button
@@ -452,6 +456,15 @@ defineExpose({
         </F7Title>
         <F7Buttons v-if="!isUserContext" position="end">
           <F7Button
+            v-if="isDesktop"
+            class="note-create-button"
+            aria-label="新建备忘录"
+            @click="$emit('createNote', creationParentId)"
+          >
+            <F7Icon :icon="createOutline" />
+          </F7Button>
+          <F7Button
+            v-else
             class="note-create-button"
             aria-label="新建备忘录"
             :router-link="`/n/0?parent_id=${creationParentId}`"
@@ -462,34 +475,6 @@ defineExpose({
         </F7Buttons>
       </F7Toolbar>
     </F7Footer>
-    <F7Toolbar
-      v-if="isDesktop && !isUserContext"
-      class="folder-create-toolbar"
-      position="bottom"
-    >
-      <F7Buttons position="start">
-        <F7Button
-          class="folder-create-button"
-          aria-label="新建文件夹"
-          @click="openAddFolderDialog"
-        >
-          <F7Icon :icon="addOutline" />
-        </F7Button>
-      </F7Buttons>
-      <F7Title>
-        {{ folders.length > 0 ? `${folders.length}个文件夹 ·` : '' }}
-        {{ noteList.length > 0 ? `${noteList.length}个备忘录` : '无备忘录' }}
-      </F7Title>
-      <F7Buttons position="end">
-        <F7Button
-          class="note-create-button"
-          aria-label="新建备忘录"
-          @click="$emit('createNote', creationParentId)"
-        >
-          <F7Icon :icon="createOutline" />
-        </F7Button>
-      </F7Buttons>
-    </F7Toolbar>
   </F7Page>
 </template>
 
@@ -507,6 +492,40 @@ defineExpose({
   flex: 1;
   display: flex;
   flex-direction: column;
+}
+
+.app-page-embedded > .folder-create-toolbar {
+  --f7-toolbar-bg-color: transparent;
+  --f7-toolbar-border-color: transparent;
+
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.folder-page--desktop-toolbar > .folder-page-content {
+  --padding-bottom: var(--f7-toolbar-height);
+}
+
+.app-page-embedded > .folder-create-toolbar > .toolbar-inner > .left,
+.app-page-embedded > .folder-create-toolbar > .toolbar-inner > .right {
+  --folder-toolbar-glass-bg-color: rgba(255, 255, 255, 0.75);
+  --folder-toolbar-glass-shadow: 0 0 25px rgba(0, 0, 0, 0.15);
+
+  border-radius: 32px;
+  background-color: var(--folder-toolbar-glass-bg-color);
+  box-shadow: var(--folder-toolbar-glass-shadow);
+  -webkit-backdrop-filter: saturate(180%) blur(16px);
+  backdrop-filter: saturate(180%) blur(16px);
+}
+
+.app-theme-dark .app-page-embedded > .folder-create-toolbar > .toolbar-inner > .left,
+.app-theme-dark .app-page-embedded > .folder-create-toolbar > .toolbar-inner > .right {
+  --folder-toolbar-glass-bg-color: rgba(50, 50, 50, 0.5);
+  --folder-toolbar-glass-shadow: 0 0 25px rgba(0, 0, 0, 0.3);
 }
 
 .folder-create-button,
