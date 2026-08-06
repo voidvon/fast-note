@@ -33,6 +33,6 @@ describe('note detail header navigation', () => {
     })
 
     expect(wrapper.find('[data-testid="note-detail-back-button"]').exists()).toBe(true)
-    expect(wrapper.getComponent({ name: 'NoteMore' }).props('presentation')).toBe('sheet')
+    expect(wrapper.getComponent({ name: 'NoteMore' }).props('presentation')).toBe('popover')
   })
 })

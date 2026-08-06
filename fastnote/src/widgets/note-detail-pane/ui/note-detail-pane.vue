@@ -513,7 +513,6 @@ async function handleNoteLockUpdated(updatedNote: Note) {
   <F7Page ref="pageRef" class="note-detail">
     <F7Navbar
       class="note-detail__toolbar"
-      transparent
     >
       <template v-if="!isDesktop" #nav-left>
         <F7BackButton v-bind="backButtonProps" />
@@ -596,7 +595,7 @@ async function handleNoteLockUpdated(updatedNote: Note) {
       v-model:is-open="state.showNoteMore"
       :note="data"
       :note-id="effectiveUuid || ''"
-      :presentation="isDesktop ? 'popover' : 'sheet'"
+      presentation="popover"
       :target-el="isDesktop ? '#desktop-note-more-trigger' : '#mobile-note-more-trigger'"
       :prepare-for-lock="persistEditorBeforeLock"
       @note-lock-updated="handleNoteLockUpdated"
@@ -605,17 +604,6 @@ async function handleNoteLockUpdated(updatedNote: Note) {
 </template>
 
 <style lang="scss">
-.note-detail__toolbar .navbar-bg {
-  background: transparent !important;
-  background-color: transparent !important;
-  backdrop-filter: none;
-}
-
-.note-detail__toolbar .navbar-bg::before,
-.note-detail__toolbar .navbar-bg::after {
-  display: none;
-}
-
 .ios .note-detail__toolbar .right:has(> .link:only-child) {
   width: 44px;
   height: 44px;
