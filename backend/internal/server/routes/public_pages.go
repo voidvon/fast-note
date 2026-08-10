@@ -252,8 +252,8 @@ func findPublicListPage(e *core.RequestEvent, route publicPageRoute) (publicList
 	pageNumber := parsePageNumber(e.Request.URL.Query().Get("page"))
 	basePath := route.Path
 	page := publicListPageData{
-		Title:        route.Username + " 的公开备忘录",
-		Description:  route.Username + " 在 fastnote 上公开的备忘录",
+		Title:        route.Username + " 的备忘录",
+		Description:  route.Username + " 在 fastnote 上的个人备忘录",
 		CanonicalURL: buildPublicPageURL(e.App.Settings().Meta.AppURL, basePath, pageNumber),
 	}
 
@@ -277,7 +277,7 @@ func findPublicListPage(e *core.RequestEvent, route publicPageRoute) (publicList
 			folderTitle = "未命名文件夹"
 		}
 		page.Title = folderTitle + " - " + route.Username
-		page.Description = route.Username + " 的公开文件夹：" + folderTitle
+		page.Description = route.Username + " 的个人文件夹：" + folderTitle
 		filter += " && (item_type = 1 || item_type = 2) && parent_id = {:parentId}"
 		params["parentId"] = route.FolderID
 	}
