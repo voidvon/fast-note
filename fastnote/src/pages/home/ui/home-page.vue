@@ -89,7 +89,7 @@ const homeNavigationPaneRef = ref<HTMLElement>()
 const homeNavbarRef = ref()
 const folderPageRef = ref()
 let desktopResizeObserver: ResizeObserver | null = null
-let detachDesktopLargeNavbarScroll: (() => void) | null = null
+let detachHomeLargeNavbarScroll: (() => void) | null = null
 const desktopContainerWidth = ref(typeof window === 'undefined' ? 0 : window.innerWidth)
 const desktopPaneLayout = useDesktopPaneLayout(desktopContainerWidth)
 const desktopLayoutStyle = computed<CSSProperties | undefined>(() => isDesktop.value
@@ -621,18 +621,15 @@ async function openAddFolderDialog() {
   await handleAddFolder(name)
 }
 
-async function syncDesktopLargeNavbarScroll() {
-  detachDesktopLargeNavbarScroll?.()
-  detachDesktopLargeNavbarScroll = null
-
-  if (!isDesktop.value)
-    return
+async function syncHomeLargeNavbarScroll() {
+  detachHomeLargeNavbarScroll?.()
+  detachHomeLargeNavbarScroll = null
 
   await nextTick()
   const paneElement = homeNavigationPaneRef.value
   const navbarElement = homeNavbarRef.value?.$el as HTMLElement | undefined
   if (paneElement && navbarElement) {
-    detachDesktopLargeNavbarScroll = bindLargeNavbarScroll(paneElement, navbarElement)
+    detachHomeLargeNavbarScroll = bindLargeNavbarScroll(paneElement, navbarElement)
   }
 }
 
@@ -654,7 +651,7 @@ onMounted(() => {
   }
   refreshDesktopRouteState()
   void init({ preferPersistedSelection: true })
-  void syncDesktopLargeNavbarScroll()
+  void syncHomeLargeNavbarScroll()
 
   if (typeof window !== 'undefined') {
     window.addEventListener('popstate', refreshDesktopRouteState)
@@ -662,7 +659,7 @@ onMounted(() => {
 })
 
 watch(isDesktop, () => {
-  void syncDesktopLargeNavbarScroll()
+  void syncHomeLargeNavbarScroll()
 }, { flush: 'post' })
 
 watch(
@@ -698,8 +695,8 @@ function handleNoteSaved(event: { noteId: string, isNew: boolean }) {
 }
 
 onUnmounted(() => {
-  detachDesktopLargeNavbarScroll?.()
-  detachDesktopLargeNavbarScroll = null
+  detachHomeLargeNavbarScroll?.()
+  detachHomeLargeNavbarScroll = null
   desktopResizeObserver?.disconnect()
   desktopResizeObserver = null
   if (typeof window !== 'undefined') {
@@ -863,14 +860,30 @@ onUnmounted(() => {
 .home-navigation {
   --background: var(--c-page-background);
   position: relative;
-  display: flex;
+  display: grid;
   width: 100%;
   min-width: 0;
   height: 100%;
   min-height: 0;
-  flex: 1;
-  flex-direction: column;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   background: var(--background);
+}
+
+.home-navigation > .home-navbar,
+.home-navigation > .home-navigation-content {
+  grid-area: 1 / 1;
+}
+
+.home-navigation > .home-navigation-content {
+  --f7-page-navbar-offset: calc(
+    var(--f7-navbar-height) + var(--f7-navbar-large-title-height) + var(--f7-safe-area-top)
+  );
+}
+
+.home-navigation > .home-navbar {
+  z-index: 20;
+  align-self: start;
 }
 
 .home-navigation-content {
@@ -880,17 +893,11 @@ onUnmounted(() => {
   --f7-page-subnavbar-offset: 0px;
   --f7-page-searchbar-offset: 0px;
   --f7-page-content-extra-padding-top: 0px;
-  --f7-page-navbar-offset: var(--f7-navbar-large-title-height);
   --padding-top: 0px;
   --padding-bottom: 68px;
 
-  height: auto;
+  height: 100%;
   min-height: 0;
-  flex: 1 1 auto;
-}
-
-.home-navigation-content.page-content {
-  padding-top: var(--f7-navbar-large-title-height);
 }
 
 .home-navigation--search-active .home-navigation-content {
