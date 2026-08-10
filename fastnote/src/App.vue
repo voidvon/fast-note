@@ -21,6 +21,11 @@ const dialogParams = {
 const framework7Colors = {
   primary: '#ff9500',
 }
+const framework7ViewParams = {
+  animate: true,
+  iosPageLoadDelay: 80,
+  mdPageLoadDelay: 80,
+}
 
 let initialized = false
 
@@ -47,12 +52,14 @@ onUnmounted(() => {
     :colors="framework7Colors"
     :dialog="dialogParams"
     :routes="appRoutes"
+    :view="framework7ViewParams"
   >
     <F7View
       main
       :url="initialUrl"
       :routes="appRoutes"
       browser-history
+      browser-history-initial-match
       browser-history-separator=""
       :browser-history-animate-on-load="false"
       @view:init="handleViewInit"

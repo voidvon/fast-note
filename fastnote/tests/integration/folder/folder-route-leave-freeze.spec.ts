@@ -63,6 +63,7 @@ describe('folderPage route leave freeze', () => {
       },
     ])
     const scrollElement = document.createElement('div')
+    const getNoteMock = vi.fn(async (id: string) => notes.value.find(note => note.id === id))
 
     vi.doMock('@/shared/lib/framework7', async () => {
       const actual = await vi.importActual<typeof import('@/shared/lib/framework7')>('@/shared/lib/framework7')
@@ -95,7 +96,7 @@ describe('folderPage route leave freeze', () => {
       useNote: () => ({
         notes,
         addNote: vi.fn(),
-        getNote: vi.fn(async (id: string) => notes.value.find(note => note.id === id)),
+        getNote: getNoteMock,
         getFolderTreeByParentId: vi.fn(() => []),
       }),
     }))
@@ -157,6 +158,8 @@ describe('folderPage route leave freeze', () => {
     const wrapper = mount(FolderPage)
     await flushPromises()
 
+    expect(getNoteMock).toHaveBeenCalledTimes(1)
+    expect(getNoteMock).toHaveBeenCalledWith('folder-a')
     expect(wrapper.findComponent({ name: 'NoteList' }).exists()).toBe(true)
     expect(wrapper.text()).toContain('1个备忘录')
 

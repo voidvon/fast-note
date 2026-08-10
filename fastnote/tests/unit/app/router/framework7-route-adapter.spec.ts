@@ -1,7 +1,8 @@
-type RouteEvent = 'routeChange' | 'routeChanged'
-type RouteHandler = (route: { url: string }) => void
+type RouteEvent = 'pageInit' | 'routeChange' | 'routeChanged'
+type RouteEventPayload = { el: HTMLElement, route: { url: string } } | { url: string }
+type RouteHandler = (payload: RouteEventPayload) => void
 
-function createRouter(initialUrl: string) {
+function createRouter(initialUrl: string, history: string[] = [initialUrl]) {
   const handlers = new Map<RouteEvent, Set<RouteHandler>>()
   const on = vi.fn((event: RouteEvent, handler: RouteHandler) => {
     const eventHandlers = handlers.get(event) || new Set<RouteHandler>()
@@ -11,6 +12,19 @@ function createRouter(initialUrl: string) {
   const off = vi.fn((event: RouteEvent, handler: RouteHandler) => {
     handlers.get(event)?.delete(handler)
   })
+  const emit = (event: RouteEvent, payload: RouteEventPayload) => {
+    handlers.get(event)?.forEach(handler => handler(payload))
+  }
+  const back = vi.fn((url?: string, options?: { preload?: boolean }) => {
+    if (!url || !options?.preload)
+      return
+
+    const pageElement = document.createElement('div')
+    queueMicrotask(() => emit('pageInit', {
+      el: pageElement,
+      route: { url },
+    }))
+  })
 
   return {
     router: {
@@ -18,10 +32,12 @@ function createRouter(initialUrl: string) {
       on,
       off,
       navigate: vi.fn(),
-      back: vi.fn(),
+      back,
+      history,
+      view: { id: 'view_main' },
     },
     emit(event: RouteEvent, url: string) {
-      handlers.get(event)?.forEach(handler => handler({ url }))
+      emit(event, { url })
     },
     on,
     off,
@@ -117,17 +133,42 @@ describe('framework7 route adapter', () => {
     expect(fake.router.navigate).not.toHaveBeenCalled()
   })
 
-  it('backs to an explicit route without consuming stale browser history', async () => {
+  it('reuses the preloaded previous page when backing to the adjacent route', async () => {
     const { setFramework7Router, useAppRouter } = await import('@/shared/lib/framework7/router')
-    const fake = createRouter('/f/parent-folder/current-folder')
+    const fake = createRouter('/f/allnotes', ['/home', '/f/allnotes'])
+    setFramework7Router(fake.router as unknown as Parameters<typeof setFramework7Router>[0])
+    window.history.replaceState({ view_main: { url: '/f/allnotes' } }, '', '/f/allnotes')
+
+    await useAppRouter().backTo('/home')
+
+    expect(fake.router.back).toHaveBeenCalledWith(undefined, {
+      animate: true,
+      browserHistory: false,
+    })
+    expect(window.location.pathname).toBe('/home')
+    expect(window.history.state.view_main.url).toBe('/home')
+  })
+
+  it('backs to an explicit route when the target is not the adjacent history entry', async () => {
+    const { setFramework7Router, useAppRouter } = await import('@/shared/lib/framework7/router')
+    const fake = createRouter('/f/parent-folder/current-folder', [
+      '/home',
+      '/f/another-folder',
+      '/f/parent-folder/current-folder',
+    ])
     setFramework7Router(fake.router as unknown as Parameters<typeof setFramework7Router>[0])
 
     await useAppRouter().backTo('/f/parent-folder')
 
-    expect(fake.router.back).toHaveBeenCalledWith('/f/parent-folder', {
-      animate: true,
+    expect(fake.router.back).toHaveBeenNthCalledWith(1, '/f/parent-folder', {
+      animate: false,
+      browserHistory: false,
       force: true,
-      replaceState: true,
+      preload: true,
+    })
+    expect(fake.router.back).toHaveBeenNthCalledWith(2, undefined, {
+      animate: true,
+      browserHistory: false,
     })
   })
 })

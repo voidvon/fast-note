@@ -161,6 +161,70 @@ function getRouter() {
   return routerRef.value ? Promise.resolve(routerRef.value) : routerReady
 }
 
+function replaceFramework7BrowserState(router: Framework7Router, targetUrl: string) {
+  const viewId = (router.view as typeof router.view & { id: string }).id
+  const viewState = window.history.state?.[viewId]
+  window.history.replaceState({
+    ...window.history.state,
+    [viewId]: {
+      ...(viewState && typeof viewState === 'object' ? viewState : {}),
+      url: targetUrl,
+    },
+  }, '', targetUrl)
+}
+
+function waitForPageToSettle(pageElement: HTMLElement) {
+  return new Promise<void>((resolve) => {
+    let quietTimer = window.setTimeout(finish, 80)
+    const timeout = window.setTimeout(finish, 500)
+    const observer = new MutationObserver(() => {
+      window.clearTimeout(quietTimer)
+      quietTimer = window.setTimeout(finish, 80)
+    })
+
+    function finish() {
+      observer.disconnect()
+      window.clearTimeout(quietTimer)
+      window.clearTimeout(timeout)
+      resolve()
+    }
+
+    observer.observe(pageElement, { childList: true, subtree: true })
+  })
+}
+
+async function preloadBackTarget(router: Framework7Router, targetUrl: string) {
+  const pageElement = await new Promise<HTMLElement | undefined>((resolve) => {
+    let timeout = 0
+    const handlePageInit = (page: Framework7RouterNamespace.Page) => {
+      if (page.route.url !== targetUrl)
+        return
+
+      window.clearTimeout(timeout)
+      router.off('pageInit', handlePageInit)
+      resolve(page.el)
+    }
+    timeout = window.setTimeout(() => {
+      router.off('pageInit', handlePageInit)
+      resolve(undefined)
+    }, 1000)
+    const preloadOptions = {
+      animate: false,
+      browserHistory: false,
+      force: true,
+      preload: true,
+    }
+
+    router.on('pageInit', handlePageInit)
+    router.back(targetUrl, preloadOptions)
+  })
+
+  if (pageElement)
+    await waitForPageToSettle(pageElement)
+
+  return pageElement !== undefined
+}
+
 export function setFramework7Router(router: Framework7Router) {
   ensureBrowserHistoryListener()
   detachRouteEvents?.()
@@ -200,7 +264,7 @@ export function useAppRouter() {
     },
     replace: async (target: string | AppRouteTarget) => {
       const router = await getRouter()
-      router.navigate(buildTargetUrl(target), { reloadCurrent: true })
+      router.navigate(buildTargetUrl(target), { animate: true, reloadCurrent: true })
     },
     pushQueryState: (target: AppRouteTarget) => {
       const url = buildTargetUrl(target)
@@ -223,12 +287,36 @@ export function useAppRouter() {
     },
     backTo: async (target: string | AppRouteTarget) => {
       const router = await getRouter()
-      const options = {
-        animate: true,
-        force: true,
-        replaceState: true,
+      const targetUrl = buildTargetUrl(target)
+      const previousUrl = router.history[router.history.length - 2]
+
+      if (previousUrl === targetUrl) {
+        replaceFramework7BrowserState(router, targetUrl)
+        router.back(undefined, { animate: true, browserHistory: false })
+        return
       }
-      router.back(buildTargetUrl(target), options)
+
+      const currentUrl = router.currentRoute.url
+      const originalHistory = [...router.history]
+      const targetIndex = originalHistory.lastIndexOf(targetUrl)
+      const targetHistory = targetIndex >= 0
+        ? originalHistory.slice(0, targetIndex + 1)
+        : [targetUrl]
+      const preloaded = await preloadBackTarget(router, targetUrl)
+
+      if (!preloaded) {
+        const fallbackOptions = {
+          animate: true,
+          force: true,
+          replaceState: true,
+        }
+        router.back(targetUrl, fallbackOptions)
+        return
+      }
+
+      router.history.splice(0, router.history.length, ...targetHistory, currentUrl)
+      replaceFramework7BrowserState(router, targetUrl)
+      router.back(undefined, { animate: true, browserHistory: false })
     },
     navigate: async (path: string, _direction?: string, action?: string) => {
       const router = await getRouter()

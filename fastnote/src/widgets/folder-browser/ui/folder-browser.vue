@@ -24,7 +24,6 @@ import {
   F7Title,
   F7Toolbar,
   onF7ViewDidEnter,
-  onF7ViewWillEnter,
 } from '@/shared/ui/f7'
 import { addOutline, createOutline } from '@/shared/ui/icons'
 import NoteList from '@/widgets/note-list'
@@ -269,7 +268,7 @@ watch(
   { immediate: true },
 )
 
-// 移动端：监听路由变化和组件挂载
+// 移动端：路由是文件夹页面初始化的唯一触发源，避免在进场动画期间重复渲染列表。
 watch(
   () => route.path,
   () => {
@@ -281,10 +280,6 @@ watch(
 )
 
 onMounted(() => {
-  if (!isDesktop.value) {
-    syncActiveMobileFolderRoute()
-    init()
-  }
   void syncDesktopLargeNavbarScroll()
 })
 
@@ -362,11 +357,6 @@ async function loadPublicPage(reset = false) {
 async function loadMorePublicNotes() {
   await loadPublicPage()
 }
-
-onF7ViewWillEnter(() => {
-  if (!isDesktop.value && syncActiveMobileFolderRoute())
-    init()
-})
 
 onF7ViewDidEnter(() => {
   if (!isDesktop.value) {
