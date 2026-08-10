@@ -9,7 +9,11 @@ function createF7Stub(name: string) {
     name,
     inheritAttrs: false,
     setup(_, { attrs, slots }) {
-      return () => h('div', { ...attrs, 'data-f7-stub': name }, slots.default ? slots.default() : [])
+      return () => h(
+        'div',
+        { ...attrs, 'data-f7-stub': name },
+        Object.values(slots).flatMap(slot => slot?.() || []),
+      )
     },
   })
 }
@@ -23,8 +27,10 @@ function createNoteListStub() {
       expandedStateKey: { type: String, default: '' },
       showUnfiledNotes: { type: Boolean, default: false },
       unfiledNotesCount: { type: Number, default: 0 },
+      allNotesCount: { type: Number, default: 0 },
       presentingElement: { type: Object, default: undefined },
       disabledRoute: { type: Boolean, default: false },
+      showAllNotes: { type: Boolean, default: false },
     },
     emits: ['refresh', 'selected'],
     template: '<div class="note-list-stub" />',
@@ -86,6 +92,15 @@ describe('user public notes page', () => {
       id: 'note-1',
       parent_id: '',
     }))
+    const publicNotes = ref([
+      {
+        id: 'note-1',
+        item_type: NOTE_TYPE.NOTE,
+        is_deleted: 0,
+        parent_id: '',
+        updated: '2026-08-10 12:00:00',
+      },
+    ])
     const isDesktop = ref(true)
     const appRouterPush = vi.fn()
     let triggerF7ViewWillEnter: (() => void) | undefined
@@ -100,18 +115,6 @@ describe('user public notes page', () => {
       content: '<p>完整正文</p>',
     }))
 
-    vi.doMock('vue-router', async () => {
-      const actual = await vi.importActual<typeof import('vue-router')>('vue-router')
-      return {
-        ...actual,
-        useRoute: () => ({
-          params: { noteId: 'note-1', username: 'alice' },
-          path: '/alice/n/note-1',
-          fullPath: '/alice/n/note-1',
-        }),
-      }
-    })
-
     vi.doMock('@/shared/lib/device', () => ({
       useDeviceType: () => ({
         isDesktop,
@@ -122,6 +125,7 @@ describe('user public notes page', () => {
       useUserPublicNotes: () => ({
         getPublicNote,
         getPublicFolderTreeByPUuid,
+        publicNotes,
       }),
     }))
 
@@ -152,20 +156,22 @@ describe('user public notes page', () => {
       return {
         F7Button: createF7Stub('F7Button'),
         F7BackButton: createF7Stub('F7BackButton'),
-        F7Buttons: createF7Stub('F7Buttons'),
-        F7Content: createF7Stub('F7Content'),
-        F7Header: createF7Stub('F7Header'),
         F7Icon: createF7Stub('F7Icon'),
+        F7Navbar: createF7Stub('F7Navbar'),
         F7Page: createF7Stub('F7Page'),
+        F7PageContent: createF7Stub('F7PageContent'),
         F7Refresher: createF7Stub('F7Refresher'),
         F7RefresherContent: createF7Stub('F7RefresherContent'),
         F7SkeletonText: createF7Stub('F7SkeletonText'),
         F7Spinner: createF7Stub('F7Spinner'),
-        F7Title: createF7Stub('F7Title'),
-        F7Toolbar: createF7Stub('F7Toolbar'),
         onF7ViewWillEnter: (callback: () => void) => {
           triggerF7ViewWillEnter = callback
         },
+        useAppRoute: () => ({
+          params: { noteId: 'note-1', username: 'alice' },
+          path: '/alice/n/note-1',
+          fullPath: '/alice/n/note-1',
+        }),
         useAppRouter: () => ({
           push: appRouterPush,
         }),
@@ -194,6 +200,7 @@ describe('user public notes page', () => {
 
     expect(ensurePublicNotesReady).toHaveBeenCalledWith('alice', {
       force: false,
+      folderId: 'allnotes',
       noteId: 'note-1',
     })
     expect(wrapper.find('.public-home-skeleton').exists()).toBe(false)
@@ -215,6 +222,7 @@ describe('user public notes page', () => {
 
     const backButton = wrapper.findComponent({ name: 'F7BackButton' })
     expect(backButton.attributes('default-href')).toBe('/home')
+    expect(backButton.attributes()).toHaveProperty('deterministic')
 
     noteList.vm.$emit('selected', 'folder-1')
     await nextTick()
@@ -236,10 +244,13 @@ describe('user public notes page', () => {
     isDesktop.value = false
     await nextTick()
 
-    expect(wrapper.find('#public-navigation-pane').exists()).toBe(false)
+    expect(wrapper.find('#public-navigation-pane').exists()).toBe(true)
     const mobilePageChildren = Array.from(wrapper.find('[data-f7-stub="F7Page"]').element.children)
-    expect(mobilePageChildren[0]?.getAttribute('data-f7-stub')).toBe('F7Header')
-    expect(mobilePageChildren[1]?.getAttribute('data-f7-stub')).toBe('F7Content')
+    expect(mobilePageChildren[0]?.id).toBe('public-navigation-pane')
+    expect(wrapper.find('[data-f7-stub="F7Navbar"]').exists()).toBe(true)
+    expect(wrapper.find('[data-f7-stub="F7PageContent"]').exists()).toBe(true)
+    expect(wrapper.find('#public-note-list-pane').exists()).toBe(false)
+    expect(wrapper.find('#public-note-detail-pane').exists()).toBe(false)
 
     const mobileNoteList = wrapper.findComponent(noteListStub)
     expect(mobileNoteList.props('disabledRoute')).toBe(true)
@@ -248,5 +259,65 @@ describe('user public notes page', () => {
 
     expect(appRouterPush).toHaveBeenCalledOnce()
     expect(appRouterPush).toHaveBeenCalledWith('/alice/f/folder-1')
+  })
+
+  it('hides public-note navigation and panes when the user does not exist', async () => {
+    vi.resetModules()
+
+    const isDesktop = ref(true)
+    const publicNotes = ref([])
+    const noteListStub = createNoteListStub()
+    const folderPageStub = createFolderPageStub()
+    const noteDetailStub = createNoteDetailStub()
+
+    vi.doMock('@/shared/lib/device', () => ({
+      useDeviceType: () => ({ isDesktop }),
+    }))
+    vi.doMock('@/entities/public-note', () => ({
+      useUserPublicNotes: () => ({
+        getPublicFolderTreeByPUuid: () => [],
+        getPublicNote: () => null,
+        publicNotes,
+      }),
+    }))
+    vi.doMock('@/processes/public-notes', () => ({
+      ensurePublicNotesReady: vi.fn(async () => ({
+        notes: [],
+        synced: 0,
+        unfiledNotesCount: 0,
+        userInfo: null,
+      })),
+      loadPublicNote: vi.fn(),
+    }))
+    vi.doMock('@/widgets/folder-browser', () => ({ default: folderPageStub }))
+    vi.doMock('@/widgets/note-detail-pane', () => ({ default: noteDetailStub }))
+    vi.doMock('@/widgets/note-list', () => ({ default: noteListStub }))
+    vi.doMock('@/shared/ui/f7', () => ({
+      F7Button: createF7Stub('F7Button'),
+      F7BackButton: createF7Stub('F7BackButton'),
+      F7Icon: createF7Stub('F7Icon'),
+      F7Navbar: createF7Stub('F7Navbar'),
+      F7Page: createF7Stub('F7Page'),
+      F7PageContent: createF7Stub('F7PageContent'),
+      F7SkeletonText: createF7Stub('F7SkeletonText'),
+      F7Spinner: createF7Stub('F7Spinner'),
+      onF7ViewWillEnter: vi.fn(),
+      useAppRoute: () => ({
+        params: { username: 'missing-user' },
+        path: '/missing-user',
+        fullPath: '/missing-user',
+      }),
+      useAppRouter: () => ({ push: vi.fn() }),
+    }))
+
+    const UserPublicNotesPage = (await import('@/pages/user-public-notes/ui/user-public-notes-page.vue')).default
+    const wrapper = mount(UserPublicNotesPage)
+    await flushPromises()
+
+    expect(wrapper.find('.error-container').text()).toContain('用户不存在')
+    expect(wrapper.findComponent(noteListStub).exists()).toBe(false)
+    expect(wrapper.find('#public-note-list-pane').exists()).toBe(false)
+    expect(wrapper.find('#public-note-detail-pane').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('全部备忘录')
   })
 })

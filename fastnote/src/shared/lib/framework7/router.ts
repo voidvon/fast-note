@@ -24,14 +24,7 @@ export interface AppRouteTarget {
 type Framework7Router = Framework7RouterNamespace.Router
 type AfterEachHandler = (to: AppRouteLocation, from: AppRouteLocation) => void
 
-const route = reactive<AppRouteLocation>({
-  fullPath: getBrowserFullPath(),
-  path: typeof window === 'undefined' ? '/home' : window.location.pathname || '/home',
-  query: parseQuery(typeof window === 'undefined' ? '' : window.location.search),
-  params: {},
-  name: undefined,
-  hash: typeof window === 'undefined' ? '' : window.location.hash,
-})
+const route = reactive<AppRouteLocation>(normalizeRoute())
 const routerRef = ref<Framework7Router>()
 const afterEachHandlers = new Set<AfterEachHandler>()
 let detachRouteEvents: (() => void) | undefined

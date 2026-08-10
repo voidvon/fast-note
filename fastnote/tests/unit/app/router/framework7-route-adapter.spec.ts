@@ -34,6 +34,15 @@ describe('framework7 route adapter', () => {
     window.history.replaceState({}, '', '/home')
   })
 
+  it('parses a direct public profile URL before Framework7 is ready', async () => {
+    window.history.replaceState({}, '', '/voidvon')
+
+    const { useAppRoute } = await import('@/shared/lib/framework7/router')
+
+    expect(useAppRoute().name).toBe('UserHome')
+    expect(useAppRoute().params.username).toBe('voidvon')
+  })
+
   it('exposes incoming route params as soon as routeChange starts', async () => {
     const { setFramework7Router, useAppRoute, useAppRouter } = await import('@/shared/lib/framework7/router')
     const fake = createRouter('/home')

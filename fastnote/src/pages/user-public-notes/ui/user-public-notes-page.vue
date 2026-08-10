@@ -1,30 +1,28 @@
 <script setup lang="ts">
 import type { CSSProperties } from 'vue'
 import type { PublicUserInfo } from '@/shared/types/pocketbase'
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useUserPublicNotes } from '@/entities/public-note'
 import { useDesktopPaneLayout } from '@/features/desktop-pane-layout'
 import { ensurePublicNotesReady, loadPublicNote } from '@/processes/public-notes'
 import { useDeviceType } from '@/shared/lib/device'
+import { bindLargeNavbarScroll } from '@/shared/lib/framework7'
+import { NOTE_TYPE } from '@/shared/types'
 import {
   F7BackButton,
   F7Button,
-  F7Buttons,
-  F7Content,
-  F7Header,
   F7Icon,
+  F7Navbar,
   F7Page,
+  F7PageContent,
   F7SkeletonText,
   F7Spinner,
-  F7Title,
-  F7Toolbar,
   onF7ViewWillEnter,
   useAppRoute,
   useAppRouter,
 } from '@/shared/ui/f7'
 import { alertCircleOutline, documentTextOutline } from '@/shared/ui/icons'
 import PaneSplitter from '@/shared/ui/pane-splitter'
-import ResponsivePagePane from '@/shared/ui/responsive-page-pane'
 import FolderBrowser from '@/widgets/folder-browser'
 import NoteDetailPane from '@/widgets/note-detail-pane'
 import NoteList from '@/widgets/note-list'
@@ -43,22 +41,41 @@ const publicFolders = computed(() => {
 
   return useUserPublicNotes(username.value).getPublicFolderTreeByPUuid()
 })
+const publicNotes = computed(() => {
+  if (!username.value) {
+    return []
+  }
+
+  return useUserPublicNotes(username.value).publicNotes.value ?? []
+})
 
 // 页面状态
 const loading = ref(true)
 const error = ref('')
 const userInfo = ref<PublicUserInfo | null>(null)
 const unfiledNotesCount = ref(0)
+const allNotesCount = computed(() => publicNotes.value
+  .filter(note => note.item_type === NOTE_TYPE.FOLDER)
+  .reduce((count, folder) => count + (folder.note_count || 0), unfiledNotesCount.value))
 const presentingElement = ref()
 const page = ref()
+const publicNavigationPaneRef = ref<HTMLElement>()
+const publicNavbarRef = ref()
 const publicNoteLoading = ref(false)
 const publicNoteError = ref('')
 let desktopResizeObserver: ResizeObserver | null = null
+let detachPublicLargeNavbarScroll: (() => void) | null = null
 let publicNoteRequestVersion = 0
 let initializedUsername = ''
 let pendingInit: { promise: Promise<void>, username: string } | null = null
 const desktopContainerWidth = ref(typeof window === 'undefined' ? 0 : window.innerWidth)
 const desktopPaneLayout = useDesktopPaneLayout(desktopContainerWidth)
+const showDesktopPanes = computed(() => (
+  isDesktop.value
+  && !loading.value
+  && !error.value
+  && Boolean(userInfo.value)
+))
 const desktopLayoutStyle = computed<CSSProperties | undefined>(() => isDesktop.value
   ? {
       '--public-navigation-width': `${desktopPaneLayout.navigationWidth.value}px`,
@@ -68,7 +85,7 @@ const desktopLayoutStyle = computed<CSSProperties | undefined>(() => isDesktop.v
 
 // 状态管理
 const state = reactive({
-  folderUuid: '',
+  folderUuid: isDesktop.value ? 'allnotes' : '',
   noteUuid: '',
 })
 
@@ -97,8 +114,38 @@ function syncDesktopSelectionFromRoute() {
     return
   }
 
-  state.folderUuid = resolveRouteFolderId()
+  state.folderUuid = resolveRouteFolderId() || 'allnotes'
   state.noteUuid = ''
+}
+
+function syncDefaultDesktopNoteSelection() {
+  if (
+    !isDesktop.value
+    || state.folderUuid !== 'allnotes'
+    || state.noteUuid
+    || publicNoteLoading.value
+  ) {
+    return
+  }
+
+  const firstNote = publicNotes.value
+    .filter(note => note.item_type === NOTE_TYPE.NOTE && note.is_deleted === 0)
+    .toSorted((a, b) => (b.updated || '').localeCompare(a.updated || ''))[0]
+  if (firstNote?.id) {
+    void loadDesktopNoteSelection(firstNote.id)
+  }
+}
+
+async function syncPublicLargeNavbarScroll() {
+  detachPublicLargeNavbarScroll?.()
+  detachPublicLargeNavbarScroll = null
+
+  await nextTick()
+  const paneElement = publicNavigationPaneRef.value
+  const navbarElement = publicNavbarRef.value?.$el as HTMLElement | undefined
+  if (paneElement && navbarElement) {
+    detachPublicLargeNavbarScroll = bindLargeNavbarScroll(paneElement, navbarElement)
+  }
 }
 
 function updateDesktopBrowserUrl(targetPath: string) {
@@ -132,40 +179,44 @@ async function selectNote(id: string) {
 
   if (isDesktop.value) {
     updateDesktopBrowserUrl(targetPath)
-    const requestVersion = ++publicNoteRequestVersion
-    publicNoteLoading.value = true
-    publicNoteError.value = ''
-
-    try {
-      const note = await loadPublicNote(username.value, id)
-      if (requestVersion !== publicNoteRequestVersion) {
-        return
-      }
-
-      if (!note) {
-        throw new Error('公开备忘录不存在')
-      }
-
-      state.noteUuid = id
-    }
-    catch (err) {
-      if (requestVersion !== publicNoteRequestVersion) {
-        return
-      }
-
-      state.noteUuid = ''
-      publicNoteError.value = err instanceof Error ? err.message : '无法加载备忘录'
-      console.error('加载公开备忘录详情失败:', err)
-    }
-    finally {
-      if (requestVersion === publicNoteRequestVersion) {
-        publicNoteLoading.value = false
-      }
-    }
+    await loadDesktopNoteSelection(id)
     return
   }
 
   appRouter.push(targetPath)
+}
+
+async function loadDesktopNoteSelection(id: string) {
+  const requestVersion = ++publicNoteRequestVersion
+  publicNoteLoading.value = true
+  publicNoteError.value = ''
+
+  try {
+    const note = await loadPublicNote(username.value, id)
+    if (requestVersion !== publicNoteRequestVersion) {
+      return
+    }
+
+    if (!note) {
+      throw new Error('公开备忘录不存在')
+    }
+
+    state.noteUuid = id
+  }
+  catch (err) {
+    if (requestVersion !== publicNoteRequestVersion) {
+      return
+    }
+
+    state.noteUuid = ''
+    publicNoteError.value = err instanceof Error ? err.message : '无法加载备忘录'
+    console.error('加载公开备忘录详情失败:', err)
+  }
+  finally {
+    if (requestVersion === publicNoteRequestVersion) {
+      publicNoteLoading.value = false
+    }
+  }
 }
 
 // 初始化数据
@@ -193,9 +244,19 @@ function init(force = false): Promise<void> {
     try {
       const result = await ensurePublicNotesReady(currentUsername, {
         force,
+        folderId: isDesktop.value ? (resolveRouteFolderId() || 'allnotes') : undefined,
         noteId: route.params.noteId as string | undefined,
       })
       if (username.value !== currentUsername) {
+        return
+      }
+
+      if (!result.userInfo) {
+        userInfo.value = null
+        unfiledNotesCount.value = 0
+        state.noteUuid = ''
+        initializedUsername = currentUsername
+        error.value = '用户不存在'
         return
       }
 
@@ -203,6 +264,7 @@ function init(force = false): Promise<void> {
       unfiledNotesCount.value = result.unfiledNotesCount
       initializedUsername = currentUsername
       syncDesktopSelectionFromRoute()
+      syncDefaultDesktopNoteSelection()
     }
     catch (err) {
       if (username.value !== currentUsername) {
@@ -249,8 +311,9 @@ onF7ViewWillEnter(() => {
 
 onMounted(() => {
   void init()
+  void syncPublicLargeNavbarScroll()
 
-  if (!isDesktop.value || typeof ResizeObserver === 'undefined') {
+  if (typeof ResizeObserver === 'undefined') {
     return
   }
 
@@ -266,9 +329,21 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  detachPublicLargeNavbarScroll?.()
+  detachPublicLargeNavbarScroll = null
   desktopResizeObserver?.disconnect()
   desktopResizeObserver = null
 })
+
+watch(isDesktop, () => {
+  if (isDesktop.value && !state.folderUuid) {
+    state.folderUuid = 'allnotes'
+  }
+  syncDefaultDesktopNoteSelection()
+  void syncPublicLargeNavbarScroll()
+}, { flush: 'post' })
+
+watch(publicNotes, syncDefaultDesktopNoteSelection, { deep: true })
 
 watch(
   () => route.fullPath,
@@ -278,31 +353,29 @@ watch(
 
 <template>
   <F7Page ref="page" :class="{ 'public-note-desktop': isDesktop }" :style="desktopLayoutStyle">
-    <ResponsivePagePane id="public-navigation-pane" :desktop="isDesktop" class="public-navigation">
-      <F7Header>
-        <F7Toolbar>
-          <F7Title>{{ userInfo?.username }}</F7Title>
-          <F7Buttons position="start">
-            <F7BackButton default-href="/home" text="返回" />
-          </F7Buttons>
-        </F7Toolbar>
-      </F7Header>
+    <div
+      id="public-navigation-pane"
+      ref="publicNavigationPaneRef"
+      class="public-navigation"
+    >
+      <F7Navbar
+        ref="publicNavbarRef"
+        class="app-navbar public-navbar"
+        :title="userInfo?.username || username"
+        :title-large="userInfo?.username || username"
+        large
+      >
+        <template #nav-left>
+          <F7BackButton default-href="/home" text="返回" deterministic />
+        </template>
+      </F7Navbar>
 
-      <F7Content
-        class="public-navigation-content"
-        :fullscreen="true"
-        ptr
+      <F7PageContent
+        class="app-content public-navigation-content"
+        :ptr="true"
         ptr-preloader
         @ptr:refresh="refresh"
       >
-        <F7Header collapse="condense">
-          <F7Toolbar>
-            <F7Title size="large">
-              {{ userInfo?.username }}
-            </F7Title>
-          </F7Toolbar>
-        </F7Header>
-
         <div v-if="loading" class="public-home-skeleton" aria-label="正在加载个人中心">
           <div class="public-home-skeleton__row">
             <F7SkeletonText animated class="public-home-skeleton__icon" />
@@ -314,7 +387,7 @@ watch(
         </div>
 
         <div v-else-if="error" class="error-container">
-          <F7Icon :icon="alertCircleOutline" size="large" />
+          <F7Icon :icon="alertCircleOutline" class="public-state-icon" />
           <h2>无法加载用户数据</h2>
           <p>{{ error }}</p>
           <F7Button @click="appRouter.push('/home')">
@@ -327,25 +400,27 @@ watch(
             :note-uuid="state.folderUuid"
             :data-list="publicFolders"
             :show-unfiled-notes="unfiledNotesCount > 0"
+            :all-notes-count="allNotesCount"
             :unfiled-notes-count="unfiledNotesCount"
             :expanded-state-key="expandedStateKey"
             :presenting-element="presentingElement"
             :disabled-route="true"
+            show-all-notes
             @refresh="init"
             @selected="selectFolder"
           />
 
           <div v-if="publicFolders.length === 0 && unfiledNotesCount === 0" class="empty-state">
-            <F7Icon :icon="documentTextOutline" size="large" />
+            <F7Icon :icon="documentTextOutline" class="public-state-icon" />
             <h2>暂无公开内容</h2>
             <p>该用户还没有公开任何备忘录</p>
           </div>
         </div>
-      </F7Content>
-    </ResponsivePagePane>
+      </F7PageContent>
+    </div>
 
     <PaneSplitter
-      v-if="isDesktop"
+      v-if="showDesktopPanes"
       v-model="desktopPaneLayout.navigationWidth.value"
       controls="public-navigation-pane public-note-list-pane"
       label="调整公开文件夹导航栏宽度"
@@ -354,7 +429,7 @@ watch(
       @reset="desktopPaneLayout.resetNavigationWidth"
       @resize-end="desktopPaneLayout.persist"
     />
-    <div v-if="isDesktop" id="public-note-list-pane" class="home-list">
+    <div v-if="showDesktopPanes" id="public-note-list-pane" class="home-list">
       <FolderBrowser
         :current-folder="state.folderUuid"
         :selected-note-id="state.noteUuid"
@@ -362,7 +437,7 @@ watch(
       />
     </div>
     <PaneSplitter
-      v-if="isDesktop"
+      v-if="showDesktopPanes"
       v-model="desktopPaneLayout.noteListWidth.value"
       controls="public-note-list-pane public-note-detail-pane"
       label="调整公开备忘录列表栏宽度"
@@ -371,13 +446,22 @@ watch(
       @reset="desktopPaneLayout.resetNoteListWidth"
       @resize-end="desktopPaneLayout.persist"
     />
-    <div v-if="isDesktop" id="public-note-detail-pane" class="home-detail">
+    <div v-if="showDesktopPanes" id="public-note-detail-pane" class="home-detail">
       <NoteDetailPane :note-id="state.noteUuid" public-context />
+      <div v-if="!state.noteUuid && !publicNoteLoading" class="public-note-detail-empty">
+        <F7Icon :icon="documentTextOutline" class="public-state-icon" />
+        <div class="public-note-detail-empty__title">
+          暂无选中的备忘录
+        </div>
+        <div class="public-note-detail-empty__desc">
+          公开内容将在这里显示
+        </div>
+      </div>
       <div v-if="publicNoteLoading" class="public-note-detail-state">
         <F7Spinner name="crescent" />
       </div>
       <div v-else-if="publicNoteError" class="public-note-detail-state public-note-detail-state--error">
-        <F7Icon :icon="alertCircleOutline" size="large" />
+        <F7Icon :icon="alertCircleOutline" class="public-state-icon" />
         <p>{{ publicNoteError }}</p>
       </div>
     </div>
@@ -395,6 +479,13 @@ watch(
   gap: 1rem;
   text-align: center;
   color: var(--c-text-secondary);
+}
+
+.public-state-icon {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  font-size: 24px;
 }
 
 .public-home-skeleton {
@@ -429,20 +520,48 @@ watch(
 .public-navigation {
   --background: var(--c-page-background);
   position: relative;
-  display: flex;
+  display: grid;
   width: 100%;
   min-width: 0;
   height: 100%;
   min-height: 0;
-  flex-direction: column;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   background: var(--background);
+}
+
+.public-navigation > .public-navbar,
+.public-navigation > .public-navigation-content {
+  grid-area: 1 / 1;
+}
+
+.public-navigation > .public-navigation-content {
+  --f7-page-navbar-offset: calc(
+    var(--f7-navbar-height) + var(--f7-navbar-large-title-height) + var(--f7-safe-area-top)
+  );
+}
+
+.public-navigation > .public-navbar {
+  z-index: 20;
+  align-self: start;
 }
 
 .public-navigation-content {
   --background: var(--c-page-background);
+  --f7-list-margin-vertical: 8px;
+  --f7-page-toolbar-top-offset: 0px;
+  --f7-page-subnavbar-offset: 0px;
+  --f7-page-searchbar-offset: 0px;
+  --f7-page-content-extra-padding-top: 0px;
+  --padding-top: 0px;
+  --padding-bottom: 0px;
+
+  height: 100%;
+  min-height: 0;
 }
 
 .public-note-desktop {
+  background: var(--c-page-background);
   display: grid;
   width: 100%;
   grid-template-columns:
@@ -473,6 +592,29 @@ watch(
   text-align: center;
 }
 
+.public-note-detail-empty {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--c-text-secondary);
+  text-align: center;
+}
+
+.public-note-detail-empty__title {
+  color: var(--c-text-primary);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.public-note-detail-empty__desc {
+  font-size: 13px;
+}
+
 .public-note-desktop .public-navigation,
 .public-note-desktop .home-list,
 .public-note-desktop .home-detail {
@@ -481,5 +623,10 @@ watch(
   height: 100%;
   min-height: 0;
   overflow: hidden;
+}
+
+.public-note-desktop .home-list,
+.public-note-desktop .home-detail {
+  isolation: isolate;
 }
 </style>

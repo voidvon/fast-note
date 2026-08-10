@@ -101,6 +101,56 @@ describe('public notes incremental loading', () => {
     expect(publicNotes.value.map(note => note.id)).toEqual(['root-note'])
   })
 
+  it('loads the selected all-notes page during initialization', async () => {
+    const publicNotes = ref<any[]>([])
+    const rootNote = makeNote({ id: 'root-note', parent_id: '' })
+    const folderNote = makeNote({ id: 'folder-note', parent_id: 'folder-1' })
+    const getPublicNotesPage = vi.fn(async (_userId: string, parentId: string) => ({
+      items: parentId === 'allnotes' ? [rootNote, folderNote] : [rootNote],
+      page: 1,
+      perPage: parentId === 'allnotes' ? 30 : 1,
+      totalItems: parentId === 'allnotes' ? 2 : 1,
+      totalPages: 1,
+    }))
+    const store = {
+      getPublicNote: (id: string) => publicNotes.value.find(note => note.id === id) || null,
+      mergePublicNotes: (notes: any[]) => {
+        const merged = new Map(publicNotes.value.map(note => [note.id, note]))
+        notes.forEach(note => merged.set(note.id, { ...merged.get(note.id), ...note }))
+        publicNotes.value = [...merged.values()]
+      },
+      publicNotes,
+      replacePublicNotes: (notes: any[]) => {
+        publicNotes.value = [...notes]
+      },
+    }
+
+    vi.doMock('@/entities/public-note', () => ({
+      publicNoteRemoteService: {
+        getPublicFolders: vi.fn(async () => [makeNote({ id: 'folder-1', item_type: 1 })]),
+        getPublicNote: vi.fn(),
+        getPublicNotesPage,
+      },
+      useUserPublicNotes: () => store,
+    }))
+    vi.doMock('@/entities/auth', () => ({
+      authUsersService: {
+        getPublicUserInfo: vi.fn(async () => ({ id: 'user-a', username: 'alice' })),
+      },
+    }))
+
+    const { ensurePublicNotesReady } = await import('@/processes/public-notes/model/ensure-public-notes-ready')
+    const result = await ensurePublicNotesReady('alice', { folderId: 'allnotes' })
+
+    expect(getPublicNotesPage).toHaveBeenCalledWith('user-a', 'unfilednotes', 1, 1)
+    expect(getPublicNotesPage).toHaveBeenCalledWith('user-a', 'allnotes', 1)
+    expect(result.notes.filter(note => note.item_type === 2).map(note => note.id)).toEqual([
+      'root-note',
+      'folder-note',
+    ])
+    expect(result.synced).toBe(3)
+  })
+
   it('requests fresh public data on every route entry', async () => {
     const publicNotes = ref<any[]>([])
     const getPublicFolders = vi.fn(async () => [makeNote({ id: 'folder-1', item_type: 1 })])

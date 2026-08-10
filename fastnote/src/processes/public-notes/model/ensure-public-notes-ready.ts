@@ -13,6 +13,7 @@ export interface PublicNotesReadyResult {
 
 export interface EnsurePublicNotesReadyOptions {
   force?: boolean
+  folderId?: string
   noteId?: string
 }
 
@@ -45,7 +46,7 @@ export async function loadPublicNote(username: string, noteId: string) {
 
 export async function syncPublicNotesForUser(
   username: string,
-  options: Pick<EnsurePublicNotesReadyOptions, 'noteId'> = {},
+  options: Pick<EnsurePublicNotesReadyOptions, 'folderId' | 'noteId'> = {},
 ) {
   if (!username)
     return { synced: 0, notes: [], unfiledNotesCount: 0, userInfo: null }
@@ -61,19 +62,31 @@ export async function syncPublicNotesForUser(
     }
   }
 
-  const [folders, unfiledNotesPage] = await Promise.all([
+  const folderNotesPagePromise = options.folderId && options.folderId !== 'unfilednotes'
+    ? publicNoteRemoteService.getPublicNotesPage(userInfo.id, options.folderId, 1)
+    : null
+  const [folders, unfiledNotesPage, folderNotesPage] = await Promise.all([
     publicNoteRemoteService.getPublicFolders(userInfo.id),
     publicNoteRemoteService.getPublicNotesPage(userInfo.id, 'unfilednotes', 1, 1),
+    folderNotesPagePromise,
   ])
   const publicNoteStore = useUserPublicNotes(username)
   publicNoteStore.replacePublicNotes(folders)
   publicNoteStore.mergePublicNotes(unfiledNotesPage.items)
+  if (folderNotesPage) {
+    publicNoteStore.mergePublicNotes(folderNotesPage.items)
+  }
   const targetNote = await loadPublicNoteIfNeeded(username, userInfo, options.noteId)
   const notes = publicNoteStore.publicNotes.value ?? []
-  const previewNoteIds = new Set(unfiledNotesPage.items.map(note => note.id))
+  const syncedNoteIds = new Set([
+    ...folders.map(note => note.id),
+    ...unfiledNotesPage.items.map(note => note.id),
+    ...(folderNotesPage?.items.map(note => note.id) ?? []),
+    ...(targetNote ? [targetNote.id] : []),
+  ])
 
   return {
-    synced: folders.length + unfiledNotesPage.items.length + (targetNote && !previewNoteIds.has(targetNote.id) ? 1 : 0),
+    synced: syncedNoteIds.size,
     notes,
     unfiledNotesCount: unfiledNotesPage.totalItems,
     userInfo,
@@ -90,7 +103,7 @@ export async function ensurePublicNotesReady(username: string, options: EnsurePu
     }
   }
 
-  const pendingRequestKey = `${username}:${options.noteId || ''}`
+  const pendingRequestKey = `${username}:${options.folderId || ''}:${options.noteId || ''}`
   const existingPendingRequest = pendingReadyRequests.get(pendingRequestKey)
   if (existingPendingRequest) {
     return await existingPendingRequest
