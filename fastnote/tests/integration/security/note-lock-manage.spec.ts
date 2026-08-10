@@ -122,6 +122,7 @@ describe('note lock manage modal integration (t-fn-043 / tc-fn-036)', () => {
     await wrapper.get('[data-testid="note-lock-manage-relock"]').trigger('click')
     await flushPromises()
 
+    expect(prepareForLock).toHaveBeenCalledWith('note-1')
     expect(relockMock).toHaveBeenCalledWith('note-1')
     expect(relockOrder).toEqual(['persist-editor', 'relock'])
     expect(wrapper.emitted('updated')?.[1]?.[0]).toMatchObject({

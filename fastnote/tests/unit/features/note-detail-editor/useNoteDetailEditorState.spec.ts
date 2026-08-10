@@ -75,4 +75,28 @@ describe('useNoteDetailEditorState', () => {
     expect(editor.setEditable).toHaveBeenNthCalledWith(1, false)
     expect(editor.setEditable).toHaveBeenNthCalledWith(2, false)
   })
+
+  it('does not let a queued clear from the previous selection erase the next note', async () => {
+    const editor = {
+      setContent: vi.fn(),
+      setEditable: vi.fn(),
+    }
+    let currentEditor: typeof editor | null = null
+    const state = useNoteDetailEditorState({
+      getEditor: () => currentEditor,
+      setLastSavedContent: vi.fn(),
+    })
+    const note = makeNote({
+      id: 'next-note',
+      content: '<p>下一篇备忘录</p>',
+    })
+
+    state.clearSelection()
+    currentEditor = editor
+    state.showUnlockedNote(note)
+    await nextTick()
+
+    expect(editor.setContent).toHaveBeenCalledTimes(1)
+    expect(editor.setContent).toHaveBeenCalledWith('<p>下一篇备忘录</p>')
+  })
 })

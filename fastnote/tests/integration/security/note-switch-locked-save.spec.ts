@@ -141,7 +141,7 @@ describe('note switch save regression', () => {
     currentContent = '<p>已编辑内容</p>'
 
     wrapper.findComponent({ name: 'YYEditor' }).vm.$emit('blur')
-    await wrapper.findComponent({ name: 'NoteMore' }).props('prepareForLock')()
+    await wrapper.findComponent({ name: 'NoteMore' }).props('prepareForLock')('note-1')
     notesById['note-1'] = {
       ...notesById['note-1'],
       is_locked: 1,
@@ -216,7 +216,7 @@ describe('note switch save regression', () => {
     })
 
     wrapper.findComponent({ name: 'YYEditor' }).vm.$emit('blur')
-    await wrapper.findComponent({ name: 'NoteMore' }).props('prepareForLock')()
+    await wrapper.findComponent({ name: 'NoteMore' }).props('prepareForLock')('note-1')
 
     expect(notesById['note-1'].content).toBe('<p>解锁后编辑的内容</p>')
     expect(mocks.manualSyncMock).toHaveBeenCalledTimes(1)

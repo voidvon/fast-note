@@ -9,11 +9,20 @@ export interface NoteDetailEditorHost {
 
 export interface UseNoteDetailEditorStateOptions {
   getEditor: () => NoteDetailEditorHost | null | undefined
+  onUnlockedNoteApplied?: (note: Note) => void
   setLastSavedContent: (content: string) => void
 }
 
 export function useNoteDetailEditorState(options: UseNoteDetailEditorStateOptions) {
+  let effectVersion = 0
+
+  function beginEffect() {
+    effectVersion += 1
+    return effectVersion
+  }
+
   function applyWithEditor(effect: (editor: NoteDetailEditorHost) => void) {
+    const version = beginEffect()
     const editor = options.getEditor()
     if (editor) {
       effect(editor)
@@ -21,6 +30,10 @@ export function useNoteDetailEditorState(options: UseNoteDetailEditorStateOption
     }
 
     queueMicrotask(() => {
+      if (version !== effectVersion) {
+        return
+      }
+
       const queuedEditor = options.getEditor()
       if (!queuedEditor) {
         return
@@ -31,6 +44,7 @@ export function useNoteDetailEditorState(options: UseNoteDetailEditorStateOption
   }
 
   function showNewDraft() {
+    beginEffect()
     const editor = options.getEditor()
     if (!editor) {
       return
@@ -43,6 +57,7 @@ export function useNoteDetailEditorState(options: UseNoteDetailEditorStateOption
   }
 
   function showMissingPrivateNote() {
+    beginEffect()
     const editor = options.getEditor()
     if (!editor) {
       return
@@ -53,6 +68,7 @@ export function useNoteDetailEditorState(options: UseNoteDetailEditorStateOption
   }
 
   function showLockedNote() {
+    beginEffect()
     const editor = options.getEditor()
     if (!editor) {
       return
@@ -74,11 +90,17 @@ export function useNoteDetailEditorState(options: UseNoteDetailEditorStateOption
       editor.setEditable(note.is_deleted !== 1)
       editor.setContent(note.content || '')
       options.setLastSavedContent(note.content || '')
+      options.onUnlockedNoteApplied?.(note)
     })
   }
 
   function clearSelection() {
+    const version = beginEffect()
     queueMicrotask(() => {
+      if (version !== effectVersion) {
+        return
+      }
+
       const editor = options.getEditor()
       if (!editor) {
         return

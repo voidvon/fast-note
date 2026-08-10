@@ -65,6 +65,7 @@ const newNoteId = ref<string | null>(null)
 const hasCreatedRouteDraft = ref(false)
 const isAsyncRouteLeaveSavePending = ref(false)
 const retainedEffectiveUuid = ref<string | null>(null)
+const editorContentNoteId = ref<string | null>(null)
 
 const state = reactive({
   isFormatModalOpen: false, // 标记格式化面板是否打开
@@ -152,6 +153,11 @@ const noteDetailEditorState = useNoteDetailEditorState({
   getEditor() {
     return editorRef.value
   },
+  onUnlockedNoteApplied(note) {
+    if (effectiveUuid.value === note.id && data.value?.id === note.id) {
+      editorContentNoteId.value = note.id
+    }
+  },
   setLastSavedContent(content) {
     lastSavedContent.value = content
   },
@@ -164,6 +170,7 @@ const noteAutoLock = useNoteAutoLock({
 const noteLockView = useNoteLockViewFlow({
   noteLock,
   onLocked() {
+    editorContentNoteId.value = null
     noteAutoLock.deactivate()
     noteDetailEditorState.showLockedNote()
   },
@@ -194,6 +201,7 @@ const privateNoteDetail = useNoteDetailPrivate({
   getNote,
   onLoaded: applyPrivateNoteState,
   onMissing() {
+    editorContentNoteId.value = null
     state.isMissingPrivateNote = true
     lastSavedContent.value = ''
     noteDetailEditorState.showMissingPrivateNote()
@@ -202,6 +210,7 @@ const privateNoteDetail = useNoteDetailPrivate({
 })
 const noteDetailEntry = useNoteDetailEntry({
   applyPublicNote(note) {
+    editorContentNoteId.value = null
     data.value = note || null
     if (!note) {
       lastSavedContent.value = ''
@@ -211,6 +220,7 @@ const noteDetailEntry = useNoteDetailEntry({
     noteDetailEditorState.showReadOnlyNote(note)
   },
   async clearSelection() {
+    editorContentNoteId.value = null
     data.value = null
     lastSavedContent.value = ''
     noteDetailEditorState.clearSelection()
@@ -224,6 +234,7 @@ const noteDetailEntry = useNoteDetailEntry({
     lastSavedContent.value = ''
     await nextTick()
     noteDetailEditorState.showNewDraft()
+    editorContentNoteId.value = editorRef.value ? draftId : null
   },
   getPublicNote(id) {
     return useUserPublicNotes(username.value).getPublicNote(id) || null
@@ -260,6 +271,21 @@ const {
   },
 })
 
+watch(editorRef, (editor) => {
+  const note = data.value as Note | null
+  if (
+    !editor
+    || !note?.id
+    || editorContentNoteId.value === note.id
+    || effectiveUuid.value !== note.id
+    || isPinLockedForView.value
+  ) {
+    return
+  }
+
+  noteDetailEditorState.showUnlockedNote(note)
+}, { flush: 'post' })
+
 watch(isEditorBlocked, (blocked) => {
   if (blocked) {
     state.isFormatModalOpen = false
@@ -277,6 +303,7 @@ watch(idFromSource, async (id, oldId) => {
   }
 
   if (id !== oldId) {
+    editorContentNoteId.value = null
     privateNoteDetail.reset()
     hasCreatedRouteDraft.value = false
   }
@@ -454,6 +481,10 @@ async function handleAutomaticRelock() {
     return
   }
 
+  if (editorContentNoteId.value !== note.id || !editorRef.value) {
+    return
+  }
+
   noteDetailLeave.clearPendingSaveTimer()
   await handleNoteSaving(true, 'view-leave', {
     noteId: note.id,
@@ -474,11 +505,16 @@ async function handleAutomaticRelock() {
   }
 }
 
-async function persistEditorBeforeLock() {
-  const noteId = effectiveUuid.value
+async function persistEditorBeforeLock(noteId: string) {
   const editor = editorRef.value
 
-  if (!noteId || !editor || data.value?.id !== noteId) {
+  if (
+    !noteId
+    || !editor
+    || effectiveUuid.value !== noteId
+    || data.value?.id !== noteId
+    || editorContentNoteId.value !== noteId
+  ) {
     throw new Error('当前备忘录尚未加载完成，无法锁定')
   }
 

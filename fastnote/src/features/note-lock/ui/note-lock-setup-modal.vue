@@ -12,7 +12,7 @@ const props = withDefaults(defineProps<{
   hasGlobalPin?: boolean
   isOpen: boolean
   noteId: string
-  prepareForLock: () => Promise<void>
+  prepareForLock: (noteId: string) => Promise<void>
 }>(), {
   defaultBiometricEnabled: false,
   hasGlobalPin: false,
@@ -79,7 +79,7 @@ async function handleSubmit() {
   form.errorMessage = ''
 
   try {
-    await props.prepareForLock()
+    await props.prepareForLock(props.noteId)
 
     const result = props.hasGlobalPin
       ? await noteLock.enableLockForNote(props.noteId, {

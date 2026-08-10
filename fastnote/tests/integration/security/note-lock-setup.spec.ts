@@ -170,6 +170,7 @@ describe('note lock setup modal integration (t-fn-037 / tc-fn-028)', () => {
     expect(enableLockForNoteMock).toHaveBeenCalledWith('note-1', {
       biometricEnabled: true,
     })
+    expect(prepareForLock).toHaveBeenCalledWith('note-1')
     expect(callOrder).toEqual(['persist-editor', 'enable-lock'])
     expect(wrapper.emitted('confirm')?.[0]?.[0]?.note).toMatchObject({
       id: 'note-1',

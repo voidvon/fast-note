@@ -25,7 +25,7 @@ const props = withDefaults(defineProps<{
   note?: Note
   noteId?: string
   presentation?: 'popover' | 'sheet'
-  prepareForLock: () => Promise<void>
+  prepareForLock: (noteId: string) => Promise<void>
   targetEl?: string
 }>(), {
   presentation: 'sheet',
