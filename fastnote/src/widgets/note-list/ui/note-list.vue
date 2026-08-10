@@ -322,6 +322,7 @@ defineExpose({
       ref="listRef"
       :inset
       strong
+      dividers
       accordion-list
       :media-list
       :class="{ 'note-list--media': mediaList, 'note-list--folders': virtualNotes }"
@@ -417,9 +418,11 @@ defineExpose({
 
     <F7List
       v-if="virtualNoteItems.length"
+      :key="virtualRowHeight"
       ref="virtualListRef"
       :inset
       strong
+      dividers
       :media-list
       virtual-list
       :virtual-list-params="virtualListParams"

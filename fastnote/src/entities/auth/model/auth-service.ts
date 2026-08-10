@@ -24,6 +24,8 @@ export interface AuthUsersService {
   updateCurrentUserPinSettings: (payload: CurrentUserPinSettingsPayload) => Promise<CurrentUserPinSettings | null>
 }
 
+const pendingPublicUserRequests = new Map<string, Promise<PublicUserInfo | null>>()
+
 function toPublicUserInfo(record: any): PublicUserInfo | null {
   if (!record?.id || !record?.username) {
     return null
@@ -52,8 +54,25 @@ export const authUsersService: AuthUsersService = {
     return await usersService.getCurrentUserPinSettings(options)
   },
   async getPublicUserInfo(username: string) {
-    const record = await usersService.getUserByUsername(username)
-    return toPublicUserInfo(record)
+    const pendingRequest = pendingPublicUserRequests.get(username)
+    if (pendingRequest) {
+      return await pendingRequest
+    }
+
+    const request = (async () => {
+      const record = await usersService.getUserByUsername(username)
+      return toPublicUserInfo(record)
+    })()
+    pendingPublicUserRequests.set(username, request)
+
+    try {
+      return await request
+    }
+    finally {
+      if (pendingPublicUserRequests.get(username) === request) {
+        pendingPublicUserRequests.delete(username)
+      }
+    }
   },
   async updateCurrentUserPinSettings(payload) {
     return await usersService.updateCurrentUserPinSettings(payload)

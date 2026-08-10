@@ -223,4 +223,24 @@ describe('note list lock indicator integration (t-fn-051 / tc-fn-047, tc-fn-048)
     expect(wrapper.text()).toContain('虚拟备忘录 96')
     expect(wrapper.text()).not.toContain('虚拟备忘录 0')
   })
+
+  it('recreates the virtual list when parent folder labels change the row height', async () => {
+    const wrapper = await mountNoteList({
+      virtualNotes: true,
+      dataList: createNoteListData().slice(1),
+    })
+    const findVirtualList = () => wrapper
+      .findAllComponents({ name: 'F7List' })
+      .find(list => list.classes().includes('note-list--virtual'))!
+
+    const initialVirtualList = findVirtualList()
+    const initialInstanceId = initialVirtualList.vm.$.uid
+    expect(initialVirtualList.vm.$attrs['virtual-list-params']).toMatchObject({ height: 68 })
+
+    await wrapper.setProps({ showParentFolder: true })
+
+    const resizedVirtualList = findVirtualList()
+    expect(resizedVirtualList.vm.$.uid).not.toBe(initialInstanceId)
+    expect(resizedVirtualList.vm.$attrs['virtual-list-params']).toMatchObject({ height: 84 })
+  })
 })

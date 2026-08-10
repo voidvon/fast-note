@@ -147,7 +147,7 @@ function onFolderClickCapture(event: MouseEvent) {
       </F7Note>
     </template>
     <template #content>
-      <F7List v-if="childrenData.length" class="child-note-list">
+      <F7List v-if="childrenData.length" dividers class="child-note-list">
         <NoteListItem v-for="d in childrenData" :key="d.originNote.id" :data="d" :lock-indicator-state-map="lockIndicatorStateMap" :selected-id :disabled-route class="child-list-item" @selected="$emit('selected', $event)" />
       </F7List>
     </template>
@@ -159,7 +159,6 @@ function onFolderClickCapture(event: MouseEvent) {
     :data-lock-state="resolvedLockIndicatorState"
     :class="{ active: selectedId === noteData.id }"
     class="list-item note-list-item--note"
-    lines="inset"
     media-item
     :virtual-list-index
     :style="virtualRowHeight ? { height: `${virtualRowHeight}px` } : undefined"
