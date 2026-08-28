@@ -531,20 +531,11 @@ defineExpose({
 
 .app-page-embedded > .folder-create-toolbar > .toolbar-inner > .left,
 .app-page-embedded > .folder-create-toolbar > .toolbar-inner > .right {
-  --folder-toolbar-glass-bg-color: rgba(255, 255, 255, 0.75);
-  --folder-toolbar-glass-shadow: 0 0 25px rgba(0, 0, 0, 0.15);
-
   border-radius: 32px;
-  background-color: var(--folder-toolbar-glass-bg-color);
-  box-shadow: var(--folder-toolbar-glass-shadow);
+  background-color: var(--f7-glass-bg-color);
+  box-shadow: var(--f7-glass-shadow);
   -webkit-backdrop-filter: saturate(180%) blur(16px);
   backdrop-filter: saturate(180%) blur(16px);
-}
-
-.app-theme-dark .app-page-embedded > .folder-create-toolbar > .toolbar-inner > .left,
-.app-theme-dark .app-page-embedded > .folder-create-toolbar > .toolbar-inner > .right {
-  --folder-toolbar-glass-bg-color: rgba(50, 50, 50, 0.5);
-  --folder-toolbar-glass-shadow: 0 0 25px rgba(0, 0, 0, 0.3);
 }
 
 .folder-create-button,

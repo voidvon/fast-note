@@ -1092,6 +1092,7 @@ onUnmounted(() => {
           <F7Searchbar
             v-if="isSearchMode"
             ref="searchInputRef"
+            :backdrop="false"
             :value="currentDraft"
             :clear-button="hasInputValue"
             :custom-search="true"
