@@ -1,6 +1,7 @@
 describe('note editor Framework7 tabbar', () => {
   const noteId = 'framework7-editor-toolbar-note'
   const secondNoteId = 'framework7-editor-toolbar-note-2'
+  const thirdNoteId = 'framework7-editor-toolbar-note-3'
   const folderId = 'framework7-home-folder'
 
   function seedNoteAndVisit(width: number, height: number) {
@@ -32,6 +33,21 @@ describe('note editor Framework7 tabbar', () => {
         content: '<p>Desktop navbar regression</p>',
         created: '2024-01-03 03:04:05.000Z',
         updated: '2024-01-03 03:04:05.000Z',
+        item_type: 2,
+        parent_id: '',
+        is_deleted: 0,
+        is_locked: 0,
+        note_count: 0,
+        version: 1,
+        files: [],
+      })
+      await window.db.notes.put({
+        id: thirdNoteId,
+        title: 'Framework7 第三条备忘录',
+        summary: '验证三条备忘录之间的分割线位置',
+        content: '<p>List divider regression</p>',
+        created: '2024-01-01 03:04:05.000Z',
+        updated: '2024-01-01 03:04:05.000Z',
         item_type: 2,
         parent_id: '',
         is_deleted: 0,
@@ -125,6 +141,91 @@ describe('note editor Framework7 tabbar', () => {
     cy.get('.table-format-popover.popover.modal-in').should('exist')
     cy.get('.table-format-popover').should('not.have.class', 'sheet-modal')
     cy.get('.sheet-modal.table-format-popover').should('not.exist')
+  })
+
+  it('highlights the current note without changing the existing list layout', () => {
+    seedNoteAndVisit(1280, 800)
+
+    cy.get('.home-navigation-content .list.accordion-list')
+      .should('not.have.class', 'menu-list')
+    cy.get('#home-note-list-pane .note-list--virtual')
+      .should('not.have.class', 'menu-list')
+      .find('> ul')
+      .should(($list) => {
+        const style = getComputedStyle($list.get(0))
+        expect(style.backgroundColor).not.to.equal('rgba(0, 0, 0, 0)')
+        expect(style.borderTopLeftRadius).not.to.equal('0px')
+        expect(style.borderTopRightRadius).not.to.equal('0px')
+        expect(style.borderBottomLeftRadius).not.to.equal('0px')
+        expect(style.borderBottomRightRadius).not.to.equal('0px')
+      })
+
+    function assertSelectedNoteRow(id: string) {
+      cy.get(`#home-note-list-pane .app-list-item[data-id="${id}"]`)
+        .should('be.visible')
+        .and('have.class', 'active')
+        .should(($row) => {
+          const row = $row.get(0)
+          const link = row.querySelector<HTMLElement>(':scope > .item-link')!
+          const content = link.querySelector<HTMLElement>(':scope > .item-content')!
+          const linkBackground = row.ownerDocument.defaultView!.getComputedStyle(link).backgroundColor
+          const contentBackground = row.ownerDocument.defaultView!.getComputedStyle(content).backgroundColor
+          const listBackground = row.ownerDocument.defaultView!
+            .getComputedStyle(row.closest('ul')!)
+            .backgroundColor
+
+          expect(linkBackground).not.to.equal(listBackground)
+          expect(contentBackground).to.equal('rgba(0, 0, 0, 0)')
+        })
+    }
+
+    cy.get(`#home-note-list-pane .app-list-item[data-id="${secondNoteId}"]`)
+      .should('not.have.class', 'active')
+      .should(($row) => {
+        const row = $row.get(0)
+        const view = row.ownerDocument.defaultView!
+        expect(view.getComputedStyle(row.querySelector(':scope > .item-link')!).backgroundColor)
+          .to.equal(view.getComputedStyle(row.closest('ul')!).backgroundColor)
+      })
+
+    cy.get('#home-note-list-pane .note-list--virtual > ul > li:first-child > .item-link')
+      .should(($link) => {
+        const style = getComputedStyle($link.get(0))
+        expect(style.borderTopLeftRadius).not.to.equal('0px')
+        expect(style.borderTopRightRadius).not.to.equal('0px')
+      })
+    cy.get('#home-note-list-pane .note-list--virtual > ul > li:last-child > .item-link')
+      .should(($link) => {
+        const style = getComputedStyle($link.get(0))
+        expect(style.borderBottomLeftRadius).not.to.equal('0px')
+        expect(style.borderBottomRightRadius).not.to.equal('0px')
+      })
+    cy.get('#home-note-list-pane .note-list--virtual > ul > .note-list-item--note')
+      .should('have.length', 3)
+      .each(($row, index, $rows) => {
+        if (index === $rows.length - 1)
+          return
+
+        const row = $row.get(0)
+        const link = row.querySelector<HTMLElement>(':scope > .item-link')!
+        const content = link.querySelector<HTMLElement>(':scope > .item-content')!
+        const inner = content.querySelector<HTMLElement>(':scope > .item-inner')!
+        const rowBottom = row.getBoundingClientRect().bottom
+
+        expect(Math.abs(link.getBoundingClientRect().bottom - rowBottom)).to.be.lessThan(0.5)
+        expect(Math.abs(content.getBoundingClientRect().bottom - rowBottom)).to.be.lessThan(0.5)
+        expect(Math.abs(inner.getBoundingClientRect().bottom - rowBottom)).to.be.lessThan(0.5)
+        expect(getComputedStyle(inner, '::after').bottom).to.equal('0px')
+      })
+
+    assertSelectedNoteRow(noteId)
+
+    cy.get(`#home-note-list-pane .app-list-item[data-id="${secondNoteId}"]`)
+      .click()
+    cy.url().should('include', `/n/${secondNoteId}`)
+    assertSelectedNoteRow(secondNoteId)
+    cy.get(`#home-note-list-pane .app-list-item[data-id="${noteId}"]`)
+      .should('not.have.class', 'active')
   })
 
   it('anchors the table actions beside the toolbar button on desktop', () => {

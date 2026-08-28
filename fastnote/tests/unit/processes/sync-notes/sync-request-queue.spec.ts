@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { enqueueNoteSync, useSyncRuntimeState } from '@/processes/sync-notes/model/sync-runtime-state'
+import {
+  beginSyncBootstrap,
+  completeSyncBootstrap,
+  enqueueNoteSync,
+  useSyncRuntimeState,
+  waitForSyncBootstrap,
+  waitForSyncIdle,
+} from '@/processes/sync-notes/model/sync-runtime-state'
 
 function deferred() {
   let resolve!: () => void
@@ -31,6 +38,14 @@ describe('note sync request queue', () => {
     expect(events).toEqual(['first:start'])
     expect(syncing.value).toBe(true)
 
+    const idle = waitForSyncIdle()
+    let idleResolved = false
+    void idle.then(() => {
+      idleResolved = true
+    })
+    await Promise.resolve()
+    expect(idleResolved).toBe(false)
+
     firstGate.resolve()
     await first
     await Promise.resolve()
@@ -39,7 +54,30 @@ describe('note sync request queue', () => {
 
     secondGate.resolve()
     await second
+    await idle
     expect(events).toEqual(['first:start', 'first:end', 'second:start', 'second:end'])
     expect(syncing.value).toBe(false)
+  })
+
+  it('waits for the session sync bootstrap even before its queue task starts', async () => {
+    beginSyncBootstrap()
+
+    try {
+      const bootstrap = waitForSyncBootstrap()
+      let bootstrapResolved = false
+      void bootstrap.then(() => {
+        bootstrapResolved = true
+      })
+
+      await Promise.resolve()
+      expect(bootstrapResolved).toBe(false)
+
+      completeSyncBootstrap()
+      await bootstrap
+      expect(bootstrapResolved).toBe(true)
+    }
+    finally {
+      completeSyncBootstrap()
+    }
   })
 })

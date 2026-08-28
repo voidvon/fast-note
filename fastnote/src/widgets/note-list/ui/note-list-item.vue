@@ -123,7 +123,7 @@ function onFolderClickCapture(event: MouseEvent) {
       'active': selectedId === noteData.id,
       'no-children': !childrenData.length,
     }"
-    class="message-list-item"
+    class="fastnote-note-list-item message-list-item"
     @leaf-click="onClick"
     @click.capture="onFolderClickCapture"
   >
@@ -158,7 +158,9 @@ function onFolderClickCapture(event: MouseEvent) {
     :data-id="noteData.id"
     :data-lock-state="resolvedLockIndicatorState"
     :class="{ active: selectedId === noteData.id }"
-    class="list-item note-list-item--note"
+    :href="false"
+    :link="true"
+    class="fastnote-note-list-item list-item note-list-item--note"
     media-item
     :virtual-list-index
     :style="virtualRowHeight ? { height: `${virtualRowHeight}px` } : undefined"
@@ -186,147 +188,148 @@ function onFolderClickCapture(event: MouseEvent) {
 </template>
 
 <style lang="scss">
-.message-list-item {
-  > .item-link > .item-content > .item-inner {
-    position: relative;
-  }
-
-  .folder-accordion-toggle {
-    position: absolute;
-    z-index: 1;
-    top: 0;
-    right: 0;
-    width: 44px;
-    height: 100%;
-    cursor: pointer;
-  }
-
-  > .item-link > .item-content > .item-inner::before {
-    content: var(--f7-accordion-chevron-icon-down) !important;
-    color: var(--primary);
-    transform: rotate(-90deg);
-    transform-origin: center;
-    transition: transform 180ms ease;
-  }
-
-  &.accordion-item-opened > .item-link > .item-content > .item-inner::before {
-    transform: rotate(0deg);
-  }
-
-  &.no-children > .item-link > .item-content > .item-inner::before {
-    color: var(--c-purple-gray-550);
-  }
-
-  .folder-item-title {
-    cursor: pointer;
-    width: 100%;
-  }
-
-  > .item-link > .item-content > .item-inner > .item-title {
-    flex: 1;
-  }
-
-  .child-list-item {
-    .folder-icon {
-      --uno: pl-8;
+.fastnote-note-list-item {
+  &.message-list-item {
+    > .item-link > .item-content > .item-inner {
+      position: relative;
     }
+
+    .folder-accordion-toggle {
+      position: absolute;
+      z-index: 1;
+      top: 0;
+      right: 0;
+      width: 44px;
+      height: 100%;
+      cursor: pointer;
+    }
+
+    > .item-link > .item-content > .item-inner::before {
+      content: var(--f7-accordion-chevron-icon-down) !important;
+      color: var(--primary);
+      transform: rotate(-90deg);
+      transform-origin: center;
+      transition: transform 180ms ease;
+    }
+
+    &.accordion-item-opened > .item-link > .item-content > .item-inner::before {
+      transform: rotate(0deg);
+    }
+
+    &.no-children > .item-link > .item-content > .item-inner::before {
+      color: var(--c-purple-gray-550);
+    }
+
+    .folder-item-title {
+      cursor: pointer;
+      width: 100%;
+    }
+
+    > .item-link > .item-content > .item-inner > .item-title {
+      flex: 1;
+    }
+
     .child-list-item {
       .folder-icon {
-        --uno: pl-16;
+        --uno: pl-8;
       }
       .child-list-item {
         .folder-icon {
-          --uno: pl-24;
+          --uno: pl-16;
         }
         .child-list-item {
           .folder-icon {
-            --uno: pl-32;
+            --uno: pl-24;
+          }
+          .child-list-item {
+            .folder-icon {
+              --uno: pl-32;
+            }
           }
         }
       }
     }
+    .accordion-item-toggle-icon {
+      transform: rotate(270deg);
+      color: var(--primary);
+    }
+    &.accordion-item-opened > .item-link .accordion-item-toggle-icon {
+      transform: rotate(360deg);
+    }
+    // TODO: 子级选中没有样式变化
+    &.active {
+      > .item-link > .item-content {
+        background: var(--c-list-active-background);
+      }
+    }
   }
-  .accordion-item-toggle-icon {
-    transform: rotate(270deg);
-    color: var(--primary);
+
+  &.list-item {
+    --f7-list-item-border-color: var(--c-blue-gray-700);
+
+    .accordion-item-toggle-icon {
+      font-size: 1.125rem;
+    }
+
+    .app-note {
+      margin-right: 8px;
+    }
+
+    .app-note.md {
+      margin-right: 14px;
+    }
   }
-  &.accordion-item-opened > .item-link .accordion-item-toggle-icon {
-    transform: rotate(360deg);
-  }
-  // TODO: 子级选中没有样式变化
-  &.active {
+
+  &.note-list-item--note {
+    --f7-list-item-title-font-size: 18px;
+    --f7-list-item-text-max-lines: 1;
+    --f7-list-item-text-text-color: var(--c-text-secondary);
+    --f7-list-item-footer-text-color: var(--c-text-secondary);
+
+    > .item-link {
+      background-color: var(--fastnote-note-list-item-background, var(--c-list-background));
+      height: 100%;
+    }
+
     > .item-link > .item-content {
-      background: var(--c-list-active-background);
+      height: 100%;
+    }
+
+    &:hover {
+      --fastnote-note-list-item-background: var(--c-list-hover-background);
+    }
+
+    &.active {
+      --fastnote-note-list-item-background: var(--c-list-active-background);
+    }
+
+    .item-title-row {
+      align-items: center;
+      justify-content: flex-start;
+    }
+
+    .item-footer {
+      align-items: center;
+      display: flex;
+      gap: 3px;
+    }
+
+    .note-lock-icon {
+      align-self: center;
+      color: var(--c-icon);
+      flex: 0 0 auto;
+      margin-right: 4px;
+    }
+
+    .note-folder-icon {
+      flex: 0 0 auto;
     }
   }
-}
 
-@media (prefers-reduced-motion: reduce) {
-  .message-list-item > .item-link > .item-content > .item-inner::before {
-    transition: none;
-  }
-}
-
-.list-item {
-  .accordion-item-toggle-icon {
-    font-size: 1.125rem;
-  }
-}
-</style>
-
-<style lang="scss" scoped>
-.list-item {
-  --f7-list-item-border-color: var(--c-blue-gray-700);
-
-  > .item-content {
-    background: var(--c-list-background);
-  }
-
-  &:hover > .item-content {
-    background: var(--c-list-hover-background);
-  }
-
-  &.active {
-    > .item-content {
-      background: var(--c-list-active-background);
+  @media (prefers-reduced-motion: reduce) {
+    &.message-list-item > .item-link > .item-content > .item-inner::before {
+      transition: none;
     }
   }
-}
-
-.note-list-item--note {
-  --f7-list-item-title-font-size: 18px;
-  --f7-list-item-text-max-lines: 1;
-  --f7-list-item-text-text-color: var(--c-text-secondary);
-  --f7-list-item-footer-text-color: var(--c-text-secondary);
-
-  :deep(.item-title-row) {
-    align-items: center;
-    justify-content: flex-start;
-  }
-
-  :deep(.item-footer) {
-    align-items: center;
-    display: flex;
-    gap: 3px;
-  }
-
-  .note-lock-icon {
-    align-self: center;
-    color: var(--c-icon);
-    flex: 0 0 auto;
-    margin-right: 4px;
-  }
-
-  .note-folder-icon {
-    flex: 0 0 auto;
-  }
-}
-
-.list-item .app-note {
-  margin-right: 8px;
-}
-
-.list-item .app-note.md {
-  margin-right: 14px;
 }
 </style>

@@ -64,6 +64,7 @@ const data = ref()
 const newNoteId = ref<string | null>(null)
 const hasCreatedRouteDraft = ref(false)
 const isAsyncRouteLeaveSavePending = ref(false)
+const isPreparingUnlock = ref(false)
 const retainedEffectiveUuid = ref<string | null>(null)
 const editorContentNoteId = ref<string | null>(null)
 
@@ -413,7 +414,7 @@ async function handleNoteSaving(
     return
   }
 
-  if (isPinLockedForView.value) {
+  if (isPinLockedForView.value || isPreparingUnlock.value) {
     if (leaveFlushReason) {
       await noteDetailLeave.flushNotesToLocal(leaveFlushReason)
     }
@@ -438,7 +439,7 @@ async function handleNoteSaving(
 
 // 防抖保存函数
 function debouncedSave(silent = false) {
-  if (isEditorBlocked.value) {
+  if (isEditorBlocked.value || isPreparingUnlock.value) {
     noteDetailLeave.clearPendingSaveTimer()
     return
   }
@@ -455,24 +456,68 @@ async function openExistingEntry(id: string) {
   }
 }
 
+async function waitForUnlockDataReady() {
+  // The bootstrap signal covers the gap before the first sync enters the queue.
+  await syncApi.waitForSyncBootstrap?.()
+  await syncApi.waitForSyncIdle?.()
+}
+
 // function onFormat(command: string) {
 //   editorRef.value.format(command)
 // }
 
 async function handlePinUnlock(pin: string) {
-  if (!data.value?.id) {
+  const note = data.value as Note | null
+  if (!note?.id || isPreparingUnlock.value || noteLockView.state.isPinUnlocking) {
     return
   }
 
-  await noteLockView.unlockWithPin(data.value, pin)
+  isPreparingUnlock.value = true
+  try {
+    await waitForUnlockDataReady()
+
+    if (effectiveUuid.value !== note.id || data.value?.id !== note.id) {
+      return
+    }
+
+    const latestNote = await getNote(note.id)
+    if (!latestNote) {
+      return
+    }
+
+    data.value = latestNote
+    await noteLockView.unlockWithPin(latestNote, pin)
+  }
+  finally {
+    isPreparingUnlock.value = false
+  }
 }
 
 async function handleBiometricUnlock() {
-  if (!data.value?.id) {
+  const note = data.value as Note | null
+  if (!note?.id || isPreparingUnlock.value || noteLockView.state.isPinUnlocking) {
     return
   }
 
-  await noteLockView.unlockWithBiometric(data.value)
+  isPreparingUnlock.value = true
+  try {
+    await waitForUnlockDataReady()
+
+    if (effectiveUuid.value !== note.id || data.value?.id !== note.id) {
+      return
+    }
+
+    const latestNote = await getNote(note.id)
+    if (!latestNote) {
+      return
+    }
+
+    data.value = latestNote
+    await noteLockView.unlockWithBiometric(latestNote)
+  }
+  finally {
+    isPreparingUnlock.value = false
+  }
 }
 
 async function handleAutomaticRelock() {
@@ -611,7 +656,7 @@ async function handleNoteLockUpdated(updatedNote: Note) {
         :failed-attempts="noteLockView.state.failedAttempts"
         :cooldown-until="noteLockView.state.cooldownUntil"
         :error-message="noteLockView.state.errorMessage"
-        :is-submitting="noteLockView.state.isPinUnlocking"
+        :is-submitting="noteLockView.state.isPinUnlocking || isPreparingUnlock"
         @try-biometric="handleBiometricUnlock"
         @submit-pin="handlePinUnlock"
       />

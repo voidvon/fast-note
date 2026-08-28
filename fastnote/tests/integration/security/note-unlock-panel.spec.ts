@@ -1,7 +1,8 @@
+import type { Note } from '@/shared/types'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick } from 'vue'
-import { mountNoteDetailForSaveTest } from '../../helpers/note-detail-save-test-utils'
+import { deferred, mountNoteDetailForSaveTest } from '../../helpers/note-detail-save-test-utils'
 
 function createF7Stub(name: string, tag = 'div') {
   return defineComponent({
@@ -44,6 +45,7 @@ function createInputStub(name: string) {
 
 describe('note unlock panel integration (t-fn-038 / tc-fn-030)', () => {
   afterEach(() => {
+    vi.useRealTimers()
     vi.doUnmock('@/shared/ui/f7')
     vi.resetModules()
   })
@@ -137,5 +139,79 @@ describe('note unlock panel integration (t-fn-038 / tc-fn-030)', () => {
     expect(wrapper.find('.yy-editor-stub').exists()).toBe(true)
     expect(editorApi.setContent).toHaveBeenCalledWith('<p>锁内内容</p>')
     expect(editorApi.setEditable).toHaveBeenCalledWith(true)
+  })
+
+  it('waits for the initial sync and unlocks with the latest note content', async () => {
+    vi.useFakeTimers()
+    const noteId = 'locked-note'
+    const localNote: Note = {
+      id: noteId,
+      title: '加锁备忘录',
+      summary: '本地摘要',
+      content: '',
+      created: '2026-03-10 10:00:00',
+      updated: '2026-03-10 10:00:00',
+      item_type: 2,
+      parent_id: '',
+      is_deleted: 0,
+      is_locked: 1,
+      note_count: 0,
+      version: 1,
+      files: [],
+    }
+    const cloudNote: Note = {
+      ...localNote,
+      summary: '云端摘要',
+      content: '<p>云端正文</p>',
+      updated: '2026-03-10 10:05:00',
+    }
+    const notesById: Record<string, Note> = { [noteId]: localNote }
+    const syncBootstrap = deferred<void>()
+    const { wrapper, editorApi, notesRef, mocks } = await mountNoteDetailForSaveTest({
+      noteId,
+      isPinLockNote: true,
+      lockViewState: 'locked',
+      notesById,
+      waitForSyncBootstrapImpl: () => syncBootstrap.promise,
+      verifyPinImpl: async () => ({
+        ok: true,
+        code: 'ok',
+        message: null,
+        failedAttempts: 0,
+        cooldownUntil: null,
+      }),
+    })
+
+    let currentContent = '<p></p>'
+    editorApi.getContent.mockImplementation(() => currentContent)
+    editorApi.setContent.mockImplementation((content: string) => {
+      currentContent = content || '<p></p>'
+    })
+
+    await wrapper.get('[data-testid="note-unlock-panel-pin"]').setValue('123456')
+    await wrapper.get('[data-testid="note-unlock-panel-submit"]').trigger('click')
+    await nextTick()
+
+    expect(mocks.waitForSyncBootstrapMock).toHaveBeenCalledOnce()
+    expect(mocks.waitForSyncIdleMock).not.toHaveBeenCalled()
+    expect(mocks.verifyPinMock).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="note-unlock-panel"]').exists()).toBe(true)
+
+    notesById[noteId] = cloudNote
+    notesRef.value.splice(0, 1, cloudNote)
+    syncBootstrap.resolve()
+    await flushPromises()
+    await nextTick()
+    await nextTick()
+
+    expect(mocks.verifyPinMock).toHaveBeenCalledWith(noteId, '123456')
+    expect(editorApi.setContent).toHaveBeenCalledWith(cloudNote.content)
+    expect(currentContent).toBe(cloudNote.content)
+
+    wrapper.findComponent({ name: 'YYEditor' }).vm.$emit('blur')
+    vi.advanceTimersByTime(800)
+    await flushPromises()
+
+    expect(mocks.updateNoteMock).not.toHaveBeenCalled()
   })
 })

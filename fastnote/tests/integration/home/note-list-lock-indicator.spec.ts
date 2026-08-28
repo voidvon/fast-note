@@ -31,8 +31,10 @@ function createPlainStub(name: string) {
 
 async function mountNoteList(options: {
   darkMode?: boolean
+  mediaList?: boolean
   virtualNotes?: boolean
   dataList?: ReturnType<typeof createNoteListData>
+  selectedNoteId?: string
 }) {
   vi.resetModules()
   localStorage.clear()
@@ -97,6 +99,8 @@ async function mountNoteList(options: {
       dataList: options.dataList ?? createNoteListData(),
       deletedNoteCount: 1,
       disabledLongPress: true,
+      mediaList: options.mediaList,
+      noteUuid: options.selectedNoteId,
       showAllNotes: true,
       showDelete: true,
       showUnfiledNotes: true,
@@ -178,6 +182,17 @@ describe('note list lock indicator integration (t-fn-051 / tc-fn-047, tc-fn-048)
     expect(wrapper.find('[data-testid="note-lock-icon"]').exists()).toBe(true)
     expect(wrapper.find('.note-list-item--note').attributes('data-lock-state')).toBe('locked')
     expect(wrapper.text()).toContain('被锁定的超长标题备忘录')
+  })
+
+  it('applies the existing list selection state to the selected note', async () => {
+    const wrapper = await mountNoteList({
+      mediaList: true,
+      selectedNoteId: 'locked-note',
+    })
+
+    const selectedItem = wrapper.get('[data-id="locked-note"]')
+    expect(selectedItem.classes()).toContain('active')
+    expect(wrapper.findAll('.note-list-item--note.active')).toHaveLength(1)
   })
 
   it('renders folders normally and only mounts the virtual note window', async () => {

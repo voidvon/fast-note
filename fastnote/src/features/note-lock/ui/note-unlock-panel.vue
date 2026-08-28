@@ -117,7 +117,7 @@ function submit() {
         <F7ListInput
           data-testid="note-unlock-panel-pin-field"
           :value="pin"
-          :disabled="isCooldownActive"
+          :disabled="isCooldownActive || isSubmitting"
           :error-message="statusMessage"
           :error-message-force="!!statusMessage"
           autocomplete="new-password"

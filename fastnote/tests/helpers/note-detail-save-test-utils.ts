@@ -190,6 +190,8 @@ export async function mountNoteDetailForSaveTest(options: {
     session: null
   }>
   syncImpl?: (silent?: boolean) => Promise<unknown>
+  waitForSyncBootstrapImpl?: () => Promise<unknown>
+  waitForSyncIdleImpl?: () => Promise<unknown>
   manualSyncImpl?: () => Promise<unknown>
   verifyPinImpl?: (noteId: string, pin: string) => Promise<{
     ok: boolean
@@ -225,6 +227,8 @@ export async function mountNoteDetailForSaveTest(options: {
   const getNoteMock = vi.fn(options.getNoteImpl ?? (async (id: string) => notesById[id] ?? null))
   const updateNoteMock = vi.fn(options.updateNoteImpl ?? (async () => undefined))
   const syncMock = vi.fn(options.syncImpl ?? (async () => null))
+  const waitForSyncBootstrapMock = vi.fn(options.waitForSyncBootstrapImpl ?? (async () => undefined))
+  const waitForSyncIdleMock = vi.fn(options.waitForSyncIdleImpl ?? (async () => undefined))
   const manualSyncMock = vi.fn(options.manualSyncImpl ?? (async () => null))
   const restoreHeightMock = vi.fn()
   const routerBackMock = vi.fn()
@@ -340,11 +344,12 @@ export async function mountNoteDetailForSaveTest(options: {
     },
   })
 
-  vi.doMock('@/entities/note', async () => {
-    const { ref } = await import('vue')
+  const notesRef = ref(Object.values(notesById).filter(Boolean))
+
+  vi.doMock('@/entities/note', () => {
     return {
       useNote: () => ({
-        notes: ref(Object.values(notesById).filter(Boolean)),
+        notes: notesRef,
         addNote: addNoteMock,
         getNote: getNoteMock,
         updateNote: updateNoteMock,
@@ -379,6 +384,8 @@ export async function mountNoteDetailForSaveTest(options: {
   vi.doMock('@/processes/sync-notes', () => ({
     useSync: () => ({
       sync: syncMock,
+      waitForSyncBootstrap: waitForSyncBootstrapMock,
+      waitForSyncIdle: waitForSyncIdleMock,
     }),
   }))
 
@@ -507,6 +514,7 @@ export async function mountNoteDetailForSaveTest(options: {
   return {
     wrapper,
     editorApi,
+    notesRef,
     route,
     mocks: {
       addNoteMock,
@@ -519,6 +527,8 @@ export async function mountNoteDetailForSaveTest(options: {
       renewSessionMock,
       manualSyncMock,
       syncMock,
+      waitForSyncBootstrapMock,
+      waitForSyncIdleMock,
       getLockViewStateMock,
       toastCreateMock,
       toastDismissMock,

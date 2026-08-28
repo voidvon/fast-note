@@ -15,6 +15,12 @@ const pendingCacheRepairReason = ref<CacheRepairReason | null>(null)
 const syncSyncedCallbacks: Array<(result?: any) => void> = []
 let pendingSyncCount = 0
 let syncQueue: Promise<unknown> = Promise.resolve()
+// The session bootstrap can be between local-context setup and enqueueing its
+// first sync. Keep that phase observable so consumers do not mistake an empty
+// queue for a completed initial sync.
+let isSyncBootstrapPending = false
+let syncBootstrapPromise: Promise<void> = Promise.resolve()
+let resolveSyncBootstrap: (() => void) | null = null
 
 export function getInitialSyncCursor() {
   return JSON.parse(defaultUpdated)
@@ -100,6 +106,41 @@ export function enqueueNoteSync<T>(task: () => Promise<T>): Promise<T> {
   })
 }
 
+export function beginSyncBootstrap() {
+  if (isSyncBootstrapPending) {
+    return
+  }
+
+  isSyncBootstrapPending = true
+  syncBootstrapPromise = new Promise<void>((resolve) => {
+    resolveSyncBootstrap = resolve
+  })
+}
+
+export function completeSyncBootstrap() {
+  if (!isSyncBootstrapPending) {
+    return
+  }
+
+  isSyncBootstrapPending = false
+  const resolve = resolveSyncBootstrap
+  resolveSyncBootstrap = null
+  resolve?.()
+}
+
+export async function waitForSyncBootstrap(): Promise<void> {
+  await syncBootstrapPromise
+}
+
+export async function waitForSyncIdle(): Promise<void> {
+  const currentQueue = syncQueue
+  await currentQueue
+
+  if (pendingSyncCount > 0) {
+    await waitForSyncIdle()
+  }
+}
+
 export function useSyncRuntimeState() {
   return {
     syncing,
@@ -109,5 +150,9 @@ export function useSyncRuntimeState() {
     onSynced,
     offOnSynced,
     triggerSyncedCallbacks,
+    beginSyncBootstrap,
+    completeSyncBootstrap,
+    waitForSyncBootstrap,
+    waitForSyncIdle,
   }
 }

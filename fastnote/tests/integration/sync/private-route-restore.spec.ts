@@ -71,6 +71,8 @@ async function mountAppForRouteRestore(options: {
 
   const syncDeferred = deferred<null>()
   const syncMock = vi.fn(async () => syncDeferred.promise)
+  const beginSyncBootstrapMock = vi.fn()
+  const completeSyncBootstrapMock = vi.fn()
   const initializeDatabaseMock = vi.fn(async () => undefined)
   const initializeNotesMock = vi.fn(async () => undefined)
   const authChangeMock = vi.fn(() => vi.fn())
@@ -132,6 +134,8 @@ async function mountAppForRouteRestore(options: {
 
   vi.doMock('@/processes/sync-notes', () => ({
     useSync: () => ({
+      beginSyncBootstrap: beginSyncBootstrapMock,
+      completeSyncBootstrap: completeSyncBootstrapMock,
       sync: syncMock,
     }),
   }))
@@ -193,6 +197,8 @@ async function mountAppForRouteRestore(options: {
       initializeDatabaseMock,
       initializeNotesMock,
       routerReplaceMock,
+      beginSyncBootstrapMock,
+      completeSyncBootstrapMock,
       syncDeferred,
       syncMock,
     },
@@ -217,6 +223,7 @@ describe('private route restore timing (t-fn-031 / tc-fn-023)', () => {
 
     expect(mocks.initializeDatabaseMock).toHaveBeenCalled()
     expect(mocks.initializeNotesMock).toHaveBeenCalled()
+    expect(mocks.beginSyncBootstrapMock).toHaveBeenCalledOnce()
     expect(wrapper.find('[data-testid="app-private-route-pending"]').exists()).toBe(false)
     expect(mocks.routerReplaceMock).not.toHaveBeenCalledWith('/n/private-note')
 
@@ -225,6 +232,7 @@ describe('private route restore timing (t-fn-031 / tc-fn-023)', () => {
     await nextTick()
 
     expect(mocks.routerReplaceMock).not.toHaveBeenCalledWith('/home')
+    expect(mocks.completeSyncBootstrapMock).toHaveBeenCalledOnce()
   })
 
   it('keeps an explicit private detail route instead of restoring /home', async () => {
@@ -252,5 +260,6 @@ describe('private route restore timing (t-fn-031 / tc-fn-023)', () => {
     await nextTick()
 
     expect(mocks.routerReplaceMock).toHaveBeenCalledWith('/n/private-note')
+    expect(mocks.completeSyncBootstrapMock).toHaveBeenCalledOnce()
   })
 })

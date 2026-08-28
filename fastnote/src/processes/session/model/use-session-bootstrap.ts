@@ -23,7 +23,11 @@ export function useSessionBootstrap() {
     setupAutoSave,
   } = useLastVisitedRoute()
   const noteLock = useNoteLock()
-  const { sync } = useSync()
+  const {
+    beginSyncBootstrap,
+    completeSyncBootstrap,
+    sync,
+  } = useSync()
 
   const isPrivateRouteLocalReady = ref(!authService.isAuthenticated())
 
@@ -128,6 +132,7 @@ export function useSessionBootstrap() {
       return sessionBootstrapPromise
     }
 
+    beginSyncBootstrap?.()
     sessionBootstrapPromise = (async () => {
       isPrivateRouteLocalReady.value = false
 
@@ -163,6 +168,7 @@ export function useSessionBootstrap() {
       isPrivateRouteLocalReady.value = true
       throw error
     }).finally(() => {
+      completeSyncBootstrap?.()
       sessionBootstrapPromise = null
     })
 

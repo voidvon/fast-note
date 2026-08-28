@@ -314,7 +314,7 @@ defineExpose({
 
 <template>
   <div
-    class="note-list-container"
+    class="fastnote-note-list note-list-container"
     :class="{ 'note-list-container--split': hasStandardItems && virtualNoteItems.length }"
   >
     <F7List
@@ -464,31 +464,30 @@ defineExpose({
   />
 </template>
 
-<style lang="scss" scoped>
-.note-list--media {
-  --f7-list-strong-bg-color: var(--c-list-group-background);
-
-  :deep(> ul > .note-list-item--note > .item-content) {
-    background: transparent;
+<style lang="scss">
+.fastnote-note-list {
+  > .note-list--media {
+    --f7-list-strong-bg-color: var(--c-list-group-background);
+    --fastnote-note-list-item-background: var(--f7-list-strong-bg-color);
   }
-}
 
-.note-list-container--split {
-  .note-list--folders {
-    margin-bottom: 0;
+  &.note-list-container--split {
+    .note-list--folders {
+      margin-bottom: 0;
 
-    :deep(> ul) {
-      border-bottom-left-radius: 0;
-      border-bottom-right-radius: 0;
+      > ul {
+        border-bottom-left-radius: 0;
+        border-bottom-right-radius: 0;
+      }
     }
-  }
 
-  .note-list--virtual {
-    margin-top: 0;
+    .note-list--virtual {
+      margin-top: 0;
 
-    :deep(> ul) {
-      border-top-left-radius: 0;
-      border-top-right-radius: 0;
+      > ul {
+        border-top-left-radius: 0;
+        border-top-right-radius: 0;
+      }
     }
   }
 }

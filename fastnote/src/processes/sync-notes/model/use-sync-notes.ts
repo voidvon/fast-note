@@ -9,24 +9,32 @@ import { enqueueNoteSync, useSyncRuntimeState } from './sync-runtime-state'
 import { useSyncStatusState } from './sync-status-state'
 
 export {
+  beginSyncBootstrap,
+  completeSyncBootstrap,
   getInitialSyncCursor,
   getSyncCursorStorageKey,
   isInitialSyncCursor,
   readSyncCursor,
   resetSyncCursor,
   SYNC_CURSOR_STORAGE_PREFIX,
+  waitForSyncBootstrap,
+  waitForSyncIdle,
   writeSyncCursor,
 } from './sync-runtime-state'
 export type { CacheRepairReason } from './sync-runtime-state'
 
 export function useSync() {
   const {
+    beginSyncBootstrap,
+    completeSyncBootstrap,
     ensureSyncScopeReady,
     offOnSynced,
     onSynced,
     syncing,
     triggerSyncedCallbacks,
     updated,
+    waitForSyncBootstrap,
+    waitForSyncIdle,
   } = useSyncRuntimeState()
   const {
     clearLocalData,
@@ -127,5 +135,9 @@ export function useSync() {
     clearLocalData,
     ensureCacheHealth,
     repairMissingPrivateNoteIfNeeded,
+    beginSyncBootstrap,
+    completeSyncBootstrap,
+    waitForSyncBootstrap,
+    waitForSyncIdle,
   }
 }
