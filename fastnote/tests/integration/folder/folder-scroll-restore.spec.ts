@@ -47,22 +47,15 @@ describe('folderPage mobile scroll restore', () => {
         version: 1,
       },
     ])
-    const f7ViewDidEnterHandlers: Array<() => void> = []
-    const afterEachHandlers: Array<(to: { path: string, fullPath: string }, from: { path: string, fullPath: string }) => void | Promise<void>> = []
     const scrollElement = document.createElement('div')
     scrollElement.scrollTop = 0
+    sessionStorage.setItem('page-scroll:private:/f/unfilednotes', '248')
 
     vi.doMock('@/shared/lib/framework7', async () => {
       const actual = await vi.importActual<typeof import('@/shared/lib/framework7')>('@/shared/lib/framework7')
       return {
         ...actual,
         useAppRoute: () => route.value,
-        useAppRouter: () => ({
-          afterEach: (handler: (to: { path: string, fullPath: string }, from: { path: string, fullPath: string }) => void | Promise<void>) => {
-            afterEachHandlers.push(handler)
-            return vi.fn()
-          },
-        }),
       }
     })
 
@@ -138,31 +131,19 @@ describe('folderPage mobile scroll restore', () => {
         F7Page: createGenericStub('F7Page'),
         F7Title: createGenericStub('F7Title'),
         F7Toolbar: createGenericStub('F7Toolbar'),
-        onF7ViewDidEnter: (callback: () => void) => {
-          f7ViewDidEnterHandlers.push(callback)
-        },
-        onF7ViewWillEnter: vi.fn(),
       }
     })
 
     const FolderPage = (await import('@/pages/folder/ui/folder-page.vue')).default
-    mount(FolderPage)
-    await flushPromises()
-
-    scrollElement.scrollTop = 248
-    await afterEachHandlers[0](
-      { path: '/n/note-1', fullPath: '/n/note-1' },
-      { path: '/f/unfilednotes', fullPath: '/f/unfilednotes' },
-    )
-    await flushPromises()
-
-    expect(sessionStorage.getItem('page-scroll:private:/f/unfilednotes')).toBe('248')
-
-    scrollElement.scrollTop = 0
-    await f7ViewDidEnterHandlers[0]()
+    const wrapper = mount(FolderPage)
     await flushPromises()
 
     expect(scrollElement.scrollTop).toBe(248)
+
+    const contentElement = wrapper.get('.folder-page-content').element as HTMLElement
+    contentElement.scrollTop = 312
+    await wrapper.get('.folder-page-content').trigger('scroll')
+    expect(sessionStorage.getItem('page-scroll:private:/f/unfilednotes')).toBe('312')
   })
 
   it('scrolls to top when enter mode is reset', async () => {
@@ -173,7 +154,6 @@ describe('folderPage mobile scroll restore', () => {
     })
     const isDesktop = ref(false)
     const notes = ref<Note[]>([])
-    const f7ViewDidEnterHandlers: Array<() => void> = []
     const scrollElement = document.createElement('div')
     scrollElement.scrollTop = 196
 
@@ -262,18 +242,11 @@ describe('folderPage mobile scroll restore', () => {
         F7Page: createGenericStub('F7Page'),
         F7Title: createGenericStub('F7Title'),
         F7Toolbar: createGenericStub('F7Toolbar'),
-        onF7ViewDidEnter: (callback: () => void) => {
-          f7ViewDidEnterHandlers.push(callback)
-        },
-        onF7ViewWillEnter: vi.fn(),
       }
     })
 
     const FolderPage = (await import('@/pages/folder/ui/folder-page.vue')).default
     mount(FolderPage)
-    await flushPromises()
-
-    await f7ViewDidEnterHandlers[0]()
     await flushPromises()
 
     expect(scrollElement.scrollTop).toBe(0)

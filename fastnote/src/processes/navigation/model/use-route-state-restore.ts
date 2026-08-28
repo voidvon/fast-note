@@ -58,6 +58,10 @@ export function createRouteStateRestoreManager() {
     return 'push'
   }
 
+  function markNextNavigationAsPop() {
+    isPopNavigationPending = true
+  }
+
   function setRouter(router: AppRouter) {
     removeAfterEachHook?.()
     ensurePopstateListener()
@@ -66,10 +70,11 @@ export function createRouteStateRestoreManager() {
       if (to.fullPath === from.fullPath)
         return
 
+      const navigationType = consumeNavigationType()
       lastTransition.value = {
         fromPath: from.fullPath,
         toPath: to.fullPath,
-        navigationType: consumeNavigationType(),
+        navigationType,
         timestamp: Date.now(),
       }
     })
@@ -78,6 +83,9 @@ export function createRouteStateRestoreManager() {
   function resolveFolderEnterMode(path: string): FolderEnterMode {
     if (classifyRoute(path) !== 'folder-list')
       return 'reset'
+
+    if (isPopNavigationPending)
+      return 'restore'
 
     const transition = lastTransition.value
     if (!transition)
@@ -116,6 +124,7 @@ export function createRouteStateRestoreManager() {
     classifyRoute,
     destroy,
     getLastTransition: computed(() => lastTransition.value),
+    markNextNavigationAsPop,
     resolveFolderEnterMode,
     reset,
     setRouter,

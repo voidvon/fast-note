@@ -2,6 +2,7 @@ import type { AppRouteLocation } from '@/shared/lib/framework7'
 import { computed } from 'vue'
 import { isPlatform } from '@/shared/ui/f7'
 import { useNavigationHistory } from './use-navigation-history'
+import { useRouteStateRestore } from './use-route-state-restore'
 
 export function useNoteBackButton(
   route: AppRouteLocation,
@@ -9,6 +10,7 @@ export function useNoteBackButton(
   username?: string,
 ) {
   const { getSmartBackPath } = useNavigationHistory()
+  const { markNextNavigationAsPop } = useRouteStateRestore()
 
   const fallbackPath = computed(() => {
     if (username)
@@ -22,6 +24,7 @@ export function useNoteBackButton(
     backButtonProps: computed(() => ({
       text: '返回',
       defaultHref: getSmartBackPath(route, fallbackPath.value),
+      beforeBack: markNextNavigationAsPop,
     })),
   }
 }
@@ -30,6 +33,7 @@ export function useFolderBackButton(
   route: AppRouteLocation,
   username?: string,
 ) {
+  const { markNextNavigationAsPop } = useRouteStateRestore()
   const isTopFolder = computed(() => {
     const segments = route.path.split('/').filter(Boolean)
     const folderMarkerIndex = segments.indexOf('f')
@@ -52,6 +56,7 @@ export function useFolderBackButton(
       text: '返回',
       defaultHref: fallbackPath.value,
       deterministic: true,
+      beforeBack: markNextNavigationAsPop,
     })),
   }
 }

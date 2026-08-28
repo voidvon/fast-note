@@ -7,6 +7,12 @@ interface PageContentLike {
 }
 
 const STORAGE_PREFIX = 'page-scroll:'
+const RESTORE_MAX_FRAMES = 12
+const RESTORE_STABLE_FRAMES = 4
+
+function waitForAnimationFrame() {
+  return new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+}
 
 async function getScrollElement(contentRef: Ref<PageContentLike | undefined>) {
   const value = contentRef.value
@@ -18,23 +24,44 @@ async function getScrollElement(contentRef: Ref<PageContentLike | undefined>) {
 }
 
 export function usePageScrollMemory(contentRef: Ref<PageContentLike | undefined>, getKey: () => string) {
-  async function saveScrollPosition() {
+  function saveScrollPositionFromEvent(event: Event) {
     const key = getKey()
-    const element = key ? await getScrollElement(contentRef) : null
-    if (element)
+    const element = event.currentTarget
+    if (key && element instanceof HTMLElement)
       sessionStorage.setItem(`${STORAGE_PREFIX}${key}`, String(element.scrollTop))
   }
 
   async function restoreScrollPosition() {
     const key = getKey()
     const saved = key ? sessionStorage.getItem(`${STORAGE_PREFIX}${key}`) : null
-    if (saved == null || !Number.isFinite(Number(saved)))
+    const savedTop = Number(saved)
+    if (saved == null || !Number.isFinite(savedTop))
       return
-    await nextTick()
-    await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)))
-    const element = await getScrollElement(contentRef)
+
+    let element: HTMLElement | null = null
+    let stableFrames = 0
+    for (let frame = 0; frame < RESTORE_MAX_FRAMES; frame += 1) {
+      await nextTick()
+      await waitForAnimationFrame()
+      element = await getScrollElement(contentRef)
+      if (!element)
+        continue
+
+      const maxScrollTop = Math.max(0, element.scrollHeight - element.clientHeight)
+      if (savedTop > maxScrollTop) {
+        stableFrames = 0
+        continue
+      }
+
+      element.scrollTop = savedTop
+      stableFrames += 1
+      if (stableFrames >= RESTORE_STABLE_FRAMES)
+        return
+    }
+
+    element ??= await getScrollElement(contentRef)
     if (element)
-      element.scrollTop = Number(saved)
+      element.scrollTop = savedTop
   }
 
   async function scrollToTop() {
@@ -44,5 +71,5 @@ export function usePageScrollMemory(contentRef: Ref<PageContentLike | undefined>
       element.scrollTop = 0
   }
 
-  return { saveScrollPosition, restoreScrollPosition, scrollToTop }
+  return { restoreScrollPosition, saveScrollPositionFromEvent, scrollToTop }
 }

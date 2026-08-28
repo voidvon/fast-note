@@ -3,8 +3,7 @@ describe('T-FN-scroll restore across nested folders', () => {
   const folderBId = 'e2e-folder-b'
   const folderATitle = 'E2E 列表 A'
   const folderBTitle = 'E2E 列表 B'
-  const noteInBId = 'e2e-note-b-target'
-  const noteInBTitle = 'E2E B 详情目标'
+  const noteInBId = 'e2e-folder-b-note-13'
 
   function buildNote(params: {
     id: string
@@ -32,14 +31,20 @@ describe('T-FN-scroll restore across nested folders', () => {
     }
   }
 
-  function getContentScrollTop() {
-    return cy.get('.page-content:visible').first().then(($content) => {
-      return $content.get(0).scrollTop
+  function expectContentScrollTop(expected: number) {
+    return cy.get('.page-current .folder-page-content').should(($content) => {
+      expect($content.get(0).scrollTop).to.equal(expected)
+    })
+  }
+
+  function expectContentScrollTopAtLeast(minimum: number) {
+    return cy.get('.page-current .folder-page-content').should(($content) => {
+      expect($content.get(0).scrollTop).to.be.at.least(minimum)
     })
   }
 
   function setContentScrollTop(top: number) {
-    return cy.get('.page-content:visible').first().then(($content) => {
+    return cy.get('.page-current .folder-page-content').then(($content) => {
       const scrollElement = $content.get(0)
       scrollElement.scrollTop = top
       scrollElement.dispatchEvent(new Event('scroll', { bubbles: true }))
@@ -62,12 +67,6 @@ describe('T-FN-scroll restore across nested folders', () => {
           title: folderBTitle,
           parentId: folderAId,
           itemType: 1,
-        }),
-        buildNote({
-          id: noteInBId,
-          title: noteInBTitle,
-          parentId: folderBId,
-          summary: '目标详情笔记',
         }),
       ]
 
@@ -102,28 +101,66 @@ describe('T-FN-scroll restore across nested folders', () => {
   })
 
   it('restores child and parent folder scroll positions independently', () => {
-    cy.contains(folderATitle).click()
+    cy.get('.page-current').contains(folderATitle).click()
     cy.url().should('include', `/f/${folderAId}`)
+    cy.get('.page-current .folder-navbar').should('contain.text', folderATitle)
+    cy.get('.view-main').should(($view) => {
+      const viewElement = $view.get(0) as HTMLElement & {
+        f7View?: { router: { allowPageChange: boolean } }
+      }
+      expect(viewElement.f7View?.router.allowPageChange).to.equal(true)
+    })
 
     setContentScrollTop(380)
-    getContentScrollTop().should('be.gte', 300)
+    expectContentScrollTopAtLeast(300)
 
-    cy.contains(folderBTitle).click()
+    cy.get('.view-main').then(($view) => {
+      const viewElement = $view.get(0) as HTMLElement & {
+        f7View?: { router: { navigate: (url: string) => void } }
+      }
+      expect(viewElement.f7View).not.to.equal(undefined)
+      viewElement.f7View!.router.navigate(`/f/${folderAId}/${folderBId}`)
+    })
     cy.url().should('include', `/f/${folderAId}/${folderBId}`)
-    getContentScrollTop().should('eq', 0)
+    cy.get('.page-current .folder-navbar').should('contain.text', folderBTitle)
+    cy.window()
+      .its('sessionStorage')
+      .invoke('getItem', `page-scroll:private:/f/${folderAId}`)
+      .should('equal', '380')
+    expectContentScrollTop(0)
+
+    cy.get('.view-main').should(($view) => {
+      const viewElement = $view.get(0) as HTMLElement & {
+        f7View?: { router: { allowPageChange: boolean } }
+      }
+      expect(viewElement.f7View?.router.allowPageChange).to.equal(true)
+    })
 
     setContentScrollTop(520)
-    getContentScrollTop().should('be.gte', 450)
+    expectContentScrollTopAtLeast(450)
 
-    cy.contains(noteInBTitle).click()
+    cy.get('.view-main').then(($view) => {
+      const viewElement = $view.get(0) as HTMLElement & {
+        f7View?: { router: { navigate: (url: string) => void } }
+      }
+      expect(viewElement.f7View).not.to.equal(undefined)
+      viewElement.f7View!.router.navigate(`/n/${noteInBId}`)
+    })
     cy.url().should('include', `/n/${noteInBId}`)
+    cy.get('.page-current.note-detail').should('exist')
+    cy.window()
+      .its('sessionStorage')
+      .invoke('getItem', `page-scroll:private:/f/${folderAId}/${folderBId}`)
+      .should('equal', '520')
 
-    cy.go('back')
+    cy.get('.page-current.note-detail .app-back-button').should('be.visible').click()
     cy.url().should('include', `/f/${folderAId}/${folderBId}`)
-    getContentScrollTop().should('be.gte', 450)
+    cy.get('.page-current .folder-navbar').should('contain.text', folderBTitle)
+    expectContentScrollTopAtLeast(450)
 
-    cy.go('back')
+    cy.get('.page-current .folder-navbar .app-back-button').should('be.visible').click()
     cy.url().should('include', `/f/${folderAId}`)
-    getContentScrollTop().should('be.gte', 300)
+    cy.get('.page-current .folder-navbar').should('contain.text', folderATitle)
+    expectContentScrollTopAtLeast(300)
   })
 })

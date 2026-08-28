@@ -341,9 +341,15 @@ export const F7BackButton = defineComponent({
     text: String,
     defaultHref: String,
     deterministic: Boolean,
+    beforeBack: Function as PropType<() => void>,
   },
   setup(props, { attrs }) {
     const router = useFramework7AppRouter()
+    const handleBackIntent = () => props.beforeBack?.()
+    const handleBackKeydown = (event: KeyboardEvent) => {
+      if (event.key === 'Enter' || event.key === ' ')
+        handleBackIntent()
+    }
     const handleClick = (event: MouseEvent) => {
       if (!props.deterministic)
         return
@@ -360,6 +366,8 @@ export const F7BackButton = defineComponent({
       'iconOnly': true,
       'class': ['app-back-button', attrs.class],
       'aria-label': attrs['aria-label'] || props.text || '返回',
+      'onPointerup': handleBackIntent,
+      'onKeydown': handleBackKeydown,
       'onClick': handleClick,
     }))
   },

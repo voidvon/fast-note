@@ -9,7 +9,7 @@ import { useFolderBackButton, useRouteStateRestore } from '@/processes/navigatio
 import { loadPublicFolderNotes } from '@/processes/public-notes'
 import { getTime } from '@/shared/lib/date'
 import { useDeviceType } from '@/shared/lib/device'
-import { bindLargeNavbarScroll, useAppRoute, useAppRouter, usePageScrollMemory } from '@/shared/lib/framework7'
+import { bindLargeNavbarScroll, useAppRoute, usePageScrollMemory } from '@/shared/lib/framework7'
 import { NOTE_TYPE } from '@/shared/types'
 import {
   F7BackButton,
@@ -23,7 +23,6 @@ import {
   F7SkeletonText,
   F7Title,
   F7Toolbar,
-  onF7ViewDidEnter,
 } from '@/shared/ui/f7'
 import { addOutline, createOutline } from '@/shared/ui/icons'
 import NoteList from '@/widgets/note-list'
@@ -42,7 +41,6 @@ const props = withDefaults(
 defineEmits(['selected', 'createNote'])
 
 const route = useAppRoute()
-const appRouter = useAppRouter()
 const { notes, addNote, getNote, getFolderTreeByParentId } = useNote()
 const { isDesktop } = useDeviceType()
 
@@ -245,11 +243,11 @@ const scrollMemoryKey = computed(() => {
   const path = isDesktop.value ? (route.fullPath || route.path) : activeMobileFolderPath.value
   return `${context}:${path}`
 })
-const { saveScrollPosition, restoreScrollPosition, scrollToTop } = usePageScrollMemory(
+const { restoreScrollPosition, saveScrollPositionFromEvent, scrollToTop } = usePageScrollMemory(
   contentRef,
   () => scrollMemoryKey.value,
 )
-const { resolveFolderEnterMode, shouldSaveFolderLeave } = useRouteStateRestore()
+const { resolveFolderEnterMode } = useRouteStateRestore()
 
 // 智能返回按钮
 const { backButtonProps } = useFolderBackButton(
@@ -271,9 +269,15 @@ watch(
 // 移动端：路由是文件夹页面初始化的唯一触发源，避免在进场动画期间重复渲染列表。
 watch(
   () => route.path,
-  () => {
+  async () => {
     if (!isDesktop.value && syncActiveMobileFolderRoute()) {
-      init()
+      await init()
+      if (resolveFolderEnterMode(activeMobileFolderPath.value) === 'restore') {
+        await restoreScrollPosition()
+      }
+      else {
+        await scrollToTop()
+      }
     }
   },
   { immediate: true },
@@ -358,30 +362,7 @@ async function loadMorePublicNotes() {
   await loadPublicPage()
 }
 
-onF7ViewDidEnter(() => {
-  if (!isDesktop.value) {
-    if (resolveFolderEnterMode(scrollMemoryKey.value) === 'restore') {
-      void restoreScrollPosition()
-    }
-    else {
-      void scrollToTop()
-    }
-  }
-})
-
-const removeRouteAfterEach = appRouter.afterEach(async (to, from) => {
-  if (isDesktop.value)
-    return
-
-  const toPath = to.fullPath || to.path
-  const fromPath = from.fullPath || from.path
-  if (shouldSaveFolderLeave(fromPath, toPath)) {
-    await saveScrollPosition()
-  }
-})
-
 onBeforeUnmount(() => {
-  removeRouteAfterEach()
   detachDesktopLargeNavbarScroll?.()
   detachDesktopLargeNavbarScroll = null
 })
@@ -421,6 +402,7 @@ defineExpose({
       :infinite-preloader="isUserContext && publicPageLoading"
       :infinite-distance="100"
       @infinite="loadMorePublicNotes"
+      @scroll.passive="saveScrollPositionFromEvent"
     >
       <div class="folder-page-content__body">
         <div v-if="publicPageLoading && !hasChildItems" class="folder-loading-state" aria-label="正在加载文件夹">

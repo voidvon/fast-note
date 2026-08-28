@@ -56,6 +56,22 @@ describe('useRouteStateRestore', () => {
     manager.destroy()
   })
 
+  it('restores folder when the app back button marks the next navigation as pop', () => {
+    const manager = createRouteStateRestoreManager()
+    const { router, emitTransition } = createRouterStub()
+    manager.setRouter(router)
+
+    emitTransition('/n/note-1', '/f/folder-b')
+    manager.markNextNavigationAsPop()
+    expect(manager.resolveFolderEnterMode('/f/folder-b')).toBe('restore')
+
+    emitTransition('/f/folder-b', '/n/note-1')
+
+    expect(manager.resolveFolderEnterMode('/f/folder-b')).toBe('restore')
+
+    manager.destroy()
+  })
+
   it('resets folder when entering from home with push navigation even if visited before', () => {
     const manager = createRouteStateRestoreManager()
     const { router, emitTransition } = createRouterStub()

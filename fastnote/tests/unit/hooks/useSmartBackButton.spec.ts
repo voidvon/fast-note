@@ -18,11 +18,12 @@ describe('useFolderBackButton', () => {
 
     const { backButtonProps } = useFolderBackButton(route)
 
-    expect(backButtonProps.value).toEqual({
+    expect(backButtonProps.value).toMatchObject({
       text: '返回',
       defaultHref: '/f/_dJsVWOGkGaZ',
       deterministic: true,
     })
+    expect(backButtonProps.value.beforeBack).toBeTypeOf('function')
   })
 
   it('returns home from a top-level private folder', () => {
