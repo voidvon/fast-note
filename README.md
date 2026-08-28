@@ -1,125 +1,230 @@
-# Fastnote
-
 <div align="center">
 
-![Fastnote Logo](./fastnote/public/icons/icon-128x128.png)
+<img src="fastnote/public/icons/icon-128x128.png" alt="Fastnote" width="112">
 
-Fastnote 是一个前后端一体的笔记应用。
+# Fastnote
 
-[在线 Demo](https://n.0122.vip)
+[![Vue](https://img.shields.io/badge/Vue.js-3-42b883.svg?logo=vue.js&logoColor=white)](https://vuejs.org/)
+[![Framework7](https://img.shields.io/badge/Framework7-9-EE350F.svg?logo=framework7&logoColor=white)](https://framework7.io/)
+[![Go](https://img.shields.io/badge/Go-1.24%2B-00ADD8.svg?logo=go&logoColor=white)](https://go.dev/)
+[![Release](https://img.shields.io/badge/release-v0.1.16-orange.svg)](https://github.com/voidvon/fast-note/releases/tag/v0.1.16)
+
+**An offline-first, self-hosted note-taking app for rich writing, organization, synchronization, and public sharing.**
+
+English | [简体中文](README_CN.md)
+
+<p>
+  <a href="https://n.0122.vip">Try the demo</a> ·
+  <a href="https://github.com/voidvon/fast-note/releases">Download</a> ·
+  <a href="docs/开发文档/README.md">Documentation</a>
+</p>
 
 </div>
 
-## 项目简介
+## Overview
 
-Fastnote 用于记录、整理和同步个人笔记内容，适合部署为自托管笔记服务。
+Fastnote is a full-stack notebook designed to keep writing responsive even when
+the network is unavailable. Notes and folders are written to local storage
+first, then synchronized with a PocketBase backend when an account and network
+connection are available.
 
-核心功能：
+It can be used as a hosted web application, deployed as a self-hosted service,
+or developed locally as a single repository containing the Vue frontend and Go
+backend.
 
-- 笔记与文件夹管理
-- 富文本编辑
-- 账号登录与多端同步
-- 公开笔记访问
-- 基于 `pb_data/` 的本地持久化
+> Fastnote is currently under active development. Back up the `pb_data/`
+> directory before upgrades or other operational changes.
 
-## 使用说明
+## Features
 
-每个 release 压缩包解压后默认包含以下内容：
+- **Offline-first editing** - create and edit notes locally with immediate UI
+  feedback, then synchronize changes when connectivity returns.
+- **Rich-text notes** - write with Tiptap-based formatting, headings, lists,
+  task lists, tables, links, images, and attachments.
+- **Folders and navigation** - organize notes in nested folders, move notes,
+  browse large lists, and restore useful navigation and scroll state.
+- **Authentication and sync** - register and sign in through PocketBase, sync
+  notes across devices, receive realtime changes, and monitor sync status.
+- **Public notes** - expose selected notes and folders through public user
+  pages while keeping private content in the authenticated workspace.
+- **AI assistant** - search notes and folders conversationally and run supported
+  actions with confirmation; configure your own compatible AI provider.
+- **Protected notes** - use note locking and guarded unlock flows for sensitive
+  content.
+- **Attachments** - store and reconcile note attachments locally while keeping
+  their remote references synchronized.
+- **Responsive workspace** - use a desktop split-pane layout or a mobile list
+  and detail flow from the same application.
 
-```text
-部署目录/
-├── fastnote 或 fastnote.exe
-├── pb_data/
-└── README.md
-```
+## Downloads
 
-- `fastnote` / `fastnote.exe`：主程序，已内嵌前端静态资源。
-- `pb_data/`：运行期数据目录，用于保存 PocketBase 数据、上传文件与运行状态。
-- `README.md`：当前 release 包的最小运行说明。
+The current published build is **v0.1.16**, a prerelease intended for testing.
+Download packages from [GitHub Releases](https://github.com/voidvon/fast-note/releases/tag/v0.1.16).
 
-推荐先创建独立版本目录，再将 release 压缩包解压到该目录，并始终在该目录内启动程序。
+These archives are self-hosted server packages. Each package contains the
+platform binary, an empty `pb_data/` directory, and a small package README.
+The frontend is embedded in the binary, so a separate static frontend server
+is normally not required.
 
-## 首次使用
+| Platform | Targets | Package |
+|---|---|---|
+| macOS | `darwin-amd64`, `darwin-arm64` | ZIP archive |
+| Linux | `linux-amd64`, `linux-arm64`, `linux-armv7`, `linux-ppc64le`, `linux-s390x` | ZIP archive |
+| Windows | `windows-amd64`, `windows-arm64` | ZIP archive |
 
-Linux 或 macOS：
+## Getting Started
+
+### Use the demo
+
+Open the [online demo](https://n.0122.vip) in a modern browser. For a private
+workspace and production data, deploy your own Fastnote instance instead.
+
+### Run a release package
+
+Download and extract the package for your operating system, then run the binary
+from the extracted directory so that `pb_data/` stays next to it:
 
 ```bash
-cd fastnote_v1.2.3_darwin_arm64
-./fastnote serve
+cd fastnote_v0.1.16_linux_amd64
+./fastnote serve --http=127.0.0.1:8090
 ```
 
-Windows：
+On Windows PowerShell:
 
-```bash
-cd fastnote_v1.2.3_windows_amd64
-fastnote.exe serve
+```powershell
+cd fastnote_v0.1.16_windows_amd64
+.\fastnote.exe serve --http=127.0.0.1:8090
 ```
 
-首次启动后，应用会继续在当前目录下使用 `./pb_data/` 保存数据。
+Open `http://127.0.0.1:8090` and register an account. The service will keep its
+runtime database, uploaded files, and other persistent state in `./pb_data/`.
 
-## 部署建议
+### Deploy behind a reverse proxy
 
-1. 将对应平台的 release `.zip` 上传到服务器。
-2. 解压到固定目录，例如 `/www/wwwroot/fastnote/` 或 `/opt/fastnote/`。
-3. 确保进程启动用户对该目录及其 `pb_data/` 具有读写权限。
-4. 在 release 目录内执行 `./fastnote serve` 启动服务。
-5. 通过 Nginx、Caddy 或其他反向代理将域名流量转发到 Fastnote 服务端口。
+For a long-running installation:
 
-如果服务端需要长期运行，建议通过 systemd、supervisor 或宝塔 Go 项目托管进程。
+1. Extract the matching release archive into a dedicated directory such as
+   `/opt/fastnote/`.
+2. Make sure the service user can read and write the directory, especially
+   `/opt/fastnote/pb_data/`.
+3. Start `./fastnote serve --http=127.0.0.1:8090` with systemd, supervisor, or
+   another process manager.
+4. Proxy your HTTPS domain to the local Fastnote service with Nginx, Caddy, or
+   an equivalent reverse proxy.
+5. Include `pb_data/` in your regular backup policy.
 
-## 升级方式
+### Upgrade an installation
 
-从 `v0.1.1` 开始，正式版可以使用内置更新命令：
+The built-in update command downloads the latest **stable** GitHub Release for
+the current platform and creates a `pb_data` backup before replacing the
+program files:
 
 ```bash
 ./fastnote update
 ```
 
-该命令从 `voidvon/fast-note` 的最新正式 GitHub Release 下载当前平台压缩包，创建 `pb_data` 备份并替换当前二进制。更新完成后仍需通过 systemd、supervisor 或宝塔重启服务。
+Stop the service before updating, keep the existing `pb_data/` directory, and
+restart it through the same process manager afterwards. You can also upgrade
+manually by extracting a new archive and replacing only the binary and package
+documentation.
 
-推荐操作顺序：
+## Local Development
 
-1. 停止旧进程。
-2. 在部署目录执行 `./fastnote update`。
-3. 通过原进程管理器重新启动服务。
+### Requirements
 
-也可以继续手动升级。手动升级时应保留原有 `pb_data/`，只替换程序文件和文档：
+- Node.js and npm
+- Go 1.24 or later
+- A modern browser
 
-1. 停止旧进程。
-2. 备份当前目录，尤其是 `pb_data/`。
-3. 解压新的 release 包。
-4. 保留旧目录中的 `pb_data/`，替换新的二进制文件。
-5. 在新版本目录中重新启动 `./fastnote serve`。
-
-## 运维注意事项
-
-- 不建议从 release 目录外直接调用二进制。
-- 不建议随意删除或覆盖 `pb_data/`。
-- 通过 systemd、supervisor、宝塔等进程管理器启动时，应将工作目录设置为 release 包所在目录。
-- Release 包内已经包含前端页面资源，通常不需要单独部署前端静态站点。
-- 应用数据默认依赖 `pb_data/` 持久化，生产环境应将其纳入备份策略。
-- 如需覆盖内嵌前端资源，可设置 `FASTNOTE_WEB_DIST`，或在运行目录放置 `pb_public/`。
-
-## 静态资源覆盖
-
-后端启动后会按以下顺序查找前端静态资源：
-
-1. `FASTNOTE_WEB_DIST`
-2. 运行目录下的 `pb_public/`
-3. 可执行文件附近的 `fastnote/dist`
-4. 内嵌在后端二进制中的静态资源
-
-示例：
+Install frontend dependencies and tidy the backend module from the repository
+root:
 
 ```bash
-FASTNOTE_WEB_DIST=../fastnote/dist ./fastnote serve
+npm run install:frontend
+npm run tidy:backend
 ```
 
-## 架构说明
+Start the frontend and local PocketBase Go host together:
 
-Fastnote 采用前后端一体架构：
+```bash
+npm run dev
+```
 
-- 前端基于 Vue 3、Ionic 和 Tiptap，负责笔记编辑、列表管理与页面交互。
-- 后端基于 PocketBase Go 宿主，负责账号、数据存储、文件能力与服务运行。
-- 发布时前端静态资源会嵌入后端二进制，部署时通常只需要运行 release 包中的主程序。
-- 运行期数据统一保存在 `pb_data/` 目录中。
+The frontend is available at `http://127.0.0.1:8888` and the local backend at
+`http://127.0.0.1:8090`. The development backend uses `backend/pb_data`; its
+accounts and data are separate from any hosted or production instance.
+
+Run either side independently when needed:
+
+```bash
+npm run dev:frontend
+npm run dev:backend
+```
+
+### Build and test
+
+```bash
+npm run build
+npm run lint
+npm run test:unit -- --run
+npm run test:e2e
+```
+
+Create a complete cross-platform release bundle with:
+
+```bash
+npm run release -- --version=v0.1.16
+```
+
+The release script builds the frontend, embeds its static assets into the Go
+host, and generates packages in `build/releases/` for all supported targets.
+Use `npm run release:local` to build only the current host target.
+
+## Configuration and Data
+
+- `fastnote/.env.example` contains frontend development defaults.
+- `backend/.env.example` documents the optional `FASTNOTE_WEB_DIST` static
+  asset override.
+- Runtime data belongs in `pb_data/`; do not commit, delete, or overwrite it
+  casually.
+- Static assets are resolved from `FASTNOTE_WEB_DIST`, `./pb_public`, the
+  adjacent frontend build, and finally the embedded frontend in that order.
+- AI features require provider configuration. Review the provider's data
+  handling before sending private note content to an external service.
+
+## Architecture
+
+Fastnote is organized as a frontend/backend monorepo:
+
+```text
+backend/
+  main.go                         # PocketBase Go host
+  internal/server/                 # bootstrap, routes, and hooks
+  migrations/                     # PocketBase migration entry point
+
+fastnote/
+  src/app/                         # application setup and routing
+  src/processes/                   # sync, session, navigation, public notes
+  src/pages/                       # route-level page composition
+  src/widgets/                     # larger business UI modules
+  src/features/                    # user actions and use cases
+  src/entities/                    # domain state and rules
+  src/shared/                      # storage, APIs, UI, and utilities
+```
+
+The frontend uses Vue 3, TypeScript, Framework7, Vite, UnoCSS, Dexie, Tiptap,
+and the PocketBase JavaScript SDK. The backend uses Go and PocketBase as the
+runtime host. Local IndexedDB state is the immediate source of truth; cloud
+sync provides eventual consistency across authenticated devices.
+
+## Documentation
+
+| Document | Description |
+|---|---|
+| [Development documentation](docs/开发文档/README.md) | Architecture, setup, implementation notes, and testing |
+| [Product documentation](docs/产品文档/README.md) | Product scope, features, user flows, and roadmap |
+| [AI Agent documentation](docs/AI对话Agent/README.md) | AI assistant requirements, architecture, and current implementation |
+| [GitHub Releases](https://github.com/voidvon/fast-note/releases) | Published versions and platform packages |
+
+Issues and pull requests are welcome. When reporting a problem, include the
+affected platform, reproduction steps, release version, and relevant logs.
