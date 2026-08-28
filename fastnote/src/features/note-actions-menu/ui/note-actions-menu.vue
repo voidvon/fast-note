@@ -1,9 +1,11 @@
 <script lang="ts" setup>
 import type { NoteActionMenuItem } from '../model/types'
 import type { Note } from '@/entities/note'
+import { f7ListItem as F7ListItem } from 'framework7-vue'
 import { ref, watch } from 'vue'
 import { NOTE_TYPE } from '@/entities/note'
 import { cleanupOverlayLocksAsync } from '@/shared/lib/framework7'
+import Dropdown from '@/shared/ui/dropdown'
 import {
   alertController,
   dialogController,
@@ -11,6 +13,7 @@ import {
   F7ActionsButton,
   F7ActionsGroup,
   F7ActionsLabel,
+  F7List,
 } from '@/shared/ui/f7'
 import { useNoteActionsMenu } from '../model/use-note-actions-menu'
 
@@ -26,9 +29,14 @@ const props = withDefaults(defineProps <{
   isOpen: boolean
   items: NoteActionMenuItem[]
   presentingElement?: HTMLElement
-}>(), {})
+  presentation?: 'popover' | 'sheet'
+  targetEl?: string | HTMLElement
+}>(), {
+  presentation: 'sheet',
+  targetEl: '#long-press-menu-trigger',
+})
 
-const emit = defineEmits(['refresh', 'move', 'didDismiss'])
+const emit = defineEmits(['refresh', 'move', 'didDismiss', 'update:isOpen'])
 
 const { deleteNote, deleteNow, getNoteById, renameNote, restoreNote } = useNoteActionsMenu()
 
@@ -116,6 +124,11 @@ const config = ref<IConfig>({
   },
 })
 
+async function handlePopoverAction(item: NoteActionMenuItem) {
+  emit('update:isOpen', false)
+  await config.value[item.type].handler()
+}
+
 watch(() => [props.id, props.isOpen], () => {
   if (props.id && props.isOpen) {
     note.value = getNoteById(props.id)
@@ -128,7 +141,9 @@ watch(() => [props.id, props.isOpen], () => {
 
 <template>
   <F7Actions
+    v-if="presentation === 'sheet'"
     id="long-press-menu"
+    class="fastnote-note-actions-menu"
     :opened="isOpen"
     :convert-to-popover="false"
     :close-on-escape="true"
@@ -153,4 +168,52 @@ watch(() => [props.id, props.isOpen], () => {
       </F7ActionsButton>
     </F7ActionsGroup>
   </F7Actions>
+  <Dropdown
+    v-else
+    class="fastnote-note-actions-menu fastnote-note-actions-menu--popover"
+    :is-open="isOpen"
+    :target-el="targetEl"
+    size="compact"
+    @update:is-open="$emit('update:isOpen', $event)"
+    @did-dismiss="handleDidDismiss"
+  >
+    <div v-if="note?.title" class="fastnote-note-actions-menu__title">
+      {{ note.title }}
+    </div>
+    <F7List strong inset class="app-dropdown__list fastnote-note-actions-menu__list">
+      <F7ListItem
+        v-for="item in items"
+        :key="item.type"
+        link
+        :href="false"
+        no-chevron
+        :title="config[item.type].label"
+        :text-color="item.type === 'delete' || item.type === 'deleteNow' ? 'red' : undefined"
+        @click="handlePopoverAction(item)"
+      />
+    </F7List>
+  </Dropdown>
 </template>
+
+<style lang="scss">
+.fastnote-note-actions-menu {
+  &.fastnote-note-actions-menu--popover {
+    min-width: 180px;
+  }
+
+  .fastnote-note-actions-menu__title {
+    max-width: 240px;
+    padding: 12px 18px 2px;
+    overflow: hidden;
+    color: var(--c-text-secondary);
+    font-size: 12px;
+    line-height: 16px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .fastnote-note-actions-menu__list {
+    margin-top: 8px;
+  }
+}
+</style>

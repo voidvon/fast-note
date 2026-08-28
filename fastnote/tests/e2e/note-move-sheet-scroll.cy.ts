@@ -1,9 +1,16 @@
 describe('note move sheet scrolling', () => {
   function openMoveSheet() {
-    cy.get('[data-id="move-folder-0"]').first().trigger('contextmenu')
-    cy.contains('.actions-button', '移动').click()
-    cy.get('.actions-modal.modal-in, .actions-modal.modal-out').should('not.exist')
-    cy.get('.actions-backdrop.backdrop-in').should('not.exist')
+    cy.get('[data-id="move-folder-0"]').first().trigger('contextmenu', { force: true })
+    cy.get('.fastnote-note-actions-menu--popover.popover.modal-in')
+      .should('be.visible')
+      .and(($popover) => {
+        const rect = $popover.get(0).getBoundingClientRect()
+        expect(rect.left).to.be.greaterThan(0)
+        expect(rect.top).to.be.greaterThan(0)
+      })
+      .contains('.item-title', '移动')
+      .click()
+    cy.get('.fastnote-note-actions-menu--popover.popover.modal-in').should('not.exist')
     cy.get('.note-move-modal.modal-in').should('have.length', 1).and('be.visible')
     cy.get('.note-move-content').should(($content) => {
       const content = $content.get(0)

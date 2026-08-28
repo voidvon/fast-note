@@ -74,6 +74,9 @@ const moveNoteId = ref('')
 const expandedItems = ref<string[]>([])
 const longPressMenuRef = ref()
 const movePresentingElement = ref<HTMLElement>()
+const contextMenuAnchor = ref<HTMLElement>()
+const contextMenuPosition = ref({ x: 0, y: 0 })
+const actionMenuPresentation = ref<'popover' | 'sheet'>('sheet')
 let handleWheel: ((event: WheelEvent) => void) | null = null
 const virtualData = ref<{
   fromIndex: number
@@ -205,9 +208,21 @@ if (!props.disabledLongPress) {
     pressedClass: 'item-long-press',
     isDesktop: isDesktop.value,
     enabled: longPressEnabled,
-    onItemLongPress: async (element: HTMLElement) => {
+    onItemLongPress: async (element: HTMLElement, event?: UIEvent) => {
       const id = element.getAttribute('data-id')
       if (id && !['allnotes', 'deleted', 'unfilednotes'].includes(id)) {
+        const isDesktopContextMenu = isDesktop.value
+          && event?.type === 'contextmenu'
+
+        actionMenuPresentation.value = isDesktopContextMenu ? 'popover' : 'sheet'
+        if (isDesktopContextMenu) {
+          const contextMenuEvent = event as MouseEvent
+          contextMenuPosition.value = {
+            x: contextMenuEvent.clientX,
+            y: contextMenuEvent.clientY,
+          }
+          await nextTick()
+        }
         longPressId.value = id
         longPressMenuOpen.value = true
       }
@@ -443,13 +458,26 @@ defineExpose({
         @selected="onSelected($event)"
       />
     </F7List>
+    <span
+      v-if="isDesktop"
+      ref="contextMenuAnchor"
+      class="fastnote-note-list__context-menu-anchor"
+      :style="{
+        left: `${contextMenuPosition.x}px`,
+        top: `${contextMenuPosition.y}px`,
+      }"
+      aria-hidden="true"
+    />
   </div>
   <NoteActionsMenu
     :id="longPressId"
     ref="longPressMenuRef"
     :is-open="longPressMenuOpen"
     :items="pressItems"
+    :presentation="actionMenuPresentation"
     :presenting-element
+    :target-el="actionMenuPresentation === 'popover' ? contextMenuAnchor : undefined"
+    @update:is-open="longPressMenuOpen = $event"
     @did-dismiss="onLongPressMenuDismiss"
     @move="onMove"
     @refresh="$emit('refresh')"
@@ -466,6 +494,14 @@ defineExpose({
 
 <style lang="scss">
 .fastnote-note-list {
+  .fastnote-note-list__context-menu-anchor {
+    position: fixed;
+    z-index: -1;
+    width: 1px;
+    height: 1px;
+    pointer-events: none;
+  }
+
   > .note-list--media {
     --f7-list-strong-bg-color: var(--c-list-group-background);
     --fastnote-note-list-item-background: var(--f7-list-strong-bg-color);
