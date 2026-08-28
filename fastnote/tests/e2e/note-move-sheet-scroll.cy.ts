@@ -1,16 +1,25 @@
 describe('note move sheet scrolling', () => {
-  function openMoveSheet() {
+  function openMoveSheet(presentation: 'popover' | 'sheet') {
     cy.get('[data-id="move-folder-0"]').first().trigger('contextmenu', { force: true })
-    cy.get('.fastnote-note-actions-menu--popover.popover.modal-in')
-      .should('be.visible')
-      .and(($popover) => {
-        const rect = $popover.get(0).getBoundingClientRect()
-        expect(rect.left).to.be.greaterThan(0)
-        expect(rect.top).to.be.greaterThan(0)
-      })
-      .contains('.item-title', '移动')
-      .click()
-    cy.get('.fastnote-note-actions-menu--popover.popover.modal-in').should('not.exist')
+    if (presentation === 'popover') {
+      cy.get('.fastnote-note-actions-menu--popover.popover.modal-in')
+        .should('be.visible')
+        .and(($popover) => {
+          const rect = $popover.get(0).getBoundingClientRect()
+          expect(rect.left).to.be.greaterThan(0)
+          expect(rect.top).to.be.greaterThan(0)
+        })
+        .contains('.item-title', '移动')
+        .click()
+      cy.get('.fastnote-note-actions-menu--popover.popover.modal-in').should('not.exist')
+    }
+    else {
+      cy.get('#long-press-menu.actions-modal.modal-in')
+        .should('be.visible')
+        .contains('.actions-button', '移动')
+        .click()
+      cy.get('#long-press-menu.actions-modal.modal-in').should('not.exist')
+    }
     cy.get('.note-move-modal.modal-in').should('have.length', 1).and('be.visible')
     cy.get('.note-move-content').should(($content) => {
       const content = $content.get(0)
@@ -25,8 +34,15 @@ describe('note move sheet scrolling', () => {
     cy.get('.note-move-content').then(async ($content) => {
       const content = $content.get(0)
       const rect = content.getBoundingClientRect()
-      const x = rect.left + rect.width / 2
-      const startY = rect.top + rect.height / 2
+      const autWindow = content.ownerDocument.defaultView!
+      const autFrame = Array.from(autWindow.parent.document.querySelectorAll<HTMLIFrameElement>('iframe'))
+        .find(frame => frame.contentWindow === autWindow)
+        || autWindow.parent.document.querySelector<HTMLIFrameElement>('iframe.aut-iframe')
+      const frameRect = autFrame?.getBoundingClientRect()
+      const frameScaleX = frameRect ? frameRect.width / autWindow.innerWidth : 1
+      const frameScaleY = frameRect ? frameRect.height / autWindow.innerHeight : 1
+      const x = (frameRect?.left || 0) + (rect.left + rect.width / 2) * frameScaleX
+      const startY = (frameRect?.top || 0) + (rect.top + rect.height / 2) * frameScaleY
       content.scrollTop = 0
 
       await Cypress.automation('remote:debugger:protocol', {
@@ -39,7 +55,7 @@ describe('note move sheet scrolling', () => {
           gestureSourceType: 'touch',
         },
       })
-      await new Promise(resolve => content.ownerDocument.defaultView!.setTimeout(resolve, 100))
+      await new Promise(resolve => autWindow.setTimeout(resolve, 100))
     })
     cy.get('.note-move-content').should(($content) => {
       expect($content.get(0).scrollTop).to.be.greaterThan(0)
@@ -76,10 +92,9 @@ describe('note move sheet scrolling', () => {
     })
   }
 
-  it('scrolls after reopening the sheet and refreshing the page', () => {
+  function seedFolders() {
     const updated = '2026-08-04 12:00:00.000Z'
 
-    cy.viewport(1280, 800)
     cy.visit('/home')
     cy.window().its('db').should('exist')
     cy.window().then(async (win: Window & { db: any }) => {
@@ -102,21 +117,32 @@ describe('note move sheet scrolling', () => {
       await win.db.notes.clear()
       await win.db.notes.bulkPut(folders)
     })
+  }
+
+  it('supports touch scrolling on mobile after reopening and refreshing', () => {
+    cy.viewport(390, 844)
+    seedFolders()
 
     cy.visit('/home')
-    openMoveSheet()
-    assertWheelScrolls()
+    openMoveSheet('sheet')
     assertTouchScrolls()
 
     cy.get('.note-move-close').click()
     cy.get('.note-move-modal').should('not.exist')
-    openMoveSheet()
-    assertWheelScrolls()
+    openMoveSheet('sheet')
     assertTouchScrolls()
 
     cy.reload()
-    openMoveSheet()
-    assertWheelScrolls()
+    openMoveSheet('sheet')
     assertTouchScrolls()
+  })
+
+  it('keeps wheel scrolling available on desktop', () => {
+    cy.viewport(1280, 800)
+    seedFolders()
+
+    cy.visit('/home')
+    openMoveSheet('popover')
+    assertWheelScrolls()
   })
 })

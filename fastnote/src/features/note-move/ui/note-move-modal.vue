@@ -112,7 +112,15 @@ async function onWillPresent() {
 }
 
 .note-move-content {
+  height: auto;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
   padding: 8px 12px 12px;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
 
   .note-list-container > .list {
     margin: 0;
