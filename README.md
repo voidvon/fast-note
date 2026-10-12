@@ -161,6 +161,28 @@ npm run dev:frontend
 npm run dev:backend
 ```
 
+You can also use Make from the repository root (requires `make`):
+
+```bash
+make install      # Install dependencies
+make dev          # Start both servers; Ctrl+C stops both
+make help         # List all commands
+```
+
+| Command | Purpose |
+| --- | --- |
+| `make dev-frontend` / `make dev-backend` | Start either server independently |
+| `make build` | Build both sides and sync static assets |
+| `make build-frontend` / `make build-backend` | Build either side; backend builds require existing frontend assets |
+| `make lint` | Run frontend ESLint |
+| `make test` | Run frontend Vitest and backend Go tests |
+| `make test-unit` / `make test-backend` | Run either test suite independently |
+| `make test-e2e` | Run Cypress tests after starting the development environment |
+
+Test commands accept `ARGS`, for example
+`make test-unit ARGS="tests/integration/session/login-page.spec.ts"` or
+`make test-e2e ARGS="--spec tests/e2e/login-framework7.cy.ts"`.
+
 ### Build and test
 
 ```bash

@@ -151,6 +151,27 @@ npm run dev:frontend
 npm run dev:backend
 ```
 
+也可以在仓库根目录使用 Make（需安装 `make`）：
+
+```bash
+make install      # 安装依赖
+make dev          # 同时启动前后端，Ctrl+C 停止
+make help         # 查看所有命令
+```
+
+| 命令 | 用途 |
+| --- | --- |
+| `make dev-frontend` / `make dev-backend` | 单独启动前端 / 后端 |
+| `make build` | 构建前后端并同步静态资源 |
+| `make build-frontend` / `make build-backend` | 单独构建前端 / 后端；后端构建需已有前端产物 |
+| `make lint` | 前端 ESLint 检查 |
+| `make test` | 前端 Vitest 和后端 Go 测试 |
+| `make test-unit` / `make test-backend` | 单独运行前端 / 后端测试 |
+| `make test-e2e` | Cypress 测试，需先启动开发环境 |
+
+测试命令支持 `ARGS`，例如 `make test-unit ARGS="tests/integration/session/login-page.spec.ts"`
+或 `make test-e2e ARGS="--spec tests/e2e/login-framework7.cy.ts"`。
+
 ### 构建与测试
 
 ```bash
