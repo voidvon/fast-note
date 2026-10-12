@@ -290,6 +290,7 @@ export async function mountNoteDetailForSaveTest(options: {
     setEditable: vi.fn(),
     focus: vi.fn(),
     getContent: vi.fn(() => notesById[noteId]?.content || ''),
+    hasContentChanged: vi.fn<() => boolean | undefined>(() => undefined),
     getTitle: vi.fn(() => ({
       title: notesById[noteId]?.title || '测试备忘录',
       summary: notesById[noteId]?.summary || '测试摘要',

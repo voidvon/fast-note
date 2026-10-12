@@ -32,6 +32,7 @@ const {
   isMeaningfulContent,
   setContent,
   getContent,
+  hasContentChanged,
   setEditable,
   setInputMode,
 } = useNoteEditor({
@@ -122,6 +123,7 @@ async function handleFileInput(e: Event): Promise<string[]> {
 
 defineExpose({
   getContent,
+  hasContentChanged,
   getTitle: getContentInfo,
   extractFileHashes,
   releaseUnreferencedAttachmentHashes,

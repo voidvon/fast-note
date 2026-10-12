@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { useNoteLockViewFlow } from '@/features/note-lock/model/use-note-lock-view-flow'
 import { makeNote } from '../../../factories/note.factory'
+import { deferred } from '../../../helpers/note-detail-save-test-utils'
 
 describe('useNoteLockViewFlow', () => {
   it('syncs locked note snapshots and blocks editor content until unlocked', async () => {
@@ -63,7 +64,7 @@ describe('useNoteLockViewFlow', () => {
 
     await flow.unlockWithPin(note, '123456')
 
-    expect(onUnlocked).toHaveBeenCalledWith(note)
+    expect(onUnlocked).toHaveBeenCalledWith(note, expect.any(Function))
     expect(flow.state.viewState).toBe('unlocked')
     expect(flow.state.errorMessage).toBe('')
     expect(flow.state.failedAttempts).toBe(0)
@@ -155,4 +156,72 @@ describe('useNoteLockViewFlow', () => {
     expect(flow.state.errorMessage).toBe('')
     expect(onLocked).toHaveBeenCalledOnce()
   })
+
+  it('ignores a lock snapshot that arrives after a successful unlock', async () => {
+    const snapshot = deferred<any>()
+    const note = makeNote({ id: 'locked-note', is_locked: 1 })
+    const onUnlocked = vi.fn()
+    const onLocked = vi.fn()
+    const flow = useNoteLockViewFlow({
+      noteLock: {
+        getLockViewState: vi.fn(() => snapshot.promise),
+        isPinLockNote: vi.fn(() => true),
+        tryBiometricUnlock: vi.fn(),
+        verifyPin: vi.fn(async () => ({
+          ok: true,
+          code: 'ok',
+          message: null,
+          failedAttempts: 0,
+          cooldownUntil: null,
+        })),
+      },
+      onUnlocked,
+      onLocked,
+    })
+    const loading = flow.applyNoteState(note)
+    expect(flow.state.viewState).toBe('locked')
+    await flow.unlockWithPin(note, '123456')
+    snapshot.resolve({
+      viewState: 'locked',
+      failedAttempts: 0,
+      cooldownUntil: null,
+      biometricEnabled: false,
+      deviceSupportsBiometric: false,
+      session: null,
+    })
+    await loading
+    expect(flow.state.viewState).toBe('unlocked')
+    expect(onUnlocked).toHaveBeenCalledOnce()
+    expect(onLocked).not.toHaveBeenCalled()
+  })
+
+  it.each(['unlockWithPin', 'unlockWithBiometric'] as const)(
+    'discards pending %s after relocking',
+    async (method) => {
+      const verification = deferred<any>()
+      const onUnlocked = vi.fn()
+      const flow = useNoteLockViewFlow({
+        noteLock: {
+          getLockViewState: vi.fn(),
+          isPinLockNote: vi.fn(() => true),
+          tryBiometricUnlock: vi.fn(() => verification.promise),
+          verifyPin: vi.fn(() => verification.promise),
+        },
+        onUnlocked,
+      })
+      const unlocking = flow[method](makeNote({ is_locked: 1 }), '123456')
+      flow.lock()
+      verification.resolve({
+        ok: true,
+        code: 'ok',
+        message: null,
+        failedAttempts: 0,
+        cooldownUntil: null,
+      })
+      await unlocking
+      expect(flow.state.viewState).toBe('locked')
+      expect(flow.state.isPinUnlocking).toBe(false)
+      expect(onUnlocked).not.toHaveBeenCalled()
+    },
+  )
 })

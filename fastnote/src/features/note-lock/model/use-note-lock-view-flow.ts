@@ -21,7 +21,7 @@ export interface NoteLockViewFlowState {
 export interface UseNoteLockViewFlowOptions {
   noteLock?: Pick<ReturnType<typeof useNoteLock>, 'getLockViewState' | 'isPinLockNote' | 'tryBiometricUnlock' | 'verifyPin'>
   onLocked?: () => void
-  onUnlocked?: (note: Note) => void | Promise<void>
+  onUnlocked?: (note: Note, isCurrent: () => boolean) => void | Promise<void>
 }
 
 function createInitialState(): NoteLockViewFlowState {
@@ -39,8 +39,16 @@ function createInitialState(): NoteLockViewFlowState {
 export function useNoteLockViewFlow(options: UseNoteLockViewFlowOptions = {}) {
   const noteLock = options.noteLock || useNoteLock()
   const state = reactive<NoteLockViewFlowState>(createInitialState())
+  let requestVersion = 0
+
+  function beginRequest() {
+    const version = ++requestVersion
+    state.isPinUnlocking = false
+    return () => version === requestVersion
+  }
 
   function reset() {
+    requestVersion += 1
     Object.assign(state, createInitialState())
   }
 
@@ -57,30 +65,42 @@ export function useNoteLockViewFlow(options: UseNoteLockViewFlowOptions = {}) {
   }
 
   function lock() {
+    requestVersion += 1
+    state.isPinUnlocking = false
     state.viewState = 'locked'
     state.errorMessage = ''
     options.onLocked?.()
   }
 
   async function refresh(note: Note) {
+    const isCurrent = beginRequest()
     const snapshot = await noteLock.getLockViewState(note.id, note)
-    applySnapshot(snapshot)
+    if (isCurrent()) {
+      applySnapshot(snapshot)
+    }
     return snapshot
   }
 
   async function applyNoteState(note: Note) {
+    const isCurrent = beginRequest()
     if (noteLock.isPinLockNote(note)) {
-      const snapshot = await refresh(note)
+      // Keep a newly selected locked note hidden until its session is known.
+      state.viewState = 'locked'
+      const snapshot = await noteLock.getLockViewState(note.id, note)
+      if (!isCurrent()) {
+        return snapshot
+      }
+      applySnapshot(snapshot)
       if (snapshot.viewState !== 'unlocked') {
         options.onLocked?.()
         return snapshot
       }
     }
     else {
-      reset()
+      Object.assign(state, createInitialState())
     }
 
-    await options.onUnlocked?.(note)
+    await options.onUnlocked?.(note, isCurrent)
     return {
       biometricEnabled: state.biometricEnabled,
       cooldownUntil: state.cooldownUntil,
@@ -96,22 +116,28 @@ export function useNoteLockViewFlow(options: UseNoteLockViewFlowOptions = {}) {
       return null
     }
 
+    const isCurrent = beginRequest()
     state.isPinUnlocking = true
     state.viewState = 'unlocking'
     state.errorMessage = ''
 
     try {
       const result = await noteLock.verifyPin(note.id, pin)
-      await applyUnlockResult(result, note, 'PIN 不正确，请重试')
+      if (!isCurrent()) {
+        return result
+      }
+      await applyUnlockResult(result, note, 'PIN 不正确，请重试', isCurrent)
 
-      if (!result.ok) {
+      if (!result.ok && isCurrent()) {
         options.onLocked?.()
       }
 
       return result
     }
     finally {
-      state.isPinUnlocking = false
+      if (isCurrent()) {
+        state.isPinUnlocking = false
+      }
     }
   }
 
@@ -120,22 +146,28 @@ export function useNoteLockViewFlow(options: UseNoteLockViewFlowOptions = {}) {
       return null
     }
 
+    const isCurrent = beginRequest()
     state.isPinUnlocking = true
     state.viewState = 'unlocking'
     state.errorMessage = ''
 
     try {
       const result = await noteLock.tryBiometricUnlock(note.id, note)
-      await applyUnlockResult(result, note, '生物识别不可用，请输入 PIN 解锁')
+      if (!isCurrent()) {
+        return result
+      }
+      await applyUnlockResult(result, note, '生物识别不可用，请输入 PIN 解锁', isCurrent)
 
-      if (!result.ok) {
+      if (!result.ok && isCurrent()) {
         options.onLocked?.()
       }
 
       return result
     }
     finally {
-      state.isPinUnlocking = false
+      if (isCurrent()) {
+        state.isPinUnlocking = false
+      }
     }
   }
 
@@ -143,6 +175,7 @@ export function useNoteLockViewFlow(options: UseNoteLockViewFlowOptions = {}) {
     result: NoteLockVerifyResult | NoteLockBiometricResult,
     note: Note,
     fallbackMessage: string,
+    isCurrent: () => boolean,
   ) {
     state.failedAttempts = result.failedAttempts
     state.cooldownUntil = result.cooldownUntil
@@ -155,7 +188,7 @@ export function useNoteLockViewFlow(options: UseNoteLockViewFlowOptions = {}) {
 
     state.viewState = 'unlocked'
     state.errorMessage = ''
-    await options.onUnlocked?.(note)
+    await options.onUnlocked?.(note, isCurrent)
   }
 
   return {

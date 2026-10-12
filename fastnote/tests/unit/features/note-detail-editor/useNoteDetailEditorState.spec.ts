@@ -99,4 +99,17 @@ describe('useNoteDetailEditorState', () => {
     expect(editor.setContent).toHaveBeenCalledTimes(1)
     expect(editor.setContent).toHaveBeenCalledWith('<p>下一篇备忘录</p>')
   })
+
+  it('does not mark a note ready for saving if the editor could not apply its content', () => {
+    const onUnlockedNoteApplied = vi.fn()
+    const setLastSavedContent = vi.fn()
+    const state = useNoteDetailEditorState({
+      getEditor: () => ({ setContent: () => false, setEditable: vi.fn() }),
+      onUnlockedNoteApplied,
+      setLastSavedContent,
+    })
+    state.showUnlockedNote(makeNote({ content: '<p>待加载的正文</p>' }))
+    expect(onUnlockedNoteApplied).not.toHaveBeenCalled()
+    expect(setLastSavedContent).not.toHaveBeenCalled()
+  })
 })

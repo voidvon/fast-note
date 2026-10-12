@@ -2,6 +2,7 @@ import type { Note } from '@/shared/types'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick } from 'vue'
+import { makeNote } from '../../factories/note.factory'
 import { deferred, mountNoteDetailForSaveTest } from '../../helpers/note-detail-save-test-utils'
 
 function createF7Stub(name: string, tag = 'div') {
@@ -48,6 +49,184 @@ describe('note unlock panel integration (t-fn-038 / tc-fn-030)', () => {
     vi.useRealTimers()
     vi.doUnmock('@/shared/ui/f7')
     vi.resetModules()
+  })
+
+  it('does not save the empty editor before private note loading completes', async () => {
+    vi.useFakeTimers()
+    const note = makeNote({ id: 'pending-note', content: '<p>尚未加载的正文</p>' })
+    const loading = deferred<Note>()
+    const { wrapper, editorApi, mocks } = await mountNoteDetailForSaveTest({
+      noteId: note.id,
+      getNoteImpl: () => loading.promise,
+    })
+    editorApi.getContent.mockReturnValue('<p></p>')
+    wrapper.findComponent({ name: 'YYEditor' }).vm.$emit('blur')
+    await vi.advanceTimersByTimeAsync(800)
+    window.dispatchEvent(new Event('pagehide'))
+    await flushPromises()
+    expect(mocks.getNoteMock).toHaveBeenCalledOnce()
+    expect(mocks.updateNoteMock).not.toHaveBeenCalled()
+    expect(mocks.manualSyncMock).toHaveBeenCalledOnce()
+
+    loading.resolve(note)
+    await flushPromises()
+    expect(editorApi.setContent).toHaveBeenLastCalledWith(note.content)
+    wrapper.unmount()
+  })
+
+  it('cancels an unlock waiting on bootstrap even if the same note is selected again', async () => {
+    const note = makeNote({ id: 'locked-note', is_locked: 1, content: '<p>原正文</p>' })
+    const bootstrap = deferred<void>()
+    const { wrapper, mocks } = await mountNoteDetailForSaveTest({
+      noteId: note.id,
+      notesById: { [note.id]: note },
+      lockViewState: 'locked',
+      waitForSyncBootstrapImpl: () => bootstrap.promise,
+    })
+    await wrapper.get('[data-testid="note-unlock-panel-submit"]').trigger('click')
+    await wrapper.setProps({ noteId: '' })
+    await flushPromises()
+    await wrapper.setProps({ noteId: note.id })
+    await flushPromises()
+
+    bootstrap.resolve()
+    await flushPromises()
+    expect(mocks.verifyPinMock).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="note-unlock-panel"]').exists()).toBe(true)
+
+    await wrapper.get('[data-testid="note-unlock-panel-submit"]').trigger('click')
+    await flushPromises()
+    expect(mocks.verifyPinMock).toHaveBeenCalledOnce()
+    expect(wrapper.find('[data-testid="note-unlock-panel"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('does not overwrite a synced note with an untouched normalized empty editor', async () => {
+    vi.useFakeTimers()
+    const note = makeNote({ id: 'locked-note', is_locked: 1, content: '' })
+    const notesById = { [note.id]: note }
+    const { wrapper, editorApi, mocks } = await mountNoteDetailForSaveTest({
+      noteId: note.id,
+      notesById,
+      lockViewState: 'locked',
+    })
+    await wrapper.get('[data-testid="note-unlock-panel-submit"]').trigger('click')
+    await flushPromises()
+    editorApi.getContent.mockReturnValue('<p></p>')
+    editorApi.hasContentChanged.mockReturnValue(false)
+    notesById[note.id] = { ...note, content: '<p>稍后同步到的正文</p>' }
+
+    wrapper.findComponent({ name: 'YYEditor' }).vm.$emit('blur')
+    await vi.advanceTimersByTimeAsync(800)
+    await flushPromises()
+    window.dispatchEvent(new Event('pagehide'))
+    await flushPromises()
+    expect(mocks.updateNoteMock).not.toHaveBeenCalled()
+    expect(mocks.manualSyncMock).toHaveBeenCalledOnce()
+    expect(notesById[note.id].content).toBe('<p>稍后同步到的正文</p>')
+    await expect(
+      wrapper.findComponent({ name: 'NoteMore' }).props('prepareForLock')(note.id),
+    ).rejects.toThrow('当前编辑内容尚未保存，无法锁定')
+    expect(mocks.updateNoteMock).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('uses the latest local content when sync completes during PIN verification', async () => {
+    vi.useFakeTimers()
+    const note = makeNote({ id: 'locked-note', is_locked: 1, content: '' })
+    const notesById = { [note.id]: note }
+    const verification = deferred<{
+      ok: boolean
+      code: string
+      message: null
+      failedAttempts: number
+      cooldownUntil: null
+    }>()
+    const { wrapper, editorApi, mocks } = await mountNoteDetailForSaveTest({
+      noteId: note.id,
+      isPinLockNote: true,
+      lockViewState: 'locked',
+      notesById,
+      verifyPinImpl: () => verification.promise,
+    })
+    let content = '<p></p>'
+    editorApi.setContent.mockImplementation((value: string) => {
+      content = value
+    })
+    editorApi.getContent.mockImplementation(() => content)
+
+    await wrapper.get('[data-testid="note-unlock-panel-pin"]').setValue('123456')
+    await wrapper.get('[data-testid="note-unlock-panel-submit"]').trigger('click')
+    await flushPromises()
+    expect(mocks.verifyPinMock).toHaveBeenCalledOnce()
+
+    notesById[note.id] = { ...note, content: '<p>校验密码期间同步到的正文</p>' }
+    verification.resolve({
+      ok: true,
+      code: 'ok',
+      message: null,
+      failedAttempts: 0,
+      cooldownUntil: null,
+    })
+    await flushPromises()
+    expect(content).toBe(notesById[note.id].content)
+
+    wrapper.findComponent({ name: 'YYEditor' }).vm.$emit('blur')
+    await vi.advanceTimersByTimeAsync(800)
+    await flushPromises()
+    expect(mocks.updateNoteMock).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('ignores a PIN response after selecting a different note', async () => {
+    vi.useFakeTimers()
+    const lockedNote = makeNote({ id: 'locked-note', is_locked: 1, content: '' })
+    const nextNote = makeNote({ id: 'next-note', content: '<p>下一篇正文</p>' })
+    const verification = deferred<{
+      ok: boolean
+      code: string
+      message: null
+      failedAttempts: number
+      cooldownUntil: null
+    }>()
+    const { wrapper, editorApi, mocks } = await mountNoteDetailForSaveTest({
+      noteId: lockedNote.id,
+      notesById: { [lockedNote.id]: lockedNote, [nextNote.id]: nextNote },
+      verifyPinImpl: () => verification.promise,
+      getLockViewStateImpl: async () => ({
+        viewState: 'locked',
+        failedAttempts: 0,
+        cooldownUntil: null,
+        biometricEnabled: false,
+        deviceSupportsBiometric: false,
+        session: null,
+      }),
+    })
+    let content = ''
+    editorApi.setContent.mockImplementation((value: string) => {
+      content = value
+    })
+    editorApi.getContent.mockImplementation(() => content)
+    await wrapper.get('[data-testid="note-unlock-panel-submit"]').trigger('click')
+    await flushPromises()
+    await wrapper.setProps({ noteId: nextNote.id })
+    await flushPromises()
+    expect(content).toBe(nextNote.content)
+
+    verification.resolve({
+      ok: true,
+      code: 'ok',
+      message: null,
+      failedAttempts: 0,
+      cooldownUntil: null,
+    })
+    await flushPromises()
+    expect(content).toBe(nextNote.content)
+    wrapper.findComponent({ name: 'YYEditor' }).vm.$emit('blur')
+    await vi.advanceTimersByTimeAsync(800)
+    await flushPromises()
+    expect(mocks.updateNoteMock).not.toHaveBeenCalled()
+    wrapper.unmount()
   })
 
   it('uses a Framework7 outline field for the non-login password', async () => {

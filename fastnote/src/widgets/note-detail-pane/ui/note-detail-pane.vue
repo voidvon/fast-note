@@ -2,7 +2,7 @@
 import type { LeaveFlushReason, SaveTargetContext } from '@/features/note-save'
 import type { Note } from '@/shared/types'
 import { nanoid } from 'nanoid'
-import { computed, nextTick, reactive, ref, toRaw, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, reactive, ref, toRaw, watch } from 'vue'
 import { garbageCollectAttachments, reconcileRemoteNoteAttachmentRefs } from '@/entities/attachment'
 import { useNote } from '@/entities/note'
 import { useUserPublicNotes } from '@/entities/public-note'
@@ -67,6 +67,7 @@ const isAsyncRouteLeaveSavePending = ref(false)
 const isPreparingUnlock = ref(false)
 const retainedEffectiveUuid = ref<string | null>(null)
 const editorContentNoteId = ref<string | null>(null)
+let unlockRequestVersion = 0
 
 const state = reactive({
   isFormatModalOpen: false, // 标记格式化面板是否打开
@@ -175,12 +176,28 @@ const noteLockView = useNoteLockViewFlow({
     noteAutoLock.deactivate()
     noteDetailEditorState.showLockedNote()
   },
-  async onUnlocked(note) {
+  async onUnlocked(note, isCurrent) {
+    // PIN verification can wait on cloud settings while note sync replaces the
+    // local record. Never populate the editor from the pre-verification snapshot.
     await nextTick()
-    noteDetailEditorState.showUnlockedNote(note)
+    if (!isCurrent()) {
+      return
+    }
+    const latestNote = await getNote(note.id)
+    if (!isCurrent() || effectiveUuid.value !== note.id || data.value?.id !== note.id) {
+      return
+    }
+    if (!latestNote) {
+      editorContentNoteId.value = null
+      state.isMissingPrivateNote = true
+      noteDetailEditorState.showMissingPrivateNote()
+      return
+    }
+    data.value = latestNote
+    noteDetailEditorState.showUnlockedNote(latestNote)
 
-    if (noteLock.isPinLockNote(note)) {
-      noteAutoLock.activate(note.id)
+    if (noteLock.isPinLockNote(latestNote)) {
+      noteAutoLock.activate(latestNote.id)
     }
     else {
       noteAutoLock.deactivate()
@@ -304,7 +321,11 @@ watch(idFromSource, async (id, oldId) => {
   }
 
   if (id !== oldId) {
+    unlockRequestVersion += 1
+    isPreparingUnlock.value = false
     editorContentNoteId.value = null
+    noteLockView.reset()
+    noteAutoLock.deactivate()
     privateNoteDetail.reset()
     hasCreatedRouteDraft.value = false
   }
@@ -325,6 +346,13 @@ watch(idFromSource, async (id, oldId) => {
     await noteDetailEntry.clearDetailSelection()
   }
 }, { immediate: true })
+
+onBeforeUnmount(() => {
+  unlockRequestVersion += 1
+  noteLockView.reset()
+  privateNoteDetail.reset()
+  noteAutoLock.deactivate()
+})
 
 useNoteDetailLeaveLifecycle({
   clearPendingSaveTimer: noteDetailLeave.clearPendingSaveTimer,
@@ -414,7 +442,14 @@ async function handleNoteSaving(
     return
   }
 
-  if (isPinLockedForView.value || isPreparingUnlock.value) {
+  const targetNoteId = saveTargetContext.noteId ?? effectiveUuid.value
+  if (
+    isPinLockedForView.value
+    || isPreparingUnlock.value
+    || !targetNoteId
+    || editorContentNoteId.value !== targetNoteId
+    || editorRef.value?.hasContentChanged?.() === false
+  ) {
     if (leaveFlushReason) {
       await noteDetailLeave.flushNotesToLocal(leaveFlushReason)
     }
@@ -473,15 +508,25 @@ async function handlePinUnlock(pin: string) {
   }
 
   isPreparingUnlock.value = true
+  const version = ++unlockRequestVersion
   try {
     await waitForUnlockDataReady()
 
-    if (effectiveUuid.value !== note.id || data.value?.id !== note.id) {
+    if (
+      version !== unlockRequestVersion
+      || effectiveUuid.value !== note.id
+      || data.value?.id !== note.id
+    ) {
       return
     }
 
     const latestNote = await getNote(note.id)
-    if (!latestNote) {
+    if (
+      !latestNote
+      || version !== unlockRequestVersion
+      || effectiveUuid.value !== note.id
+      || data.value?.id !== note.id
+    ) {
       return
     }
 
@@ -489,7 +534,9 @@ async function handlePinUnlock(pin: string) {
     await noteLockView.unlockWithPin(latestNote, pin)
   }
   finally {
-    isPreparingUnlock.value = false
+    if (version === unlockRequestVersion) {
+      isPreparingUnlock.value = false
+    }
   }
 }
 
@@ -500,15 +547,25 @@ async function handleBiometricUnlock() {
   }
 
   isPreparingUnlock.value = true
+  const version = ++unlockRequestVersion
   try {
     await waitForUnlockDataReady()
 
-    if (effectiveUuid.value !== note.id || data.value?.id !== note.id) {
+    if (
+      version !== unlockRequestVersion
+      || effectiveUuid.value !== note.id
+      || data.value?.id !== note.id
+    ) {
       return
     }
 
     const latestNote = await getNote(note.id)
-    if (!latestNote) {
+    if (
+      !latestNote
+      || version !== unlockRequestVersion
+      || effectiveUuid.value !== note.id
+      || data.value?.id !== note.id
+    ) {
       return
     }
 
@@ -516,7 +573,9 @@ async function handleBiometricUnlock() {
     await noteLockView.unlockWithBiometric(latestNote)
   }
   finally {
-    isPreparingUnlock.value = false
+    if (version === unlockRequestVersion) {
+      isPreparingUnlock.value = false
+    }
   }
 }
 
@@ -563,7 +622,9 @@ async function persistEditorBeforeLock(noteId: string) {
     throw new Error('当前备忘录尚未加载完成，无法锁定')
   }
 
-  const expectedContent = editor.getContent?.() || ''
+  const expectedContent = editor.hasContentChanged?.() === false
+    ? data.value.content
+    : (editor.getContent?.() || '')
   noteDetailLeave.clearPendingSaveTimer()
   await handleNoteSaving(true, null, {
     noteId,

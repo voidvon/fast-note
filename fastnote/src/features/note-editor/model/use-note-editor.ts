@@ -110,6 +110,8 @@ export function useNoteEditor(options: {
   getCurrentNoteId?: () => string
 } = {}) {
   const editor = ref<Editor | null>(null)
+  let loadedContent: string | null = null
+  let hasEditedContent = false
   const inputMode = ref<'text' | 'none'>('text')
   const { addNoteFile, getNoteFileByHash } = useNoteFiles()
   const activeAttachmentHashes = new Set<string>()
@@ -228,7 +230,14 @@ export function useNoteEditor(options: {
       editorProps: buildEditorProps(),
       onBlur: options.onBlur,
       onFocus: options.onFocus,
+      onUpdate: ({ editor: updatedEditor }) => {
+        if (updatedEditor.getHTML() !== loadedContent) {
+          hasEditedContent = true
+        }
+      },
     })
+    loadedContent = editor.value.getHTML()
+    hasEditedContent = false
   }
 
   async function insertFiles(files: ArrayLike<File>, position?: number): Promise<string[]> {
@@ -363,7 +372,21 @@ export function useNoteEditor(options: {
   }
 
   function setContent(content: Content) {
-    editor.value?.commands.setContent(content)
+    if (!editor.value) {
+      return false
+    }
+    const applied = editor.value.commands.setContent(content)
+    if (applied) {
+      // Compare serialized documents so loading '' as <p></p> is not an edit.
+      loadedContent = editor.value.getHTML()
+      hasEditedContent = false
+    }
+    return applied
+  }
+
+  function hasContentChanged() {
+    return !!editor.value && loadedContent !== null
+      && (hasEditedContent || editor.value.getHTML() !== loadedContent)
   }
 
   function getContent(): string | undefined {
@@ -384,6 +407,8 @@ export function useNoteEditor(options: {
   function destroyEditor() {
     editor.value?.destroy()
     editor.value = null
+    loadedContent = null
+    hasEditedContent = false
   }
 
   onBeforeUnmount(() => {
@@ -402,6 +427,7 @@ export function useNoteEditor(options: {
     isMeaningfulContent,
     setContent,
     getContent,
+    hasContentChanged,
     setEditable,
     setInputMode,
     destroyEditor,

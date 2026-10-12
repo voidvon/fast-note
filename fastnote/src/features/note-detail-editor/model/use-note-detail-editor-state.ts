@@ -3,7 +3,7 @@ import type { Note } from '@/shared/types'
 export interface NoteDetailEditorHost {
   applyDefaultNewNoteHeading?: () => boolean
   focus?: () => void
-  setContent: (content: string) => void
+  setContent: (content: string) => boolean | void
   setEditable: (editable: boolean) => void
 }
 
@@ -88,7 +88,9 @@ export function useNoteDetailEditorState(options: UseNoteDetailEditorStateOption
   function showUnlockedNote(note: Note) {
     applyWithEditor((editor) => {
       editor.setEditable(note.is_deleted !== 1)
-      editor.setContent(note.content || '')
+      if (editor.setContent(note.content || '') === false) {
+        return
+      }
       options.setLastSavedContent(note.content || '')
       options.onUnlockedNoteApplied?.(note)
     })
