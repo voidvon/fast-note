@@ -2,28 +2,25 @@
 import { ref } from 'vue'
 import { useSimpleBackButton } from '@/processes/navigation'
 import { useAuth } from '@/processes/session'
-import { useDeviceType } from '@/shared/lib/device'
 import {
   alertController,
   F7BackButton,
+  F7Block,
+  F7BlockTitle,
   F7Button,
   F7Buttons,
   F7Content,
   F7Header,
-  F7Icon,
-  F7Input,
-  F7Item,
-  F7Label,
+  F7List,
+  F7ListInput,
   F7Page,
   F7Spinner,
   F7Toolbar,
   loadingController,
   useAppRouter,
 } from '@/shared/ui/f7'
-import { alertCircle, checkmarkCircle } from '@/shared/ui/icons'
 
 const router = useAppRouter()
-const { isDesktop } = useDeviceType()
 const { login } = useAuth()
 
 // 简单的返回按钮
@@ -39,6 +36,9 @@ const formData = ref({
 })
 
 async function handleLogin() {
+  if (loading.value)
+    return
+
   // 验证输入
   if (!formData.value.email || !formData.value.password) {
     const alert = await alertController.create({
@@ -83,7 +83,7 @@ async function handleLogin() {
 </script>
 
 <template>
-  <F7Page>
+  <F7Page class="fastnote-login-page">
     <F7Header :translucent="true">
       <F7Toolbar>
         <F7Buttons position="start">
@@ -92,104 +92,85 @@ async function handleLogin() {
       </F7Toolbar>
     </F7Header>
 
-    <F7Content :fullscreen="true">
-      <!-- 登录表单容器 -->
-      <div class="flex items-center min-h-full justify-center px-4 py-8">
-        <div
-          :class="{
-            'w-full max-w-md': !isDesktop,
-            'w-full max-w-lg': isDesktop,
-          }"
-        >
-          <!-- 标题 -->
-          <div class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">
-              用户登录
-            </h1>
-            <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-              请输入您的邮箱和密码
-            </p>
-          </div>
+    <F7Content class="fastnote-login-page__content">
+      <form class="fastnote-login-page__form" novalidate @submit.prevent="handleLogin">
+        <F7BlockTitle large class="text-align-center">
+          用户登录
+        </F7BlockTitle>
+        <F7Block class="text-align-center">
+          请输入您的邮箱和密码
+        </F7Block>
 
-          <!-- 登录表单 -->
-          <div class="bg-transparent">
-            <!-- 邮箱输入 -->
-            <div class="mb-4">
-              <F7Input
-                v-model="formData.email"
-                label="邮箱地址"
-                label-placement="floating"
-                fill="outline"
-                placeholder="请输入邮箱地址"
-                type="email"
-                mode="md"
-                class="rounded-lg"
-                :disabled="loading"
-              />
-            </div>
+        <F7List strong inset>
+          <F7ListInput
+            v-model:value="formData.email"
+            input-id="login-email"
+            name="email"
+            label="邮箱地址"
+            placeholder="请输入邮箱地址"
+            type="email"
+            autocomplete="username"
+            :disabled="loading"
+          />
+          <F7ListInput
+            v-model:value="formData.password"
+            input-id="login-password"
+            name="password"
+            label="密码"
+            placeholder="请输入密码"
+            type="password"
+            autocomplete="current-password"
+            :disabled="loading"
+          />
+        </F7List>
 
-            <!-- 密码输入 -->
-            <div class="mb-6">
-              <F7Input
-                v-model="formData.password"
-                label="密码"
-                label-placement="floating"
-                fill="outline"
-                placeholder="请输入密码"
-                type="password"
-                mode="md"
-                class="rounded-lg"
-                :disabled="loading"
-                @keyup.enter="handleLogin"
-              />
-            </div>
+        <F7Block inset class="no-padding-horizontal">
+          <F7Button
+            type="submit"
+            :fill="true"
+            large
+            round
+            :disabled="loading || !formData.email || !formData.password"
+          >
+            <F7Spinner v-if="loading" class="margin-right-half" />
+            {{ loading ? '登录中...' : '登录' }}
+          </F7Button>
+        </F7Block>
 
-            <!-- 登录按钮 -->
-            <div>
-              <F7Button
-                expand="block"
-                :disabled="loading || !formData.email || !formData.password"
-                @click="handleLogin"
-              >
-                <F7Spinner v-if="loading" name="crescent" class="mr-2" />
-                {{ loading ? '登录中...' : '登录' }}
-              </F7Button>
-            </div>
+        <F7Block v-if="error" inset role="alert" class="text-align-center text-color-red">
+          {{ error }}
+        </F7Block>
+        <F7Block v-if="message" inset role="status" class="text-align-center text-color-green">
+          {{ message }}
+        </F7Block>
 
-            <!-- 错误提示 -->
-            <div v-if="error" class="mt-4">
-              <F7Item color="danger" lines="none" class="rounded-lg">
-                <F7Label class="text-center whitespace-pre-wrap">
-                  <F7Icon :icon="alertCircle" class="mr-2" />
-                  {{ error }}
-                </F7Label>
-              </F7Item>
-            </div>
-
-            <!-- 成功提示 -->
-            <div v-if="message" class="mt-4">
-              <F7Item color="success" lines="none" class="rounded-lg">
-                <F7Label class="text-center whitespace-pre-wrap">
-                  <F7Icon :icon="checkmarkCircle" class="mr-2" />
-                  {{ message }}
-                </F7Label>
-              </F7Item>
-            </div>
-
-            <!-- 注册链接 -->
-            <div class="flex justify-center items-center">
-              还没有账户？
-              <F7Button
-                :disabled="loading"
-                fill="clear"
-                @click="router.replace('/register')"
-              >
-                立即注册
-              </F7Button>
-            </div>
-          </div>
-        </div>
-      </div>
+        <F7Block inset class="text-align-center">
+          还没有账户？
+          <F7Button
+            class="display-inline-flex"
+            :disabled="loading"
+            @click="router.replace('/register')"
+          >
+            立即注册
+          </F7Button>
+        </F7Block>
+      </form>
     </F7Content>
   </F7Page>
 </template>
+
+<style lang="scss">
+.fastnote-login-page {
+  .fastnote-login-page__content {
+    display: flex;
+    align-items: center;
+  }
+
+  .fastnote-login-page__form {
+    width: 100%;
+    max-width: 480px;
+    margin: auto;
+    padding-block: 24px;
+  }
+}
+</style>

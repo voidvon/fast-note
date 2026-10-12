@@ -66,7 +66,10 @@ async function mountAppForRouteRestore(options: {
   }
 
   if (options.savedLastRoute) {
-    localStorage.setItem(getLastVisitedRouteStorageKey('user-a'), options.savedLastRoute)
+    localStorage.setItem(
+      getLastVisitedRouteStorageKey((options.isAuthenticated ?? true) ? 'user-a' : null),
+      options.savedLastRoute,
+    )
   }
 
   const syncDeferred = deferred<null>()
@@ -212,6 +215,31 @@ describe('private route restore timing (t-fn-031 / tc-fn-023)', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it.each([
+    { isAuthenticated: false, savedLastRoute: '/deleted', currentPath: '/login' },
+    { isAuthenticated: true, savedLastRoute: '/home', currentPath: '/login' },
+    {
+      isAuthenticated: true,
+      savedLastRoute: '/n/private-note',
+      currentPath: '/login?redirect=/home#credentials',
+    },
+  ])('keeps $currentPath during session initialization (authenticated: $isAuthenticated)', async (options) => {
+    const { wrapper, mocks } = await mountAppForRouteRestore({
+      ...options,
+      currentName: 'Login',
+    })
+
+    expect(mocks.routerReplaceMock).not.toHaveBeenCalled()
+    mocks.syncDeferred.resolve(null)
+    await flushPromises()
+    await nextTick()
+
+    expect(mocks.routerReplaceMock).not.toHaveBeenCalled()
+    expect(window.location.pathname).toBe('/login')
+    expect(wrapper.find('[data-testid="app-private-route-pending"]').exists()).toBe(false)
+    wrapper.unmount()
   })
 
   it('unblocks a direct private detail route once local context is ready', async () => {

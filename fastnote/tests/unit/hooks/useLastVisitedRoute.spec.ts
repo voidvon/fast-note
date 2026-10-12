@@ -44,11 +44,17 @@ describe('useLastVisitedRoute restore mode', () => {
   it('restores last visited route only from entry pages', () => {
     expect(shouldRestoreLastVisitedRouteForCurrentPath('/')).toBe(true)
     expect(shouldRestoreLastVisitedRouteForCurrentPath('/home')).toBe(true)
-    expect(shouldRestoreLastVisitedRouteForCurrentPath('/login')).toBe(true)
+    expect(shouldRestoreLastVisitedRouteForCurrentPath('/login')).toBe(false)
     expect(shouldRestoreLastVisitedRouteForCurrentPath('/register')).toBe(true)
     expect(shouldRestoreLastVisitedRouteForCurrentPath('/n/private-note')).toBe(false)
     expect(shouldRestoreLastVisitedRouteForCurrentPath('/f/folder-1')).toBe(false)
     expect(shouldRestoreLastVisitedRouteForCurrentPath('/alice')).toBe(false)
+  })
+
+  it('keeps an explicit login page with query and hash out of route restoration', () => {
+    expect(shouldRestoreLastVisitedRouteForCurrentPath('/login?redirect=/home')).toBe(false)
+    expect(shouldRestoreLastVisitedRouteForCurrentPath('/login#credentials')).toBe(false)
+    expect(shouldRestoreLastVisitedRouteForCurrentPath('/login?redirect=/home#credentials')).toBe(false)
   })
 
   it('persists a desktop native-history route in the current user scope', () => {

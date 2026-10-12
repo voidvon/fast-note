@@ -8,7 +8,7 @@ export const LAST_ROUTE_STORAGE_PREFIX = 'flashnote_last_visited_route'
 
 const PRIVATE_NOTE_ROUTE_PATTERN = /^\/n\/([^/?#]+)(?:[?#].*)?$/
 const PRIVATE_FOLDER_ROUTE_PATTERN = /^\/f(?:\/|$)/
-const ROUTE_RESTORE_ENTRY_PATHS = new Set(['/', '/home', '/login', '/register'])
+const ROUTE_RESTORE_ENTRY_PATHS = new Set(['/', '/home', '/register'])
 const PRIVATE_WORKSPACE_STATIC_PATHS = new Set(['/home', '/deleted'])
 
 function getBrowserFullPath() {

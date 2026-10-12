@@ -1,17 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { computed, defineComponent, h, nextTick, ref } from 'vue'
+import { computed, defineComponent, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { getLastVisitedRouteStorageKey } from '@/processes/navigation'
-
-function createF7Stub(name: string) {
-  return defineComponent({
-    name,
-    inheritAttrs: false,
-    setup(_, { attrs, slots }) {
-      return () => h('div', attrs, slots.default ? slots.default() : [])
-    },
-  })
-}
 
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
@@ -32,8 +22,8 @@ async function mountAppForImmediateRestore(options: {
   localStorage.clear()
 
   const currentRoute = ref({
-    fullPath: '/login',
-    name: 'Login',
+    fullPath: '/',
+    name: undefined as string | undefined,
   })
 
   const sessionUser = ref(options.initialUserId ? { id: options.initialUserId } : null)
@@ -53,16 +43,8 @@ async function mountAppForImmediateRestore(options: {
 
   const syncDeferred = deferred<null>()
   const syncMock = vi.fn(async () => syncDeferred.promise)
-  const appNavigateMock = vi.fn(async (target: string) => {
-    currentRoute.value = {
-      fullPath: target,
-      name: target === '/home' ? 'Home' : 'UserHome',
-    }
-  })
-
-  vi.doMock('vue-router', () => ({
-    RouterView: createF7Stub('RouterView'),
-    useRouter: () => ({
+  vi.doMock('@/shared/lib/framework7', () => ({
+    useAppRouter: () => ({
       currentRoute,
       replace: routerReplaceMock,
       afterEach: vi.fn(() => vi.fn()),
@@ -141,10 +123,6 @@ async function mountAppForImmediateRestore(options: {
   }))
 
   vi.doMock('@/shared/ui/f7', () => ({
-    F7App: createF7Stub('F7App'),
-    useAppRouter: () => ({
-      navigate: appNavigateMock,
-    }),
     alertController: {
       create: vi.fn(async () => ({
         present: vi.fn(async () => undefined),
@@ -152,8 +130,15 @@ async function mountAppForImmediateRestore(options: {
     },
   }))
 
-  const App = (await import('@/App.vue')).default
-  mount(App)
+  const { useSessionBootstrap } = await import('@/processes/session/model/use-session-bootstrap')
+  const wrapper = mount(defineComponent({
+    setup() {
+      const { initializeSession, disposeSession } = useSessionBootstrap()
+      onMounted(() => void initializeSession())
+      onUnmounted(disposeSession)
+      return () => null
+    },
+  }))
   await flushPromises()
   await nextTick()
 
@@ -165,6 +150,7 @@ async function mountAppForImmediateRestore(options: {
   }
 
   return {
+    wrapper,
     currentRoute,
     mocks: {
       routerReplaceMock,
@@ -184,26 +170,28 @@ describe('public and home restore timing (t-fn-031 / tc-fn-027)', () => {
   })
 
   it('restores /home immediately without waiting for sync', async () => {
-    const { mocks } = await mountAppForImmediateRestore({
+    const { wrapper, mocks } = await mountAppForImmediateRestore({
       initialUserId: 'user-a',
       savedRoutes: { 'user-a': '/home' },
     })
 
     expect(mocks.routerReplaceMock).toHaveBeenCalledWith('/home')
+    wrapper.unmount()
   })
 
   it('does not restore a previously visited public space from an entry page', async () => {
-    const { mocks } = await mountAppForImmediateRestore({
+    const { wrapper, mocks } = await mountAppForImmediateRestore({
       initialUserId: 'user-a',
       savedRoutes: { 'user-a': '/alice' },
     })
 
     expect(mocks.routerReplaceMock).not.toHaveBeenCalledWith('/alice')
     expect(localStorage.getItem(getLastVisitedRouteStorageKey('user-a'))).toBeNull()
+    wrapper.unmount()
   })
 
   it('restores the switched user immediate route from that user scope', async () => {
-    const { mocks } = await mountAppForImmediateRestore({
+    const { wrapper, mocks } = await mountAppForImmediateRestore({
       initialUserId: 'user-a',
       savedRoutes: {
         'user-a': '/home',
@@ -215,5 +203,6 @@ describe('public and home restore timing (t-fn-031 / tc-fn-027)', () => {
     await mocks.triggerAuthChange('token-b', { id: 'user-b' })
 
     expect(mocks.routerReplaceMock).toHaveBeenCalledWith('/f/bob-notes')
+    wrapper.unmount()
   })
 })
