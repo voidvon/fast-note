@@ -7,7 +7,7 @@
 [![Vue](https://img.shields.io/badge/Vue.js-3-42b883.svg?logo=vue.js&logoColor=white)](https://vuejs.org/)
 [![Framework7](https://img.shields.io/badge/Framework7-9-EE350F.svg?logo=framework7&logoColor=white)](https://framework7.io/)
 [![Go](https://img.shields.io/badge/Go-1.24%2B-00ADD8.svg?logo=go&logoColor=white)](https://go.dev/)
-[![版本](https://img.shields.io/badge/版本-v0.1.16-orange.svg)](https://github.com/voidvon/fast-note/releases/tag/v0.1.16)
+[![版本](https://img.shields.io/badge/版本-v0.1.17-orange.svg)](https://github.com/voidvon/fast-note/releases/tag/v0.1.17)
 
 **面向富文本写作、信息整理、跨设备同步和公开分享的离线优先自托管备忘录应用。**
 
@@ -54,8 +54,8 @@ Fastnote 是一个前后端一体的备忘录应用，目标是在网络不可�
 
 ## 下载安装
 
-当前发布版本为 **v0.1.16**，这是用于测试的预发布版本。请从
-[GitHub Releases](https://github.com/voidvon/fast-note/releases/tag/v0.1.16)
+当前发布版本为 **v0.1.17**，支持通过内置更新功能升级。请从
+[GitHub Releases](https://github.com/voidvon/fast-note/releases/tag/v0.1.17)
 下载对应平台的安装包。
 
 这些压缩包是用于自托管的服务端发布包。每个包都包含平台可执行文件、空的
@@ -81,14 +81,14 @@ Fastnote 是一个前后端一体的备忘录应用，目标是在网络不可�
 `pb_data/` 与程序位于同一目录：
 
 ```bash
-cd fastnote_v0.1.16_linux_amd64
+cd fastnote_v0.1.17_linux_amd64
 ./fastnote serve --http=127.0.0.1:8090
 ```
 
 Windows PowerShell：
 
 ```powershell
-cd fastnote_v0.1.16_windows_amd64
+cd fastnote_v0.1.17_windows_amd64
 .\fastnote.exe serve --http=127.0.0.1:8090
 ```
 
@@ -163,7 +163,7 @@ npm run test:e2e
 生成完整的跨平台发布包：
 
 ```bash
-npm run release -- --version=v0.1.16
+npm run release -- --version=v0.1.17
 ```
 
 发布脚本会构建前端，将静态资源嵌入 Go 宿主，并在 `build/releases/` 下为所有

@@ -7,7 +7,7 @@
 [![Vue](https://img.shields.io/badge/Vue.js-3-42b883.svg?logo=vue.js&logoColor=white)](https://vuejs.org/)
 [![Framework7](https://img.shields.io/badge/Framework7-9-EE350F.svg?logo=framework7&logoColor=white)](https://framework7.io/)
 [![Go](https://img.shields.io/badge/Go-1.24%2B-00ADD8.svg?logo=go&logoColor=white)](https://go.dev/)
-[![Release](https://img.shields.io/badge/release-v0.1.16-orange.svg)](https://github.com/voidvon/fast-note/releases/tag/v0.1.16)
+[![Release](https://img.shields.io/badge/release-v0.1.17-orange.svg)](https://github.com/voidvon/fast-note/releases/tag/v0.1.17)
 
 **An offline-first, self-hosted note-taking app for rich writing, organization, synchronization, and public sharing.**
 
@@ -58,8 +58,8 @@ backend.
 
 ## Downloads
 
-The current published build is **v0.1.16**, a prerelease intended for testing.
-Download packages from [GitHub Releases](https://github.com/voidvon/fast-note/releases/tag/v0.1.16).
+The current published build is **v0.1.17**, available through the built-in updater.
+Download packages from [GitHub Releases](https://github.com/voidvon/fast-note/releases/tag/v0.1.17).
 
 These archives are self-hosted server packages. Each package contains the
 platform binary, an empty `pb_data/` directory, and a small package README.
@@ -85,14 +85,14 @@ Download and extract the package for your operating system, then run the binary
 from the extracted directory so that `pb_data/` stays next to it:
 
 ```bash
-cd fastnote_v0.1.16_linux_amd64
+cd fastnote_v0.1.17_linux_amd64
 ./fastnote serve --http=127.0.0.1:8090
 ```
 
 On Windows PowerShell:
 
 ```powershell
-cd fastnote_v0.1.16_windows_amd64
+cd fastnote_v0.1.17_windows_amd64
 .\fastnote.exe serve --http=127.0.0.1:8090
 ```
 
@@ -173,7 +173,7 @@ npm run test:e2e
 Create a complete cross-platform release bundle with:
 
 ```bash
-npm run release -- --version=v0.1.16
+npm run release -- --version=v0.1.17
 ```
 
 The release script builds the frontend, embeds its static assets into the Go
