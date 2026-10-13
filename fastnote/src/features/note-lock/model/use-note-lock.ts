@@ -22,7 +22,7 @@ interface CloudPinSettings {
   updated?: string | null
 }
 
-export type NoteLockViewState = 'unlocked' | 'locked' | 'unlocking' | 'cooldown'
+export type NoteLockViewState = 'checking' | 'unlocked' | 'locked' | 'unlocking' | 'cooldown'
 export type NoteLockSessionChangeReason = 'verified' | 'biometric' | 'relock' | 'session_cleared'
 
 export interface NoteLockSessionChangeEvent {

@@ -1,5 +1,5 @@
 describe('locked note homepage restore', () => {
-  const noteId = 'e2e-locked-home-note'
+  let noteId: string
   const content = '<p>密码解锁后必须保留的正文</p>'
 
   function expectStoredContent(expected: string, attempts = 30): Cypress.Chainable {
@@ -13,6 +13,9 @@ describe('locked note homepage restore', () => {
   }
 
   beforeEach(() => {
+    // Use a fresh ID so a previous page's queued session renewal cannot unlock
+    // the next fixture while its IndexedDB records are being replaced.
+    noteId = `e2e-locked-home-note-${Date.now()}`
     cy.viewport(1280, 800)
     cy.visit('/home')
     cy.window().its('db').should('exist')
@@ -68,6 +71,62 @@ describe('locked note homepage restore', () => {
     cy.reload()
     cy.get('#home-note-detail-pane .tiptap')
       .should('contain.text', '密码解锁后必须保留的正文')
+  })
+
+  for (const device of ['desktop', 'mobile'] as const) {
+    it(`restores the local unlocked session without mounting the PIN panel on ${device}`, () => {
+      cy.get('#home-note-detail-pane .tiptap')
+        .should('contain.text', '密码解锁后必须保留的正文')
+      if (device === 'mobile') {
+        cy.viewport(390, 844)
+        cy.visit(`/n/${noteId}`)
+        cy.get('.note-detail .tiptap').should('contain.text', '密码解锁后必须保留的正文')
+      }
+
+      let pinPanelMounted = false
+      let observer: MutationObserver
+      cy.on('window:before:load', (win) => {
+        // Observe added nodes from before app startup, including nodes removed
+        // before Cypress's next assertion. A final absence check misses flashes.
+        observer = new win.MutationObserver((records) => {
+          for (const record of records) {
+            for (const node of record.addedNodes) {
+              if (node instanceof win.Element && (
+                node.matches('[data-testid="note-unlock-panel"]')
+                || node.querySelector('[data-testid="note-unlock-panel"]')
+              )) {
+                pinPanelMounted = true
+              }
+            }
+          }
+        })
+        observer.observe(win.document, { childList: true, subtree: true })
+      })
+      cy.intercept({ pathname: '/api/**' }, { forceNetworkError: true })
+      cy.reload()
+      cy.get('.note-detail .tiptap').should('contain.text', '密码解锁后必须保留的正文')
+      cy.then(() => {
+        observer.disconnect()
+        expect(pinPanelMounted, 'PIN panel never mounted during local restore').to.equal(false)
+      })
+      cy.get('[data-testid="note-unlock-panel"]').should('not.exist')
+      cy.screenshot(`unlocked-note-refresh-${device}`)
+    })
+  }
+
+  it('requires PIN again when the persisted local session has expired', () => {
+    cy.get('#home-note-detail-pane .tiptap')
+      .should('contain.text', '密码解锁后必须保留的正文')
+    cy.window().then(async (win: Window & { db: any }) => {
+      const session = await win.db.note_unlock_sessions.get(noteId)
+      await win.db.note_unlock_sessions.put({ ...session, expires_at: Date.now() - 1 })
+    })
+    cy.reload()
+    cy.get('[data-testid="note-unlock-panel"]').should('be.visible')
+    cy.get('#home-note-detail-pane .tiptap').should('not.exist')
+    cy.window().then((win: Window & { db: any }) => {
+      cy.wrap(win.db.notes.get(noteId)).its('content').should('eq', content)
+    })
   })
 
   it('allows deliberately clearing an unlocked note and persists the edit', () => {

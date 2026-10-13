@@ -84,9 +84,18 @@ export function useNoteLockViewFlow(options: UseNoteLockViewFlowOptions = {}) {
   async function applyNoteState(note: Note) {
     const isCurrent = beginRequest()
     if (noteLock.isPinLockNote(note)) {
-      // Keep a newly selected locked note hidden until its session is known.
-      state.viewState = 'locked'
-      const snapshot = await noteLock.getLockViewState(note.id, note)
+      // Hide both content and PIN UI until the persisted local session is known.
+      state.viewState = 'checking'
+      let snapshot: NoteLockViewSnapshot
+      try {
+        snapshot = await noteLock.getLockViewState(note.id, note)
+      }
+      catch (error) {
+        if (isCurrent()) {
+          lock()
+        }
+        throw error
+      }
       if (!isCurrent()) {
         return snapshot
       }

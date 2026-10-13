@@ -25,6 +25,14 @@ export function useNoteDetailViewState(options: UseNoteDetailViewStateOptions) {
     return !!note && options.isPinLockNote(note) && options.getLockViewState() !== 'unlocked'
   })
 
+  const isCheckingLockSession = computed(() => {
+    return isPinLockedForView.value && options.getLockViewState() === 'checking'
+  })
+
+  const shouldShowUnlockPanel = computed(() => {
+    return isPinLockedForView.value && !isCheckingLockSession.value
+  })
+
   const isEditorBlocked = computed(() => {
     return isReadOnly.value || isMissingPrivateNote.value || isPinLockedForView.value
   })
@@ -35,9 +43,11 @@ export function useNoteDetailViewState(options: UseNoteDetailViewStateOptions) {
 
   return {
     canShowNoteActions,
+    isCheckingLockSession,
     isEditorBlocked,
     isMissingPrivateNote,
     isPinLockedForView,
     isReadOnly,
+    shouldShowUnlockPanel,
   }
 }

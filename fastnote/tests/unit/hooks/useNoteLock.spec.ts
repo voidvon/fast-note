@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
-import { onNoteLockSessionChanged, useNoteLock, validatePinSetup } from '@/features/note-lock'
+import { createNoteUnlockSession, onNoteLockSessionChanged, useNoteLock, validatePinSetup } from '@/features/note-lock'
 import { logger } from '@/shared/lib/logger'
 import { makeNote } from '../../factories/note.factory'
 
@@ -431,6 +431,30 @@ describe('useNoteLock setup flow (t-fn-037)', () => {
     currentTime = 11_001
     expect(await noteLock.renewSession('note-renew', 10_000)).toBeNull()
     expect((await dbTables.note_unlock_sessions.get('note-renew'))?.expires_at).toBe(11_000)
+  })
+
+  it.each([
+    { currentTime: 1000, expectedState: 'unlocked' },
+    { currentTime: 6000, expectedState: 'locked' },
+  ])('restores the $expectedState view locally without querying cloud PIN settings', async ({ currentTime, expectedState }) => {
+    const note = makeNote({ id: 'local-restore-note', is_locked: 1 })
+    const dbTables = createMockDb()
+    await dbTables.note_unlock_sessions.put(createNoteUnlockSession(note.id, {
+      now: 1000,
+      sessionTtl: 5000,
+    }))
+    const getCloudPinSettings = vi.fn(() => new Promise<never>(() => {}))
+    const noteLock = useNoteLock({
+      db: ref(dbTables),
+      getNote: async () => note,
+      isAuthenticated: () => true,
+      isBiometricSupported: () => false,
+      getCloudPinSettings,
+      now: () => currentTime,
+    })
+
+    expect((await noteLock.getLockViewState(note.id, note)).viewState).toBe(expectedState)
+    expect(getCloudPinSettings).not.toHaveBeenCalled()
   })
 
   it('migrates legacy credential into device state and unlocks via biometric', async () => {

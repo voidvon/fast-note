@@ -265,9 +265,11 @@ const noteDetailEntry = useNoteDetailEntry({
 })
 const isNewNote = computed(() => idFromSource.value === '0' && !hasCreatedRouteDraft.value)
 const {
+  isCheckingLockSession,
   isEditorBlocked,
   isMissingPrivateNote,
   isPinLockedForView,
+  shouldShowUnlockPanel,
 } = useNoteDetailViewState({
   getCurrentNote() {
     return data.value
@@ -660,15 +662,22 @@ async function handleNoteLockUpdated(updatedNote: Note) {
         <F7BackButton v-bind="backButtonProps" />
       </template>
       <template #nav-right>
-        <F7Spinner
+        <div
           v-if="isNoteSaving"
-          class="note-detail__saving-spinner"
-          name="crescent"
-        />
+          class="note-detail__saving-indicator"
+          role="status"
+          aria-label="正在保存"
+        >
+          <F7Spinner
+            class="note-detail__saving-spinner"
+            name="crescent"
+          />
+        </div>
         <F7Link
           v-if="shouldRenderHeaderAction"
           :id="isDesktop ? 'desktop-note-more-trigger' : 'mobile-note-more-trigger'"
           icon-only
+          class="note-detail__action-button"
           :class="{ disabled: isHeaderActionDisabled }"
           data-testid="note-more-trigger"
           aria-label="更多操作"
@@ -694,7 +703,12 @@ async function handleNoteLockUpdated(updatedNote: Note) {
       <div v-else-if="loadError" class="public-note-load-error" role="alert">
         {{ loadError }}
       </div>
-      <div v-else class="note-detail__content-shell">
+      <div
+        v-else
+        class="note-detail__content-shell"
+        :aria-busy="isCheckingLockSession || undefined"
+        :aria-label="isCheckingLockSession ? '正在加载备忘录' : undefined"
+      >
         <div class="app-padding">
           <div v-if="isMissingPrivateNote" data-testid="note-detail-missing-note" class="note-detail__missing-state">
             当前备忘录不存在或尚未同步完成
@@ -709,7 +723,7 @@ async function handleNoteLockUpdated(updatedNote: Note) {
         </div>
       </div>
       <NoteUnlockPanel
-        v-if="isPinLockedForView"
+        v-if="shouldShowUnlockPanel"
         class="note-detail__unlock-overlay"
         :lock-view-state="noteLockView.state.viewState"
         :biometric-enabled="noteLockView.state.biometricEnabled"
@@ -746,167 +760,158 @@ async function handleNoteLockUpdated(updatedNote: Note) {
 </template>
 
 <style lang="scss">
-.ios .note-detail__toolbar .right:has(> .link:only-child) {
-  width: 44px;
-  height: 44px;
-  align-self: center;
-}
-
-.note-detail__toolbar {
-  position: absolute;
-  z-index: 20;
-  top: 0;
-  right: 0;
-  left: 0;
-}
-
 .note-detail {
   --note-editor-toolbar-height: 64px;
   width: 100%;
   height: 100%;
   min-height: 0;
   overflow: hidden;
-}
 
-.app-page-embedded.note-detail {
-  position: relative;
-  display: block;
-  overflow: clip;
-}
+  &.app-page-embedded {
+    position: relative;
+    display: block;
+    overflow: clip;
+  }
 
-.note-detail__content {
-  --f7-page-navbar-offset: 0px;
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  padding-top: 0;
-  padding-bottom: calc(var(--note-editor-toolbar-height) + var(--f7-safe-area-bottom));
-  background: var(--c-page-background);
-}
+  .note-detail__toolbar {
+    position: absolute;
+    z-index: 20;
+    top: 0;
+    right: 0;
+    left: 0;
 
-.note-detail > .app-pane-footer,
-.note-detail > .app-footer {
-  position: absolute;
-  z-index: 20;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  min-height: calc(var(--note-editor-toolbar-height) + var(--f7-safe-area-bottom));
-}
+    .right {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+  }
 
-.note-detail__saving-spinner {
-  width: 18px;
-  height: 18px;
-  color: var(--c-text-secondary);
-}
+  .ios & .note-detail__toolbar .right,
+  &.ios .note-detail__toolbar .right {
+    height: 100%;
+    min-width: 0;
+    background: transparent;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border-radius: 0;
+  }
 
-.note-detail__missing-state {
-  padding: 16px;
-  border-radius: 12px;
-  background: var(--c-list-hover-background);
-  color: var(--c-text-secondary);
-  text-align: center;
-}
+  .note-detail__saving-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+  }
 
-.public-note-skeleton {
-  padding: calc(var(--f7-navbar-height) + var(--f7-safe-area-top) + 28px) 20px 28px;
-}
+  .note-detail__saving-spinner {
+    width: 18px;
+    height: 18px;
+    color: var(--c-text-secondary);
+  }
 
-.public-note-skeleton__title {
-  width: min(72%, 320px);
-  height: 32px;
-  margin: 0 0 14px;
-}
+  .note-detail__action-button {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    margin: 0;
+    border-radius: 50%;
+    -webkit-backdrop-filter: saturate(180%) blur(16px);
+    backdrop-filter: saturate(180%) blur(16px);
+    box-shadow: var(--f7-glass-shadow);
+    background-color: var(--f7-glass-bg-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--f7-navbar-link-color, var(--f7-bars-link-color, var(--f7-theme-color)));
+  }
 
-.public-note-skeleton__meta {
-  width: 112px;
-  height: 14px;
-  margin: 0 0 36px;
-}
+  .note-detail__content {
+    --f7-page-navbar-offset: 0px;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    padding-top: 0;
+    padding-bottom: calc(var(--note-editor-toolbar-height) + var(--f7-safe-area-bottom));
+    background: var(--c-page-background);
+  }
 
-.public-note-skeleton__body {
-  display: grid;
-  gap: 15px;
-}
+  > .app-pane-footer,
+  > .app-footer {
+    position: absolute;
+    z-index: 20;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    min-height: calc(var(--note-editor-toolbar-height) + var(--f7-safe-area-bottom));
+  }
 
-.public-note-skeleton__body .skeleton-text {
-  height: 16px;
-  margin: 0;
-}
+  .note-detail__missing-state {
+    padding: 16px;
+    border-radius: 12px;
+    background: var(--c-list-hover-background);
+    color: var(--c-text-secondary);
+    text-align: center;
+  }
 
-.public-note-load-error {
-  display: grid;
-  min-height: 50vh;
-  padding: calc(var(--f7-navbar-height) + var(--f7-safe-area-top) + 24px) 24px 24px;
-  place-items: center;
-  color: var(--c-text-secondary);
-  text-align: center;
-}
+  .public-note-skeleton {
+    padding: calc(var(--f7-navbar-height) + var(--f7-safe-area-top) + 28px) 20px 28px;
+  }
 
-.note-detail__content-shell {
-  position: relative;
-  box-sizing: border-box;
-  min-height: 100%;
-  padding-top: 0;
-}
+  .public-note-skeleton__title {
+    width: min(72%, 320px);
+    height: 32px;
+    margin: 0 0 14px;
+  }
 
-.note-detail__content-shell > .app-padding {
-  padding-top: 0;
-}
+  .public-note-skeleton__meta {
+    width: 112px;
+    height: 14px;
+    margin: 0 0 36px;
+  }
 
-.note-detail__unlock-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  background: var(--c-page-background);
-}
-</style>
+  .public-note-skeleton__body {
+    display: grid;
+    gap: 15px;
+  }
 
-<style scoped>
-.app-list-item {
-  --inner-padding-end: 0;
-  --background: transparent;
-}
+  .public-note-skeleton__body .skeleton-text {
+    height: 16px;
+    margin: 0;
+  }
 
-.app-label {
-  margin-top: 12px;
-  margin-bottom: 12px;
-}
+  .public-note-load-error {
+    display: grid;
+    min-height: 50vh;
+    padding: calc(var(--f7-navbar-height) + var(--f7-safe-area-top) + 24px) 24px 24px;
+    place-items: center;
+    color: var(--c-text-secondary);
+    text-align: center;
+  }
 
-.app-list-item h2 {
-  font-weight: 600;
+  .note-detail__content-shell {
+    position: relative;
+    box-sizing: border-box;
+    min-height: 100%;
+    padding-top: 0;
+  }
 
-  /**
-   * With larger font scales
-   * the date/time should wrap to the next
-   * line. However, there should be
-   * space between the name and the date/time
-   * if they can appear on the same line.
-   */
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-}
+  .note-detail__content-shell > .app-padding {
+    padding-top: 0;
+  }
 
-.app-list-item .date {
-  align-items: center;
-  display: flex;
-}
-
-.app-list-item .app-icon {
-  font-size: 42px;
-  margin-right: 8px;
-}
-
-.app-list-item .app-note {
-  font-size: 0.9375rem;
-  margin-right: 12px;
-  font-weight: normal;
-}
-
-p {
-  line-height: 1.4;
+  .note-detail__unlock-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: var(--c-page-background);
+  }
 }
 </style>

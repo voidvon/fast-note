@@ -1,3 +1,4 @@
+import type { NoteLockViewSnapshot } from '@/features/note-lock'
 import type { Note } from '@/shared/types'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -50,6 +51,51 @@ describe('note unlock panel integration (t-fn-038 / tc-fn-030)', () => {
     vi.doUnmock('@/shared/ui/f7')
     vi.resetModules()
   })
+
+  it.each(['unlocked', 'locked', 'cooldown'] as const)(
+    'waits for the local session before rendering the %s view',
+    async (viewState) => {
+      const note = makeNote({ id: 'restored-note', is_locked: 1, content: '<p>本地正文</p>' })
+      const session = deferred<NoteLockViewSnapshot>()
+      const cloudBootstrap = deferred<void>()
+      const { wrapper, editorApi, mocks } = await mountNoteDetailForSaveTest({
+        noteId: note.id,
+        notesById: { [note.id]: note },
+        getLockViewStateImpl: () => session.promise,
+        waitForSyncBootstrapImpl: () => cloudBootstrap.promise,
+      })
+
+      expect(wrapper.find('[data-testid="note-unlock-panel"]').exists()).toBe(false)
+      expect(wrapper.findComponent({ name: 'YYEditor' }).exists()).toBe(false)
+      expect(wrapper.findComponent({ name: 'NoteEditorToolbar' }).exists()).toBe(false)
+      expect(editorApi.setContent).not.toHaveBeenCalled()
+
+      session.resolve({
+        viewState,
+        failedAttempts: viewState === 'cooldown' ? 3 : 0,
+        cooldownUntil: viewState === 'cooldown' ? Date.now() + 30_000 : null,
+        biometricEnabled: false,
+        deviceSupportsBiometric: false,
+        session: null,
+      })
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="note-unlock-panel"]').exists())
+        .toBe(viewState !== 'unlocked')
+      expect(wrapper.findComponent({ name: 'YYEditor' }).exists()).toBe(viewState === 'unlocked')
+      if (viewState === 'unlocked') {
+        expect(editorApi.setContent).toHaveBeenLastCalledWith(note.content)
+      }
+      else {
+        expect(editorApi.setContent).not.toHaveBeenCalled()
+      }
+      expect(mocks.waitForSyncBootstrapMock).not.toHaveBeenCalled()
+      expect(mocks.waitForSyncIdleMock).not.toHaveBeenCalled()
+      expect(mocks.verifyPinMock).not.toHaveBeenCalled()
+      expect(mocks.updateNoteMock).not.toHaveBeenCalled()
+      wrapper.unmount()
+    },
+  )
 
   it('does not save the empty editor before private note loading completes', async () => {
     vi.useFakeTimers()

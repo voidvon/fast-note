@@ -1,3 +1,4 @@
+import type { NoteLockViewSnapshot, NoteLockViewState } from '@/features/note-lock'
 import type { Note } from '@/shared/types'
 import { flushPromises, mount } from '@vue/test-utils'
 import { vi } from 'vitest'
@@ -169,7 +170,7 @@ export async function mountNoteDetailForSaveTest(options: {
   noteId?: string
   parentId?: string
   isDesktop?: boolean
-  lockViewState?: 'unlocked' | 'locked' | 'unlocking' | 'cooldown'
+  lockViewState?: NoteLockViewState
   isPinLockNote?: boolean
   route?: {
     params?: Record<string, unknown>
@@ -181,14 +182,7 @@ export async function mountNoteDetailForSaveTest(options: {
   updateNoteImpl?: (id: string, note: Note) => Promise<unknown>
   addNoteImpl?: (note: Note) => Promise<unknown>
   deleteNoteImpl?: (id: string) => Promise<unknown>
-  getLockViewStateImpl?: (noteId: string, note?: Note | null) => Promise<{
-    viewState: 'unlocked' | 'locked' | 'unlocking' | 'cooldown'
-    failedAttempts: number
-    cooldownUntil: number | null
-    biometricEnabled: boolean
-    deviceSupportsBiometric: boolean
-    session: null
-  }>
+  getLockViewStateImpl?: (noteId: string, note?: Note | null) => Promise<NoteLockViewSnapshot>
   syncImpl?: (silent?: boolean) => Promise<unknown>
   waitForSyncBootstrapImpl?: () => Promise<unknown>
   waitForSyncIdleImpl?: () => Promise<unknown>

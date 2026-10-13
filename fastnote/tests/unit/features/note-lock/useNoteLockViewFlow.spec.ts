@@ -157,6 +157,56 @@ describe('useNoteLockViewFlow', () => {
     expect(onLocked).toHaveBeenCalledOnce()
   })
 
+  it('returns to the locked view if reading the local session fails', async () => {
+    const onLocked = vi.fn()
+    const onUnlocked = vi.fn()
+    const flow = useNoteLockViewFlow({
+      noteLock: {
+        getLockViewState: vi.fn()
+          .mockRejectedValue(new Error('local storage unavailable')),
+        isPinLockNote: vi.fn(() => true),
+        tryBiometricUnlock: vi.fn(),
+        verifyPin: vi.fn(),
+      },
+      onLocked,
+      onUnlocked,
+    })
+
+    await expect(flow.applyNoteState(makeNote({ is_locked: 1 })))
+      .rejects
+      .toThrow('local storage unavailable')
+    expect(flow.state.viewState).toBe('locked')
+    expect(onLocked).toHaveBeenCalledOnce()
+    expect(onUnlocked).not.toHaveBeenCalled()
+  })
+
+  it('ignores a failed local session read after selecting another note', async () => {
+    const session = deferred<any>()
+    const onUnlocked = vi.fn()
+    const onLocked = vi.fn()
+    const flow = useNoteLockViewFlow({
+      noteLock: {
+        getLockViewState: vi.fn(() => session.promise),
+        isPinLockNote: note => note?.is_locked === 1,
+        tryBiometricUnlock: vi.fn(),
+        verifyPin: vi.fn(),
+      },
+      onUnlocked,
+      onLocked,
+    })
+
+    const loading = flow.applyNoteState(makeNote({ id: 'locked-note', is_locked: 1 }))
+    const rejected = expect(loading).rejects.toThrow('local storage unavailable')
+    const nextNote = makeNote({ id: 'next-note', is_locked: 0 })
+    await flow.applyNoteState(nextNote)
+    session.reject(new Error('local storage unavailable'))
+    await rejected
+
+    expect(flow.state.viewState).toBe('unlocked')
+    expect(onUnlocked).toHaveBeenCalledExactlyOnceWith(nextNote, expect.any(Function))
+    expect(onLocked).not.toHaveBeenCalled()
+  })
+
   it('ignores a lock snapshot that arrives after a successful unlock', async () => {
     const snapshot = deferred<any>()
     const note = makeNote({ id: 'locked-note', is_locked: 1 })
@@ -179,7 +229,7 @@ describe('useNoteLockViewFlow', () => {
       onLocked,
     })
     const loading = flow.applyNoteState(note)
-    expect(flow.state.viewState).toBe('locked')
+    expect(flow.state.viewState).toBe('checking')
     await flow.unlockWithPin(note, '123456')
     snapshot.resolve({
       viewState: 'locked',

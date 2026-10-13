@@ -26,6 +26,12 @@ describe('note detail save status (t-fn-028 / tc-fn-020, tc-fn-021)', () => {
     await flushPromises()
 
     expect(wrapper.find('.note-detail__saving-spinner').exists()).toBe(true)
+    expect(wrapper.find('.note-detail__saving-indicator').exists()).toBe(true)
+    const moreTrigger = wrapper.find('[data-testid="note-more-trigger"]')
+    expect(moreTrigger.exists()).toBe(true)
+    expect(moreTrigger.classes()).toContain('note-detail__action-button')
+    expect(moreTrigger.find('.note-detail__saving-spinner').exists()).toBe(false)
+    expect(moreTrigger.find('.note-detail__saving-indicator').exists()).toBe(false)
     expect(mocks.updateNoteMock).toHaveBeenCalledTimes(1)
     expect(mocks.syncMock).not.toHaveBeenCalled()
 
@@ -35,6 +41,7 @@ describe('note detail save status (t-fn-028 / tc-fn-020, tc-fn-021)', () => {
 
     expect(mocks.syncMock).toHaveBeenCalledWith(true)
     expect(wrapper.find('.note-detail__saving-spinner').exists()).toBe(false)
+    expect(wrapper.find('.note-detail__saving-indicator').exists()).toBe(false)
   })
 
   it('shows top error toast when local save fails', async () => {

@@ -72,13 +72,32 @@ describe('useNoteDetailViewState', () => {
     })
 
     expect(viewState.isPinLockedForView.value).toBe(true)
+    expect(viewState.shouldShowUnlockPanel.value).toBe(true)
     expect(viewState.isEditorBlocked.value).toBe(true)
     expect(viewState.canShowNoteActions.value).toBe(false)
 
     state.lockViewState = 'unlocked'
 
     expect(viewState.isPinLockedForView.value).toBe(false)
+    expect(viewState.shouldShowUnlockPanel.value).toBe(false)
     expect(viewState.isEditorBlocked.value).toBe(false)
     expect(viewState.canShowNoteActions.value).toBe(true)
+  })
+
+  it('keeps content and actions blocked while the local session is being checked', () => {
+    const viewState = useNoteDetailViewState({
+      getCurrentNote: () => makeNote({ is_locked: 1 }),
+      getLockViewState: () => 'checking',
+      isNewNote: () => false,
+      isPinLockNote: note => note.is_locked === 1,
+      isUserContext: () => false,
+      isMissingPrivateNoteState: () => false,
+    })
+
+    expect(viewState.isCheckingLockSession.value).toBe(true)
+    expect(viewState.isPinLockedForView.value).toBe(true)
+    expect(viewState.isEditorBlocked.value).toBe(true)
+    expect(viewState.canShowNoteActions.value).toBe(false)
+    expect(viewState.shouldShowUnlockPanel.value).toBe(false)
   })
 })
