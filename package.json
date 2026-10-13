@@ -16,6 +16,7 @@
     "build:frontend": "npm --prefix fastnote run build",
     "build:backend": "npm run sync:web-assets && node scripts/go-backend.mjs build ./...",
     "release": "node scripts/release.mjs",
-    "release:local": "node scripts/release.mjs --current"
+    "release:local": "node scripts/release.mjs --current",
+    "release:github": "node scripts/release-github.mjs"
   }
 }

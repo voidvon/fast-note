@@ -4,7 +4,8 @@
 ARGS ?=
 
 .PHONY: help install install-frontend tidy-backend dev dev-frontend dev-backend \
-	build build-frontend build-backend sync-web-assets lint test test-unit test-backend test-e2e
+	build build-frontend build-backend sync-web-assets lint test test-unit test-backend test-e2e \
+	release
 
 help: ## 列出可用命令
 	@awk 'BEGIN { printf "Usage: make <target> [ARGS=\"...\"]\n\n" } /^[a-zA-Z0-9_-]+:.*## / { split($$0, parts, ":.*## "); printf "  %-20s %s\n", parts[1], parts[2] }' $(MAKEFILE_LIST)
@@ -51,3 +52,7 @@ test-backend: ## 运行后端 Go 测试，可通过 ARGS 添加测试参数
 
 test-e2e: ## 运行 Cypress 测试（需先启动开发环境），支持 ARGS
 	npm --prefix fastnote run test:e2e -- $(ARGS)
+
+release: ## 构建全平台安装包并发布到 GitHub（自动递增版本），支持 ARGS="..."
+	npm run release:github -- $(ARGS)
+

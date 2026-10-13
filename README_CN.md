@@ -168,11 +168,12 @@ make help         # 查看所有命令
 | `make test` | 前端 Vitest 和后端 Go 测试 |
 | `make test-unit` / `make test-backend` | 单独运行前端 / 后端测试 |
 | `make test-e2e` | Cypress 测试，需先启动开发环境 |
+| `make release` | 构建全平台安装包并发布到 GitHub（自动递增版本） |
 
 测试命令支持 `ARGS`，例如 `make test-unit ARGS="tests/integration/session/login-page.spec.ts"`
 或 `make test-e2e ARGS="--spec tests/e2e/login-framework7.cy.ts"`。
 
-### 构建与测试
+### 构建与发布
 
 ```bash
 npm run build
@@ -181,10 +182,26 @@ npm run test:unit -- --run
 npm run test:e2e
 ```
 
-生成完整的跨平台发布包：
+发布到 GitHub（推荐）：
 
 ```bash
-npm run release -- --version=v0.1.17
+make release
+```
+
+`make release` 会自动从已有 Git 标签识别当前最新版本，并按照规则计算下一个版本号：
+- Patch 每次发布 +1（例如 `0.1.0` -> `0.1.1`）
+- 当 Patch 到达 20 后进位到下一个 Minor（例如 `0.1.20` -> `0.2.0`）
+- 当 Minor 和 Patch 均到达 20 时进位到下一个 Major（例如 `0.20.20` -> `1.0.0`）
+
+该命令会自动完成全平台构建打包、打 Git 标签与推送、并通过 GitHub CLI (`gh`) 创建 Release 并上传所有平台压缩包和 `manifest.json`。支持参数：
+- 模拟演练（不实际构建或推送）：`make release ARGS="--dry-run"`
+- 显式指定版本：`make release ARGS="--version=v0.2.0"`
+- 发布为草稿：`make release ARGS="--draft"`
+
+仅在本地生成跨平台安装包（不发布到 GitHub）：
+
+```bash
+npm run release -- --version=v0.1.18
 ```
 
 发布脚本会构建前端，将静态资源嵌入 Go 宿主，并在 `build/releases/` 下为所有

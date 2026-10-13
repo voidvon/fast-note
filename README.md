@@ -178,12 +178,13 @@ make help         # List all commands
 | `make test` | Run frontend Vitest and backend Go tests |
 | `make test-unit` / `make test-backend` | Run either test suite independently |
 | `make test-e2e` | Run Cypress tests after starting the development environment |
+| `make release` | Build cross-platform packages and publish to GitHub (auto version bump) |
 
 Test commands accept `ARGS`, for example
 `make test-unit ARGS="tests/integration/session/login-page.spec.ts"` or
 `make test-e2e ARGS="--spec tests/e2e/login-framework7.cy.ts"`.
 
-### Build and test
+### Build and release
 
 ```bash
 npm run build
@@ -192,10 +193,26 @@ npm run test:unit -- --run
 npm run test:e2e
 ```
 
-Create a complete cross-platform release bundle with:
+Publish to GitHub (recommended):
 
 ```bash
-npm run release -- --version=v0.1.17
+make release
+```
+
+`make release` detects the latest Git release tag and calculates the next version according to the bump rules:
+- Patch increments by +1 (e.g. `0.1.0` -> `0.1.1`)
+- When patch reaches 20, rolls over to next minor (e.g. `0.1.20` -> `0.2.0`)
+- When minor and patch both reach 20, rolls over to next major (e.g. `0.20.20` -> `1.0.0`)
+
+The command builds binaries for all 9 supported targets, creates zip archives and `manifest.json`, pushes the Git tag, and uses GitHub CLI (`gh`) to publish the release with release assets. Useful arguments via `ARGS`:
+- Dry run (simulate without building or pushing): `make release ARGS="--dry-run"`
+- Explicit version: `make release ARGS="--version=v0.2.0"`
+- Publish as draft: `make release ARGS="--draft"`
+
+Build local release packages without publishing to GitHub:
+
+```bash
+npm run release -- --version=v0.1.18
 ```
 
 The release script builds the frontend, embeds its static assets into the Go
