@@ -132,7 +132,7 @@ function goBack() {
   </F7Page>
 </template>
 
-<style scoped lang="scss">
+<style lang="scss">
 .f7-preview {
   --f7-navbar-bg-color: color-mix(in srgb, var(--c-page-background) 78%, transparent);
   --f7-navbar-border-color: transparent;
@@ -259,10 +259,10 @@ function goBack() {
     padding: 48px 24px;
     text-align: center;
   }
-}
 
-.f7-preview :deep(.navbar) {
-  --f7-navbar-bg-color: color-mix(in srgb, var(--c-page-background) 78%, transparent);
-  --f7-navbar-text-color: var(--c-text-primary);
+  .navbar {
+    --f7-navbar-bg-color: color-mix(in srgb, var(--c-page-background) 78%, transparent);
+    --f7-navbar-text-color: var(--c-text-primary);
+  }
 }
 </style>

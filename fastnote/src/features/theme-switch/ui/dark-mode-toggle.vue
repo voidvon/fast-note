@@ -58,6 +58,7 @@ function togglePopover() {
 
     <F7Popover
       v-if="triggerEl"
+      class="dark-mode-toggle-popover"
       :target-el="triggerEl"
       :is-open="showPopover"
       @did-dismiss="showPopover = false"
@@ -86,26 +87,22 @@ function togglePopover() {
   </div>
 </template>
 
-<style scoped>
+<style lang="scss">
 .dark-mode-toggle {
   display: flex;
   align-items: center;
   margin-left: 8px;
+
+  .app-button {
+    color: var(--c-text-primary);
+  }
 }
 
-.app-button {
-  --color: var(--c-text-primary);
-  --padding-start: 8px;
-  --padding-end: 8px;
-}
+.dark-mode-toggle-popover {
+  --f7-popover-width: 200px;
 
-.app-popover {
-  --width: 200px;
-}
-
-.app-list-item {
-  --padding-start: 16px;
-  --padding-end: 16px;
-  cursor: pointer;
+  .app-list-item {
+    cursor: pointer;
+  }
 }
 </style>

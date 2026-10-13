@@ -225,7 +225,7 @@ onMounted(() => {
     @did-dismiss="closeModal"
   >
     <F7Toolbar top class="user-profile-modal__toolbar">
-      <div class="user-profile-modal__title">
+      <div class="left user-profile-modal__title">
         用户信息
       </div>
       <div class="right">
@@ -415,9 +415,7 @@ onMounted(() => {
 }
 
 .user-profile-modal__title {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+  padding-left: 16px;
   color: var(--c-text-primary);
   font-size: 17px;
   font-weight: 600;

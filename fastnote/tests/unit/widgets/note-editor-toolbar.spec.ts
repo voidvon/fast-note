@@ -76,9 +76,9 @@ describe('note-editor-toolbar widget', () => {
 
     const tabbar = wrapper.getComponent({ name: 'F7Footer' })
     expect(tabbar.attributes()).toHaveProperty('native')
-    expect(tabbar.attributes()).toHaveProperty('tabbar')
-    expect(tabbar.attributes()).toHaveProperty('icons')
     expect(tabbar.attributes()).toHaveProperty('scrollable')
+    expect(tabbar.attributes()).not.toHaveProperty('tabbar')
+    expect(tabbar.attributes()).not.toHaveProperty('icons')
     expect(wrapper.getComponent({ name: 'F7ToolbarPane' }).exists()).toBe(true)
     expect(wrapper.findAll('[icon-only]')).toHaveLength(5)
     expect(wrapper.findAll('[tab-link]')).toHaveLength(0)

@@ -35,7 +35,7 @@ const emit = defineEmits<{
   </div>
 </template>
 
-<style scoped lang="scss">
+<style lang="scss">
 .ai-chat-empty-state {
   display: flex;
   width: 100%;
@@ -43,35 +43,32 @@ const emit = defineEmits<{
   align-items: flex-start;
   gap: 12px;
   padding: 12px 0;
-}
 
-.ai-chat-empty-state__title {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: #f5f5f7;
-}
+  &__title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--c-text-primary);
+  }
 
-.ai-chat-empty-state__text {
-  margin: 0;
-  max-width: 36rem;
-  line-height: 1.6;
-  color: #a1a1aa;
-}
+  &__text {
+    margin: 0;
+    max-width: 36rem;
+    line-height: 1.6;
+    color: var(--c-text-secondary);
+  }
 
-.ai-chat-empty-state__suggestions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
+  &__suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
 
-.ai-chat-empty-state__suggestion-button {
-  --border-color: rgba(125, 211, 252, 0.26);
-  --color: #d4d4d8;
-  --background: rgba(255, 255, 255, 0.03);
-  --background-hover: rgba(125, 211, 252, 0.08);
-  --border-radius: 999px;
-  margin: 0;
-  text-transform: none;
+  &__suggestion-button {
+    --f7-button-border-radius: 999px;
+    margin: 0;
+    text-transform: none;
+    color: var(--c-text-primary);
+  }
 }
 </style>

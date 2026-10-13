@@ -331,32 +331,34 @@ async function onDelete() {
 </template>
 
 <style lang="scss">
-.note-more-modal--sheet {
-  --f7-sheet-height: min(360px, 60vh);
-  --f7-sheet-border-radius: 24px;
-}
+.note-more-modal {
+  &.note-more-modal--sheet {
+    --f7-sheet-height: min(360px, 60vh);
+    --f7-sheet-border-radius: 24px;
+  }
 
-.note-more-sheet {
-  --f7-page-toolbar-top-offset: var(--f7-toolbar-height);
+  .note-more-sheet {
+    --f7-page-toolbar-top-offset: var(--f7-toolbar-height);
 
-  overflow-y: auto;
-  background: var(--c-page-background);
-}
+    overflow-y: auto;
+    background: var(--c-page-background);
+  }
 
-.note-more-sheet__toolbar {
-  --f7-toolbar-bg-color: var(--c-list-background);
-  --f7-toolbar-border-color: var(--c-border);
-}
+  .note-more-sheet__toolbar {
+    --f7-toolbar-bg-color: var(--c-list-background);
+    --f7-toolbar-border-color: var(--c-border);
+  }
 
-.note-more-sheet__title {
-  padding-left: 16px;
-  color: var(--c-text-primary);
-  font-size: 17px;
-  font-weight: 600;
-}
+  .note-more-sheet__title {
+    padding-left: 16px;
+    color: var(--c-text-primary);
+    font-size: 17px;
+    font-weight: 600;
+  }
 
-.note-more-sheet__icon {
-  width: 24px;
-  height: 24px;
+  .note-more-sheet__icon {
+    width: 24px;
+    height: 24px;
+  }
 }
 </style>

@@ -105,7 +105,7 @@ watch(() => extensionEnabled.value, loadExtensionComponent, { immediate: true })
 </script>
 
 <template>
-  <div>
+  <div class="extension-renderer">
     <!-- 加载状态 -->
     <div v-if="loading" class="extension-loading">
       <span>加载中...</span>
@@ -126,14 +126,16 @@ watch(() => extensionEnabled.value, loadExtensionComponent, { immediate: true })
   </div>
 </template>
 
-<style scoped>
-.extension-loading,
-.extension-error {
-  font-size: 0.8rem;
-  padding: 0.25rem 0.5rem;
-}
+<style lang="scss">
+.extension-renderer {
+  .extension-loading,
+  .extension-error {
+    font-size: 0.8rem;
+    padding: 0.25rem 0.5rem;
+  }
 
-.extension-error {
-  color: #dc3545;
+  .extension-error {
+    color: var(--danger, #f44336);
+  }
 }
 </style>

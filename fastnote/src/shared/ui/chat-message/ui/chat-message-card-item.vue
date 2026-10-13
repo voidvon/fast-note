@@ -28,7 +28,7 @@ function handleAction() {
 
 <template>
   <li
-    class="chat-message__card-item"
+    class="chat-message-card-item chat-message__card-item"
     :class="{
       'chat-message__card-item--actionable': !!item.action,
       'chat-message__card-item--selected': selected,
@@ -63,81 +63,81 @@ function handleAction() {
   </li>
 </template>
 
-<style scoped lang="scss">
-.chat-message__card-item {
+<style lang="scss">
+.chat-message-card-item {
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding: 10px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.04);
-}
 
-.chat-message__card-item--actionable {
-  cursor: pointer;
-}
+  &.chat-message__card-item--actionable {
+    cursor: pointer;
 
-.chat-message__card-item--selected {
-  background: rgba(125, 211, 252, 0.1);
-}
+    &:focus-visible {
+      outline: 2px solid var(--primary);
+      outline-offset: 2px;
+    }
+  }
 
-.chat-message__card-item--actionable:focus-visible {
-  outline: 2px solid rgba(125, 211, 252, 0.8);
-  outline-offset: 2px;
-}
+  &.chat-message__card-item--selected {
+    background: rgba(233, 183, 48, 0.12);
+  }
 
-.chat-message__card-item-main {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
+  .chat-message__card-item-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
 
-.chat-message__card-item-title,
-.chat-message__card-item-button {
-  min-width: 0;
-  font-size: 13px;
-  font-weight: 700;
-  color: #f5f5f7;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+  .chat-message__card-item-title,
+  .chat-message__card-item-button {
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--c-text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
-.chat-message__card-item-button {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: #7dd3fc;
-  cursor: pointer;
-  text-align: left;
-}
+  .chat-message__card-item-button {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--primary);
+    cursor: pointer;
+    text-align: left;
+  }
 
-.chat-message__card-item-secondary {
-  margin: 0;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  color: #a1a1aa;
-}
+  .chat-message__card-item-secondary {
+    margin: 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    color: var(--c-text-secondary);
+  }
 
-.chat-message__card-tags {
-  display: flex;
-  flex: 0 0 auto;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 6px;
-}
+  .chat-message__card-tags {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+  }
 
-.chat-message__card-tag {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(125, 211, 252, 0.12);
-  color: #bae6fd;
-  font-size: 11px;
+  .chat-message__card-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(233, 183, 48, 0.12);
+    color: var(--primary);
+    font-size: 11px;
+  }
 }
 </style>

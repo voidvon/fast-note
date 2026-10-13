@@ -789,14 +789,15 @@ async function handleNoteLockUpdated(updatedNote: Note) {
   }
 
   .ios & .note-detail__toolbar .right,
-  &.ios .note-detail__toolbar .right {
-    height: 100%;
-    min-width: 0;
-    background: transparent;
-    box-shadow: none;
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-    border-radius: 0;
+  &.ios .note-detail__toolbar .right,
+  .note-detail__toolbar .right {
+    min-width: 0 !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    border-radius: 0 !important;
   }
 
   .note-detail__saving-indicator {
@@ -806,6 +807,7 @@ async function handleNoteLockUpdated(updatedNote: Note) {
     width: 24px;
     height: 24px;
     flex-shrink: 0;
+    align-self: center;
   }
 
   .note-detail__saving-spinner {
@@ -815,30 +817,39 @@ async function handleNoteLockUpdated(updatedNote: Note) {
   }
 
   .note-detail__action-button {
-    width: 44px;
-    height: 44px;
-    padding: 0;
-    margin: 0;
-    border-radius: 50%;
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    max-width: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-radius: 50% !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+    flex-shrink: 0;
     -webkit-backdrop-filter: saturate(180%) blur(16px);
     backdrop-filter: saturate(180%) blur(16px);
     box-shadow: var(--f7-glass-shadow);
     background-color: var(--f7-glass-bg-color);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
     color: var(--f7-navbar-link-color, var(--f7-bars-link-color, var(--f7-theme-color)));
   }
 
   .note-detail__content {
-    --f7-page-navbar-offset: 0px;
+    --f7-page-navbar-offset: calc(
+      var(--f7-navbar-height, 76px) + var(--f7-safe-area-top, 0px)
+    );
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
     min-height: 0;
-    padding-top: 0;
+    padding-top: calc(
+      var(--f7-navbar-height, 76px) + var(--f7-safe-area-top, 0px)
+    );
     padding-bottom: calc(var(--note-editor-toolbar-height) + var(--f7-safe-area-bottom));
     background: var(--c-page-background);
   }
@@ -862,7 +873,7 @@ async function handleNoteLockUpdated(updatedNote: Note) {
   }
 
   .public-note-skeleton {
-    padding: calc(var(--f7-navbar-height) + var(--f7-safe-area-top) + 28px) 20px 28px;
+    padding: 24px 20px 28px;
   }
 
   .public-note-skeleton__title {
@@ -890,7 +901,7 @@ async function handleNoteLockUpdated(updatedNote: Note) {
   .public-note-load-error {
     display: grid;
     min-height: 50vh;
-    padding: calc(var(--f7-navbar-height) + var(--f7-safe-area-top) + 24px) 24px 24px;
+    padding: 24px;
     place-items: center;
     color: var(--c-text-secondary);
     text-align: center;

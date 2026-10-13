@@ -21,7 +21,7 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <section>
+  <section class="ai-chat-settings-card">
     <F7Note>
       当前是浏览器直连模式，API Key 会保存在本地浏览器，请只在受信任环境中使用。
     </F7Note>
@@ -91,9 +91,11 @@ const emit = defineEmits<{
   </section>
 </template>
 
-<style scoped>
-.ai-chat-settings-card__hint {
-  display: block;
-  margin-top: 8px;
+<style lang="scss">
+.ai-chat-settings-card {
+  .ai-chat-settings-card__hint {
+    display: block;
+    margin-top: 8px;
+  }
 }
 </style>

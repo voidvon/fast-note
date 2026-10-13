@@ -31,7 +31,7 @@ function handleItemAction(action: ChatMessageCardAction) {
 </script>
 
 <template>
-  <div v-if="visibleCards.length" class="chat-message__cards">
+  <div v-if="visibleCards.length" class="chat-message-cards chat-message__cards">
     <section
       v-for="card in visibleCards"
       :key="card.id"
@@ -66,66 +66,66 @@ function handleItemAction(action: ChatMessageCardAction) {
   </div>
 </template>
 
-<style scoped lang="scss">
-.chat-message__cards {
+<style lang="scss">
+.chat-message-cards {
   display: flex;
   flex-direction: column;
   gap: 10px;
   margin-top: 12px;
-}
 
-.chat-message__card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
-  background: rgba(7, 10, 18, 0.36);
-}
+  .chat-message__card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    background: rgba(7, 10, 18, 0.36);
 
-.chat-message__card--success {
-  border-color: rgba(74, 222, 128, 0.22);
-}
+    &--success {
+      border-color: rgba(74, 222, 128, 0.22);
+    }
 
-.chat-message__card--warning {
-  border-color: rgba(250, 204, 21, 0.24);
-}
+    &--warning {
+      border-color: rgba(250, 204, 21, 0.24);
+    }
 
-.chat-message__card--error {
-  border-color: rgba(248, 113, 113, 0.24);
-}
+    &--error {
+      border-color: rgba(248, 113, 113, 0.24);
+    }
+  }
 
-.chat-message__card-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
+  .chat-message__card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
 
-.chat-message__card-title {
-  font-size: 13px;
-  color: #f5f5f7;
-}
+  .chat-message__card-title {
+    font-size: 13px;
+    color: var(--c-text-primary);
+  }
 
-.chat-message__card-status,
-.chat-message__card-footer {
-  font-size: 12px;
-  color: #a1a1aa;
-}
+  .chat-message__card-status,
+  .chat-message__card-footer {
+    font-size: 12px;
+    color: var(--c-text-secondary);
+  }
 
-.chat-message__card-description {
-  margin: 0;
-  font-size: 12px;
-  color: #d4d4d8;
-}
+  .chat-message__card-description {
+    margin: 0;
+    font-size: 12px;
+    color: var(--c-text-secondary);
+  }
 
-.chat-message__card-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  .chat-message__card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
 }
 </style>

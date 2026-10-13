@@ -1,18 +1,14 @@
 <script setup lang="ts">
 import type { FolderTreeNode } from '@/shared/types'
-import { computed, onMounted, onUnmounted, reactive } from 'vue'
+import { computed } from 'vue'
 import { useNote } from '@/entities/note'
 import { useSimpleBackButton } from '@/processes/navigation'
 import { useDeviceType } from '@/shared/lib/device'
 import {
   F7BackButton,
-  F7Buttons,
   F7Content,
-  F7Footer,
-  F7Header,
   F7Navbar,
   F7Page,
-  F7Title,
   F7Toolbar,
 } from '@/shared/ui/f7'
 import NoteList from '@/widgets/note-list'
@@ -37,52 +33,22 @@ const dataList = computed<FolderTreeNode[]>(() => {
     .filter(note => note.is_deleted === 1 && note.updated >= thirtyDaysAgo)
     .map(note => ({ originNote: note, children: [] }))
 })
-const state = reactive({
-  windowWidth: 0,
-})
-
-// 更新窗口宽度的函数
-function updateWindowWidth() {
-  state.windowWidth = window.innerWidth
-}
-
-// 组件挂载时添加监听
-onMounted(() => {
-  state.windowWidth = window.innerWidth
-  window.addEventListener('resize', updateWindowWidth)
-})
-
-// 组件卸载时移除监听
-onUnmounted(() => {
-  window.removeEventListener('resize', updateWindowWidth)
-})
 </script>
 
 <template>
-  <F7Page :class="{ 'deleted-note-page--desktop': isDesktop }">
+  <F7Page class="deleted-note-page" :class="{ 'deleted-note-page--desktop': isDesktop }">
     <F7Navbar
-      v-if="isDesktop"
       class="deleted-note-navbar"
       title="最近删除"
-    />
-
-    <F7Header v-if="!isDesktop" :translucent="true">
-      <F7Toolbar>
-        <F7Buttons position="start">
-          <F7BackButton v-bind="backButtonProps" />
-        </F7Buttons>
-      </F7Toolbar>
-    </F7Header>
+      :large="!isDesktop"
+      :title-large="!isDesktop ? '最近删除' : undefined"
+    >
+      <template v-if="!isDesktop" #nav-left>
+        <F7BackButton v-bind="backButtonProps" />
+      </template>
+    </F7Navbar>
 
     <F7Content class="deleted-note-content" :fullscreen="true">
-      <F7Header v-if="!isDesktop" collapse="condense">
-        <F7Toolbar>
-          <F7Title size="large">
-            最近删除
-          </F7Title>
-        </F7Toolbar>
-      </F7Header>
-
       <NoteList
         :note-uuid="props.selectedNoteId"
         :data-list="dataList"
@@ -91,34 +57,41 @@ onUnmounted(() => {
         @selected="$emit('selected', $event)"
       />
     </F7Content>
-    <F7Footer v-if="!isDesktop">
-      <F7Toolbar>
-        <F7Title>
-          {{ dataList.length > 0 ? `${dataList.length}个备忘录` : '无备忘录' }}
-        </F7Title>
-      </F7Toolbar>
-    </F7Footer>
+    <F7Toolbar v-if="!isDesktop" bottom>
+      <div class="deleted-note-summary">
+        {{ dataList.length > 0 ? `${dataList.length}个备忘录` : '无备忘录' }}
+      </div>
+    </F7Toolbar>
   </F7Page>
 </template>
 
 <style lang="scss">
-.app-page-embedded.deleted-note-page--desktop {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
-}
+.deleted-note-page {
+  &.app-page-embedded.deleted-note-page--desktop {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
 
-.deleted-note-page--desktop > .deleted-note-navbar,
-.deleted-note-page--desktop > .deleted-note-content {
-  grid-area: 1 / 1;
-}
+    > .deleted-note-navbar,
+    > .deleted-note-content {
+      grid-area: 1 / 1;
+    }
 
-.deleted-note-page--desktop > .deleted-note-navbar {
-  z-index: 20;
-  align-self: start;
-}
+    > .deleted-note-navbar {
+      z-index: 20;
+      align-self: start;
+    }
 
-.deleted-note-page--desktop > .deleted-note-content {
-  --f7-page-navbar-offset: calc(var(--f7-navbar-height) + var(--f7-safe-area-top));
+    > .deleted-note-content {
+      --f7-page-navbar-offset: calc(var(--f7-navbar-height) + var(--f7-safe-area-top));
+    }
+  }
+
+  .deleted-note-summary {
+    width: 100%;
+    text-align: center;
+    font-size: 13px;
+    color: var(--c-text-secondary);
+  }
 }
 </style>

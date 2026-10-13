@@ -352,6 +352,12 @@ describe('note editor Framework7 tabbar', () => {
     cy.get('#home-note-detail-pane').within(() => {
       cy.get('[data-testid="note-more-trigger"]')
         .should('be.visible')
+        .then(($btn) => {
+          const btn = $btn[0]
+          const rect = btn.getBoundingClientRect()
+          expect(rect.width).to.be.greaterThan(0)
+          expect(Math.abs(rect.width - rect.height)).to.be.lessThan(1)
+        })
         .find('svg, i')
         .should('be.visible')
       assertNativeToolbar()

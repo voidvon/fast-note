@@ -1,12 +1,13 @@
 :root {
-  --app-color-primary: theme('colors.primary');
-  --app-color-danger: theme('colors.danger');
+  --app-color-primary: var(--primary, #e9b730);
+  --app-color-danger: var(--danger, #f44336);
   --app-color-success: #2e7d32;
 }
 
 .dark,
+.app-theme-dark,
 [data-theme='dark'] {
-  --app-color-primary: theme('colors.primary');
-  --app-color-danger: theme('colors.danger');
+  --app-color-primary: var(--primary, #dab13d);
+  --app-color-danger: var(--danger, #ea5546);
   --app-color-success: #66bb6a;
 }

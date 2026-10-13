@@ -47,6 +47,14 @@
   --c-page-background: var(--c-blue-gray-800);
   --c-list-background: var(--c-gray-1000);
   --c-list-group-background: var(--c-gray-1000);
+  --f7-theme-color: var(--primary);
+  --f7-theme-color-rgb: 233, 183, 48;
+  --f7-bars-link-color: var(--primary);
+  --f7-navbar-link-color: var(--primary);
+  --f7-tabbar-link-active-color: var(--primary);
+  --f7-segmented-strong-button-active-color: var(--primary);
+  --f7-page-bg-color: var(--c-page-background);
+  --f7-list-bg-color: var(--c-list-background);
   --f7-list-strong-bg-color: var(--c-list-group-background);
   --f7-block-strong-bg-color: var(--c-list-group-background);
   --c-modal-background: #f5f5f7;
@@ -123,6 +131,16 @@
   --c-page-background: #000;
   --c-list-background: #000;
   --c-list-group-background: #1c1c1d;
+  --f7-theme-color: var(--primary);
+  --f7-theme-color-rgb: 218, 177, 61;
+  --f7-bars-link-color: var(--primary);
+  --f7-navbar-link-color: var(--primary);
+  --f7-tabbar-link-active-color: var(--primary);
+  --f7-segmented-strong-button-active-color: var(--primary);
+  --f7-page-bg-color: var(--c-page-background);
+  --f7-list-bg-color: var(--c-list-background);
+  --f7-list-strong-bg-color: var(--c-list-group-background);
+  --f7-block-strong-bg-color: var(--c-list-group-background);
   --c-modal-background: #000;
   --c-list-hover-background: #252527;
   --c-list-active-background: var(--bg-active);
@@ -139,13 +157,33 @@
   --c-global-search-control-shadow: rgba(0, 0, 0, 0.14);
 }
 
-// Keep Framework7 strong surfaces distinct from the page background in both themes.
+// Framework7 native theme variables mapping for both themes
 .ios,
+.md {
+  --f7-theme-color: var(--primary);
+  --f7-theme-color-rgb: 233, 183, 48;
+  --f7-bars-link-color: var(--primary);
+  --f7-navbar-link-color: var(--primary);
+  --f7-tabbar-link-active-color: var(--primary);
+  --f7-page-bg-color: var(--c-page-background);
+  --f7-list-bg-color: var(--c-list-background);
+  --f7-list-strong-bg-color: var(--c-list-group-background);
+  --f7-block-strong-bg-color: var(--c-list-group-background);
+}
+
 .ios.dark,
 .ios .dark,
-.md,
 .md.dark,
-.md .dark {
+.md .dark,
+.app-theme-dark.ios,
+.app-theme-dark .ios {
+  --f7-theme-color: var(--primary);
+  --f7-theme-color-rgb: 218, 177, 61;
+  --f7-bars-link-color: var(--primary);
+  --f7-navbar-link-color: var(--primary);
+  --f7-tabbar-link-active-color: var(--primary);
+  --f7-page-bg-color: var(--c-page-background);
+  --f7-list-bg-color: var(--c-list-background);
   --f7-list-strong-bg-color: var(--c-list-group-background);
   --f7-block-strong-bg-color: var(--c-list-group-background);
 }

@@ -32,17 +32,17 @@ defineProps<{
   </div>
 </template>
 
-<style scoped lang="scss">
+<style lang="scss">
 .stream-markdown {
   min-width: 0;
-}
 
-.stream-markdown :deep(.comark-stream) {
-  min-width: 0;
-}
+  .comark-stream {
+    min-width: 0;
+  }
 
-.stream-markdown__fallback {
-  white-space: pre-wrap;
-  word-break: break-word;
+  &__fallback {
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
 }
 </style>

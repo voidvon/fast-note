@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { View } from 'framework7/types'
 import { f7View as F7View } from 'framework7-vue'
-import { onUnmounted } from 'vue'
+import { computed, onUnmounted } from 'vue'
 import { appRoutes, initializeFramework7Router } from '@/app/router'
 import { useTheme } from '@/features/theme-switch'
 import { useSessionBootstrap } from '@/processes/session'
@@ -18,9 +18,9 @@ const dialogParams = {
   buttonOk: '确认',
   buttonCancel: '取消',
 }
-const framework7Colors = {
-  primary: '#ff9500',
-}
+const framework7Colors = computed(() => ({
+  primary: isDarkMode.value ? '#dab13d' : '#e9b730',
+}))
 const framework7ViewParams = {
   animate: true,
   iosPageLoadDelay: 80,
@@ -68,11 +68,13 @@ onUnmounted(() => {
   </F7App>
 </template>
 
-<style scoped>
-.app-private-route-pending {
-  position: fixed;
-  inset: 0;
-  z-index: 12000;
-  background: var(--c-page-background);
+<style lang="scss">
+#framework7-root {
+  .app-private-route-pending {
+    position: fixed;
+    inset: 0;
+    z-index: 12000;
+    background: var(--c-page-background);
+  }
 }
 </style>

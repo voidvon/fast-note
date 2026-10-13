@@ -208,12 +208,12 @@ defineExpose({
   />
 </template>
 
-<style scoped>
+<style lang="scss">
 .note-editor-toolbar {
   --f7-toolbar-height: var(--note-editor-toolbar-height, 64px);
-}
 
-.note-editor-toolbar__action {
-  aspect-ratio: 1;
+  .note-editor-toolbar__action {
+    aspect-ratio: 1;
+  }
 }
 </style>
