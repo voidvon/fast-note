@@ -128,9 +128,12 @@ export function useUserPublicNotes(username: string) {
     return countNotesWithinChildren(categories)
   }
 
-  function getPublicFolderTreeByPUuid(parent_id: string = ''): FolderTreeNode[] {
+  function getPublicFolderTreeByPUuid(
+    parent_id: string = '',
+    options: { includeNotes?: boolean } = {},
+  ): FolderTreeNode[] {
     const publicNotes = state.publicNotes.value || []
-    return buildFolderTree(publicNotes, parent_id)
+    return buildFolderTree(publicNotes, parent_id, options)
   }
 
   function getUnfiledPublicNotesCount() {

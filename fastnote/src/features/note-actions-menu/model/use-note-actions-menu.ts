@@ -1,12 +1,33 @@
-import { useNote } from '@/entities/note'
+import { nanoid } from 'nanoid'
+import { NOTE_TYPE, useNote } from '@/entities/note'
 import { useNotePurgeService } from '@/entities/note/model/note-purge-service'
+import { getTime } from '@/shared/lib/date'
 
 export function useNoteActionsMenu() {
-  const { getNote, setNoteDeletedState, updateNote } = useNote()
+  const { addNote, getNote, setNoteDeletedState, updateNote } = useNote()
   const { queueNotePurge } = useNotePurgeService()
 
   function getNoteById(id: string) {
     return getNote(id)
+  }
+
+  async function createFolder(parentId: string, title: string) {
+    const isoTime = getTime()
+    const folderId = nanoid(12)
+    await addNote({
+      id: folderId,
+      title,
+      created: isoTime,
+      updated: isoTime,
+      item_type: NOTE_TYPE.FOLDER,
+      parent_id: parentId,
+      version: 1,
+      content: '',
+      is_deleted: 0,
+      is_locked: 0,
+      note_count: 0,
+    })
+    return getNote(folderId)
   }
 
   async function renameNote(noteId: string, title: string) {
@@ -48,6 +69,7 @@ export function useNoteActionsMenu() {
   }
 
   return {
+    createFolder,
     deleteNote,
     deleteNow,
     getNoteById,

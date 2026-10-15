@@ -7,6 +7,8 @@ export {
   getDesktopNoteRoutePath,
   getDesktopNotesForFolder,
   isDesktopFolderAvailable,
+  isFolderDescendantOf,
+  isNoteInFolderOrDescendants,
   isPersistableDesktopNoteId,
   normalizeDesktopActiveNoteSnapshot,
   resolveDesktopActiveNoteSelection,

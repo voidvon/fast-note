@@ -2,8 +2,9 @@
 import type { NoteActionMenuItem } from '../model/types'
 import type { Note } from '@/entities/note'
 import { f7ListItem as F7ListItem } from 'framework7-vue'
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { NOTE_TYPE } from '@/entities/note'
+import { promptFolderName } from '@/features/note-write'
 import { cleanupOverlayLocksAsync } from '@/shared/lib/framework7'
 import Dropdown from '@/shared/ui/dropdown'
 import {
@@ -27,18 +28,25 @@ interface IConfig {
 const props = withDefaults(defineProps <{
   id: string
   isOpen: boolean
-  items: NoteActionMenuItem[]
+  items?: NoteActionMenuItem[]
   presentingElement?: HTMLElement
   presentation?: 'popover' | 'sheet'
   targetEl?: string | HTMLElement
 }>(), {
+  items: () => [
+    { type: 'createNote' },
+    { type: 'createFolder' },
+    { type: 'rename' },
+    { type: 'move' },
+    { type: 'delete' },
+  ],
   presentation: 'sheet',
   targetEl: '#long-press-menu-trigger',
 })
 
-const emit = defineEmits(['refresh', 'move', 'didDismiss', 'update:isOpen'])
+const emit = defineEmits(['refresh', 'move', 'didDismiss', 'update:isOpen', 'createNote', 'createFolder'])
 
-const { deleteNote, deleteNow, getNoteById, renameNote, restoreNote } = useNoteActionsMenu()
+const { createFolder, deleteNote, deleteNow, getNoteById, renameNote, restoreNote } = useNoteActionsMenu()
 
 const note = ref<Note | null>(null)
 
@@ -48,6 +56,35 @@ function handleDidDismiss() {
 }
 
 const config = ref<IConfig>({
+  createNote: {
+    label: '新建备忘录',
+    handler: () => {
+      const targetNote = note.value
+      if (!targetNote) {
+        return
+      }
+
+      emit('createNote', targetNote.id)
+    },
+  },
+  createFolder: {
+    label: '新建文件夹',
+    handler: async () => {
+      const targetNote = note.value
+      if (!targetNote) {
+        return
+      }
+
+      const name = await promptFolderName()
+      if (name === null) {
+        return
+      }
+
+      const newFolder = await createFolder(targetNote.id, name)
+      emit('createFolder', { parentId: targetNote.id, folder: newFolder })
+      emit('refresh')
+    },
+  },
   rename: {
     label: '重命名',
     handler: async () => {
@@ -124,9 +161,21 @@ const config = ref<IConfig>({
   },
 })
 
+const displayedItems = computed(() => {
+  return (props.items || []).filter((item) => {
+    if (item.type === 'createNote' || item.type === 'createFolder') {
+      return note.value?.item_type === NOTE_TYPE.FOLDER
+    }
+    return true
+  })
+})
+
 async function handlePopoverAction(item: NoteActionMenuItem) {
+  const handler = config.value[item.type]?.handler
   emit('update:isOpen', false)
-  await config.value[item.type].handler()
+  if (handler) {
+    await handler()
+  }
 }
 
 watch(() => [props.id, props.isOpen], () => {
@@ -136,7 +185,7 @@ watch(() => [props.id, props.isOpen], () => {
   else if (!props.isOpen) {
     note.value = null
   }
-})
+}, { immediate: true })
 </script>
 
 <template>
@@ -154,7 +203,7 @@ watch(() => [props.id, props.isOpen], () => {
         {{ note.title }}
       </F7ActionsLabel>
       <F7ActionsButton
-        v-for="item in items"
+        v-for="item in displayedItems"
         :key="item.type"
         :color="item.type === 'delete' || item.type === 'deleteNow' ? 'red' : undefined"
         @click="config[item.type].handler"
@@ -182,7 +231,7 @@ watch(() => [props.id, props.isOpen], () => {
     </div>
     <F7List strong inset class="app-dropdown__list fastnote-note-actions-menu__list">
       <F7ListItem
-        v-for="item in items"
+        v-for="item in displayedItems"
         :key="item.type"
         link
         :href="false"

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { VirtualList } from 'framework7/types'
 import type { DefineComponent } from 'vue'
-import type { FolderTreeNode } from '@/entities/note'
+import type { FolderTreeNode, Note } from '@/entities/note'
 import type { NoteActionMenuItem } from '@/features/note-actions-menu'
 import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, toRaw, toRef, watch } from 'vue'
 import { NOTE_TYPE } from '@/entities/note'
@@ -44,7 +44,13 @@ const props = withDefaults(
     showDelete: false,
     noteUuid: '',
     showParentFolder: false,
-    pressItems: () => [{ type: 'rename' }, { type: 'move' }, { type: 'delete' }],
+    pressItems: () => [
+      { type: 'createNote' },
+      { type: 'createFolder' },
+      { type: 'rename' },
+      { type: 'move' },
+      { type: 'delete' },
+    ],
     disabledRoute: false,
     disabledLongPress: false,
     expandedStateKey: '',
@@ -54,7 +60,7 @@ const props = withDefaults(
     forwardWheel: true,
   },
 )
-const emit = defineEmits(['refresh', 'update:noteUuid', 'selected'])
+const emit = defineEmits(['refresh', 'update:noteUuid', 'selected', 'createNote', 'createFolder'])
 const NoteMoveModal: DefineComponent = defineAsyncComponent(
   () => import('@/features/note-move/ui/note-move-modal.vue').then(module => module.default),
 ) as unknown as DefineComponent
@@ -269,6 +275,25 @@ async function onLongPressMenuDismiss() {
   showMoveModal.value = true
 }
 
+function onCreateFolder(payload: { parentId: string, folder?: Note | null }) {
+  if (payload.parentId) {
+    if (!expandedItems.value.includes(payload.parentId)) {
+      setExpandedItems([...expandedItems.value, payload.parentId])
+    }
+  }
+  emit('createFolder', payload)
+  emit('refresh')
+}
+
+function onCreateNote(folderId: string) {
+  if (folderId) {
+    if (!expandedItems.value.includes(folderId)) {
+      setExpandedItems([...expandedItems.value, folderId])
+    }
+  }
+  emit('createNote', folderId)
+}
+
 function setExpandedItems(items: string[] | string | undefined) {
   const normalizedItems = normalizeExpandedItems(items)
   expandedItems.value = normalizedItems
@@ -373,6 +398,7 @@ defineExpose({
             :class="{ active: noteUuid === 'allnotes' }"
             :disabled-route
             :lock-indicator-state-map="indicatorStateMap"
+            :media-list="mediaList"
             @selected="onSelected('allnotes')"
           />
           <NoteListItem
@@ -397,6 +423,7 @@ defineExpose({
             :class="{ active: noteUuid === 'unfilednotes' }"
             :disabled-route
             :lock-indicator-state-map="indicatorStateMap"
+            :media-list="mediaList"
             @selected="onSelected('unfilednotes')"
           />
           <NoteListItem
@@ -408,6 +435,7 @@ defineExpose({
             :disabled-route
             :selected-id="noteUuid"
             :lock-indicator-state-map="indicatorStateMap"
+            :media-list="mediaList"
             @selected="onSelected($event)"
           />
           <NoteListItem
@@ -431,6 +459,7 @@ defineExpose({
             :class="{ active: noteUuid === 'deleted' }"
             :disabled-route
             :lock-indicator-state-map="indicatorStateMap"
+            :media-list="mediaList"
             @selected="onSelected('deleted')"
           />
         </F7AccordionGroup>
@@ -460,6 +489,7 @@ defineExpose({
         :lock-indicator-state-map="indicatorStateMap"
         :virtual-list-index="virtualData.fromIndex + index"
         :virtual-row-height="virtualRowHeight"
+        :media-list="mediaList"
         :style="{ top: `${virtualData.topPosition}px` }"
         @selected="onSelected($event)"
       />
@@ -486,6 +516,8 @@ defineExpose({
     @update:is-open="longPressMenuOpen = $event"
     @did-dismiss="onLongPressMenuDismiss"
     @move="onMove"
+    @create-note="onCreateNote"
+    @create-folder="onCreateFolder"
     @refresh="$emit('refresh')"
   />
 

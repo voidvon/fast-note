@@ -283,4 +283,110 @@ describe('note-list context menu on desktop', () => {
     expect(actionsMenu.props('isOpen')).toBe(true)
     expect(actionsMenu.props('id')).toBe('note-c')
   })
+
+  it('expands folder and forwards createNote and createFolder events when triggered from actions menu', async () => {
+    vi.doMock('@/shared/lib/device', () => ({
+      useDeviceType: () => ({ isDesktop: ref(true) }),
+    }))
+    vi.doMock('@/features/global-search', () => ({
+      useGlobalSearch: () => ({ showGlobalSearch: ref(false) }),
+    }))
+    vi.doMock('@/features/note-lock', () => ({
+      useNoteLockIndicatorState: () => ({ indicatorStateMap: ref({}) }),
+    }))
+    vi.doMock('@/features/note-actions-menu', () => ({
+      default: defineComponent({
+        name: 'NoteActionsMenu',
+        props: {
+          id: String,
+          isOpen: Boolean,
+          items: Array,
+        },
+        emits: ['createNote', 'createFolder', 'refresh'],
+        setup(props, { emit }) {
+          return () => h('div', {
+            class: 'mock-actions-menu',
+            onClick: () => {
+              emit('createNote', props.id)
+              emit('createFolder', { parentId: props.id })
+            },
+          })
+        },
+      }),
+    }))
+    vi.doMock('@/features/note-move/ui/note-move-modal.vue', () => ({
+      default: defineComponent({
+        name: 'NoteMoveModal',
+        props: { isOpen: Boolean },
+        setup() {
+          return () => h('div')
+        },
+      }),
+    }))
+    vi.doMock('@/widgets/note-list/ui/note-list-item.vue', () => ({
+      default: defineComponent({
+        name: 'NoteListItem',
+        props: { data: Object },
+        setup(props) {
+          return () => h('div', {
+            'class': 'app-list-item',
+            'data-id': props.data?.originNote?.id,
+          }, props.data?.originNote?.title)
+        },
+      }),
+    }))
+    vi.doMock('@/shared/ui/f7', () => ({
+      F7AccordionGroup: passthrough('F7AccordionGroup'),
+      F7List: passthrough('F7List'),
+    }))
+
+    const NoteList = (await import('@/widgets/note-list/ui/note-list.vue')).default
+
+    const folder1: FolderTreeNode = {
+      originNote: {
+        id: 'folder-1',
+        title: 'Folder 1',
+        item_type: NOTE_TYPE.FOLDER,
+        content: '',
+        created: '2026-01-01T00:00:00Z',
+        updated: '2026-01-01T00:00:00Z',
+        is_deleted: 0,
+        is_locked: 0,
+        parent_id: '',
+        summary: '',
+        note_count: 0,
+        version: 1,
+      },
+      children: [],
+    }
+
+    const wrapper = mount(NoteList, {
+      props: {
+        dataList: [folder1],
+        virtualNotes: false,
+      },
+    })
+    await flushPromises()
+
+    const actionsMenu = wrapper.getComponent({ name: 'NoteActionsMenu' })
+    expect(actionsMenu.props('items')).toEqual([
+      { type: 'createNote' },
+      { type: 'createFolder' },
+      { type: 'rename' },
+      { type: 'move' },
+      { type: 'delete' },
+    ])
+
+    // Trigger action menu events
+    actionsMenu.vm.$emit('createNote', 'folder-1')
+    await flushPromises()
+
+    expect(wrapper.emitted('createNote')).toEqual([['folder-1']])
+
+    actionsMenu.vm.$emit('createFolder', { parentId: 'folder-1' })
+    await flushPromises()
+
+    expect(wrapper.emitted('createFolder')).toEqual([[{ parentId: 'folder-1' }]])
+    expect(wrapper.emitted('refresh')).toBeDefined()
+  })
 })

@@ -157,6 +157,85 @@ export function getDesktopNoteRoutePath(noteId: string, parentId = '') {
   return `/n/${encodeURIComponent(noteId)}`
 }
 
+export function isFolderDescendantOf(
+  folderId: string,
+  ancestorFolderId: string,
+  notes: Note[],
+): boolean {
+  if (!folderId || !ancestorFolderId) {
+    return false
+  }
+
+  if (folderId === ancestorFolderId) {
+    return true
+  }
+
+  const folderMap = new Map(
+    notes
+      .filter(n => n.item_type === NOTE_TYPE.FOLDER && n.is_deleted === 0)
+      .map(f => [f.id, f]),
+  )
+  let curr = folderMap.get(folderId)
+  const visited = new Set<string>()
+
+  while (curr && curr.parent_id) {
+    if (curr.parent_id === ancestorFolderId) {
+      return true
+    }
+    if (visited.has(curr.id)) {
+      break
+    }
+    visited.add(curr.id)
+    curr = folderMap.get(curr.parent_id)
+  }
+
+  return false
+}
+
+export function isNoteInFolderOrDescendants(
+  noteId: string,
+  folderId: string,
+  notes: Note[],
+  deletedNotes: Note[] = [],
+): boolean {
+  if (!noteId || !folderId) {
+    return false
+  }
+
+  if (folderId === 'allnotes') {
+    return notes.some(
+      note => note.id === noteId && note.item_type === NOTE_TYPE.NOTE && note.is_deleted === 0,
+    )
+  }
+
+  if (folderId === 'unfilednotes') {
+    return notes.some(
+      note =>
+        note.id === noteId
+        && note.item_type === NOTE_TYPE.NOTE
+        && !note.parent_id
+        && note.is_deleted === 0,
+    )
+  }
+
+  if (folderId === 'deleted') {
+    return deletedNotes.some(note => note.id === noteId)
+  }
+
+  const targetNote = notes.find(
+    n => n.id === noteId && n.item_type === NOTE_TYPE.NOTE && n.is_deleted === 0,
+  )
+  if (!targetNote) {
+    return false
+  }
+
+  if (targetNote.parent_id === folderId) {
+    return true
+  }
+
+  return isFolderDescendantOf(targetNote.parent_id, folderId, notes)
+}
+
 export function resolveDesktopActiveNoteSelection(
   snapshot: DesktopActiveNoteSnapshot | null,
   notes: Note[],
@@ -177,6 +256,17 @@ export function resolveDesktopActiveNoteSelection(
     return {
       folderId: snapshot.folderId,
       noteId: matchedNote.id,
+      parentId: snapshot.parentId || '',
+    }
+  }
+
+  if (
+    snapshot.noteId
+    && isNoteInFolderOrDescendants(snapshot.noteId, snapshot.folderId, notes, deletedNotes)
+  ) {
+    return {
+      folderId: snapshot.folderId,
+      noteId: snapshot.noteId,
       parentId: snapshot.parentId || '',
     }
   }

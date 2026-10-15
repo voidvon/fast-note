@@ -393,8 +393,11 @@ export function useNote() {
     return notes.value.filter(note => note.updated > updated)
   }
 
-  function getFolderTreeByParentId(parent_id: string = ''): FolderTreeNode[] {
-    return buildFolderTree(notes.value, parent_id)
+  function getFolderTreeByParentId(
+    parent_id: string = '',
+    options: { includeNotes?: boolean } = {},
+  ): FolderTreeNode[] {
+    return buildFolderTree(notes.value, parent_id, options)
   }
 
   function getUnfiledNotesCount() {

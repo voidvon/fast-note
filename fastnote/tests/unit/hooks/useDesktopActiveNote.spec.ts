@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  getDesktopActiveNoteStorageKey,
   getDesktopFolderRoutePath,
   getDesktopNoteRoutePath,
-  getDesktopActiveNoteStorageKey,
   getDesktopNotesForFolder,
+  isFolderDescendantOf,
+  isNoteInFolderOrDescendants,
   resolveDesktopActiveNoteSelection,
   useDesktopActiveNote,
 } from '@/processes/navigation'
@@ -90,5 +92,41 @@ describe('useDesktopActiveNote (t-fn-019 / tc-fn-013)', () => {
     expect(getDesktopNoteRoutePath('note-1')).toBe('/n/note-1')
     expect(getDesktopNoteRoutePath('0')).toBe('/n/0')
     expect(getDesktopNoteRoutePath('0', 'folder-1')).toBe('/n/0?parent_id=folder-1')
+  })
+
+  it('correctly detects folder descendants and notes in subfolders', () => {
+    const rootFolder = makeNote({ id: 'root', item_type: NOTE_TYPE.FOLDER, parent_id: '' })
+    const subFolder = makeNote({ id: 'sub', item_type: NOTE_TYPE.FOLDER, parent_id: 'root' })
+    const grandFolder = makeNote({ id: 'grand', item_type: NOTE_TYPE.FOLDER, parent_id: 'sub' })
+    const noteInGrand = makeNote({ id: 'note-g', parent_id: 'grand', item_type: NOTE_TYPE.NOTE })
+
+    const all = [rootFolder, subFolder, grandFolder, noteInGrand]
+
+    expect(isFolderDescendantOf('grand', 'root', all)).toBe(true)
+    expect(isFolderDescendantOf('grand', 'sub', all)).toBe(true)
+    expect(isFolderDescendantOf('root', 'grand', all)).toBe(false)
+
+    expect(isNoteInFolderOrDescendants('note-g', 'root', all)).toBe(true)
+    expect(isNoteInFolderOrDescendants('note-g', 'sub', all)).toBe(true)
+    expect(isNoteInFolderOrDescendants('note-g', 'grand', all)).toBe(true)
+  })
+
+  it('preserves snapshot selection when note belongs to a subfolder of current folder', () => {
+    const rootFolder = makeNote({ id: 'root', item_type: NOTE_TYPE.FOLDER, parent_id: '' })
+    const subFolder = makeNote({ id: 'sub', item_type: NOTE_TYPE.FOLDER, parent_id: 'root' })
+    const noteInSub = makeNote({ id: 'note-s', parent_id: 'sub', item_type: NOTE_TYPE.NOTE })
+
+    const selection = resolveDesktopActiveNoteSelection({
+      folderId: 'root',
+      noteId: 'note-s',
+      parentId: '',
+      savedAt: Date.now(),
+    }, [rootFolder, subFolder, noteInSub], [])
+
+    expect(selection).toEqual({
+      folderId: 'root',
+      noteId: 'note-s',
+      parentId: '',
+    })
   })
 })

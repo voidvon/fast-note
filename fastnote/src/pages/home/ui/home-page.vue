@@ -16,6 +16,8 @@ import {
   getDesktopNoteRoutePath,
   getDesktopNotesForFolder,
   isDesktopFolderAvailable,
+  isFolderDescendantOf,
+  isNoteInFolderOrDescendants,
   resolveDesktopActiveNoteSelection,
   useDesktopActiveNote,
   useLastVisitedRoute,
@@ -295,8 +297,12 @@ function resolveDesktopFolderIdFromSnapshot(noteId: string) {
     return ''
   }
 
-  const noteExistsInSnapshotFolder = getDesktopNotesForFolder(snapshot.folderId, notes.value, deletedNotes.value)
-    .some(note => note.id === noteId)
+  const noteExistsInSnapshotFolder = isNoteInFolderOrDescendants(
+    noteId,
+    snapshot.folderId,
+    notes.value,
+    deletedNotes.value,
+  )
 
   return noteExistsInSnapshotFolder ? snapshot.folderId : ''
 }
@@ -308,6 +314,18 @@ function resolveDesktopFolderIdForNoteRoute(noteId: string) {
   }
 
   return resolveDesktopFolderIdFromNote(noteId)
+}
+
+function resolveDesktopFolderIdForDraftRoute(parentId: string) {
+  if (parentId && state.folerId && (state.folerId === 'allnotes' || isFolderDescendantOf(parentId, state.folerId, notes.value))) {
+    return state.folerId
+  }
+
+  if (parentId && isDesktopFolderAvailable(parentId, notes.value, deletedNotes.value)) {
+    return parentId
+  }
+
+  return state.folerId || 'allnotes'
 }
 
 function persistDesktopSelectionForFolderContext(noteId: string, folderId = state.folerId) {
@@ -376,7 +394,7 @@ function syncDesktopSelectionFromRoute() {
     }
 
     state.folerId = noteId === '0'
-      ? (parentId && isDesktopFolderAvailable(parentId, notes.value, deletedNotes.value) ? parentId : state.folerId || 'allnotes')
+      ? resolveDesktopFolderIdForDraftRoute(parentId)
       : resolveDesktopFolderIdForNoteRoute(noteId)
     state.noteId = noteId
     state.parentId = noteId === '0' ? parentId : ''
@@ -487,7 +505,12 @@ function hasCurrentDesktopNoteSelection() {
     return false
   }
 
-  return getSortedNotesForFolder(state.folerId).some(note => note.id === state.noteId)
+  return isNoteInFolderOrDescendants(
+    state.noteId,
+    state.folerId,
+    notes.value,
+    deletedNotes.value,
+  )
 }
 
 async function resetDesktopSelectionForUserScope() {
@@ -758,6 +781,7 @@ onUnmounted(() => {
           show-delete
           @refresh="init"
           @selected="handleFolderSelected"
+          @create-note="handleCreateNote"
         />
       </F7PageContent>
       <GlobalSearch

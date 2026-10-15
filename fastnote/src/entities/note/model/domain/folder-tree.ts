@@ -10,17 +10,33 @@ function isActiveNote(note: Note) {
   return note.item_type === NOTE_TYPE.NOTE && note.is_deleted !== 1
 }
 
-export function buildFolderTree(notes: Note[], parentId = ''): FolderTreeNode[] {
+export function buildFolderTree(
+  notes: Note[],
+  parentId = '',
+  options: { includeNotes?: boolean } = {},
+): FolderTreeNode[] {
   const allFolders = notes.filter(isActiveFolder)
-  const childFolders = allFolders.filter(note => normalizeParentIdKey(note.parent_id) === normalizeParentIdKey(parentId))
+  const allNotes = options.includeNotes ? notes.filter(isActiveNote) : []
+  const childFolders = allFolders.filter(
+    note => normalizeParentIdKey(note.parent_id) === normalizeParentIdKey(parentId),
+  )
 
   const buildTreeNode = (currentFolder: Note): FolderTreeNode => {
-    const children = allFolders
+    const subFolders = allFolders
       .filter(note => note.parent_id === currentFolder.id)
+      .toSorted((a, b) => new Date(b.updated!).getTime() - new Date(a.updated!).getTime())
       .map(buildTreeNode)
 
+    const childNotes: FolderTreeNode[] = allNotes
+      .filter(note => note.parent_id === currentFolder.id)
+      .toSorted((a, b) => new Date(b.updated!).getTime() - new Date(a.updated!).getTime())
+      .map(note => ({
+        originNote: note,
+        children: [],
+      }))
+
     return {
-      children,
+      children: [...subFolders, ...childNotes],
       originNote: currentFolder,
     }
   }

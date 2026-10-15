@@ -23,6 +23,7 @@ import {
   F7SkeletonText,
   F7Title,
   F7Toolbar,
+  useAppRouter,
 } from '@/shared/ui/f7'
 import { addOutline, createOutline } from '@/shared/ui/icons'
 import NoteList from '@/widgets/note-list'
@@ -38,9 +39,10 @@ const props = withDefaults(
   },
 )
 
-defineEmits(['selected', 'createNote'])
+const emit = defineEmits(['selected', 'createNote'])
 
 const route = useAppRoute()
+const router = useAppRouter()
 const { notes, addNote, getNote, getFolderTreeByParentId } = useNote()
 const { isDesktop } = useDeviceType()
 
@@ -133,14 +135,18 @@ const folderList = computed(() => {
     return []
 
   if (isUserContext.value) {
-    return useUserPublicNotes(username.value).getPublicFolderTreeByPUuid(folderId.value)
+    return useUserPublicNotes(username.value).getPublicFolderTreeByPUuid(folderId.value, {
+      includeNotes: isDesktop.value,
+    })
   }
 
   if (folderId.value === 'allnotes' || folderId.value === 'unfilednotes') {
     return []
   }
 
-  return getFolderTreeByParentId(folderId.value)
+  return getFolderTreeByParentId(folderId.value, {
+    includeNotes: isDesktop.value,
+  })
 })
 
 const noteList = computed(() => {
@@ -199,6 +205,19 @@ async function openAddFolderDialog() {
     return
 
   await handleAddFolder(name)
+}
+
+function handleNoteListCreateNote(parentId: string) {
+  if (isDesktop.value) {
+    emit('createNote', parentId)
+    return
+  }
+
+  void router.push(parentId ? `/n/0?parent_id=${encodeURIComponent(parentId)}` : '/n/0')
+}
+
+function handleNoteListCreateFolder() {
+  init()
 }
 
 const folders = computed(() => {
@@ -424,6 +443,9 @@ defineExpose({
           virtual-notes
           :scrollable-parent-el="`#${contentElementId}`"
           @selected="$emit('selected', $event)"
+          @create-note="handleNoteListCreateNote"
+          @create-folder="handleNoteListCreateFolder"
+          @refresh="init"
         />
 
         <div v-else class="folder-empty-state">

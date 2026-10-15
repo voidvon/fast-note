@@ -21,6 +21,7 @@ const props = withDefaults(
     selectedId?: string
     virtualListIndex?: number
     virtualRowHeight?: number
+    mediaList?: boolean
   }>(),
   {
     lockIndicatorStateMap: () => ({}),
@@ -29,6 +30,7 @@ const props = withDefaults(
     selectedId: '',
     virtualListIndex: undefined,
     virtualRowHeight: undefined,
+    mediaList: false,
   },
 )
 
@@ -46,6 +48,13 @@ const noteData = computed(() => {
 // 计算属性：获取子节点数据
 const childrenData = computed(() => {
   return props.data.children || []
+})
+
+const isExpandable = computed(() => {
+  if (props.mediaList && !isDesktop.value)
+    return false
+
+  return childrenData.value.length > 0
 })
 
 const resolvedLockIndicatorState = computed<NoteLockIndicatorState>(() => {
@@ -97,15 +106,33 @@ function onClick() {
     void router.push(routerLink.value)
 }
 
+function onLeafClick() {
+  if (props.mediaList && isDesktop.value)
+    return
+  onClick()
+}
+
 function onFolderClickCapture(event: MouseEvent) {
   const target = event.target
   const currentTarget = event.currentTarget
   if (!(target instanceof Element) || !(currentTarget instanceof Element))
     return
-  if (target.closest('.message-list-item') !== currentTarget)
+  if (target.closest('.fastnote-note-list-item') !== currentTarget)
     return
   if (target.closest('.folder-accordion-toggle'))
     return
+
+  if (props.mediaList && isDesktop.value) {
+    event.preventDefault()
+    event.stopPropagation()
+    if (isExpandable.value) {
+      const toggleBtn = currentTarget.querySelector<HTMLElement>(
+        ':scope > .item-link > .item-content .folder-accordion-toggle, :scope > .item-content .folder-accordion-toggle, .folder-accordion-toggle',
+      )
+      toggleBtn?.click()
+    }
+    return
+  }
 
   event.preventDefault()
   event.stopPropagation()
@@ -117,14 +144,14 @@ function onFolderClickCapture(event: MouseEvent) {
   <F7Accordion
     v-if="noteData.item_type === NOTE_TYPE.FOLDER"
     :value="noteData.id"
-    :expandable="childrenData.length > 0"
+    :expandable="isExpandable"
     :data-id="noteData.id"
     :class="{
       'active': selectedId === noteData.id,
       'no-children': !childrenData.length,
     }"
     class="fastnote-note-list-item message-list-item"
-    @leaf-click="onClick"
+    @leaf-click="onLeafClick"
     @click.capture="onFolderClickCapture"
   >
     <template #media>
@@ -147,8 +174,19 @@ function onFolderClickCapture(event: MouseEvent) {
       </F7Note>
     </template>
     <template #content>
-      <F7List v-if="childrenData.length" dividers class="child-note-list">
-        <NoteListItem v-for="d in childrenData" :key="d.originNote.id" :data="d" :lock-indicator-state-map="lockIndicatorStateMap" :selected-id :disabled-route class="child-list-item" @selected="$emit('selected', $event)" />
+      <F7List v-if="childrenData.length" dividers :media-list="mediaList" class="child-note-list">
+        <NoteListItem
+          v-for="d in childrenData"
+          :key="d.originNote.id"
+          :data="d"
+          :lock-indicator-state-map="lockIndicatorStateMap"
+          :selected-id="selectedId"
+          :disabled-route="disabledRoute"
+          :show-parent-folder="showParentFolder"
+          :media-list="mediaList"
+          class="child-list-item"
+          @selected="$emit('selected', $event)"
+        />
       </F7List>
     </template>
   </F7Accordion>
@@ -204,7 +242,8 @@ function onFolderClickCapture(event: MouseEvent) {
       cursor: pointer;
     }
 
-    > .item-link > .item-content > .item-inner::before {
+    > .item-link > .item-content > .item-inner::before,
+    > .item-link > .item-content > .item-inner > .item-title-row::before {
       content: var(--f7-accordion-chevron-icon-down) !important;
       color: var(--primary);
       transform: rotate(-90deg);
@@ -212,11 +251,14 @@ function onFolderClickCapture(event: MouseEvent) {
       transition: transform 180ms ease;
     }
 
-    &.accordion-item-opened > .item-link > .item-content > .item-inner::before {
+    &.accordion-item-opened > .item-link > .item-content > .item-inner::before,
+    &.accordion-item-opened > .item-link > .item-content > .item-inner > .item-title-row::before {
+      content: var(--f7-accordion-chevron-icon-down) !important;
       transform: rotate(0deg);
     }
 
-    &.no-children > .item-link > .item-content > .item-inner::before {
+    &.no-children > .item-link > .item-content > .item-inner::before,
+    &.no-children > .item-link > .item-content > .item-inner > .item-title-row::before {
       color: var(--c-purple-gray-550);
     }
 
@@ -229,21 +271,33 @@ function onFolderClickCapture(event: MouseEvent) {
       flex: 1;
     }
 
-    .child-list-item {
-      .folder-icon {
-        --uno: pl-8;
-      }
+    .child-note-list {
+      margin-top: 0;
+      margin-bottom: 0;
+
       .child-list-item {
-        .folder-icon {
-          --uno: pl-16;
+        > .item-link > .item-content {
+          padding-left: calc(var(--f7-list-item-padding-horizontal, 16px) + 16px);
         }
+
+        .folder-icon {
+          --uno: pl-8;
+        }
+
         .child-list-item {
           .folder-icon {
-            --uno: pl-24;
+            --uno: pl-16;
           }
+
           .child-list-item {
             .folder-icon {
-              --uno: pl-32;
+              --uno: pl-24;
+            }
+
+            .child-list-item {
+              .folder-icon {
+                --uno: pl-32;
+              }
             }
           }
         }
@@ -327,7 +381,8 @@ function onFolderClickCapture(event: MouseEvent) {
   }
 
   @media (prefers-reduced-motion: reduce) {
-    &.message-list-item > .item-link > .item-content > .item-inner::before {
+    &.message-list-item > .item-link > .item-content > .item-inner::before,
+    &.message-list-item > .item-link > .item-content > .item-inner > .item-title-row::before {
       transition: none;
     }
   }
