@@ -418,7 +418,7 @@ defineExpose({
           v-else-if="hasChildItems"
           :data-list="[...folders, ...sortedNoteList]"
           :note-uuid="selectedNoteId"
-          :show-parent-folder="data.id === 'allnotes'"
+          :show-parent-folder="folderId === 'allnotes'"
           :expanded-state-key="expandedStateKey"
           media-list
           virtual-notes

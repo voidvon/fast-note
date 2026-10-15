@@ -70,17 +70,23 @@ export function useSessionBootstrap() {
             header: '检测到未登录时创建的备忘录',
             message: '登录后，是否要将这些备忘录上传到当前账号？',
             backdropDismiss: false,
+            verticalButtons: true,
             buttons: [
+              {
+                text: '上传到云端',
+                strong: true,
+                handler: () => resolve('merge'),
+              },
               {
                 text: '仅在未登录时显示',
                 role: 'cancel',
                 handler: () => resolve('coexist'),
               },
-              {
-                text: '上传到云端',
-                handler: () => resolve('merge'),
-              },
             ],
+          })
+
+          alert.onDismiss?.(() => {
+            resolve('coexist')
           })
 
           await alert.present()

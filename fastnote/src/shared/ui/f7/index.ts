@@ -57,6 +57,10 @@ export type AlertButton = string | {
   text: string
   role?: string
   cssClass?: string
+  close?: boolean
+  strong?: boolean
+  color?: string
+  keyCodes?: number[]
   handler?: (value: AnyRecord) => unknown
 }
 type OverlayButton = AlertButton
@@ -832,7 +836,10 @@ export const dialogController = {
     const buttons = (params.buttons ?? ['确定']).map(normalizeButton).map((button: AnyRecord) => ({
       text: button.text,
       cssClass: button.cssClass,
-      close: button.role !== 'cancel' || params.backdropDismiss !== false,
+      close: button.close !== undefined ? Boolean(button.close) : true,
+      strong: button.strong,
+      color: button.color,
+      keyCodes: button.keyCodes,
       onClick(instance: AnyRecord) {
         const values: AnyRecord = {}
         inputs.forEach((input, index) => {
@@ -846,6 +853,8 @@ export const dialogController = {
       text: params.message,
       content: inputHtml,
       buttons,
+      verticalButtons: params.verticalButtons ?? false,
+      cssClass: params.cssClass,
       closeByBackdropClick: params.backdropDismiss !== false,
       on: { closed: () => dismissHandlers.splice(0).forEach(handler => handler()) },
     })
@@ -866,6 +875,8 @@ export const F7Alert = defineComponent({
     isOpen: Boolean,
     header: String,
     message: String,
+    verticalButtons: Boolean,
+    cssClass: String,
     buttons: Array as PropType<OverlayButton[]>,
     inputs: Array as PropType<AnyRecord[]>,
   },

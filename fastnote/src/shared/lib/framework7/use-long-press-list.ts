@@ -1,5 +1,5 @@
 import type { ComputedRef, DefineComponent, Ref } from 'vue'
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { getCurrentInstance, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 interface LongPressListOptions {
   duration?: number
@@ -13,7 +13,7 @@ interface LongPressListOptions {
 }
 
 export function useLongPressList(
-  listRef: Ref<DefineComponent | null>,
+  listRef: Ref<HTMLElement | DefineComponent | null | undefined>,
   options: LongPressListOptions,
 ) {
   const {
@@ -32,8 +32,17 @@ export function useLongPressList(
   let timer: number | undefined
   let startX = 0
   let startY = 0
+  let currentElement: HTMLElement | null = null
 
-  const rootElement = () => listRef.value?.$el as HTMLElement | undefined
+  const getElement = () => {
+    const raw = listRef.value
+    if (!raw)
+      return null
+    if (raw instanceof HTMLElement)
+      return raw
+    return (raw.$el as HTMLElement | undefined) ?? null
+  }
+
   const isEnabled = () => enabled?.value ?? true
   const findItem = (event: Event) => (event.target as HTMLElement | null)?.closest(itemSelector) as HTMLElement | null
 
@@ -93,30 +102,43 @@ export function useLongPressList(
     onItemLongPress(item, event)
   }
 
-  function setup() {
-    const root = rootElement()
-    root?.addEventListener('pointerdown', onPointerDown)
-    root?.addEventListener('pointermove', onPointerMove)
-    root?.addEventListener('pointerup', cancel)
-    root?.addEventListener('pointercancel', cancel)
-    root?.addEventListener('click', onClick, true)
-    root?.addEventListener('contextmenu', onContextMenu)
+  function attach(el: HTMLElement | null) {
+    if (currentElement === el)
+      return
+    detach()
+    if (!el)
+      return
+    currentElement = el
+    el.addEventListener('pointerdown', onPointerDown)
+    el.addEventListener('pointermove', onPointerMove)
+    el.addEventListener('pointerup', cancel)
+    el.addEventListener('pointercancel', cancel)
+    el.addEventListener('click', onClick, true)
+    el.addEventListener('contextmenu', onContextMenu)
   }
 
-  function cleanup() {
+  function detach() {
     cancel()
-    const root = rootElement()
-    root?.removeEventListener('pointerdown', onPointerDown)
-    root?.removeEventListener('pointermove', onPointerMove)
-    root?.removeEventListener('pointerup', cancel)
-    root?.removeEventListener('pointercancel', cancel)
-    root?.removeEventListener('click', onClick, true)
-    root?.removeEventListener('contextmenu', onContextMenu)
+    if (currentElement) {
+      currentElement.removeEventListener('pointerdown', onPointerDown)
+      currentElement.removeEventListener('pointermove', onPointerMove)
+      currentElement.removeEventListener('pointerup', cancel)
+      currentElement.removeEventListener('pointercancel', cancel)
+      currentElement.removeEventListener('click', onClick, true)
+      currentElement.removeEventListener('contextmenu', onContextMenu)
+      currentElement = null
+    }
   }
 
-  onMounted(setup)
-  onBeforeUnmount(cleanup)
+  if (getCurrentInstance()) {
+    onMounted(() => attach(getElement()))
+    onBeforeUnmount(detach)
+  }
+  else {
+    attach(getElement())
+  }
+  watch(getElement, attach, { flush: 'post' })
   watch(isEnabled, enabled => !enabled && cancel())
 
-  return { isLongPressing, longPressTriggered, cleanupLongPressGesture: cleanup }
+  return { isLongPressing, longPressTriggered, cleanupLongPressGesture: detach }
 }

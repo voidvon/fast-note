@@ -2,6 +2,8 @@
 
 # Extra test arguments, e.g. make test-unit ARGS="tests/integration/session/login-page.spec.ts"
 ARGS ?=
+# Dev frontend proxy target override, e.g. make dev-frontend TARGET="https://n.0122.vip"
+TARGET ?=
 
 .PHONY: help install install-frontend tidy-backend dev dev-frontend dev-backend \
 	build build-frontend build-backend sync-web-assets lint test test-unit test-backend test-e2e \
@@ -21,8 +23,8 @@ tidy-backend: ## 整理后端 Go 模块
 dev: ## 同时启动前端和本地后端（Ctrl+C 停止两侧）
 	npm run dev
 
-dev-frontend: ## 仅启动前端开发服务器
-	npm run dev:frontend
+dev-frontend: ## 仅启动前端开发服务器（支持 TARGET=https://n.0122.vip 指定后端地址）
+	$(if $(TARGET),VITE_API_PROXY_TARGET=$(TARGET),) npm run dev:frontend
 
 dev-backend: ## 仅启动后端开发服务器
 	npm run dev:backend

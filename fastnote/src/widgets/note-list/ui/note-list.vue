@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { VirtualList } from 'framework7/types'
-import type { DefineComponent, Ref } from 'vue'
+import type { DefineComponent } from 'vue'
 import type { FolderTreeNode } from '@/entities/note'
 import type { NoteActionMenuItem } from '@/features/note-actions-menu'
 import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, toRaw, toRef, watch } from 'vue'
@@ -64,6 +64,7 @@ const EXPANDED_STATE_STORAGE_PREFIX = 'note-list-expanded:'
 
 // const { getNote } = useNote()
 
+const containerRef = ref<HTMLElement>()
 const listRef = ref<DefineComponent>()
 const virtualListRef = ref<DefineComponent>()
 const longPressId = ref('')
@@ -89,10 +90,11 @@ const virtualData = ref<{
 })
 const { indicatorStateMap } = useNoteLockIndicatorState(toRef(props, 'dataList'))
 const longPressEnabled = computed(() => {
-  return !props.disabledLongPress
-    && !showGlobalSearch.value
-    && !longPressMenuOpen.value
-    && !showMoveModal.value
+  if (props.disabledLongPress || showGlobalSearch.value || showMoveModal.value)
+    return false
+  if (isDesktop.value)
+    return true
+  return !longPressMenuOpen.value
 })
 
 const standardItems = computed(() => {
@@ -221,15 +223,20 @@ if (!props.disabledLongPress) {
             x: contextMenuEvent.clientX,
             y: contextMenuEvent.clientY,
           }
-          await nextTick()
+          if (longPressMenuOpen.value) {
+            longPressMenuOpen.value = false
+            await nextTick()
+          }
+          else {
+            await nextTick()
+          }
         }
         longPressId.value = id
         longPressMenuOpen.value = true
       }
     },
   }
-  useLongPressList(listRef as Ref<DefineComponent>, longPressOptions)
-  useLongPressList(virtualListRef as Ref<DefineComponent>, longPressOptions)
+  useLongPressList(containerRef, longPressOptions)
 }
 
 function onSelected(id: string) {
@@ -310,14 +317,12 @@ onMounted(() => {
     e.preventDefault()
   }
 
-  const elements = [listRef.value?.$el, virtualListRef.value?.$el].filter(Boolean) as HTMLElement[]
-  elements.forEach(element => element.addEventListener('wheel', handleWheel!, { passive: false, capture: true }))
+  containerRef.value?.addEventListener('wheel', handleWheel, { passive: false, capture: true })
 })
 
 onUnmounted(() => {
-  if (handleWheel) {
-    const elements = [listRef.value?.$el, virtualListRef.value?.$el].filter(Boolean) as HTMLElement[]
-    elements.forEach(element => element.removeEventListener('wheel', handleWheel!, { capture: true }))
+  if (handleWheel && containerRef.value) {
+    containerRef.value.removeEventListener('wheel', handleWheel, { capture: true })
   }
   handleWheel = null
 })
@@ -329,6 +334,7 @@ defineExpose({
 
 <template>
   <div
+    ref="containerRef"
     class="fastnote-note-list note-list-container"
     :class="{ 'note-list-container--split': hasStandardItems && virtualNoteItems.length }"
   >
